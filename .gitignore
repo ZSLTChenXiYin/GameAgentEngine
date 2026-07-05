@@ -1,0 +1,26 @@
+﻿# GameAgentEngine
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+/bin/
+/tmp/
+/build/
+/dist/
+/vendor/
+.env
+*.local
+.DS_Store
+Thumbs.db
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.db

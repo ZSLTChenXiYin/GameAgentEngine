@@ -1,0 +1,52 @@
+# ========================================
+#  GameAgentEngine 配置文件
+# ========================================
+# 搜索路径：当前目录 ./gameagentengine.conf.yaml
+#          ./config/gameagentengine.conf.yaml
+# 可通过 --config <路径> 显式指定
+
+server:
+  # HTTP 服务监听地址。本机测试用 127.0.0.1，
+  # 开放局域网访问用 0.0.0.0
+  host: "0.0.0.0"
+  # 服务端口号
+  port: 8080
+
+database:
+  # 数据库驱动：sqlite / mysql
+  driver: "sqlite"
+  # SQLite：文件名；MySQL：user:pass@tcp(host:port)/dbname?charset=utf8
+  dsn: "gameagentengine.db"
+
+auth:
+  # API 鉴权密钥，客户端请求时需要附带 X-API-Key 请求头
+  # 开发环境默认值 dev-key，生产环境务必修改
+  api_key: "dev-key"
+
+llm:
+  # LLM 提供商：openai (兼容 OpenAI API 格式的均可)
+  provider: "openai"
+  # 模型名称，可选：gpt-4o-mini / deepseek-chat / qwen-turbo 等
+  model: "deepseek-chat"
+  # API Key，留空则使用 mock Provider（仅用于离线调试）
+  api_key: "sk-xxx"
+  # API 端点地址
+  base_url: "https://api.deepseek.com/v1"
+
+engine:
+  # 执行模式：debug / review / production
+  #   debug      — 动作直接执行，日志最详细
+  #   review     — 高危动作需确认
+  #   production — 自动执行，仅记录日志
+  execution_mode: "production"
+  # 默认世界 ID，留空则由用户首次操作时指定
+  # 后台自主行为调度器是服务级静态开关，默认关闭；节点是否参与由数据库中的 autonomous 组件决定
+  autonomous_scheduler_enabled: false
+  # 后台调度器扫描间隔秒数
+  autonomous_scheduler_interval_seconds: 300
+  # 每次扫描每个世界最多触发的 scheduled 自主节点数
+  autonomous_scheduler_max_nodes_per_world: 10
+
+
+
+

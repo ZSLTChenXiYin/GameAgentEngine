@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>GameAgentCreator</title>
+  <link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+<div id="app"></div>
+<!-- Overlay & Modals -->
+<div id="modalOverlay" class="hidden"></div>
+<div id="modalContainer" class="hidden">
+  <div class="modal-hd"><span id="modalTitle"></span><button id="modalCloseBtn">&#x2715;</button></div>
+  <div class="modal-bd" id="modalBody"></div>
+  <div class="modal-ft" id="modalFooter"></div>
+</div>
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="hidden" style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;">
+  <div style="width:32px;height:32px;border:3px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;"></div>
+  <span id="loadingText" style="color:#fff;font-size:13px;font-weight:500;"></span>
+</div>
+<!-- Context menu -->
+<div id="contextMenu" class="hidden"></div>
+<!-- Toast -->
+<div id="toast"></div>
+<script src="js/version.js?v=2"></script>
+<script src="js/core.js?v=2"></script>
+<script src="js/kv.js?v=2"></script>
+<script src="js/ui.js?v=2"></script>
+<script src="js/pages.js?v=2"></script>
+<script src="js/data.js?v=2"></script>
+<script src="js/layout.js?v=2"></script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+package agent
+
+import (
+	"context"
+	"log"
+	"time"
+
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/service"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
+)
+
+// Scheduler periodically runs scheduled autonomous behavior for enabled nodes.
+type Scheduler struct {
+	pipeline *engine.Pipeline
+	interval time.Duration
+	limit    int
+}
+
+// NewScheduler creates a background autonomous scheduler.
+func NewScheduler(p *engine.Pipeline, interval time.Duration, limit int) *Scheduler {
+	if interval <= 0 {
+		interval = 5 * time.Minute
+	}
+	return &Scheduler{pipeline: p, interval: interval, limit: limit}
+}
+
+// Start runs the scheduler until ctx is cancelled.
+func (s *Scheduler) Start(ctx context.Context) {
+	s.runOnce()
+	ticker := time.NewTicker(s.interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.runOnce()
+		}
+	}
+}
+
+func (s *Scheduler) runOnce() {
+	worlds, err := store.GetWorlds()
+	if err != nil {
+		log.Printf("[autonomous:scheduler] load worlds: %v", err)
+		return
+	}
+	limit := s.limit
+	for _, world := range worlds {
+		runs := service.RunScheduledAutonomous(s.pipeline, world.UUID, &limit, time.Now())
+		if len(runs) > 0 {
+			log.Printf("[autonomous:scheduler] world=%s runs=%d", world.UUID, len(runs))
+		}
+	}
+}
