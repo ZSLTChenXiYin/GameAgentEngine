@@ -8,7 +8,7 @@ REM ============ CONFIG ============
 set ALL_PLATFORMS=windows/amd64 windows/arm64 linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
 set SOURCE_DIR=tools\source
 set OUTPUT_DIR=dist
-set VERSION=v0.4.0
+set VERSION=v0.4.2
 REM ================================
 
 REM Detect current platform
@@ -48,11 +48,11 @@ for %%p in (%TARGETS%) do (
     set GOOS=%%a
     set GOARCH=%%b
     set CGO_ENABLED=0
-    go build -trimpath -ldflags="-s -w -X 'github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=v0.4.0'" -o "!OUT_DIR!\GameAgentEngine!EXT!" .\cmd\gameagentengine\
+    go build -trimpath -ldflags="-s -w -X 'github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=v0.4.2'" -o "!OUT_DIR!\GameAgentEngine!EXT!" .\cmd\gameagentengine\
     if errorlevel 1 popd & exit /b 1
 
     echo [%%a/%%b] Building GameAgentDevCli...
-    go build -trimpath -ldflags="-s -w -X 'github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=v0.4.0'" -o "!OUT_DIR!\GameAgentDevCli!EXT!" .\cmd\gameagentdevcli\
+    go build -trimpath -ldflags="-s -w -X 'github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=v0.4.2'" -o "!OUT_DIR!\GameAgentDevCli!EXT!" .\cmd\gameagentdevcli\
     if errorlevel 1 popd & exit /b 1
 
     if exist gameagentengine.conf.yaml copy gameagentengine.conf.yaml "!OUT_DIR!" >nul

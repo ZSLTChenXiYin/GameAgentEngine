@@ -22,7 +22,7 @@ ALL_PLATFORMS=(
 )
 SOURCE_DIR="tools/source"
 OUTPUT_DIR="dist"
-VERSION="v0.4.0"
+VERSION="v0.4.2"
 # ==============================
 
 # 检测当前平台
@@ -78,14 +78,14 @@ for target in "${TARGETS[@]}"; do
   echo "[${GOOS}/${GOARCH}] Building GameAgentEngine..."
   GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 go build \
     -trimpath \
-    -ldflags="-s -w -X github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=v0.4.0" \
+    -ldflags="-s -w -X github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=v0.4.2" \
     -o "${OUT}/GameAgentEngine${EXT}" \
     ./cmd/gameagentengine/
 
   echo "[${GOOS}/${GOARCH}] Building GameAgentDevCli..."
   GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 go build \
     -trimpath \
-    -ldflags="-s -w -X github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=v0.4.0" \
+    -ldflags="-s -w -X github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=v0.4.2" \
     -o "${OUT}/GameAgentDevCli${EXT}" \
     ./cmd/gameagentdevcli/
 
