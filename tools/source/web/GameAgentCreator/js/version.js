@@ -13,10 +13,10 @@ async function checkEngineVersion() {
     if (!cv || !ev) return; // can't parse, skip check
     // Check: major and minor must match, patch >= min
     if (cv.major !== ev.major || cv.minor !== ev.minor) {
-      toast("版本不兼容: Creator需要" + CREATOR_MIN_COMPATIBLE + "，Engine运行" + info.version, "error");
+      toast("版本不兼�? Creator需�? + CREATOR_MIN_COMPATIBLE + "，Engine运行" + info.version, "error");
       console.warn("Version mismatch: Creator requires", CREATOR_MIN_COMPATIBLE, "Engine is", info.version);
     } else if (ev.patch < cv.patch) {
-      toast("Engine版本过旧: 需要" + CREATOR_MIN_COMPATIBLE + "，当前" + info.version, "error");
+      toast("Engine版本过旧: 需�? + CREATOR_MIN_COMPATIBLE + "，当�? + info.version, "error");
     }
     return info;
   } catch(e) {

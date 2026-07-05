@@ -104,6 +104,9 @@ for target in "${TARGETS[@]}"; do
   echo "[${GOOS}/${GOARCH}] -> ${OUT}/"
   ls -lh "${OUT}/"
   echo ""
+
+  echo "[${GOOS}/${GOARCH}] Packaging..."
+  zip -r "${OUT}.zip" "${OUT}/" > /dev/null 2>&1
 done
 
 echo "========================================="
@@ -112,3 +115,4 @@ for target in "${TARGETS[@]}"; do
   echo "  ${OUTPUT_DIR}/GameAgentEngine-${target%%/*}-${target##*/}-${VERSION}/"
 done
 echo "========================================="
+
