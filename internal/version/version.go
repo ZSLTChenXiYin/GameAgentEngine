@@ -8,10 +8,10 @@ import (
 
 // Version 是引擎的完整语义版本号。
 // 打包时通过 -ldflags -X 注入，开发期使用包内默认值。
-var Version = "v0.4.0"
+var Version = "v0.4.2"
 
 // MinCompatibleVersion 是当前版本能够兼容对接的最低引擎版本（含）。
-var MinCompatibleVersion = "v0.4.0"
+var MinCompatibleVersion = "v0.4.2"
 
 // SemVer 表示解析后的语义版本号。
 type SemVer struct {
@@ -66,4 +66,5 @@ func Check(currentVersion, engineVersion string) (compatible bool, message strin
 
 	return true, fmt.Sprintf("compatible (current=%s, engine=%s)", currentVersion, engineVersion)
 }
+
 
