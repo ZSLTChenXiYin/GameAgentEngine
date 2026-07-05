@@ -27,6 +27,8 @@ if "%~1"=="" (
   if not errorlevel 1 set TARGETS=%ALL_PLATFORMS%
 )
 
+set LDFLAGS=-s -w -X "github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=%VERSION%" -X "github.com/ZSLTChenXiYin/GameAgentEngine/cmd/gameagentdevcli.devCliVersion=%VERSION%"
+
 echo =========================================
 echo  GameAgentEngine Build Script
 echo  Version: %VERSION%
@@ -48,12 +50,17 @@ for %%p in (%TARGETS%) do (
     set GOOS=%%a
     set GOARCH=%%b
     set CGO_ENABLED=0
-    go build -trimpath -ldflags="-s -w -X 'github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=v0.4.2'" -o "!OUT_DIR!\GameAgentEngine!EXT!" .\cmd\gameagentengine\
+    go build -trimpath -ldflags="%LDFLAGS%" -o "!OUT_DIR!\GameAgentEngine!EXT!" .\cmd\gameagentengine\
     if errorlevel 1 popd & exit /b 1
 
     echo [%%a/%%b] Building GameAgentDevCli...
-    go build -trimpath -ldflags="-s -w -X 'github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=v0.4.2'" -o "!OUT_DIR!\GameAgentDevCli!EXT!" .\cmd\gameagentdevcli\
+    go build -trimpath -ldflags="%LDFLAGS%" -o "!OUT_DIR!\GameAgentDevCli!EXT!" .\cmd\gameagentdevcli\
     if errorlevel 1 popd & exit /b 1
+
+    REM Inject version into Creator JS before copying
+    if exist "%SOURCE_DIR%\web\GameAgentCreator\js\version.js" (
+        powershell -Command "(Get-Content '%SOURCE_DIR%\web\GameAgentCreator\js\version.js') -replace 'CREATOR_MIN_COMPATIBLE = \"v[0-9]+\.[0-9]+\.[0-9]+\"', 'CREATOR_MIN_COMPATIBLE = \"%VERSION%\"' | Set-Content '%SOURCE_DIR%\web\GameAgentCreator\js\version.js'"
+    )
 
     if exist gameagentengine.conf.yaml copy gameagentengine.conf.yaml "!OUT_DIR!" >nul
     if exist "%SOURCE_DIR%" xcopy /E /I /Y "%SOURCE_DIR%\*" "!OUT_DIR!" >nul

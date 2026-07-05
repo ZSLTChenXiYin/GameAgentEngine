@@ -8,10 +8,9 @@
 
 set -euo pipefail
 
-# 切换到项目根目录（脚本在 tools/scripts/ 下）
 cd "$(dirname "$0")/../.." || { echo "Failed to locate project root"; exit 1; }
 
-# ============ 配置 ============
+# ============ CONFIG ============
 ALL_PLATFORMS=(
   "windows/amd64"
   "windows/arm64"
@@ -25,7 +24,6 @@ OUTPUT_DIR="dist"
 VERSION="v0.4.2"
 # ==============================
 
-# 检测当前平台
 detect_os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 detect_arch="$(uname -m)"
 case "$detect_os" in
@@ -42,7 +40,6 @@ case "$detect_arch" in
 esac
 CURRENT_PLATFORM="${GOOS}/${GOARCH}"
 
-# 解析命令行选择平台
 if [ $# -eq 0 ]; then
   TARGETS=("$CURRENT_PLATFORM")
 else
@@ -56,6 +53,8 @@ else
     fi
   done
 fi
+
+LDFLAGS="-s -w -X github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=${VERSION} -X github.com/ZSLTChenXiYin/GameAgentEngine/cmd/gameagentdevcli.devCliVersion=${VERSION}"
 
 echo "========================================="
 echo " GameAgentEngine Build Script"
@@ -78,18 +77,23 @@ for target in "${TARGETS[@]}"; do
   echo "[${GOOS}/${GOARCH}] Building GameAgentEngine..."
   GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 go build \
     -trimpath \
-    -ldflags="-s -w -X github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=v0.4.2" \
+    -ldflags="${LDFLAGS}" \
     -o "${OUT}/GameAgentEngine${EXT}" \
     ./cmd/gameagentengine/
 
   echo "[${GOOS}/${GOARCH}] Building GameAgentDevCli..."
   GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 go build \
     -trimpath \
-    -ldflags="-s -w -X github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=v0.4.2" \
+    -ldflags="${LDFLAGS}" \
     -o "${OUT}/GameAgentDevCli${EXT}" \
     ./cmd/gameagentdevcli/
 
-  # 复制打包附带文件
+  # Inject version into Creator JS before copying
+  if [ -f "${SOURCE_DIR}/web/GameAgentCreator/js/version.js" ]; then
+    sed -i.bak "s/CREATOR_MIN_COMPATIBLE = \"v[0-9]\+\.[0-9]\+\.[0-9]\+\"/CREATOR_MIN_COMPATIBLE = \"${VERSION}\"/" "${SOURCE_DIR}/web/GameAgentCreator/js/version.js"
+    rm -f "${SOURCE_DIR}/web/GameAgentCreator/js/version.js.bak"
+  fi
+
   if [ -f "gameagentengine.conf.yaml" ]; then
     cp gameagentengine.conf.yaml "${OUT}/"
   fi

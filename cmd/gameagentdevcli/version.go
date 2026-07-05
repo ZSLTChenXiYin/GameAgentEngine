@@ -8,6 +8,7 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/version"
 )
 
+// devCliVersion 在打包时通过 -ldflags -X 注入，默认值来自 version 包。
 var devCliVersion = version.Version
 
 var devCliVersionCmd = &cobra.Command{
@@ -48,3 +49,4 @@ func checkEngineVersion() {
 		os.Exit(1)
 	}
 }
+
