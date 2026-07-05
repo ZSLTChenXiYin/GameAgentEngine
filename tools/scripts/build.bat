@@ -67,6 +67,9 @@ for %%p in (%TARGETS%) do (
 
     echo [%%a/%%b] -^> !OUT_DIR!\
     dir /a-d /b "!OUT_DIR!"
+
+    echo [%%a/%%b] Packaging to zip...
+    powershell -Command "Compress-Archive -Path '!OUT_DIR!\*' -DestinationPath '!OUT_DIR!.zip' -Force"
     echo.
   )
 )
