@@ -1,5 +1,15 @@
 package store
 
+// ResolveNodeParentUUID 查询单个节点的父节点 UUID 并填充（供 service 层使用）。
+func ResolveNodeParentUUID(m *NodeModel) {
+	if m == nil || m.ParentID == nil { return }
+	list := []NodeModel{*m}
+	resolveNodeParentUUIDs(list)
+	if list[0].ParentUUID != nil {
+		m.ParentUUID = list[0].ParentUUID
+	}
+}
+
 // CreateNode 创建一条节点记录。
 func CreateNode(m *NodeModel) error {
 	if m.UUID == "" {
@@ -12,6 +22,12 @@ func CreateNode(m *NodeModel) error {
 func GetNode(uuid string) (*NodeModel, error) {
 	var m NodeModel
 	err := DB.Where("uuid = ?", uuid).First(&m).Error
+	if err == nil {
+		list := []NodeModel{m}
+		resolveNodeParentUUIDs(list)
+		m.ParentUUID = list[0].ParentUUID
+		m.WorldUUID = list[0].WorldUUID
+	}
 	return &m, err
 }
 
@@ -35,6 +51,9 @@ func GetAllNodes(worldUUID string, limit, offset int, nodeType string) ([]NodeMo
 		q = q.Offset(offset)
 	}
 	err := q.Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveNodeParentUUIDs(list)
+	}
 	return list, err
 }
 
@@ -43,6 +62,9 @@ func GetChildNodes(parentUUID string) ([]NodeModel, error) {
 	parentID := ResolveNodeUUID(parentUUID)
 	var list []NodeModel
 	err := DB.Where("parent_id = ?", parentID).Order("created_at ASC").Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveNodeParentUUIDs(list)
+	}
 	return list, err
 }
 
@@ -50,6 +72,9 @@ func GetChildNodes(parentUUID string) ([]NodeModel, error) {
 func GetWorlds() ([]NodeModel, error) {
 	var list []NodeModel
 	err := DB.Where("node_type = ?", "world").Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveNodeParentUUIDs(list)
+	}
 	return list, err
 }
 
@@ -64,8 +89,6 @@ func UpdateNode(uuid string, updates map[string]any) error {
 }
 
 // FindNodesByTags 在指定世界内通过节点名称模糊匹配 tag 查找节点（简化实现）。
-// Tags 字段暂未单独建表，这里使用 name LIKE 作为近似匹配。
-// TODO: 后续迁移到独立的 node_tags 表。
 func FindNodesByTags(worldUUID string, tags []string) ([]NodeModel, error) {
 	if len(tags) == 0 {
 		return nil, nil
@@ -77,6 +100,9 @@ func FindNodesByTags(worldUUID string, tags []string) ([]NodeModel, error) {
 		q = q.Or("name LIKE ?", "%"+tag+"%")
 	}
 	err := q.Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveNodeParentUUIDs(list)
+	}
 	return list, err
 }
 
@@ -87,5 +113,9 @@ func FindNodesByIDs(uuids []string) ([]NodeModel, error) {
 	}
 	var list []NodeModel
 	err := DB.Where("uuid IN ?", uuids).Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveNodeParentUUIDs(list)
+	}
 	return list, err
 }
+

@@ -17,6 +17,9 @@ func GetTimelineTicks(worldUUID string, limit int) ([]TimelineModel, error) {
 		q = q.Limit(limit)
 	}
 	err := q.Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveTimelineWorldUUIDs(list)
+	}
 	return list, err
 }
 
@@ -25,6 +28,9 @@ func GetLatestTick(worldUUID string) (*TimelineModel, error) {
 	worldID := ResolveWorldUUID(worldUUID)
 	var m TimelineModel
 	err := DB.Where("world_id = ?", worldID).Order("tick_number DESC").First(&m).Error
+	if err == nil {
+		l2 := []TimelineModel{m}; resolveTimelineWorldUUIDs(l2); m.WorldUUID = l2[0].WorldUUID
+	}
 	return &m, err
 }
 
@@ -56,5 +62,9 @@ func GetInferenceLogs(worldUUID string, limit, offset int, taskType string) ([]I
 		q = q.Offset(offset)
 	}
 	err := q.Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveLogNodeUUIDs(list)
+	}
 	return list, err
 }
+

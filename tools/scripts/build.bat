@@ -8,7 +8,7 @@ REM ============ CONFIG ============
 set ALL_PLATFORMS=windows/amd64 windows/arm64 linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
 set SOURCE_DIR=tools\source
 set OUTPUT_DIR=dist
-set VERSION=v0.4.2
+set VERSION=v0.4.3
 REM ================================
 
 REM Detect current platform
@@ -84,4 +84,5 @@ for %%p in (%TARGETS%) do (
 echo =========================================
 popd
 endlocal
+
 

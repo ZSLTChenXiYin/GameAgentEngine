@@ -13,6 +13,9 @@ func GetNodeComponents(nodeUUID string) ([]ComponentModel, error) {
 	nodeID := ResolveNodeUUID(nodeUUID)
 	var list []ComponentModel
 	err := DB.Where("node_id = ?", nodeID).Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveComponentNodeUUIDs(list)
+	}
 	return list, err
 }
 
@@ -21,6 +24,9 @@ func GetComponentsByType(nodeUUID string, compType string) ([]ComponentModel, er
 	nodeID := ResolveNodeUUID(nodeUUID)
 	var list []ComponentModel
 	err := DB.Where("node_id = ? AND component_type = ?", nodeID, compType).Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveComponentNodeUUIDs(list)
+	}
 	return list, err
 }
 
@@ -32,6 +38,9 @@ func GetComponentsByTypeForWorld(worldUUID string, compType string) ([]Component
 		Joins("JOIN nodes ON nodes.id = components.node_id").
 		Where("nodes.world_id = ? AND nodes.deleted_at IS NULL AND components.component_type = ?", worldID, compType).
 		Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveComponentNodeUUIDs(list)
+	}
 	return list, err
 }
 
@@ -39,6 +48,11 @@ func GetComponentsByTypeForWorld(worldUUID string, compType string) ([]Component
 func GetComponent(uuid string) (*ComponentModel, error) {
 	var m ComponentModel
 	err := DB.Where("uuid = ?", uuid).First(&m).Error
+	if err == nil {
+		list := []ComponentModel{m}
+		resolveComponentNodeUUIDs(list)
+		m.NodeUUID = list[0].NodeUUID
+	}
 	return &m, err
 }
 

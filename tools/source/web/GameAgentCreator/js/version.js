@@ -1,5 +1,5 @@
 /* ============= Version Check ============= */
-const CREATOR_MIN_COMPATIBLE = "v0.4.2";
+const CREATOR_MIN_COMPATIBLE = "v0.4.3";
 
 let engineVersionInfo = null;
 
@@ -13,10 +13,10 @@ async function checkEngineVersion() {
     if (!cv || !ev) return; // can't parse, skip check
     // Check: major and minor must match, patch >= min
     if (cv.major !== ev.major || cv.minor !== ev.minor) {
-      toast("版本不兼�? Creator需�? + CREATOR_MIN_COMPATIBLE + "，Engine运行" + info.version, "error");
+      toast("版本不兼�? Creator需�? + CREATOR_MIN_COMPATIBLE + "，Engine运行" + info.version, "error");
       console.warn("Version mismatch: Creator requires", CREATOR_MIN_COMPATIBLE, "Engine is", info.version);
     } else if (ev.patch < cv.patch) {
-      toast("Engine版本过旧: 需�? + CREATOR_MIN_COMPATIBLE + "，当�? + info.version, "error");
+      toast("Engine版本过旧: 需�? + CREATOR_MIN_COMPATIBLE + "，当�? + info.version, "error");
     }
     return info;
   } catch(e) {
@@ -31,3 +31,4 @@ function parseSemVer(v) {
   if (parts.length !== 3) return null;
   return { major: parseInt(parts[0]), minor: parseInt(parts[1]), patch: parseInt(parts[2]) };
 }
+

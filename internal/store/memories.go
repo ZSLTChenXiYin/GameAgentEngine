@@ -17,6 +17,9 @@ func SearchMemories(nodeUUID, keyword string, limit int) ([]MemoryModel, error) 
 		q = q.Limit(limit)
 	}
 	err := q.Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveMemoryNodeUUIDs(list)
+	}
 	return list, err
 }
 
@@ -29,6 +32,9 @@ func GetNodeMemories(nodeUUID string, limit int) ([]MemoryModel, error) {
 		q = q.Limit(limit)
 	}
 	err := q.Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveMemoryNodeUUIDs(list)
+	}
 	return list, err
 }
 
@@ -37,6 +43,9 @@ func GetMemoriesByLevel(nodeUUID string, level string) ([]MemoryModel, error) {
 	nodeID := ResolveNodeUUID(nodeUUID)
 	var list []MemoryModel
 	err := DB.Where("node_id = ? AND level = ?", nodeID, level).Order("created_at DESC").Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveMemoryNodeUUIDs(list)
+	}
 	return list, err
 }
 
@@ -44,6 +53,9 @@ func GetMemoriesByLevel(nodeUUID string, level string) ([]MemoryModel, error) {
 func GetMemory(uuid string) (*MemoryModel, error) {
 	var m MemoryModel
 	err := DB.Where("uuid = ?", uuid).First(&m).Error
+	if err == nil {
+		list2 := []MemoryModel{m}; resolveMemoryNodeUUIDs(list2); m.NodeUUID = list2[0].NodeUUID
+	}
 	return &m, err
 }
 
@@ -66,3 +78,4 @@ func CreateMemoriesBulk(mems []MemoryModel) error {
 	}
 	return DB.Create(&mems).Error
 }
+

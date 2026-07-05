@@ -21,7 +21,7 @@ ALL_PLATFORMS=(
 )
 SOURCE_DIR="tools/source"
 OUTPUT_DIR="dist"
-VERSION="v0.4.2"
+VERSION="v0.4.3"
 # ==============================
 
 detect_os="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -115,4 +115,5 @@ for target in "${TARGETS[@]}"; do
   echo "  ${OUTPUT_DIR}/GameAgentEngine-${target%%/*}-${target##*/}-${VERSION}/"
 done
 echo "========================================="
+
 

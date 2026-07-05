@@ -15,6 +15,7 @@ func CreateNode(worldID, name, nodeType string, parentID *string) (*store.NodeMo
 		created, err = createNodeTx(tx, worldID, name, nodeType, parentID)
 		return err
 	})
+	if err == nil && created != nil { store.ResolveNodeParentUUID(created) }
 	return created, err
 }
 
@@ -64,9 +65,12 @@ func UpdateNode(id string, name, nodeType, parentID *string, parentIDSet bool) (
 		if err := tx.Model(&store.NodeModel{}).Where("uuid = ?", id).Updates(updates).Error; err != nil {
 			return err
 		}
-		updated, err = getNodeTx(tx, id)
+			updated, err = getNodeTx(tx, id)
 		return err
 	})
+	if err == nil && updated != nil {
+		store.ResolveNodeParentUUID(updated)
+	}
 	return updated, err
 }
 
@@ -291,3 +295,12 @@ func UpdateMemory(id string, content, level, tags *string) (*store.MemoryModel, 
 func DeleteMemory(id string) error {
 	return deleteByID(&store.MemoryModel{}, id, getMemoryTx)
 }
+
+
+
+
+
+
+
+
+

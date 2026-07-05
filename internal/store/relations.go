@@ -9,8 +9,6 @@ func CreateRelation(m *RelationModel) error {
 }
 
 // GetAllRelations 获取关系列表，支持分页和按类型过滤。
-// worldUUID 非空时按世界过滤；relationType 非空时按关系类型过滤。
-// limit <= 0 表示不限制；offset < 0 时按 0 处理。
 func GetAllRelations(worldUUID string, limit, offset int, relationType string) ([]RelationModel, error) {
 	var list []RelationModel
 	q := DB.Order("created_at ASC")
@@ -28,6 +26,9 @@ func GetAllRelations(worldUUID string, limit, offset int, relationType string) (
 		q = q.Offset(offset)
 	}
 	err := q.Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveRelationRefs(list)
+	}
 	return list, err
 }
 
@@ -36,6 +37,9 @@ func GetNodeRelations(nodeUUID string) ([]RelationModel, error) {
 	nodeID := ResolveNodeUUID(nodeUUID)
 	var list []RelationModel
 	err := DB.Where("source_id = ? OR target_id = ?", nodeID, nodeID).Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolveRelationRefs(list)
+	}
 	return list, err
 }
 
@@ -43,6 +47,9 @@ func GetNodeRelations(nodeUUID string) ([]RelationModel, error) {
 func GetRelation(uuid string) (*RelationModel, error) {
 	var m RelationModel
 	err := DB.Where("uuid = ?", uuid).First(&m).Error
+	if err == nil {
+		l2 := []RelationModel{m}; resolveRelationRefs(l2); m.WorldUUID = l2[0].WorldUUID; m.SourceUUID = l2[0].SourceUUID; m.TargetUUID = l2[0].TargetUUID
+	}
 	return &m, err
 }
 
@@ -55,3 +62,4 @@ func UpdateRelation(uuid string, updates map[string]any) error {
 func DeleteRelation(uuid string) error {
 	return DB.Where("uuid = ?", uuid).Delete(&RelationModel{}).Error
 }
+

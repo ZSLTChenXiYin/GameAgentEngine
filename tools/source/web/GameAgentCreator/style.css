@@ -297,7 +297,7 @@ input { padding:0 7px; height:26px; }
 /* ====== Tree Node ====== */
 
 /* ============= Tree Node Styles ============= */
-.tree-node { user-select:none;-webkit-user-select:none; display:flex; align-items:center; gap:3px; padding:2px 12px; cursor:pointer; border-radius:0; min-height:22px; }
+.tree-node { user-select:none;-webkit-user-select:none; display:flex; align-items:center; gap:3px; padding-top:2px; padding-bottom:2px; cursor:pointer; border-radius:0; min-height:22px; }
 .tree-node:hover { background:var(--bg3); }
 .tree-node.selected { background:var(--accent-soft); outline:1px solid var(--accent); }
 .tree-node.path-ancestor { background:rgba(108,140,255,0.06); }
@@ -361,3 +361,4 @@ input { padding:0 7px; height:26px; }
 .world-toolbar button.dim:hover { opacity:0.7; }
 @keyframes spin { to { transform:rotate(360deg); } }
 #loadingOverlay.hidden { display:none !important; }
+

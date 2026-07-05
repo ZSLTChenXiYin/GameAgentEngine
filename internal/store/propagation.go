@@ -1,16 +1,13 @@
 package store
 
-import (
-)
-
-// PropagationChainModel is now in models.go.
-// Functions below operate on PropagationChainModel using UUID-based queries.
-
 // GetPropagationChains 查询指定世界的所有启用规则链。
 func GetPropagationChains(worldUUID string) ([]PropagationChainModel, error) {
 	worldID := ResolveWorldUUID(worldUUID)
 	var list []PropagationChainModel
 	err := DB.Where("world_id = ? AND enabled = ?", worldID, true).Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolvePropagationWorldUUIDs(list)
+	}
 	return list, err
 }
 
@@ -19,6 +16,9 @@ func GetAllPropagationChains(worldUUID string) ([]PropagationChainModel, error) 
 	worldID := ResolveWorldUUID(worldUUID)
 	var list []PropagationChainModel
 	err := DB.Where("world_id = ?", worldID).Find(&list).Error
+	if err == nil && len(list) > 0 {
+		resolvePropagationWorldUUIDs(list)
+	}
 	return list, err
 }
 
