@@ -242,14 +242,16 @@ World: 灰港边境
 
 ---
 
-## 10. 世界复制（CloneWorld）
+## 10. 世界分叉与存档
 
-CloneWorld 允许用户复制完整的世界及其全部数据，包括节点、组件、记忆、关系、设置和策略。复制操作通过 API 触发，是服务器端原子操作。
+Engine 将世界复制能力拆分为三类正式语义：工作副本（ForkWorld）、存档快照（CreateWorldSnapshot）和从快照恢复（RestoreWorld）。这三类操作都会复制完整的世界数据，包括节点、组件、记忆、关系、设置和策略，并通过 API 触发为服务器端原子操作。
 
 ### API 端点
 
 ```
-POST /api/v1/worlds/{world_id}/clone
+POST /api/v1/worlds/{world_id}/fork
+POST /api/v1/worlds/{world_id}/snapshots
+POST /api/v1/worlds/{world_id}/restore
 ```
 
 ### 可选参数
@@ -260,7 +262,7 @@ POST /api/v1/worlds/{world_id}/clone
 
 ### 锁定机制
 
-当 `lock_world` 为 `true` 时，引擎使用世界粒度的互斥锁（mutex）保护源世界。**该锁仅影响 CloneWorld 操作本身**，不会阻止正常的节点/组件/记忆/关系读写。锁定只持续复制过程，复制完成后立即释放。
+当 `lock_world` 为 `true` 时，引擎使用世界粒度的互斥锁（mutex）保护源世界或源快照世界。该锁仅影响 fork / snapshot / restore 操作本身，不会阻止正常的节点/组件/记忆/关系读写。锁定只持续复制或恢复过程，完成后立即释放。
 
 ### 行为说明
 
@@ -274,3 +276,13 @@ POST /api/v1/worlds/{world_id}/clone
 - **世界分支**：基于现有世界创建分支，在不同方向上进行演化测试
 - **A/B 测试**：复制同一世界并在不同配置下分别推进，比较结果差异
 - **并行开发**：多个开发者基于同一世界快照独立工作
+
+### 状态资产化边界
+
+当前 Engine 有意将三类“带状态资产”严格分开：
+
+- `ForkWorld`：用于编辑、调试、仿真和分支演化的可运行工作副本
+- `CreateWorldSnapshot`：用于存档、兼容性检查和安全恢复的存档型快照
+- `RestoreWorld`：从已校验快照恢复出的可运行世界
+
+未来如果要支持 Agent 运行态存档、局部 scope 存档、纯结构导出等能力，不应继续复用这三类接口，而应引入新的资产类型，并为它们定义独立的兼容性和恢复规则。

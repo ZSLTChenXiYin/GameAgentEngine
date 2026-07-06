@@ -20,7 +20,7 @@ func GetWorldPolicyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{
-		"world_id":        policy.WorldID,
+		"world_id":        policy.WorldUUID,
 		"blocked_actions": policy.ParseBlockedActions(),
 		"safe_actions":    policy.ParseSafeActions(),
 	})
@@ -43,7 +43,7 @@ func SetWorldPolicyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{
-		"world_id":        policy.WorldID,
+		"world_id":        policy.WorldUUID,
 		"blocked_actions": policy.ParseBlockedActions(),
 		"safe_actions":    policy.ParseSafeActions(),
 	})

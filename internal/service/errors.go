@@ -37,6 +37,7 @@ const (
 // Error 表示一个可分类的领域错误。
 type Error struct {
 	Kind    ErrorKind
+	Code    string
 	Message string
 }
 
@@ -51,8 +52,20 @@ func IsKind(err error, kind ErrorKind) bool {
 }
 
 // errorf 创建带指定分类的领域错误。
+func ErrorCode(err error) string {
+	serviceErr, ok := err.(*Error)
+	if !ok {
+		return ""
+	}
+	return serviceErr.Code
+}
+
 func errorf(kind ErrorKind, format string, args ...any) error {
 	return &Error{Kind: kind, Message: fmt.Sprintf(format, args...)}
+}
+
+func codedErrorf(kind ErrorKind, code, format string, args ...any) error {
+	return &Error{Kind: kind, Code: code, Message: fmt.Sprintf(format, args...)}
 }
 
 func invalidf(format string, args ...any) error {

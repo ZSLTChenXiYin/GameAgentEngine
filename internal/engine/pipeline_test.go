@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
@@ -72,7 +73,7 @@ func createWorldAndNode(t *testing.T) (string, string) {
 func TestExecuteVerticalRespectsPipelineModeAndSkipsExtraRounds(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
-	if _, err := store.UpsertWorldSettingsWithMask(worldID, &store.WorldSettingsModel{PipelineMode: "vertical", MaxAnalysisRounds: 3}, false, false); err != nil {
+	if _, err := store.UpsertWorldSettingsWithMask(worldID, &store.WorldSettingsModel{PipelineMode: "vertical", MaxAnalysisRounds: 3}, &store.WorldSettingsUpdateMask{PipelineMode: true, MaxAnalysisRounds: true}); err != nil {
 		t.Fatalf("upsert settings: %v", err)
 	}
 
@@ -88,6 +89,21 @@ func TestExecuteVerticalRespectsPipelineModeAndSkipsExtraRounds(t *testing.T) {
 	}
 	if provider.calls != 1 {
 		t.Fatalf("expected 1 llm call in vertical mode, got %d", provider.calls)
+	}
+	if resp.Metadata == nil {
+		t.Fatal("expected metadata")
+	}
+	if resp.Metadata.ConfiguredPipelineMode != "vertical" {
+		t.Fatalf("expected configured pipeline mode vertical, got %q", resp.Metadata.ConfiguredPipelineMode)
+	}
+	if resp.Metadata.EffectivePipelineMode != "vertical" {
+		t.Fatalf("expected effective pipeline mode vertical, got %q", resp.Metadata.EffectivePipelineMode)
+	}
+	if resp.Metadata.MaxAnalysisRounds != 3 {
+		t.Fatalf("expected max analysis rounds 3, got %d", resp.Metadata.MaxAnalysisRounds)
+	}
+	if resp.Metadata.RoundsUsed != 1 {
+		t.Fatalf("expected rounds used 1, got %d", resp.Metadata.RoundsUsed)
 	}
 }
 
@@ -162,5 +178,94 @@ func TestExecuteKeepsWorldPoliciesIsolatedAcrossConcurrentRequests(t *testing.T)
 	}
 	if allowedCount != 1 || blockedCount != 1 {
 		t.Fatalf("expected one allowed and one blocked response, got allowed=%d blocked=%d", allowedCount, blockedCount)
+	}
+}
+
+func TestExecuteDebugTraceIncludesPipelineObservability(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	if _, err := store.UpsertWorldSettingsWithMask(worldID, &store.WorldSettingsModel{PipelineMode: "full", MaxAnalysisRounds: 4}, &store.WorldSettingsUpdateMask{PipelineMode: true, MaxAnalysisRounds: true}); err != nil {
+		t.Fatalf("upsert settings: %v", err)
+	}
+	previousMode := config.Global.Engine.ExecutionMode
+	config.Global.Engine.ExecutionMode = "debug"
+	defer func() { config.Global.Engine.ExecutionMode = previousMode }()
+	GlobalTraceRing = NewTraceRing(1000)
+
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context:  &InvokeContext{PipelineMode: PipelinePolling},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp.Metadata == nil {
+		t.Fatal("expected metadata")
+	}
+	if resp.Metadata.ConfiguredPipelineMode != "full" {
+		t.Fatalf("expected configured pipeline mode full, got %q", resp.Metadata.ConfiguredPipelineMode)
+	}
+	if resp.Metadata.EffectivePipelineMode != "polling" {
+		t.Fatalf("expected effective pipeline mode polling, got %q", resp.Metadata.EffectivePipelineMode)
+	}
+
+	traces := GlobalTraceRing.List(10)
+	if len(traces) != 1 {
+		t.Fatalf("expected 1 trace, got %d", len(traces))
+	}
+	trace := traces[0]
+	if trace.ConfiguredPipelineMode != "full" {
+		t.Fatalf("expected trace configured pipeline mode full, got %q", trace.ConfiguredPipelineMode)
+	}
+	if trace.EffectivePipelineMode != "polling" {
+		t.Fatalf("expected trace effective pipeline mode polling, got %q", trace.EffectivePipelineMode)
+	}
+	if trace.MaxAnalysisRounds != 4 {
+		t.Fatalf("expected trace max analysis rounds 4, got %d", trace.MaxAnalysisRounds)
+	}
+	if trace.RoundsUsed != 1 {
+		t.Fatalf("expected trace rounds used 1, got %d", trace.RoundsUsed)
+	}
+}
+
+func TestExecuteFallsBackToDefaultSettingsWhenStoredValuesAreInvalid(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	settings, err := store.GetOrCreateWorldSettings(worldID)
+	if err != nil {
+		t.Fatalf("get settings: %v", err)
+	}
+	settings.MemoryLimit = 0
+	settings.MaxAnalysisRounds = 0
+	settings.SubTaskTimeoutSecs = 0
+	settings.SubTaskMaxRetries = -1
+	settings.PipelineMode = "mystery"
+	if err := store.DB.Save(settings).Error; err != nil {
+		t.Fatalf("save invalid settings: %v", err)
+	}
+
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp.Metadata == nil {
+		t.Fatal("expected metadata")
+	}
+	if resp.Metadata.ConfiguredPipelineMode != "full" {
+		t.Fatalf("expected configured pipeline mode fallback full, got %q", resp.Metadata.ConfiguredPipelineMode)
+	}
+	if resp.Metadata.EffectivePipelineMode != "full" {
+		t.Fatalf("expected effective pipeline mode fallback full, got %q", resp.Metadata.EffectivePipelineMode)
+	}
+	if resp.Metadata.MaxAnalysisRounds != 5 {
+		t.Fatalf("expected max analysis rounds fallback 5, got %d", resp.Metadata.MaxAnalysisRounds)
 	}
 }

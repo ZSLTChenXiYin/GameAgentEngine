@@ -1,4 +1,4 @@
-﻿package api
+package api
 
 import (
 	"net/http"
@@ -8,9 +8,14 @@ import (
 
 // handleServiceError 将 service 层的分类错误映射到合适的 HTTP 状态码和错误码。
 func handleServiceError(w http.ResponseWriter, err error) {
+	serviceCode := service.ErrorCode(err)
 	switch {
 	// 通用无效请求
 	case service.IsKind(err, service.ErrorInvalid):
+		if serviceCode != "" {
+			errorJSONCode(w, http.StatusBadRequest, serviceCode, err.Error())
+			return
+		}
 		errorJSONCode(w, http.StatusBadRequest, "invalid_request", err.Error())
 
 	// 领域级无效请求
@@ -51,6 +56,10 @@ func handleServiceError(w http.ResponseWriter, err error) {
 
 	// 通用冲突
 	case service.IsKind(err, service.ErrorConflict):
+		if serviceCode != "" {
+			errorJSONCode(w, http.StatusConflict, serviceCode, err.Error())
+			return
+		}
 		errorJSONCode(w, http.StatusConflict, "conflict", err.Error())
 
 	// 领域级冲突

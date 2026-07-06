@@ -123,8 +123,8 @@ MySQL DSN 格式：`user:password@tcp(host:port)/dbname?charset=utf8mb4&parseTim
 | `require_review_above` | critical | 超过此等级需审核 |
 | `pipeline_mode` | full | 管线模式：vertical/polling/full |
 | `propagation_max_depth` | 2 | 记忆向上传播最大层数；0 为不限制 |
-| `sub_task_max_retries` | 2 | 子任务最大重试次数 |
-| `sub_task_timeout_secs` | 60 | 子任务超时秒数 |
+| `sub_task_max_retries` | 2 | 子任务最大重试次数；0 表示禁用自动重试 |
+| `sub_task_timeout_secs` | 60 | 子任务超时秒数；0 表示关闭超时保护 |
 | `enable_propagation_machine` | false | 是否启用标签传播状态机 |
 
 ### 通过 DevCli 配置
@@ -133,14 +133,16 @@ MySQL DSN 格式：`user:password@tcp(host:port)/dbname?charset=utf8mb4&parseTim
 # 查看当前设置
 GameAgentDevCli world settings get <world-id>
 
-# 修改设置
+# 只修改需要变更的字段
 GameAgentDevCli world settings set <world-id> \
-  --pipeline-mode "full" \
-  --propagation-max-depth 3 \
-  --sub-task-max-retries 3 \
-  --sub-task-timeout-secs 120 \
-  --enable-propagation-machine true
+  --pipeline-mode "polling" \
+  --propagation-max-depth 0 \
+  --sub-task-max-retries 0 \
+  --sub-task-timeout-secs 0 \
+  --enable-propagation-machine false
 ```
+
+CLI 发送的是部分更新请求，未传入的 flag 会保留当前值。
 
 ### 通过 Creator 配置
 

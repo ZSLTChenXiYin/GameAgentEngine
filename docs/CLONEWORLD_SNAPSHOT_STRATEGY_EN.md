@@ -2,6 +2,8 @@
 
 [**中文**](./CLONEWORLD_SNAPSHOT_STRATEGY.md) | **English**
 
+> Historical note: this document is retained as design background. The current engine API has moved to `ForkWorld`, `CreateWorldSnapshot`, and `RestoreWorld`, and no longer exposes `CloneWorld` as a compatibility interface.
+
 This document describes the recommended evolution path for `CloneWorld` when it is used as a save-game mechanism.
 
 The current `CloneWorld` implementation is closer to "duplicate a world and all of its business data".

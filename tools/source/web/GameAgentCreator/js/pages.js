@@ -20,6 +20,7 @@ function renderCenter() {
   if (state.selectedNodeId || state.selectedWorldId) center.appendChild(selBar);
   switch (state.page) {
     case 'worlds': renderWorldsPage(center); break;
+    case 'snapshots': renderSnapshotsPage(center); break;
     case 'policy': renderPolicyPage(center); break;
     case 'settings': renderSettingsPage(center); break;
     case 'logs': renderLogsPage(center); break;
@@ -28,10 +29,147 @@ function renderCenter() {
   }
 }
 
+function snapshotStatusColor(status) {
+  switch (status) {
+    case 'valid': return 'var(--green)';
+    case 'invalid': return 'var(--red)';
+    case 'working_copy': return 'var(--accent)';
+    case 'restored_copy': return '#f59e0b';
+    default: return 'var(--text-dim)';
+  }
+}
+
+function snapshotReasonLabel(reason) {
+  return tr(reason || 'unknown');
+}
+
+function snapshotStatusLabel(status) {
+  return tr(status || 'unknown');
+}
+
+function renderSnapshotsPage(container) {
+  var selectedWorld = state.worlds.find(function(x) { return x.id === state.selectedWorldId; });
+  var listWorld = state.worlds.find(function(x) { return x.id === state.snapshotListWorldId; });
+  const toolbar = ce('div', { className: 'world-toolbar' }, [
+    ce('button', { id: 'btnRefreshSnapshots' }, [ttxt('Refresh Snapshots')]),
+    ce('button', { id: 'btnCreateSnapshotFromPage' }, [ttxt('Save Snapshot')]),
+  ]);
+  container.appendChild(toolbar);
+
+  if (!state.selectedWorldId) {
+    container.appendChild(ce('div', { className: 'hint' }, [ttxt('Select a world first.')]));
+    return;
+  }
+
+  if (state.snapshotMeta) {
+    const meta = state.snapshotMeta;
+    const metaCard = ce('div', { className: 'detail-card' }, [
+      ce('div', { className: 'card-hd' }, [ttxt('Current World Snapshot Metadata')]),
+      ce('div', { className: 'card-bd' }, [
+        ce('div', { className: 'hint' }, [ttxt(meta.reason === 'save_snapshot' ? 'Current selection is a saved snapshot world.' : 'Current selection is a copied world with snapshot lineage metadata.')]),
+        renderPropRow('Snapshot Name', meta.snapshot_name || '-'),
+        renderPropRow('Reason', meta.reason ? snapshotReasonLabel(meta.reason) : '-'),
+        renderPropRow('Status', meta.status ? snapshotStatusLabel(meta.status) : '-'),
+        renderPropRow('Restorable', meta.restorable ? tr('Yes') : tr('No')),
+        renderPropRow('Source World', meta.source_world_id || '-', { mono: true }),
+        renderPropRow('Validation Issues', (meta.validation_issues || []).join(', ') || '-'),
+        ce('div', { className: 'policy-actions' }, [
+          meta.source_world_id && meta.source_world_id !== state.selectedWorldId ? ce('button', { id: 'btnOpenSnapshotSourceWorld' }, [ttxt('Open Source World')]) : null,
+          ce('button', { id: 'btnValidateCurrentSnapshot' }, [ttxt('Validate')]),
+          meta.reason === 'save_snapshot' ? ce('button', { id: 'btnRestoreCurrentSnapshot' }, [ttxt('Restore')]) : null,
+          meta.reason === 'save_snapshot' ? ce('button', { id: 'btnDeleteCurrentSnapshot', className: 'danger' }, [ttxt('Delete')]) : null,
+        ]),
+      ]),
+    ]);
+    container.appendChild(metaCard);
+  }
+
+  var listTitle = tr('Saved Snapshots');
+  if (state.snapshotMeta && state.snapshotMeta.reason === 'save_snapshot') {
+    listTitle = tr('Saved Snapshots of Source World');
+  }
+
+  const listCard = ce('div', { className: 'detail-card' }, [
+    ce('div', { className: 'card-hd' }, [txt(listTitle)]),
+    ce('div', { className: 'card-bd', id: 'snapshotListBody' }, [
+      ce('div', { className: 'hint' }, [txt(state.snapshotMeta && state.snapshotMeta.reason === 'save_snapshot'
+        ? tr('Showing all save snapshots created from the source world of the current snapshot.')
+        : tr('Showing all save snapshots created from the currently selected world.'))]),
+      (state.snapshotListWorldId || listWorld) ? renderPropRow('List World', (listWorld ? listWorld.name + ' ' : '') + '(' + (state.snapshotListWorldId || '-') + ')') : null,
+    ]),
+  ]);
+  container.appendChild(listCard);
+
+  const listBody = document.getElementById('snapshotListBody');
+  const snapshots = state.snapshots || [];
+  if (snapshots.length === 0) {
+    listBody.appendChild(ce('div', { className: 'hint' }, [ttxt('No saved snapshots for this world yet.')]));
+  } else {
+    for (var i = 0; i < snapshots.length; i++) {
+      (function() {
+        var snap = snapshots[i];
+        var statusColor = snapshotStatusColor(snap.status);
+        var row = ce('div', { className: 'detail-item' }, [
+          ce('div', { className: 'item-hd' }, [
+            ce('span', { className: 'item-tag', style: { background: 'rgba(59,130,246,.12)', color: statusColor } }, [txt(snapshotStatusLabel(snap.status))]),
+            ce('span', { style: { fontWeight: 600 } }, [txt(' ' + (snap.snapshot_name || snap.snapshot_world_id || '-'))]),
+            ce('span', { style: { fontSize: '10px', color: 'var(--text-dim)' } }, [txt(' ' + (snap.created_at ? new Date(snap.created_at).toLocaleString() : ''))]),
+          ]),
+          ce('div', { className: 'item-body' }, [
+            renderPropRow('ID', snap.snapshot_world_id || '-', { mono: true }),
+            renderPropRow('Counts', 'N ' + (snap.node_count || 0) + ' / C ' + (snap.component_count || 0) + ' / M ' + (snap.memory_count || 0) + ' / R ' + (snap.relation_count || 0)),
+            renderPropRow('Issues', (snap.validation_issues || []).join(', ') || '-'),
+            ce('div', { className: 'policy-actions' }, [
+              ce('button', { className: 'snapshot-validate-btn', dataset: { id: snap.snapshot_world_id } }, [ttxt('Validate')]),
+              ce('button', { className: 'snapshot-restore-btn', dataset: { id: snap.snapshot_world_id, name: snap.snapshot_name || '' }, disabled: !snap.restorable }, [ttxt('Restore')]),
+              ce('button', { className: 'snapshot-delete-btn danger', dataset: { id: snap.snapshot_world_id } }, [ttxt('Delete')]),
+            ]),
+          ]),
+        ]);
+        listBody.appendChild(row);
+      })();
+    }
+  }
+
+  document.getElementById('btnRefreshSnapshots').addEventListener('click', refreshSnapshots);
+  document.getElementById('btnCreateSnapshotFromPage').addEventListener('click', saveSnapshot);
+
+  var currentValidate = document.getElementById('btnValidateCurrentSnapshot');
+  if (currentValidate && state.snapshotMeta) {
+    currentValidate.addEventListener('click', function() { validateSnapshot(state.snapshotMeta.snapshot_world_id); });
+  }
+  var openSourceWorld = document.getElementById('btnOpenSnapshotSourceWorld');
+  if (openSourceWorld && state.snapshotMeta && state.snapshotMeta.source_world_id) {
+    openSourceWorld.addEventListener('click', function() { selectWorld(state.snapshotMeta.source_world_id); });
+  }
+  var currentRestore = document.getElementById('btnRestoreCurrentSnapshot');
+  if (currentRestore && state.snapshotMeta) {
+    currentRestore.addEventListener('click', function() { openRestoreSnapshotModal(state.snapshotMeta.snapshot_world_id, state.snapshotMeta.snapshot_name || ''); });
+  }
+  var currentDelete = document.getElementById('btnDeleteCurrentSnapshot');
+  if (currentDelete && state.snapshotMeta) {
+    currentDelete.addEventListener('click', function() { deleteSnapshot(state.snapshotMeta.snapshot_world_id); });
+  }
+
+  var validateBtns = document.querySelectorAll('.snapshot-validate-btn');
+  validateBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() { validateSnapshot(btn.dataset.id); });
+  });
+  var restoreBtns = document.querySelectorAll('.snapshot-restore-btn');
+  restoreBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() { openRestoreSnapshotModal(btn.dataset.id, btn.dataset.name || ''); });
+  });
+  var deleteBtns = document.querySelectorAll('.snapshot-delete-btn');
+  deleteBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() { deleteSnapshot(btn.dataset.id); });
+  });
+}
+
 /* ============= Worlds Page ============= */
 function renderWorldsPage(container) {
   const toolbar = ce('div', { className: 'world-toolbar' }, [
-        ce('button', { id: 'btnCloneWorld' }, [ttxt('Clone World')]),
+        ce('button', { id: 'btnForkWorld' }, [ttxt('Create Working Copy')]),
+    ce('button', { id: 'btnSaveSnapshot' }, [ttxt('Save Snapshot')]),
     ce('button', { id: 'btnTickAdvance' }, [ttxt('Advance Tick')]),
     ce('button', { id: 'btnAutonomous' }, [ttxt('Run Autonomous')]),
     ce('button', { id: 'btnEventImpact' }, [ttxt('Event Impact')]),
@@ -46,7 +184,8 @@ function renderWorldsPage(container) {
   } else {
     container.appendChild(ce('div', { className: 'hint' }, [ttxt('Select a world to begin editing.')]));
   }
-    document.getElementById('btnCloneWorld').addEventListener('click', cloneWorld);
+  document.getElementById('btnForkWorld').addEventListener('click', forkWorld);
+  document.getElementById('btnSaveSnapshot').addEventListener('click', saveSnapshot);
   document.getElementById('btnTickAdvance').addEventListener('click', tickAdvance);
   document.getElementById('btnAutonomous').addEventListener('click', runAutonomous);
   document.getElementById('btnEventImpact').addEventListener('click', openEventImpactModal);
@@ -239,7 +378,8 @@ function renderSettingsPage(container) {
       for (const o of opts) sel.appendChild(el('option', { value: o, textContent: o, selected: val === o }));
       row.appendChild(sel);
     } else {
-      row.appendChild(el('input', { type: 'number', id: id, value: String(val), min: '1', max: '999' }));
+      var minValue = type === 'number_zero' ? '0' : '1';
+      row.appendChild(el('input', { type: 'number', id: id, value: String(val), min: minValue, max: '999' }));
     }
     form.appendChild(row);
   }
@@ -252,11 +392,11 @@ function renderSettingsPage(container) {
   settingRow('Review Threshold', 'setReviewAbove', 'select', s.require_review_above);
   form.appendChild(ce('div', { className: 'detail-card' }, [ce('div', { className: 'card-hd' }, [ttxt('Pipeline & Propagation')])]));
   settingRow('Pipeline Mode', 'setPipelineMode', 'select_pipeline', s.pipeline_mode || 'full');
-  settingRow('Propagation Max Depth', 'setPropMaxDepth', 'number', s.propagation_max_depth || 2);
+  settingRow('Propagation Max Depth', 'setPropMaxDepth', 'number_zero', s.propagation_max_depth != null ? s.propagation_max_depth : 2);
   settingRow('Enable Propagation Machine', 'setEnablePropMachine', 'bool', s.enable_propagation_machine);
   form.appendChild(ce('div', { className: 'detail-card' }, [ce('div', { className: 'card-hd' }, [ttxt('Sub-Task DAG')])]));
-  settingRow('Sub-Task Max Retries', 'setSubTaskRetries', 'number', s.sub_task_max_retries || 2);
-  settingRow('Sub-Task Timeout (sec)', 'setSubTaskTimeout', 'number', s.sub_task_timeout_secs || 60);
+  settingRow('Sub-Task Max Retries', 'setSubTaskRetries', 'number_zero', s.sub_task_max_retries != null ? s.sub_task_max_retries : 2);
+  settingRow('Sub-Task Timeout (sec)', 'setSubTaskTimeout', 'number_zero', s.sub_task_timeout_secs != null ? s.sub_task_timeout_secs : 60);
   const btnRow = ce('div', { className: 'policy-actions' }, [
     ce('button', { className: 'primary', id: 'btnSaveSettings' }, [ttxt('Save Settings')]),
   ]);
@@ -266,34 +406,125 @@ function renderSettingsPage(container) {
 }
 
 /* ============= Logs Page ============= */
+function parseLogJSON(raw) {
+  if (!raw || !raw.trim || !raw.trim()) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
+}
+
+function renderPropRow(label, value, opts) {
+  if (value === null || value === undefined || value === '') return null;
+  var options = opts || {};
+  var valueNode = value;
+  if (!(valueNode instanceof Node)) {
+    valueNode = ce('span', { className: 'val' + (options.mono ? ' mono' : '') }, [txt(String(value))]);
+  }
+  return ce('div', { className: 'prop-row' + (options.className ? ' ' + options.className : '') }, [
+    ce('span', { className: 'key' }, [options.rawLabel ? txt(label) : ttxt(label)]),
+    valueNode,
+  ]);
+}
+
+function createToggleDetailCard(headerChildren, expanded) {
+  var isExpanded = !!expanded;
+  var card = ce('div', { className: 'trace-card detail-card' }, []);
+  var hd = ce('div', { className: 'card-hd toggle-hd', 'aria-expanded': isExpanded ? 'true' : 'false' }, headerChildren);
+  var body = ce('div', { className: 'card-bd', style: { display: isExpanded ? 'block' : 'none' } }, []);
+  hd.addEventListener('click', function() {
+    var expandedState = this.getAttribute('aria-expanded') === 'true';
+    this.setAttribute('aria-expanded', expandedState ? 'false' : 'true');
+    body.style.display = expandedState ? 'none' : 'block';
+  });
+  card.appendChild(hd);
+  card.appendChild(body);
+  return { card: card, body: body, header: hd };
+}
+
+function renderPreviewBlock(label, text, maxLength) {
+  if (!text) return null;
+  var preview = text;
+  if (maxLength && text.length > maxLength) {
+    preview = text.slice(0, maxLength) + '...';
+  }
+  return renderPropRow(label, ce('pre', { className: 'trace-pre' }, [txt(preview)]), { className: 'trace-block' });
+}
+
+function renderPreviewListBlock(label, items, formatter) {
+  if (!items || items.length === 0) return null;
+  var block = ce('div', { className: 'prop-row trace-block' }, [
+    ce('span', { className: 'key' }, [txt(tr(label) + ' (' + items.length + ')')]),
+  ]);
+  for (var i = 0; i < items.length; i++) {
+    block.appendChild(ce('div', { style: { paddingLeft: '12px', fontSize: '12px', color: 'var(--fg2)' } }, [txt(formatter(items[i]))]));
+  }
+  return block;
+}
+
+function renderLogDetailBlock(label, value) {
+  if (value === null || value === undefined || value === '') return null;
+  var content = null;
+  if (typeof value === 'string') {
+    content = isJSON(value) ? renderKV(value, false) : ce('pre', { className: 'trace-pre' }, [txt(value)]);
+  } else if (typeof value === 'object') {
+    content = renderObjectKV(value, false);
+  } else {
+    content = ce('span', { className: 'val' }, [txt(String(value))]);
+  }
+  return renderPropRow(label, content, { className: 'trace-block' });
+}
+
 function renderLogsPage(container) {
   const toolbar = ce('div', { className: 'world-toolbar' }, [
     ce('button', { id: 'btnRefreshLogs' }, [ttxt('Refresh Logs')]),
   ]);
   container.appendChild(toolbar);
-  const tbl = ce('div', { className: 'log-table' }, []);
-  const hdr = ce('div', { className: 'log-row log-hdr' }, [
-    ce('span', { className: 'log-c time' }, [ttxt('Time')]),
-    ce('span', { className: 'log-c type' }, [ttxt('Type')]),
-    ce('span', { className: 'log-c model' }, [ttxt('Model')]),
-    ce('span', { className: 'log-c tokens' }, [ttxt('Tokens')]),
-    ce('span', { className: 'log-c dur' }, [ttxt('Duration')]),
-  ]);
-  tbl.appendChild(hdr);
+  const list = ce('div', { className: 'trace-container' }, []);
+  if (state.logs.length === 0) {
+    list.appendChild(ce('div', { className: 'hint' }, [ttxt('No logs yet.')]));
+  }
   for (const log of state.logs) {
     var t = log.created_at;
-    try { t = new Date(t).toLocaleTimeString(); } catch(e) {}
-    const r = ce('div', { className: 'log-row' }, [
-      ce('span', { className: 'log-c time' }, [txt(t)]),
-      ce('span', { className: 'log-c type' }, [txt(log.task_type || '-')]),
-      ce('span', { className: 'log-c model' }, [txt(log.llm_model || '-')]),
-      ce('span', { className: 'log-c tokens' }, [txt(String(log.tokens_used || 0))]),
-      ce('span', { className: 'log-c dur' }, [txt(String(log.duration_ms || 0) + 'ms')]),
-    ]);
-    tbl.appendChild(r);
+    try { t = new Date(t).toLocaleString(); } catch(e) {}
+    var requestData = parseLogJSON(log.request_data || '');
+    var responseData = parseLogJSON(log.response_data || '');
+    var pipeline = '-';
+    if (responseData && (responseData.configured_pipeline_mode || responseData.effective_pipeline_mode)) {
+      pipeline = (responseData.configured_pipeline_mode || '-') + ' -> ' + (responseData.effective_pipeline_mode || '-');
+    } else if (requestData && requestData.pipeline_mode) {
+      pipeline = requestData.pipeline_mode;
+    }
+    var rounds = '-';
+    if (responseData && (responseData.rounds_used || responseData.max_analysis_rounds)) {
+      rounds = String(responseData.rounds_used || 0) + ' / ' + String(responseData.max_analysis_rounds || 0);
+    } else if (requestData && requestData.max_analysis_rounds) {
+      rounds = '0 / ' + String(requestData.max_analysis_rounds);
+    }
+
+    var detailCard = createToggleDetailCard([
+      ce('span', { style: { fontWeight: 600 } }, [txt(log.task_type || '-')]),
+      txt(' ' + (log.duration_ms || 0) + 'ms'),
+      txt(' ' + (log.tokens_used || 0) + ' tokens'),
+    ], false);
+
+    var body = detailCard.body;
+    body.appendChild(renderPropRow('Time', t || '-'));
+    body.appendChild(renderPropRow('World', log.world_id ? log.world_id.slice(0, 8) : '-', { mono: true }));
+    body.appendChild(renderPropRow('Node', log.node_id ? log.node_id.slice(0, 8) : '-', { mono: true }));
+    body.appendChild(renderPropRow('Model', log.llm_model || '-'));
+    body.appendChild(renderPropRow('Tokens', String(log.tokens_used || 0)));
+    body.appendChild(renderPropRow('Duration', String(log.duration_ms || 0) + 'ms'));
+    body.appendChild(renderPropRow('Pipeline', pipeline));
+    body.appendChild(renderPropRow('Rounds', rounds));
+
+    if (requestData) {
+      body.appendChild(renderLogDetailBlock('Request', requestData));
+    }
+    if (responseData) {
+      body.appendChild(renderLogDetailBlock('Response', responseData));
+    }
+
+    list.appendChild(detailCard.card);
   }
-  if (state.logs.length === 0) tbl.appendChild(ce('div', { className: 'hint' }, [ttxt('No logs yet.')]));
-  container.appendChild(tbl);
+  container.appendChild(list);
   document.getElementById('btnRefreshLogs').addEventListener('click', loadLogs);
 }
 
@@ -328,7 +559,7 @@ async function renderTracesPage(container) {
 }
 
 async function loadTraces(container) {
-  container.innerHTML = ce("div", { className: "hint" }, [txt("Loading...")]);
+  container.innerHTML = ce("div", { className: "hint" }, [ttxt("Loading...")]);
 
   try {
     var q = "/debug/traces?limit=30";
@@ -345,77 +576,54 @@ async function loadTraces(container) {
     for (var ti = 0; ti < traces.length; ti++) {
       (function() {
         var t = traces[ti];
-        var card = ce("div", { className: "trace-card detail-card" }, []);
-        var hd = ce("div", { className: "card-hd toggle-hd", "aria-expanded": "false" }, [
+        var detailCard = createToggleDetailCard([
           ce("span", { style: { fontWeight: 600 } }, [txt(t.task_type || "?")]),
           txt(" " + (t.duration_ms || 0) + "ms"),
-          txt(" [" + (t.round != null ? "round " + t.round : "") + "]"),
-          t.error ? ce("span", { style: { color: "var(--red)", marginLeft: "8px" } }, [txt(" ERROR")]) : null,
-        ]);
-        card.appendChild(hd);
+          txt(" [" + (t.round != null ? tr('Rounds') + ' ' + t.round : "") + "]"),
+          t.error ? ce("span", { style: { color: "var(--red)", marginLeft: "8px" } }, [txt(' ' + tr('Unknown error'))]) : null,
+        ], false);
 
-        var body = ce("div", { className: "card-bd", style: { display: "none" } }, []);
+        var body = detailCard.body;
 
         // Basic info
-        body.appendChild(ce("div", { className: "prop-row" }, [ce("span", { className: "key" }, [txt("World")]), ce("span", { className: "val mono" }, [txt(t.world_id ? t.world_id.slice(0, 8) : "-")])]));
-        body.appendChild(ce("div", { className: "prop-row" }, [ce("span", { className: "key" }, [txt("Node")]), ce("span", { className: "val mono" }, [txt(t.node_id ? t.node_id.slice(0, 8) : "-")])]));
-        body.appendChild(ce("div", { className: "prop-row" }, [ce("span", { className: "key" }, [txt("Duration")]), ce("span", { className: "val" }, [txt(t.duration_ms + "ms")])]));
+        body.appendChild(renderPropRow('World', t.world_id ? t.world_id.slice(0, 8) : '-', { mono: true }));
+        body.appendChild(renderPropRow('Node', t.node_id ? t.node_id.slice(0, 8) : '-', { mono: true }));
+        body.appendChild(renderPropRow('Duration', (t.duration_ms || 0) + 'ms'));
+        body.appendChild(renderPropRow('Pipeline', (t.configured_pipeline_mode || '-') + ' -> ' + (t.effective_pipeline_mode || '-')));
+        body.appendChild(renderPropRow('Rounds', String(t.rounds_used || 0) + ' / ' + String(t.max_analysis_rounds || 0)));
 
         // System Prompt (collapsible)
         if (t.system_prompt) {
-          body.appendChild(ce("div", { className: "prop-row trace-block" }, [
-            ce("span", { className: "key" }, [ttxt("System Prompt")]),
-            ce("pre", { className: "trace-pre" }, [txt(t.system_prompt.slice(0, 1000) + (t.system_prompt.length > 1000 ? "..." : ""))]),
-          ]));
+          body.appendChild(renderPreviewBlock('System Prompt', t.system_prompt, 1000));
         }
 
         // LLM Response (collapsible)
         if (t.raw_llm_response) {
-          body.appendChild(ce("div", { className: "prop-row trace-block" }, [
-            ce("span", { className: "key" }, [ttxt("LLM Response")]),
-            ce("pre", { className: "trace-pre" }, [txt(t.raw_llm_response.slice(0, 2000) + (t.raw_llm_response.length > 2000 ? "..." : ""))]),
-          ]));
+          body.appendChild(renderPreviewBlock('LLM Response', t.raw_llm_response, 2000));
         }
 
         // Actions
         if (t.parsed_actions && t.parsed_actions.length > 0) {
-          var actSection = ce("div", { className: "prop-row trace-block" }, [
-            ce("span", { className: "key" }, [txt("Actions (" + t.parsed_actions.length + ")")]),
-          ]);
-          for (var ai = 0; ai < t.parsed_actions.length; ai++) {
-            var a = t.parsed_actions[ai];
-            actSection.appendChild(ce("div", { style: { paddingLeft: "12px", fontSize: "12px", color: "var(--fg2)" } }, [txt(a.action_id + " " + (a.mode ? "[" + a.mode + "]" : ""))]));
-          }
-          body.appendChild(actSection);
+          body.appendChild(renderPreviewListBlock('Actions', t.parsed_actions, function(a) {
+            return a.action_id + ' ' + (a.mode ? '[' + a.mode + ']' : '');
+          }));
         }
 
         // Memories
         if (t.parsed_memories && t.parsed_memories.length > 0) {
-          var memSection = ce("div", { className: "prop-row trace-block" }, [
-            ce("span", { className: "key" }, [txt("Memories (" + t.parsed_memories.length + ")")]),
-          ]);
-          for (var mi = 0; mi < t.parsed_memories.length; mi++) {
-            var m = t.parsed_memories[mi];
-            var mContent = (m.content || "").slice(0, 100);
-            memSection.appendChild(ce("div", { style: { paddingLeft: "12px", fontSize: "12px", color: "var(--fg2)" } }, [txt(m.node_id.slice(0, 8) + " " + m.level + ": " + mContent + (m.content && m.content.length > 100 ? "..." : ""))]));
-          }
-          body.appendChild(memSection);
+          body.appendChild(renderPreviewListBlock('Memories', t.parsed_memories, function(m) {
+            var memoryNode = (m.node_id || '').slice(0, 8);
+            var memoryContent = (m.content || '').slice(0, 100);
+            return memoryNode + ' ' + m.level + ': ' + memoryContent + (m.content && m.content.length > 100 ? '...' : '');
+          }));
         }
 
-        card.appendChild(body);
-
-        hd.addEventListener("click", function() {
-          var expanded = this.getAttribute("aria-expanded") === "true";
-          this.setAttribute("aria-expanded", expanded ? "false" : "true");
-          body.style.display = expanded ? "none" : "block";
-        });
-
-        container.appendChild(card);
+        container.appendChild(detailCard.card);
       })();
     }
   } catch (e) {
     container.innerHTML = "";
-    container.appendChild(ce("div", { className: "hint" }, [txt("Failed to load traces: " + e.message)]));
+    container.appendChild(ce("div", { className: "hint" }, [txt(tr("Failed to load traces: ") + e.message)]));
   }
 }
 

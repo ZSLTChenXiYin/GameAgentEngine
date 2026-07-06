@@ -6,6 +6,7 @@ import (
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/service"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
 // MakeTickAdvanceHandler 返回世界刻推进接口处理函数。
@@ -134,24 +135,91 @@ func MakeTimelineReplanHandler(p *engine.Pipeline) http.HandlerFunc {
 
 // MakeScopeAdvanceHandler 推进某个局部范围的世界演化。
 
-// MakeCloneWorldHandler 返回世界复制接口处理函数。
-func MakeCloneWorldHandler(_ *engine.Pipeline) http.HandlerFunc {
+type worldCopyRequest struct {
+	Name      string `json:"name,omitempty"`
+	LockWorld bool   `json:"lock_world,omitempty"`
+}
+
+func makeWorldCopyHandler(copyFn func(worldID, name string, lockWorld bool) (*store.NodeModel, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		worldID := r.PathValue("world_id")
-		var req struct {
-			Name      string `json:"name,omitempty"`
-			LockWorld bool   `json:"lock_world,omitempty"`
-		}
+		var req worldCopyRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			errorJSON(w, 400, "invalid json")
 			return
 		}
-		created, err := service.CloneWorld(worldID, req.Name, req.LockWorld)
+		created, err := copyFn(worldID, req.Name, req.LockWorld)
 		if err != nil {
 			handleServiceError(w, err)
 			return
 		}
 		writeJSON(w, 201, created)
+	}
+}
+
+// MakeForkWorldHandler returns the working-copy fork handler.
+func MakeForkWorldHandler(_ *engine.Pipeline) http.HandlerFunc {
+	return makeWorldCopyHandler(service.ForkWorld)
+}
+
+// MakeCreateWorldSnapshotHandler returns the save snapshot handler.
+func MakeCreateWorldSnapshotHandler(_ *engine.Pipeline) http.HandlerFunc {
+	return makeWorldCopyHandler(service.CreateWorldSnapshot)
+}
+
+// MakeListWorldSnapshotsHandler returns the source-world snapshot listing handler.
+func MakeListWorldSnapshotsHandler(_ *engine.Pipeline) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		worldID := r.PathValue("world_id")
+		result, err := service.ListWorldSnapshots(worldID)
+		if err != nil {
+			handleServiceError(w, err)
+			return
+		}
+		writeJSON(w, 200, result)
+	}
+}
+
+// MakeRestoreWorldHandler returns the snapshot restore handler.
+func MakeRestoreWorldHandler(_ *engine.Pipeline) http.HandlerFunc {
+	return makeWorldCopyHandler(service.RestoreWorld)
+}
+
+// MakeValidateWorldSnapshotHandler returns the snapshot validation handler.
+func MakeValidateWorldSnapshotHandler(_ *engine.Pipeline) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		worldID := r.PathValue("world_id")
+		result, err := service.ValidateWorldSnapshot(worldID)
+		if err != nil {
+			handleServiceError(w, err)
+			return
+		}
+		writeJSON(w, 200, result)
+	}
+}
+
+// MakeGetWorldSnapshotMetadataHandler returns snapshot metadata for a copied world.
+func MakeGetWorldSnapshotMetadataHandler(_ *engine.Pipeline) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		worldID := r.PathValue("world_id")
+		result, err := service.GetWorldSnapshotMetadata(worldID)
+		if err != nil {
+			handleServiceError(w, err)
+			return
+		}
+		writeJSON(w, 200, result)
+	}
+}
+
+// MakeDeleteWorldSnapshotHandler deletes a saved snapshot world and its metadata.
+func MakeDeleteWorldSnapshotHandler(_ *engine.Pipeline) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		worldID := r.PathValue("world_id")
+		if err := service.DeleteWorldSnapshot(worldID); err != nil {
+			handleServiceError(w, err)
+			return
+		}
+		writeJSON(w, 200, map[string]any{"status": "deleted", "snapshot_world_id": worldID})
 	}
 }
 

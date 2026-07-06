@@ -62,7 +62,11 @@ Unified inference entry point. Supports all task types.
   "world_change_plan": {},
   "metadata": {
     "llm_model": "deepseek-chat",
-    "processing_time_ms": 3980
+    "processing_time_ms": 3980,
+    "configured_pipeline_mode": "polling",
+    "effective_pipeline_mode": "vertical",
+    "max_analysis_rounds": 4,
+    "rounds_used": 1
   }
 }
 ```
@@ -266,17 +270,29 @@ Evaluate an event's impact.
 }
 ```
 
-### POST /api/v1/worlds/{world_id}/ticks/replan
+### POST /api/v1/worlds/{world_id}/timeline/replan
 
 Regenerate the world future outline.
 
-### POST /api/v1/worlds/{world_id}/scope/{scope_id}/advance
+### POST /api/v1/worlds/{world_id}/scopes/{scope_id}/advance
 
 Advance evolution within a specific scope.
 
-### POST /api/v1/worlds/{world_id}/clone
+### POST /api/v1/worlds/{world_id}/fork
 
-Clone a world with all its data. The request body may optionally include `lock_world` (bool) to lock the source world during cloning.
+Create a working-copy fork of a world. The request body may optionally include `name` and `lock_world`; when `lock_world` is `true`, the source world is locked during copying.
+
+### POST /api/v1/worlds/{world_id}/snapshots
+
+Create a save snapshot of a world. The request body may optionally include `name` and `lock_world`; when `lock_world` is `true`, the source world is locked during snapshotting.
+
+### POST /api/v1/worlds/{world_id}/restore
+
+Restore a saved snapshot into a new world. `world_id` should be a snapshot world ID. The request body may optionally include `name` and `lock_world`; when `lock_world` is `true`, the snapshot source world is locked during restore.
+
+### DELETE /api/v1/worlds/{world_id}/snapshot
+
+Delete a saved snapshot world together with its persisted snapshot metadata. `world_id` should be a snapshot world ID whose snapshot reason is `save_snapshot`.
 
 ---
 
@@ -309,9 +325,38 @@ Update world runtime settings. Supports partial updates (only send fields to cha
 ```json
 {
   "pipeline_mode": "polling",
-  "propagation_max_depth": 3
+  "propagation_max_depth": 0,
+  "sub_task_max_retries": 0,
+  "sub_task_timeout_secs": 0
 }
 ```
+
+Notes:
+
+- `memory_limit`, `max_analysis_rounds`, and `max_context_depth` must be greater than `0` when provided.
+- `propagation_max_depth`, `sub_task_max_retries`, and `sub_task_timeout_secs` may be set to `0` explicitly.
+- `pipeline_mode` must be one of `vertical`, `polling`, or `full`.
+
+### GET /api/v1/worlds/{world_id}/snapshot-validation
+
+Validate whether a saved snapshot can still be safely restored. Returns a structured report describing version compatibility and drift checks.
+
+### GET /api/v1/worlds/{world_id}/snapshot-metadata
+
+Retrieve snapshot metadata for a copied world.
+
+### GET /api/v1/worlds/{world_id}/snapshots
+
+List all save snapshots created from a source world. Only `save_snapshot` records are returned.
+
+### Invoke Response Metadata
+
+`metadata` may include these pipeline observability fields in addition to the standard model/timing values:
+
+- `configured_pipeline_mode`: the world settings pipeline mode before request-level overrides
+- `effective_pipeline_mode`: the mode actually used for this execution
+- `max_analysis_rounds`: the resolved round budget for this execution
+- `rounds_used`: how many rounds the execution consumed
 
 ---
 

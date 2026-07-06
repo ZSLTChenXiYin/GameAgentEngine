@@ -123,8 +123,8 @@ The following configuration items are user-level dynamic configuration stored in
 | `require_review_above` | critical | Impact level above which review is required |
 | `pipeline_mode` | full | Pipeline mode: vertical/polling/full |
 | `propagation_max_depth` | 2 | Max upward memory propagation depth; 0 = unlimited |
-| `sub_task_max_retries` | 2 | Max sub-task retries |
-| `sub_task_timeout_secs` | 60 | Sub-task timeout in seconds |
+| `sub_task_max_retries` | 2 | Max sub-task retries; 0 disables retries |
+| `sub_task_timeout_secs` | 60 | Sub-task timeout in seconds; 0 disables the timeout guard |
 | `enable_propagation_machine` | false | Enable tag propagation state machine |
 
 ### Configuring via DevCli
@@ -133,14 +133,16 @@ The following configuration items are user-level dynamic configuration stored in
 # View current settings
 GameAgentDevCli world settings get <world-id>
 
-# Modify settings
+# Modify only the fields you want to change
 GameAgentDevCli world settings set <world-id> \
-  --pipeline-mode "full" \
-  --propagation-max-depth 3 \
-  --sub-task-max-retries 3 \
-  --sub-task-timeout-secs 120 \
-  --enable-propagation-machine true
+  --pipeline-mode "polling" \
+  --propagation-max-depth 0 \
+  --sub-task-max-retries 0 \
+  --sub-task-timeout-secs 0 \
+  --enable-propagation-machine false
 ```
+
+The CLI sends a partial settings update: flags you omit keep their existing values.
 
 ### Configuring via Creator
 

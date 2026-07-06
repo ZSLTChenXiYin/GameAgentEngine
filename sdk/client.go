@@ -420,14 +420,56 @@ func (c *Client) DeleteRelation(id string) error {
 	return err
 }
 
-
-// CloneWorld 复制一个世界及其全部数据。
-func (c *Client) CloneWorld(worldID, name string, lockWorld bool) (*Node, error) {
+// ForkWorld creates a working-copy fork of a world and all its data.
+func (c *Client) ForkWorld(worldID, name string, lockWorld bool) (*Node, error) {
 	body := map[string]any{}
 	if name != "" {
 		body["name"] = name
 	}
-	data, err := c.do("POST", "/api/v1/worlds/"+worldID+"/clone", body)
+	if lockWorld {
+		body["lock_world"] = true
+	}
+	data, err := c.do("POST", "/api/v1/worlds/"+worldID+"/fork", body)
+	if err != nil {
+		return nil, err
+	}
+	var result Node
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// CreateWorldSnapshot creates a save-oriented snapshot copy of a world.
+func (c *Client) CreateWorldSnapshot(worldID, name string, lockWorld bool) (*Node, error) {
+	body := map[string]any{}
+	if name != "" {
+		body["name"] = name
+	}
+	if lockWorld {
+		body["lock_world"] = true
+	}
+	data, err := c.do("POST", "/api/v1/worlds/"+worldID+"/snapshots", body)
+	if err != nil {
+		return nil, err
+	}
+	var result Node
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RestoreWorld restores a saved snapshot into a new runnable world copy.
+func (c *Client) RestoreWorld(worldID, name string, lockWorld bool) (*Node, error) {
+	body := map[string]any{}
+	if name != "" {
+		body["name"] = name
+	}
+	if lockWorld {
+		body["lock_world"] = true
+	}
+	data, err := c.do("POST", "/api/v1/worlds/"+worldID+"/restore", body)
 	if err != nil {
 		return nil, err
 	}
@@ -439,6 +481,51 @@ func (c *Client) CloneWorld(worldID, name string, lockWorld bool) (*Node, error)
 }
 
 // GetWorlds 获取所有世界节点。
+// ValidateWorldSnapshot validates whether a saved snapshot can be safely restored.
+func (c *Client) ValidateWorldSnapshot(worldID string) (*SnapshotValidationResult, error) {
+	data, err := c.do("GET", "/api/v1/worlds/"+worldID+"/snapshot-validation", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result SnapshotValidationResult
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetWorldSnapshotMetadata returns snapshot metadata for a copied world.
+func (c *Client) GetWorldSnapshotMetadata(worldID string) (*WorldSnapshotInfo, error) {
+	data, err := c.do("GET", "/api/v1/worlds/"+worldID+"/snapshot-metadata", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result WorldSnapshotInfo
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ListWorldSnapshots returns save snapshots created from a source world.
+func (c *Client) ListWorldSnapshots(worldID string) ([]WorldSnapshotInfo, error) {
+	data, err := c.do("GET", "/api/v1/worlds/"+worldID+"/snapshots", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result []WorldSnapshotInfo
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// DeleteWorldSnapshot deletes a saved snapshot world and its metadata.
+func (c *Client) DeleteWorldSnapshot(worldID string) error {
+	_, err := c.do("DELETE", "/api/v1/worlds/"+worldID+"/snapshot", nil)
+	return err
+}
+
 func (c *Client) GetWorlds() ([]Node, error) {
 	data, err := c.do("GET", "/api/v1/worlds", nil)
 	if err != nil {
@@ -677,19 +764,46 @@ func (c *Client) GetWorldSettings(worldID string) (*WorldSettings, error) {
 }
 
 // SetWorldSettings 更新世界的运行设置。
-func (c *Client) SetWorldSettings(worldID string, settings *WorldSettings) (*WorldSettings, error) {
-	data, err := c.do("PUT", "/api/v1/worlds/"+worldID+"/settings", map[string]any{
-		"memory_limit":               settings.MemoryLimit,
-		"max_analysis_rounds":        settings.MaxAnalysisRounds,
-		"max_context_depth":          settings.MaxContextDepth,
-		"auto_apply":                 settings.AutoApply,
-		"require_review_above":       settings.RequireReviewAbove,
-		"propagation_max_depth":      settings.PropagationMaxDepth,
-		"enable_propagation_machine": settings.EnablePropagationMachine,
-		"sub_task_max_retries":        settings.SubTaskMaxRetries,
-		"sub_task_timeout_secs":       settings.SubTaskTimeoutSecs,
-		"pipeline_mode":                settings.PipelineMode,
-	})
+func buildWorldSettingsUpdateBody(settings *WorldSettingsUpdate) map[string]any {
+	if settings == nil {
+		return map[string]any{}
+	}
+	body := map[string]any{}
+	if settings.MemoryLimit != nil {
+		body["memory_limit"] = *settings.MemoryLimit
+	}
+	if settings.MaxAnalysisRounds != nil {
+		body["max_analysis_rounds"] = *settings.MaxAnalysisRounds
+	}
+	if settings.MaxContextDepth != nil {
+		body["max_context_depth"] = *settings.MaxContextDepth
+	}
+	if settings.AutoApply != nil {
+		body["auto_apply"] = *settings.AutoApply
+	}
+	if settings.RequireReviewAbove != nil {
+		body["require_review_above"] = *settings.RequireReviewAbove
+	}
+	if settings.PropagationMaxDepth != nil {
+		body["propagation_max_depth"] = *settings.PropagationMaxDepth
+	}
+	if settings.EnablePropagationMachine != nil {
+		body["enable_propagation_machine"] = *settings.EnablePropagationMachine
+	}
+	if settings.SubTaskMaxRetries != nil {
+		body["sub_task_max_retries"] = *settings.SubTaskMaxRetries
+	}
+	if settings.SubTaskTimeoutSecs != nil {
+		body["sub_task_timeout_secs"] = *settings.SubTaskTimeoutSecs
+	}
+	if settings.PipelineMode != nil {
+		body["pipeline_mode"] = *settings.PipelineMode
+	}
+	return body
+}
+
+func (c *Client) UpdateWorldSettings(worldID string, settings *WorldSettingsUpdate) (*WorldSettings, error) {
+	data, err := c.do("PUT", "/api/v1/worlds/"+worldID+"/settings", buildWorldSettingsUpdateBody(settings))
 	if err != nil {
 		return nil, err
 	}
@@ -698,6 +812,24 @@ func (c *Client) SetWorldSettings(worldID string, settings *WorldSettings) (*Wor
 		return nil, err
 	}
 	return &result, nil
+}
+
+func (c *Client) SetWorldSettings(worldID string, settings *WorldSettings) (*WorldSettings, error) {
+	if settings == nil {
+		return c.UpdateWorldSettings(worldID, nil)
+	}
+	return c.UpdateWorldSettings(worldID, &WorldSettingsUpdate{
+		MemoryLimit:              &settings.MemoryLimit,
+		MaxAnalysisRounds:        &settings.MaxAnalysisRounds,
+		MaxContextDepth:          &settings.MaxContextDepth,
+		AutoApply:                &settings.AutoApply,
+		RequireReviewAbove:       &settings.RequireReviewAbove,
+		PropagationMaxDepth:      &settings.PropagationMaxDepth,
+		EnablePropagationMachine: &settings.EnablePropagationMachine,
+		SubTaskMaxRetries:        &settings.SubTaskMaxRetries,
+		SubTaskTimeoutSecs:       &settings.SubTaskTimeoutSecs,
+		PipelineMode:             &settings.PipelineMode,
+	})
 }
 
 // ActionCallback 上报异步动作执行结果。
@@ -747,7 +879,6 @@ func (c *Client) GetVersion() (string, string, error) {
 	}
 	return resp.Version, resp.MinCompatible, nil
 }
-
 
 // RawGet 发送 GET 请求并以原始字节返回响应体（用于调试端点）。
 func (c *Client) RawGet(path string) ([]byte, error) {

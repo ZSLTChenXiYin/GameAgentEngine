@@ -86,12 +86,11 @@ var worldReplanCmd = &cobra.Command{
 	},
 }
 
+var worldCopyLock bool
 
-var cloneLock bool
-
-var worldCloneCmd = &cobra.Command{
-	Use:   "clone <world-id> [name]",
-	Short: "复制世界及其全部数据",
+var worldForkCmd = &cobra.Command{
+	Use:   "fork <world-id> [name]",
+	Short: "创建世界工作副本",
 	Args:  cobra.RangeArgs(1, 2),
 	Run: func(cmd *cobra.Command, args []string) {
 		worldID := args[0]
@@ -99,11 +98,98 @@ var worldCloneCmd = &cobra.Command{
 		if len(args) > 1 {
 			name = args[1]
 		}
-		result, err := newClient().CloneWorld(worldID, name, cloneLock)
+		result, err := newClient().ForkWorld(worldID, name, worldCopyLock)
 		if err != nil {
 			fail(err)
 		}
 		printJSON(result)
+	},
+}
+
+var worldSaveCmd = &cobra.Command{
+	Use:   "save <world-id> [name]",
+	Short: "创建世界存档快照",
+	Args:  cobra.RangeArgs(1, 2),
+	Run: func(cmd *cobra.Command, args []string) {
+		worldID := args[0]
+		name := ""
+		if len(args) > 1 {
+			name = args[1]
+		}
+		result, err := newClient().CreateWorldSnapshot(worldID, name, worldCopyLock)
+		if err != nil {
+			fail(err)
+		}
+		printJSON(result)
+	},
+}
+
+var worldRestoreCmd = &cobra.Command{
+	Use:   "restore <snapshot-world-id> [name]",
+	Short: "从存档快照恢复新世界",
+	Args:  cobra.RangeArgs(1, 2),
+	Run: func(cmd *cobra.Command, args []string) {
+		worldID := args[0]
+		name := ""
+		if len(args) > 1 {
+			name = args[1]
+		}
+		result, err := newClient().RestoreWorld(worldID, name, worldCopyLock)
+		if err != nil {
+			fail(err)
+		}
+		printJSON(result)
+	},
+}
+
+var worldValidateSnapshotCmd = &cobra.Command{
+	Use:   "validate-snapshot <snapshot-world-id>",
+	Short: "楠岃瘉瀛樻。蹇収鏄惁鍙互瀹夊叏鎭㈠",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		result, err := newClient().ValidateWorldSnapshot(args[0])
+		if err != nil {
+			fail(err)
+		}
+		printJSON(result)
+	},
+}
+
+var worldSnapshotInfoCmd = &cobra.Command{
+	Use:   "snapshot-info <snapshot-world-id>",
+	Short: "鏌ョ湅瀛樻。蹇収鍏冩暟鎹鎯?",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		result, err := newClient().GetWorldSnapshotMetadata(args[0])
+		if err != nil {
+			fail(err)
+		}
+		printJSON(result)
+	},
+}
+
+var worldListSnapshotsCmd = &cobra.Command{
+	Use:   "list-snapshots <world-id>",
+	Short: "鍒楀嚭鏌愪釜涓栫晫鐨勫瓨妗ｅ揩鐓у垪琛?",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		result, err := newClient().ListWorldSnapshots(args[0])
+		if err != nil {
+			fail(err)
+		}
+		printJSON(result)
+	},
+}
+
+var worldDeleteSnapshotCmd = &cobra.Command{
+	Use:   "delete-snapshot <snapshot-world-id>",
+	Short: "鍒犻櫎瀛樻。蹇収鍙婂叾鎵€瀵瑰簲鐨勪笘鐣屽壇鏈?",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := newClient().DeleteWorldSnapshot(args[0]); err != nil {
+			fail(err)
+		}
+		printJSON(map[string]any{"status": "deleted", "snapshot_world_id": args[0]})
 	},
 }
 
@@ -197,48 +283,48 @@ var worldSettingsSetCmd = &cobra.Command{
 	Short: "设置世界运行设置",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		settings := &sdk.WorldSettings{}
+		settings := &sdk.WorldSettingsUpdate{}
 		if cmd.Flags().Changed("memory-limit") {
 			v, _ := cmd.Flags().GetInt("memory-limit")
-			settings.MemoryLimit = v
+			settings.MemoryLimit = &v
 		}
 		if cmd.Flags().Changed("analysis-rounds") {
 			v, _ := cmd.Flags().GetInt("analysis-rounds")
-			settings.MaxAnalysisRounds = v
+			settings.MaxAnalysisRounds = &v
 		}
 		if cmd.Flags().Changed("context-depth") {
 			v, _ := cmd.Flags().GetInt("context-depth")
-			settings.MaxContextDepth = v
+			settings.MaxContextDepth = &v
 		}
 		if cmd.Flags().Changed("auto-apply") {
 			v, _ := cmd.Flags().GetBool("auto-apply")
-			settings.AutoApply = v
+			settings.AutoApply = &v
 		}
 		if cmd.Flags().Changed("review-above") {
 			v, _ := cmd.Flags().GetString("review-above")
-			settings.RequireReviewAbove = v
+			settings.RequireReviewAbove = &v
 		}
 		if cmd.Flags().Changed("propagation-max-depth") {
 			v, _ := cmd.Flags().GetInt("propagation-max-depth")
-			settings.PropagationMaxDepth = v
+			settings.PropagationMaxDepth = &v
 		}
 		if cmd.Flags().Changed("enable-propagation-machine") {
 			v, _ := cmd.Flags().GetBool("enable-propagation-machine")
-			settings.EnablePropagationMachine = v
+			settings.EnablePropagationMachine = &v
 		}
 		if cmd.Flags().Changed("sub-task-max-retries") {
 			v, _ := cmd.Flags().GetInt("sub-task-max-retries")
-			settings.SubTaskMaxRetries = v
+			settings.SubTaskMaxRetries = &v
 		}
 		if cmd.Flags().Changed("sub-task-timeout-secs") {
 			v, _ := cmd.Flags().GetInt("sub-task-timeout-secs")
-			settings.SubTaskTimeoutSecs = v
+			settings.SubTaskTimeoutSecs = &v
+		}
 		if cmd.Flags().Changed("pipeline-mode") {
 			v, _ := cmd.Flags().GetString("pipeline-mode")
-			settings.PipelineMode = v
+			settings.PipelineMode = &v
 		}
-		}
-		result, err := newClient().SetWorldSettings(args[0], settings)
+		result, err := newClient().UpdateWorldSettings(args[0], settings)
 		if err != nil {
 			fail(err)
 		}
@@ -247,7 +333,7 @@ var worldSettingsSetCmd = &cobra.Command{
 }
 
 func init() {
-	worldCmd.AddCommand(worldTickCmd, worldEventImpactCmd, worldScopeAdvanceCmd, worldReplanCmd, worldCloneCmd, worldSnapshotCmd, worldExportCmd, worldPolicyCmd, worldSettingsCmd)
+	worldCmd.AddCommand(worldTickCmd, worldEventImpactCmd, worldScopeAdvanceCmd, worldReplanCmd, worldForkCmd, worldSaveCmd, worldRestoreCmd, worldValidateSnapshotCmd, worldSnapshotInfoCmd, worldListSnapshotsCmd, worldDeleteSnapshotCmd, worldSnapshotCmd, worldExportCmd, worldPolicyCmd, worldSettingsCmd)
 
 	worldPolicyCmd.AddCommand(worldPolicyGetCmd, worldPolicySetCmd)
 	worldPolicySetCmd.Flags().StringSlice("blocked", []string{}, "阻塞的动作列表，逗号分隔")
@@ -258,7 +344,7 @@ func init() {
 	worldSettingsSetCmd.Flags().Int("analysis-rounds", 0, "LLM 内部轮询最大次数")
 	worldSettingsSetCmd.Flags().Int("context-depth", 0, "上下文向上追溯的最大深度")
 	worldSettingsSetCmd.Flags().Bool("auto-apply", false, "是否自动执行变更计划")
-	worldSettingsSetCmd.Flags().String("review-above", "", "超过此影响等级需要审核 (minor/major/critical)")
+	worldSettingsSetCmd.Flags().String("review-above", "", "超过此影响等级需要审核")
 	worldSettingsSetCmd.Flags().Int("propagation-max-depth", 0, "记忆沿父链上传的最大层数；0 为不限制")
 	worldSettingsSetCmd.Flags().Bool("enable-propagation-machine", false, "是否启用标签传播状态机")
 	worldSettingsSetCmd.Flags().Int("sub-task-max-retries", 0, "子任务最大重试次数；0 使用默认值(2)")
@@ -277,4 +363,7 @@ func init() {
 	worldSnapshotCmd.Flags().String("out", "", "输出文件路径；为空时打印到 stdout")
 	worldExportCmd.Flags().String("format", "yaml", "导出格式：yaml 或 json")
 	worldExportCmd.Flags().String("out", "", "输出文件路径；为空时打印到 stdout")
+	worldForkCmd.Flags().BoolVar(&worldCopyLock, "lock-world", false, "复制期间锁定源世界")
+	worldSaveCmd.Flags().BoolVar(&worldCopyLock, "lock-world", true, "存档期间锁定源世界")
+	worldRestoreCmd.Flags().BoolVar(&worldCopyLock, "lock-world", true, "恢复期间锁定源快照世界")
 }

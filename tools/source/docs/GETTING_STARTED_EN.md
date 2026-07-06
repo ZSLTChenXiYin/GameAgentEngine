@@ -124,13 +124,16 @@ curl -X POST http://127.0.0.1:8080/api/v1/invoke \
 GameAgentDevCli world event-impact <world-id> --type "crisis" --description "..." --severity "critical"
 
 # Clone a world
-GameAgentDevCli world clone <world-id> "My save snapshot" --lock
+GameAgentDevCli world save <world-id> "My save slot 1" --lock-world
 
 # View world runtime settings
 GameAgentDevCli world settings get <world-id>
 
-# Switch pipeline mode
-GameAgentDevCli world settings set <world-id> --pipeline-mode "full"
+# Switch pipeline mode only
+GameAgentDevCli world settings set <world-id> --pipeline-mode "polling"
+
+# Remove the upward propagation depth limit
+GameAgentDevCli world settings set <world-id> --propagation-max-depth 0
 ```
 
 *(See the [GameAgentDevCli Guide](GUIDE_GAMEAGENTDEVCLI_EN.md) for complete command reference.)*

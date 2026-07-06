@@ -22,18 +22,23 @@ function renderTopbar() {
     return b;
   }
   center.appendChild(pageBtn('worlds', tr('Worlds')));
+  center.appendChild(pageBtn('snapshots', tr('Snapshots')));
   center.appendChild(pageBtn('policy', tr('Policy')));
   center.appendChild(pageBtn('settings', tr('Settings')));
-  center.appendChild(pageBtn('logs', tr('Logs')))
+  center.appendChild(pageBtn('logs', tr('Logs')));
   center.appendChild(pageBtn('traces', tr('Traces')));
   const right = ce('div', { className: 'topbar-right' }, [
-    el('span', { id: 'connStatus', className: 'status', innerHTML: '<span class="status-dot off"></span> Disconnected' }),
-    ce('button', { id: 'btnConfig', title: 'Config' }, [ttxt('\u2699')]),
+    el('span', { id: 'connStatus', className: 'status', innerHTML: '<span class="status-dot off"></span> ' + tr('Disconnected') }),
+    ce('button', { id: 'btnConfig', title: tr('Server Config') }, [ttxt('\u2699')]),
   ]);
   topbar.appendChild(left);
-  const rightSec = ce('div', { className: 'topbar-right' }, [ce('button', { className: 'lang-btn', onclick: toggleLang, title: 'Switch Language' }, [ce('span', { className: 'lang-icon' }, [txt(lang === 'zh' ? 'EN' : '中')])]),
-    ce('button', { className: 'theme-btn', onclick: toggleTheme, title: 'Toggle Theme' }, [txt(theme === 'dark' ? '\u2600' : '\u2601')])]);
-  topbar.appendChild(rightSec); topbar.appendChild(center); topbar.appendChild(right);
+  const rightSec = ce('div', { className: 'topbar-right' }, [
+    ce('button', { className: 'lang-btn', onclick: toggleLang, title: tr('Switch Language') }, [ce('span', { className: 'lang-icon' }, [txt(lang === 'zh' ? 'EN' : '中')])]),
+    ce('button', { className: 'theme-btn', onclick: toggleTheme, title: tr('Toggle Theme') }, [txt(theme === 'dark' ? '\u2600' : '\u2601')]),
+  ]);
+  topbar.appendChild(rightSec);
+  topbar.appendChild(center);
+  topbar.appendChild(right);
   document.getElementById('btnConfig').addEventListener('click', openConfigModal);
   document.getElementById('topbarCreateWorld').addEventListener('click', openCreateWorldModal);
   document.getElementById('topbarImport').addEventListener('click', openImportModal);
@@ -49,7 +54,7 @@ function renderLeftPanel() {
   ]);
   lp.appendChild(hd);
   const tb = ce('div', { className: 'tree-toolbar' }, [
-    el('input', { id: 'treeFilter', placeholder: 'Filter nodes...', value: state.treeFilter }),
+    el('input', { id: 'treeFilter', placeholder: tr('Filter nodes...'), value: state.treeFilter }),
     ce('button', { id: 'btnAddNode' }, [ttxt('+')]),
   ]);
   lp.appendChild(tb);
@@ -58,7 +63,8 @@ function renderLeftPanel() {
   document.getElementById('btnAddNode').addEventListener('click', openCreateNodeModal);
   document.getElementById('btnTreeRefresh').addEventListener('click', loadCurrentWorld);
   document.getElementById('treeFilter').addEventListener('input', function() {
-    state.treeFilter = this.value; renderTree();
+    state.treeFilter = this.value;
+    renderTree();
   });
 }
 
@@ -69,7 +75,7 @@ function renderTree() {
   const filter = state.treeFilter.toLowerCase();
   let nodes = state.nodes;
   if (filter) nodes = nodes.filter(function(n) { return n.name.toLowerCase().includes(filter) || n.node_type.includes(filter); });
-  
+
   // Build parent-to-children map
   var childMap = {};
   for (var ni = 0; ni < nodes.length; ni++) {
@@ -78,44 +84,44 @@ function renderTree() {
     if (!childMap[pid]) childMap[pid] = [];
     childMap[pid].push(n);
   }
-  
+
   // Compute ancestor path of selected node
   var ancestorSet = {};
   if (state.selectedNodeId) {
     var curId = state.selectedNodeId;
     for (var tries = 0; tries < 100; tries++) {
       var curNode = null;
-      for (var ni = 0; ni < nodes.length; ni++) { if (nodes[ni].id === curId) { curNode = nodes[ni]; break; } }
+      for (var i = 0; i < nodes.length; i++) { if (nodes[i].id === curId) { curNode = nodes[i]; break; } }
       if (!curNode || !curNode.parent_id) break;
       ancestorSet[curNode.parent_id] = true;
       curId = curNode.parent_id;
     }
   }
-  
+
   // Collapse state: treeCollapsed[parentId] = true/false
   if (!state.treeCollapsed) state.treeCollapsed = {};
-  
+
   function renderChildren(parentId, depth, container) {
     var children = childMap[parentId] || [];
     for (var ci = 0; ci < children.length; ci++) {
       (function() {
-        var n = children[ci];
-        var hasChildren = childMap[n.id] && childMap[n.id].length > 0;
-        var isCollapsed = state.treeCollapsed[n.id];
-        var isSelected = state.selectedNodeId === n.id;
-        var isAncestor = ancestorSet[n.id] && !isSelected;
-        
+        var node = children[ci];
+        var hasChildren = childMap[node.id] && childMap[node.id].length > 0;
+        var isCollapsed = state.treeCollapsed[node.id];
+        var isSelected = state.selectedNodeId === node.id;
+        var isAncestor = ancestorSet[node.id] && !isSelected;
+
         var cls = 'tree-node';
         if (isSelected) cls += ' selected';
         if (isAncestor) cls += ' path-ancestor';
-        
-        var row = ce('div', { className: cls, dataset: { id: n.id, pid: n.parent_id || '' }, draggable: true, style: { paddingLeft: (12 + depth * 16) + 'px' } }, [
+
+        var row = ce('div', { className: cls, dataset: { id: node.id, pid: node.parent_id || '' }, draggable: true, style: { paddingLeft: (12 + depth * 16) + 'px' } }, [
           ce('span', { className: 'tree-arrow' + (hasChildren ? (isCollapsed ? '' : ' expanded') : ' invisible') }, [ttxt('\u25b8')]),
-          ce('span', { className: 'tree-icon ' + n.node_type }, []),
-          ce('span', { className: 'tree-name' }, [txt(n.name)]),
-          ce('span', { className: 'tree-type node-type-' + n.node_type }, [txt(n.node_type)]),
+          ce('span', { className: 'tree-icon ' + node.node_type }, []),
+          ce('span', { className: 'tree-name' }, [txt(node.name)]),
+          ce('span', { className: 'tree-type node-type-' + node.node_type }, [txt(node.node_type)]),
         ]);
-        
+
         row.addEventListener('click', (function(nn, hc) {
           return function(e) {
             if (e.target.classList.contains('tree-arrow') && hc) {
@@ -126,20 +132,20 @@ function renderTree() {
             }
             selectNode(nn.id, nn.node_type);
           };
-        })(n, hasChildren));
+        })(node, hasChildren));
         row.addEventListener('dragstart', (function(nn) {
           return function(e) {
             e.dataTransfer.setData('text/plain', nn.id);
             e.dataTransfer.effectAllowed = 'move';
           };
-        })(n));
-        row.addEventListener('dragover', (function(nn) {
+        })(node));
+        row.addEventListener('dragover', (function() {
           return function(e) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
             this.style.outline = '2px dashed var(--accent)';
           };
-        })(n));
+        })());
         row.addEventListener('dragleave', function() {
           this.style.outline = '';
         });
@@ -151,33 +157,34 @@ function renderTree() {
             if (!srcId || srcId === nn.id) return;
             moveNodeParent(srcId, nn.id);
           };
-        })(n));
+        })(node));
         row.addEventListener('contextmenu', (function(nn) {
           return function(e) {
-            e.preventDefault(); e.stopPropagation();
+            e.preventDefault();
+            e.stopPropagation();
             showContextMenu([
               { label: tr('Edit'), onClick: function() { openEditNodeModal(nn.id); } },
               { label: tr('Create Child'), onClick: function() { openCreateNodeModal(nn.id); } },
               { label: tr('Delete'), danger: true, onClick: function() { deleteNodeHandler(nn.id); } },
             ], e.clientX, e.clientY);
           };
-        })(n));
-        
+        })(node));
+
         container.appendChild(row);
-        
+
         if (hasChildren && !isCollapsed) {
           var childCont = ce('div', { className: 'tree-children' }, []);
           container.appendChild(childCont);
-          renderChildren(n.id, depth + 1, childCont);
+          renderChildren(node.id, depth + 1, childCont);
         }
       })();
     }
   }
-  
+
   var rootContainer = ce('div', {}, []);
   renderChildren('_root', 0, rootContainer);
   while (rootContainer.firstChild) body.appendChild(rootContainer.firstChild);
-  
+
   if (nodes.length === 0) {
     body.appendChild(ce('div', { className: 'hint' }, [ttxt('No nodes. Click + to create.')]));
   }
@@ -198,5 +205,3 @@ function renderCurrent() {
   renderCenter();
   renderRightPanel();
 }
-
-

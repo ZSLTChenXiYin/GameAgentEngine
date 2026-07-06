@@ -116,6 +116,33 @@ type IdempotencyKeyModel struct {
 
 func (IdempotencyKeyModel) TableName() string { return "idempotency_keys" }
 
+// WorldSnapshotModel stores metadata for save-oriented world copy operations.
+type WorldSnapshotModel struct {
+	ID                   int64     `gorm:"primaryKey;autoIncrement" json:"-"`
+	UUID                 string    `gorm:"uniqueIndex;size:36;not null" json:"id"`
+	SourceWorldID        int64     `gorm:"index;not null" json:"-"`
+	SourceWorldUUID      string    `gorm:"size:36;not null;index" json:"source_world_id"`
+	SnapshotWorldID      int64     `gorm:"index;not null" json:"-"`
+	SnapshotWorldUUID    string    `gorm:"size:36;not null;uniqueIndex" json:"snapshot_world_id"`
+	SnapshotName         string    `gorm:"size:255;not null" json:"snapshot_name"`
+	Reason               string    `gorm:"size:50;not null;default:fork_world" json:"reason"`
+	EngineVersion        string    `gorm:"size:50;not null" json:"engine_version"`
+	MinCompatibleVersion string    `gorm:"size:50;not null" json:"min_compatible_version"`
+	SchemaVersion        string    `gorm:"size:50;not null" json:"schema_version"`
+	NodeCount            int       `gorm:"default:0" json:"node_count"`
+	ComponentCount       int       `gorm:"default:0" json:"component_count"`
+	MemoryCount          int       `gorm:"default:0" json:"memory_count"`
+	RelationCount        int       `gorm:"default:0" json:"relation_count"`
+	ComponentTypesJSON   string    `gorm:"type:text;not null" json:"component_types"`
+	SettingsHash         string    `gorm:"size:64;not null" json:"settings_hash"`
+	PolicyHash           string    `gorm:"size:64;not null" json:"policy_hash"`
+	PayloadHash          string    `gorm:"size:64;not null" json:"payload_hash"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
+}
+
+func (WorldSnapshotModel) TableName() string { return "world_snapshots" }
+
 // WorldPolicyModel 是世界级动作策略的持久化结构。
 type WorldPolicyModel struct {
 	WorldID        int64     `gorm:"primaryKey;autoIncrement" json:"-"`

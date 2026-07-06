@@ -4,12 +4,18 @@ import (
 	"encoding/json"
 	"log"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // GetWorldPolicy 获取世界的动作策略。
 func GetWorldPolicy(worldUUID string) (*WorldPolicyModel, error) {
+	return GetWorldPolicyTx(DB, worldUUID)
+}
+
+func GetWorldPolicyTx(tx *gorm.DB, worldUUID string) (*WorldPolicyModel, error) {
 	var p WorldPolicyModel
-	if err := DB.Where("world_uuid = ?", worldUUID).First(&p).Error; err != nil {
+	if err := tx.Where("world_uuid = ?", worldUUID).First(&p).Error; err != nil {
 		return nil, err
 	}
 	return &p, nil

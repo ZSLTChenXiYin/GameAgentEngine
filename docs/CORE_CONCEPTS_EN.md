@@ -242,14 +242,16 @@ The World Timeline tracks game state changes between Ticks.
 
 ---
 
-## 10. CloneWorld
+## 10. World Fork and Save
 
-CloneWorld allows users to duplicate an entire world and all its data, including nodes, components, memories, relations, world settings, and world policies. The clone operation is triggered via the API and is a server-side atomic operation.
+The Engine now splits world-copy behavior into three formal semantics: working-copy fork (`ForkWorld`), save snapshot (`CreateWorldSnapshot`), and restore from snapshot (`RestoreWorld`). Each operation copies the full world data set, including nodes, components, memories, relations, world settings, and world policies, and is triggered as a server-side atomic API operation.
 
 ### API Endpoint
 
 ```
-POST /api/v1/worlds/{world_id}/clone
+POST /api/v1/worlds/{world_id}/fork
+POST /api/v1/worlds/{world_id}/snapshots
+POST /api/v1/worlds/{world_id}/restore
 ```
 
 ### Optional Parameters
@@ -260,7 +262,7 @@ POST /api/v1/worlds/{world_id}/clone
 
 ### Locking Mechanism
 
-When `lock_world` is `true`, the engine uses a world-granularity mutex to protect the source world. **This lock only affects the CloneWorld operation itself** and does not prevent normal reads or writes to nodes, components, memories, or relations. The lock is held only for the duration of the clone and is released immediately upon completion.
+When `lock_world` is `true`, the engine uses a world-granularity mutex to protect the source world or source snapshot world. The lock only affects the fork / snapshot / restore operation itself and does not prevent normal reads or writes to nodes, components, memories, or relations. The lock is held only for the duration of the copy or restore and is released immediately upon completion.
 
 ### Behavior
 
@@ -272,5 +274,16 @@ When `lock_world` is `true`, the engine uses a world-granularity mutex to protec
 
 - **Save/Load**: Create a snapshot of the game world as an archive
 - **World Branching**: Fork an existing world and evolve different branches for testing
+- **Parallel Authoring**: Multiple developers can fork or snapshot the same source world for isolated work
+
+### State Assetization Boundary
+
+The current Engine keeps three state-bearing assets deliberately separate:
+
+- `ForkWorld`: a runnable working copy for editing, simulation, and branch evolution
+- `CreateWorldSnapshot`: a save-oriented archive intended to preserve compatibility and restore safety
+- `RestoreWorld`: a runnable world recreated from a validated save snapshot
+
+Future partial-state archives should not overload these APIs. If the Engine later adds agent-runtime-only saves, scope-level saves, or structure-only exports, they should be introduced as distinct asset types with explicit compatibility rules.
 - **A/B Testing**: Clone the same world and advance it under different configurations, comparing outcome differences
 - **Parallel Development**: Multiple developers work independently from the same world snapshot

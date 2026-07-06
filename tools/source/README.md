@@ -18,13 +18,25 @@ GameAgentEngine 是一个基于 Go 语言的引擎，位于游戏逻辑与大模
 - **推理管线** — 上下文组装 → Prompt 生成 → LLM 调用 → 动作解析 → 记忆持久化
 - **动作系统** — 内置同步/异步动作（add_memory, update_mood, send_dialogue, adjust_relation, spawn_item）
 - **策略引擎** — 安全执行护栏（禁止动作、审核阈值）
-- **世界复制** — 完整复制世界及其全部数据，支持锁定源世界防止并发写入
+- **世界分叉与存档** — 支持创建工作副本（fork）和存档快照（snapshot），并可在复制期间锁定源世界
 - **幂等支持** — 写入操作的安全重试
 - **完整 CRUD API** — 20+ RESTful 端点
 - **双存储支持** — SQLite（开发）/ MySQL（生产）
 - **Go SDK** — 原生 Go 客户端库，含 Agent 构建器
 - **GameAgentDevCli** — 开发者 CLI，支持脚本化导入、CRUD、世界推进、验证
 - **GameAgentCreator** — 基于 Web 的可视化编辑器（节点树、检视器、日志、导入）
+
+---
+
+## 世界复制与管线说明
+
+面向日常使用时，可以将世界复制相关能力理解为三种不同操作：
+
+- ForkWorld：创建工作副本，适合调试、分支推演和并行实验。
+- CreateWorldSnapshot：创建存档快照，适合保存当时的 Agent 世界状态。
+- RestoreWorld：从已校验的快照恢复出新的可运行世界。
+
+此外，引擎支持 vertical、polling、full 三档 pipeline_mode，可以按游戏复杂度选择不同能力与成本等级。相关执行信息会体现在响应元数据、调试轨迹和推理日志中。
 
 ---
 
@@ -43,11 +55,11 @@ cp tools/source/gameagentengine.conf.yaml .
 # 3. 启动引擎服务
 go run ./cmd/gameagentengine serve
 
-# 4. 另开终端，填充 Demo 世界
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key --config gameagentengine.conf.yaml demo-seed
+# 4. 另开终端，导入 Demo 世界
+go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key import tools/source/demo-world.yaml --reset
 
 # 5. 打开可视化编辑器
-# web/GameAgentCreator/index.html
+# tools/source/web/GameAgentCreator/index.html
 ```
 
 详见[入门指南](docs/GETTING_STARTED.md)。

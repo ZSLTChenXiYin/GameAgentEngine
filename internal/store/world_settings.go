@@ -6,10 +6,27 @@ import (
 	"gorm.io/gorm"
 )
 
+type WorldSettingsUpdateMask struct {
+	MemoryLimit              bool
+	MaxAnalysisRounds        bool
+	MaxContextDepth          bool
+	AutoApply                bool
+	RequireReviewAbove       bool
+	PipelineMode             bool
+	PropagationMaxDepth      bool
+	SubTaskMaxRetries        bool
+	SubTaskTimeoutSecs       bool
+	EnablePropagationMachine bool
+}
+
 // GetWorldSettings 获取世界的运行设置。
 func GetWorldSettings(worldUUID string) (*WorldSettingsModel, error) {
+	return GetWorldSettingsTx(DB, worldUUID)
+}
+
+func GetWorldSettingsTx(tx *gorm.DB, worldUUID string) (*WorldSettingsModel, error) {
 	var s WorldSettingsModel
-	if err := DB.Where("world_uuid = ?", worldUUID).First(&s).Error; err != nil {
+	if err := tx.Where("world_uuid = ?", worldUUID).First(&s).Error; err != nil {
 		return nil, err
 	}
 	return &s, nil
@@ -42,35 +59,38 @@ func GetOrCreateWorldSettings(worldUUID string) (*WorldSettingsModel, error) {
 	return s, nil
 }
 
-func ApplyWorldSettingsUpdate(s *WorldSettingsModel, updates *WorldSettingsModel, autoApplySet, propagationMachineSet bool) {
-	if updates.MemoryLimit > 0 {
+func ApplyWorldSettingsUpdate(s *WorldSettingsModel, updates *WorldSettingsModel, mask *WorldSettingsUpdateMask) {
+	if mask == nil {
+		mask = &WorldSettingsUpdateMask{}
+	}
+	if mask.MemoryLimit {
 		s.MemoryLimit = updates.MemoryLimit
 	}
-	if updates.MaxAnalysisRounds > 0 {
+	if mask.MaxAnalysisRounds {
 		s.MaxAnalysisRounds = updates.MaxAnalysisRounds
 	}
-	if updates.MaxContextDepth > 0 {
+	if mask.MaxContextDepth {
 		s.MaxContextDepth = updates.MaxContextDepth
 	}
-	if updates.PipelineMode != "" {
-		s.PipelineMode = updates.PipelineMode
-	}
-	if updates.PropagationMaxDepth > 0 {
-		s.PropagationMaxDepth = updates.PropagationMaxDepth
-	}
-	if updates.SubTaskMaxRetries > 0 {
-		s.SubTaskMaxRetries = updates.SubTaskMaxRetries
-	}
-	if updates.SubTaskTimeoutSecs > 0 {
-		s.SubTaskTimeoutSecs = updates.SubTaskTimeoutSecs
-	}
-	if autoApplySet {
+	if mask.AutoApply {
 		s.AutoApply = updates.AutoApply
 	}
-	if updates.RequireReviewAbove != "" {
+	if mask.RequireReviewAbove {
 		s.RequireReviewAbove = updates.RequireReviewAbove
 	}
-	if propagationMachineSet {
+	if mask.PipelineMode {
+		s.PipelineMode = updates.PipelineMode
+	}
+	if mask.PropagationMaxDepth {
+		s.PropagationMaxDepth = updates.PropagationMaxDepth
+	}
+	if mask.SubTaskMaxRetries {
+		s.SubTaskMaxRetries = updates.SubTaskMaxRetries
+	}
+	if mask.SubTaskTimeoutSecs {
+		s.SubTaskTimeoutSecs = updates.SubTaskTimeoutSecs
+	}
+	if mask.EnablePropagationMachine {
 		s.EnablePropagationMachine = updates.EnablePropagationMachine
 	}
 	s.UpdatedAt = time.Now()
@@ -78,11 +98,20 @@ func ApplyWorldSettingsUpdate(s *WorldSettingsModel, updates *WorldSettingsModel
 
 // UpsertWorldSettings 更新世界的运行设置。零值字段不会覆盖现有值。
 func UpsertWorldSettings(worldUUID string, settings *WorldSettingsModel) (*WorldSettingsModel, error) {
-	return UpsertWorldSettingsWithMask(worldUUID, settings, false, false)
+	return UpsertWorldSettingsWithMask(worldUUID, settings, &WorldSettingsUpdateMask{
+		MemoryLimit:         settings.MemoryLimit > 0,
+		MaxAnalysisRounds:   settings.MaxAnalysisRounds > 0,
+		MaxContextDepth:     settings.MaxContextDepth > 0,
+		RequireReviewAbove:  settings.RequireReviewAbove != "",
+		PipelineMode:        settings.PipelineMode != "",
+		PropagationMaxDepth: settings.PropagationMaxDepth > 0,
+		SubTaskMaxRetries:   settings.SubTaskMaxRetries > 0,
+		SubTaskTimeoutSecs:  settings.SubTaskTimeoutSecs > 0,
+	})
 }
 
 // UpsertWorldSettingsWithMask updates fields explicitly selected by the caller.
-func UpsertWorldSettingsWithMask(worldUUID string, settings *WorldSettingsModel, autoApplySet, propagationMachineSet bool) (*WorldSettingsModel, error) {
+func UpsertWorldSettingsWithMask(worldUUID string, settings *WorldSettingsModel, mask *WorldSettingsUpdateMask) (*WorldSettingsModel, error) {
 	s, err := GetWorldSettings(worldUUID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -93,7 +122,7 @@ func UpsertWorldSettingsWithMask(worldUUID string, settings *WorldSettingsModel,
 		}
 	}
 
-	ApplyWorldSettingsUpdate(s, settings, autoApplySet, propagationMachineSet)
+	ApplyWorldSettingsUpdate(s, settings, mask)
 
 	if err := DB.Save(s).Error; err != nil {
 		return nil, err

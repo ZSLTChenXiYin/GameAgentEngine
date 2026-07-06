@@ -25,16 +25,21 @@ settings, err := client.GetWorldSettings(worldID)
 
 ### 设置世界配置
 
+使用 `UpdateWorldSettings` 进行部分更新，只有你显式传入的字段会被修改：
+
 ```go
-settings := &sdk.WorldSettings{
-    PipelineMode:             "full",
-    PropagationMaxDepth:      3,
-    SubTaskMaxRetries:        3,
-    SubTaskTimeoutSecs:       120,
-    EnablePropagationMachine: true,
-}
-result, err := client.SetWorldSettings(worldID, settings)
+pipelineMode := "polling"
+propagationDepth := 0
+enableMachine := false
+
+result, err := client.UpdateWorldSettings(worldID, &sdk.WorldSettingsUpdate{
+    PipelineMode:             &pipelineMode,
+    PropagationMaxDepth:      &propagationDepth,
+    EnablePropagationMachine: &enableMachine,
+})
 ```
+
+当你希望一次性提交完整 `WorldSettings` 载荷时，再使用 `SetWorldSettings`。
 
 ### 推进世界时间
 
@@ -117,9 +122,16 @@ type Client struct {
 | `EvaluateWorldEvent(worldID string, event *WorldEvent) (*InvokeResponse, error)` | 评估事件影响 |
 | `ReplanWorldTimeline(worldID string) (*InvokeResponse, error)` | 重新生成时间线 |
 | `AdvanceWorldScope(worldID, scopeID string) (*InvokeResponse, error)` | 局部范围推进 |
-| `CloneWorld(worldID, name string, lockWorld bool) (*Node, error)` | 复制世界（`lockWorld`: 复制期间锁定源世界） |
+| `ForkWorld(worldID, name string, lockWorld bool) (*Node, error)` | 创建世界工作副本（`lockWorld`: 复制期间锁定源世界） |
+| `CreateWorldSnapshot(worldID, name string, lockWorld bool) (*Node, error)` | 创建世界存档快照（`lockWorld`: 存档期间锁定源世界） |
+| `RestoreWorld(worldID, name string, lockWorld bool) (*Node, error)` | 从存档快照恢复新世界（`lockWorld`: 恢复期间锁定源快照世界） |
+| `ValidateWorldSnapshot(worldID string) (*SnapshotValidationResult, error)` | 校验存档快照当前是否仍可安全恢复，并返回结构化兼容性结果 |
+| `GetWorldSnapshotMetadata(worldID string) (*WorldSnapshotInfo, error)` | 查询某个快照世界的存档元数据 |
+| `ListWorldSnapshots(worldID string) ([]WorldSnapshotInfo, error)` | 列出某个源世界的全部存档快照 |
+| `DeleteWorldSnapshot(worldID string) error` | 删除某个存档快照世界，以及与之关联的快照元数据 |
 | `GetWorldSettings(worldID string) (*WorldSettings, error)` | 获取世界设置 |
-| `SetWorldSettings(worldID string, settings *WorldSettings) (*WorldSettings, error)` | 设置世界设置 |
+| `UpdateWorldSettings(worldID string, settings *WorldSettingsUpdate) (*WorldSettings, error)` | 部分更新世界设置，仅修改显式传入的字段 |
+| `SetWorldSettings(worldID string, settings *WorldSettings) (*WorldSettings, error)` | 一次性提交完整的世界设置载荷 |
 | `GetWorldPolicy(worldID string) (*WorldPolicy, error)` | 获取世界策略 |
 | `SetWorldPolicy(worldID string, blocked, safe []string) (*WorldPolicy, error)` | 设置世界策略 |
 
@@ -154,16 +166,30 @@ type Client struct {
 
 ```go
 type WorldSettings struct {
-    PipelineMode              string `json:"pipeline_mode,omitempty"`
-    MemoryLimit               int    `json:"memory_limit,omitempty"`
-    MaxAnalysisRounds         int    `json:"max_analysis_rounds,omitempty"`
-    MaxContextDepth           int    `json:"max_context_depth,omitempty"`
-    AutoApply                 bool   `json:"auto_apply,omitempty"`
-    RequireReviewAbove        string `json:"require_review_above,omitempty"`
-    PropagationMaxDepth       int    `json:"propagation_max_depth"`
-    EnablePropagationMachine  bool   `json:"enable_propagation_machine"`
-    SubTaskMaxRetries         int    `json:"sub_task_max_retries"`
-    SubTaskTimeoutSecs        int    `json:"sub_task_timeout_secs"`
+    WorldID                  string `json:"world_id"`
+    MemoryLimit              int    `json:"memory_limit"`
+    MaxAnalysisRounds        int    `json:"max_analysis_rounds"`
+    MaxContextDepth          int    `json:"max_context_depth"`
+    AutoApply                bool   `json:"auto_apply"`
+    RequireReviewAbove       string `json:"require_review_above"`
+    PropagationMaxDepth      int    `json:"propagation_max_depth"`
+    EnablePropagationMachine bool   `json:"enable_propagation_machine"`
+    SubTaskMaxRetries        int    `json:"sub_task_max_retries"`
+    SubTaskTimeoutSecs       int    `json:"sub_task_timeout_secs"`
+    PipelineMode             string `json:"pipeline_mode"`
+}
+
+type WorldSettingsUpdate struct {
+    MemoryLimit              *int    `json:"memory_limit,omitempty"`
+    MaxAnalysisRounds        *int    `json:"max_analysis_rounds,omitempty"`
+    MaxContextDepth          *int    `json:"max_context_depth,omitempty"`
+    AutoApply                *bool   `json:"auto_apply,omitempty"`
+    RequireReviewAbove       *string `json:"require_review_above,omitempty"`
+    PropagationMaxDepth      *int    `json:"propagation_max_depth,omitempty"`
+    EnablePropagationMachine *bool   `json:"enable_propagation_machine,omitempty"`
+    SubTaskMaxRetries        *int    `json:"sub_task_max_retries,omitempty"`
+    SubTaskTimeoutSecs       *int    `json:"sub_task_timeout_secs,omitempty"`
+    PipelineMode             *string `json:"pipeline_mode,omitempty"`
 }
 ```
 
@@ -181,6 +207,25 @@ type InvokeResponse struct {
     Metadata        *ResponseMeta       `json:"metadata,omitempty"`
 }
 ```
+
+### ResponseMeta
+
+```go
+type ResponseMeta struct {
+    LLMModel               string `json:"llm_model"`
+    TokensUsed             int    `json:"tokens_used"`
+    ProcessingTimeMs       int64  `json:"processing_time_ms"`
+    ConfiguredPipelineMode string `json:"configured_pipeline_mode,omitempty"`
+    EffectivePipelineMode  string `json:"effective_pipeline_mode,omitempty"`
+    MaxAnalysisRounds      int    `json:"max_analysis_rounds,omitempty"`
+    RoundsUsed             int    `json:"rounds_used,omitempty"`
+}
+```
+
+- `configured_pipeline_mode`：世界设置中的默认管线模式
+- `effective_pipeline_mode`：本次请求实际生效的管线模式（可能被请求上下文覆盖）
+- `max_analysis_rounds`：本次请求最终采用的最大轮次数
+- `rounds_used`：本次请求实际消耗的轮次数
 
 ### WorldPolicy
 

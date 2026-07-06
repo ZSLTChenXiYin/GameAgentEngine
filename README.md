@@ -18,13 +18,38 @@ GameAgentEngine 是一个基于 Go 语言的引擎，位于游戏逻辑与大模
 - **推理管线** — 上下文组装 → Prompt 生成 → LLM 调用 → 动作解析 → 记忆持久化
 - **动作系统** — 内置同步/异步动作（add_memory, update_mood, send_dialogue, adjust_relation, spawn_item）
 - **策略引擎** — 安全执行护栏（禁止动作、审核阈值）
-- **世界复制** — 完整复制世界及其全部数据，支持锁定源世界防止并发写入
+- **世界分叉与存档** — 支持创建工作副本（fork）和存档快照（snapshot），并可在复制期间锁定源世界
 - **幂等支持** — 写入操作的安全重试
 - **完整 CRUD API** — 20+ RESTful 端点
 - **双存储支持** — SQLite（开发）/ MySQL（生产）
 - **Go SDK** — 原生 Go 客户端库，含 Agent 构建器
 - **GameAgentDevCli** — 开发者 CLI，支持脚本化导入、CRUD、世界推进、验证
 - **GameAgentCreator** — 基于 Web 的可视化编辑器（节点树、检视器、日志、导入）
+
+---
+
+## 世界复制语义
+
+GameAgentEngine 现在将世界复制拆成三类语义明确的操作：
+
+- ForkWorld：创建工作副本，用于分支推演、调试副本和并行演化。
+- CreateWorldSnapshot：创建面向存档的快照世界，并写入兼容性元数据。
+- RestoreWorld：先校验存档快照，再恢复出一个新的可运行世界副本。
+
+快照元数据与世界图谱分离持久化，这样引擎可以在恢复前完成 schema/version 校验、漂移检测，以及后续的存档生命周期管理。
+
+---
+
+## 管线可观测性
+
+每次推理调用都会记录以下与 pipeline_mode 调优直接相关的信息：
+
+- 世界设置中的 configured pipeline mode
+- 当前请求实际采用的 effective pipeline mode
+- 允许的 max analysis rounds
+- 实际消耗的 rounds used
+
+这些字段会同时出现在 InvokeResponse.metadata、Debug traces 和 inference logs 中，方便按负载类型调整 vertical / polling / full 分级策略。
 
 ---
 
@@ -43,11 +68,11 @@ cp tools/source/gameagentengine.conf.yaml .
 # 3. 启动引擎服务
 go run ./cmd/gameagentengine serve
 
-# 4. 另开终端，填充 Demo 世界
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key --config gameagentengine.conf.yaml demo-seed
+# 4. 另开终端，导入 Demo 世界
+go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key import tools/source/demo-world.yaml --reset
 
 # 5. 打开可视化编辑器
-# web/GameAgentCreator/index.html
+# tools/source/web/GameAgentCreator/index.html
 ```
 
 详见[入门指南](docs/GETTING_STARTED.md)。

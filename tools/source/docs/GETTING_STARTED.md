@@ -124,13 +124,16 @@ curl -X POST http://127.0.0.1:8080/api/v1/invoke \
 GameAgentDevCli world event-impact <world-id> --type "crisis" --description "..." --severity "critical"
 
 # 复制世界
-GameAgentDevCli world clone <world-id> "我的存档副本" --lock
+GameAgentDevCli world save <world-id> "我的存档槽 1" --lock-world
 
 # 查看世界运行设置
 GameAgentDevCli world settings get <world-id>
 
-# 切换管线模式
-GameAgentDevCli world settings set <world-id> --pipeline-mode "full"
+# 只切换管线模式
+GameAgentDevCli world settings set <world-id> --pipeline-mode "polling"
+
+# 取消向上传播深度限制
+GameAgentDevCli world settings set <world-id> --propagation-max-depth 0
 ```
 
 *(具体命令详见 [GameAgentDevCli 指南](GUIDE_GAMEAGENTDEVCLI.md)。)*

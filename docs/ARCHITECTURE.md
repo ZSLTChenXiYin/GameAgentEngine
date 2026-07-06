@@ -58,9 +58,10 @@ HTTP 入口。将请求路由到对应的处理函数，验证输入，将错误
 包含业务规则和事务边界。防止 HTTP/CLI/编辑器重复验证逻辑。
 
 - **CRUD 操作** — 节点、组件、记忆、关系的创建/更新/删除，带完整验证
-- **世界导入/导出**（graph.go）— YAML/JSON 世界配置导入，支持 dry-run
+- **世界导入/导出**（import_export.go）— YAML/JSON 世界配置导入，支持 dry-run
 - **世界 Tick**（world.go）— 时间线刻度推进、自主节点调度、事件影响评估、局部推进
-- **世界复制**（clone.go）— 复制完整世界及其全部数据，可选锁定源世界防止并发写入
+- **快照服务**（snapshot_service.go）— 快照元数据查询、校验、列表与删除
+- **世界复制服务**（world_copy_service.go）— 工作副本分叉、存档快照创建与恢复流程
 - **自主行为管理** — 配置、查询、手动触发自主节点行为周期
 
 ### 3. 引擎层（internal/engine）
@@ -71,6 +72,7 @@ HTTP 入口。将请求路由到对应的处理函数，验证输入，将错误
 - **上下文构建**（context.go）— 从存储加载节点数据、组件、记忆、祖先树
 - **Prompt 生成**（prompt_builders.go）— 构建任务特定的系统 Prompt
 - **多轮轮询**（pipeline.go）— 支持多轮 LLM 对话，每轮可触发 request_data 数据查询
+- **可观测元数据** — Response metadata、Debug traces 与 inference logs 会暴露 configured/effective pipeline mode 及轮次消耗
 - **子任务 DAG**（dag.go）— LLM 声明的子任务有向无环图编排，支持重试、超时、合并模式
 - **任务节点树**（tasktree.go）— 记录完整推理轨迹，用于上下文继承
 - **记忆传播引擎**（propagation_engine.go）— 四种传播模式（沿父链/标签广播/定向/手动）+ 可选状态机
@@ -82,12 +84,13 @@ HTTP 入口。将请求路由到对应的处理函数，验证输入，将错误
 
 基于 GORM 的持久化。处理数据库连接、自动迁移和 CRUD 操作。
 
-- **模型**（models.go）— 9 个数据模型：Node, Component, Memory, Relation, Timeline, InferenceLog, IdempotencyKey, WorldPolicy, WorldSettings
+- **模型**（models.go）— 10 个数据模型：Node, Component, Memory, Relation, Timeline, InferenceLog, IdempotencyKey, WorldSnapshot, WorldPolicy, WorldSettings
 - **节点操作**（nodes.go）— CRUD + 分页过滤
 - **组件操作**（components.go）— 按节点获取、按类型获取、按世界获取
 - **记忆操作**（memories.go）— CRUD + 层级过滤、批量创建、手动传播
 - **关系操作**（relations.go）— CRUD + 分页过滤、获取节点相关关系
 - **时间线与日志**（timeline.go）— 时间线刻度、推理日志
+- **快照元数据**（snapshots.go）— 快照元数据创建、查询与列表
 - **世界设置**（world_settings.go）— 每世界运行时设置，支持 CRUD + 默认值
 - **世界策略**（policy.go）— 每世界 blocked_actions / safe_actions 策略
 - **记忆传播**（propagation.go）— 传播规则、传播状态机状态
@@ -215,9 +218,22 @@ sequenceDiagram
 
 ---
 
+
+---
+
+## 世界复制边界
+
+当前世界复制能力按用途拆成三层边界：
+
+- ForkWorld：创建工作副本，面向分支推演、调试和并行演化。
+- CreateWorldSnapshot：创建面向存档的快照世界，并保存兼容性元数据。
+- RestoreWorld：在恢复前先校验快照兼容性，再生成新的可运行世界副本。
+
+这样可以把普通分支复制与存档生命周期能力分开治理，同时继续复用底层世界图谱复制逻辑。
+
 ## 数据库 Schema
 
-通过 GORM AutoMigrate 管理的九张表：
+通过 GORM AutoMigrate 管理的十张表：
 
 - **nodes** — id, world_id, name, node_type, parent_id, 时间戳
 - **components** — id, node_id, component_type, data, 时间戳
@@ -226,5 +242,6 @@ sequenceDiagram
 - **timelines** — id, world_id, tick_number, tick_type, game_time, summary, data, future_outline, created_at
 - **inference_logs** — id, world_id, task_type, node_id, request_data, response_data, llm_model, tokens_used, duration_ms, created_at
 - **idempotency_keys** — id, result, created_at
+- **world_snapshots** — source_world_id, snapshot_world_id, snapshot_name, reason, 引擎/Schema 兼容元数据, payload_hash, 时间戳
 - **world_policies** — world_id, blocked_actions, safe_actions, 时间戳
 - **world_settings** — world_id, memory_limit, max_analysis_rounds, max_context_depth, auto_apply, require_review_above, pipeline_mode, propagation_max_depth, sub_task_max_retries, sub_task_timeout_secs, enable_propagation_machine, 时间戳

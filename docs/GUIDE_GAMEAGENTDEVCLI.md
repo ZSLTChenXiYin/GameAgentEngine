@@ -103,11 +103,26 @@ GameAgentDevCli node autonomous run <node-id>
 
 ```bash
 # 复制世界
-GameAgentDevCli world clone <world-id> [name] [--lock]
+GameAgentDevCli world fork <world-id> [name] [--lock-world]
+
+GameAgentDevCli world save <world-id> [name] [--lock-world]
+
+GameAgentDevCli world restore <snapshot-world-id> [name] [--lock-world]
+
+GameAgentDevCli world validate-snapshot <snapshot-world-id>
+
+GameAgentDevCli world snapshot-info <snapshot-world-id>
+
+GameAgentDevCli world list-snapshots <world-id>
+
+GameAgentDevCli world delete-snapshot <snapshot-world-id>
 ```
 
 - `--lock` / `-l`：复制期间锁定源世界，阻止并发写入（可选，默认不锁定）
-- `name`：为新世界指定名称，留空则自动生成"原名 (副本)"
+- `name`：为新世界指定名称，留空则自动生成“原名 (副本)”
+- `validate-snapshot`：在恢复前先查看快照是否存在版本不兼容或快照内容漂移
+- `snapshot-info`：查看某个快照世界的元数据
+- `list-snapshots`：列出某个源世界已有的全部存档快照
 
 #### 世界设置
 
@@ -115,17 +130,19 @@ GameAgentDevCli world clone <world-id> [name] [--lock]
 # 查看世界运行设置
 GameAgentDevCli world settings get <world-id>
 
-# 设置运行参数
+# 只修改显式传入的参数
 GameAgentDevCli world settings set <world-id> \
-  --memory-limit 100 \
-  --analysis-rounds 8 \
-  --context-depth 5 \
-  --pipeline-mode "full" \
-  --propagation-max-depth 3 \
-  --sub-task-max-retries 3 \
-  --sub-task-timeout-secs 120 \
-  --enable-propagation-machine true
+  --pipeline-mode "polling" \
+  --propagation-max-depth 0 \
+  --sub-task-max-retries 0 \
+  --sub-task-timeout-secs 0 \
+  --enable-propagation-machine false
 ```
+
+- `world settings set` 执行的是部分更新，未传入的 flag 会保留原值。
+- `propagation-max-depth 0` 表示不限制向上传播深度。
+- `sub-task-max-retries 0` 表示禁用子任务自动重试。
+- `sub-task-timeout-secs 0` 表示关闭子任务超时保护。
 
 #### 世界策略
 
@@ -234,12 +251,35 @@ GameAgentDevCli relation delete <relation-id>
 
 ---
 
-### logs — 推理日志
+### logs ? ????
 
 ```bash
-# 读取最近的推理日志
+# ???????????????????
 GameAgentDevCli logs --world <world-id> --limit 10
+
+# ???? JSON???????
+GameAgentDevCli logs --world <world-id> --limit 10 --json
+
+# ???????????
+GameAgentDevCli logs --world <world-id> --task-type world_tick
 ```
+
+- ???????????? world / node?pipeline mode?rounds?reply preview ?? action / memory ???
+- `--json` ???????????????????????
+- `--task-type` ???????????
+
+### debug traces ? ????
+
+```bash
+# ???????????????????
+GameAgentDevCli debug traces --world <world-id> --limit 10
+
+# ???? JSON
+GameAgentDevCli debug traces --world <world-id> --limit 10 --json
+```
+
+- ??????? request id?pipeline mode?rounds ???????????????????
+- `--json` ?????????????????
 
 ---
 

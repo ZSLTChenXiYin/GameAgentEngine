@@ -2,7 +2,7 @@ package service
 
 import "sync"
 
-// worldLocks 提供世界粒度的互斥锁，用于 CloneWorld 等需要锁定世界的操作。
+// worldLocks 提供世界粒度的互斥锁，用于世界 fork/snapshot 等需要锁定世界的操作。
 var (
 	worldLocks sync.Map
 )

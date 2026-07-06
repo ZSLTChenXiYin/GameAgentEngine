@@ -2,6 +2,8 @@
 
 **中文** | [**English**](./CLONEWORLD_SNAPSHOT_STRATEGY_EN.md)
 
+> 历史说明：本文档保留为设计背景参考。当前引擎接口已经演进为 ForkWorld、CreateWorldSnapshot 与 RestoreWorld，不再保留 CloneWorld 兼容接口。
+
 本文档描述 `CloneWorld` 在存档场景下的推荐演进方向。
 
 当前 `CloneWorld` 的实现更接近“复制一个世界及其全部业务数据”。

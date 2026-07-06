@@ -103,11 +103,27 @@ GameAgentDevCli node autonomous run <node-id>
 
 ```bash
 # Clone a world
-GameAgentDevCli world clone <world-id> [name] [--lock]
+GameAgentDevCli world fork <world-id> [name] [--lock-world]
+
+GameAgentDevCli world save <world-id> [name] [--lock-world]
+
+GameAgentDevCli world restore <snapshot-world-id> [name] [--lock-world]
+
+GameAgentDevCli world validate-snapshot <snapshot-world-id>
+
+GameAgentDevCli world snapshot-info <snapshot-world-id>
+
+GameAgentDevCli world list-snapshots <world-id>
+
+GameAgentDevCli world delete-snapshot <snapshot-world-id>
 ```
 
 - `--lock` / `-l`: Lock the source world during cloning to prevent concurrent writes (optional, defaults to unlocked)
 - `name`: Specify a name for the new world; if omitted, it is auto-generated as "original_name (copy)"
+- `validate-snapshot`: Check restore compatibility before attempting to restore a saved snapshot
+- `snapshot-info`: Show metadata for a snapshot world
+- `list-snapshots`: List all saved snapshots created from a source world
+- `delete-snapshot`: Delete a saved snapshot world together with its persisted snapshot metadata
 
 #### World settings
 
@@ -115,17 +131,19 @@ GameAgentDevCli world clone <world-id> [name] [--lock]
 # View world runtime settings
 GameAgentDevCli world settings get <world-id>
 
-# Set runtime parameters
+# Change only the flags you provide
 GameAgentDevCli world settings set <world-id> \
-  --memory-limit 100 \
-  --analysis-rounds 8 \
-  --context-depth 5 \
-  --pipeline-mode "full" \
-  --propagation-max-depth 3 \
-  --sub-task-max-retries 3 \
-  --sub-task-timeout-secs 120 \
-  --enable-propagation-machine true
+  --pipeline-mode "polling" \
+  --propagation-max-depth 0 \
+  --sub-task-max-retries 0 \
+  --sub-task-timeout-secs 0 \
+  --enable-propagation-machine false
 ```
+
+- `world settings set` performs a partial update: omitted flags keep their existing values.
+- `propagation-max-depth 0` means no upward propagation depth limit.
+- `sub-task-max-retries 0` disables automatic retries for sub-tasks.
+- `sub-task-timeout-secs 0` disables the timeout guard for sub-tasks.
 
 #### World policy
 
@@ -234,12 +252,35 @@ GameAgentDevCli relation delete <relation-id>
 
 ---
 
-### logs — Inference logs
+### logs ? Inference logs
 
 ```bash
-# Read recent inference logs
+# Read recent inference logs (summary view by default)
 GameAgentDevCli logs --world <world-id> --limit 10
+
+# Output raw JSON for scripting
+GameAgentDevCli logs --world <world-id> --limit 10 --json
+
+# Filter logs by task type
+GameAgentDevCli logs --world <world-id> --task-type world_tick
 ```
+
+- The default output is a readable summary that includes world / node, pipeline mode, round usage, reply preview, and action / memory previews.
+- `--json` prints the raw inference log array for scripting or deeper analysis.
+- `--task-type` filters logs by task category.
+
+### debug traces ? Debug traces
+
+```bash
+# Show recent debug traces (summary view by default)
+GameAgentDevCli debug traces --world <world-id> --limit 10
+
+# Output raw JSON
+GameAgentDevCli debug traces --world <world-id> --limit 10 --json
+```
+
+- The summary view shows request id, pipeline mode, round usage, and errors for quick inspection.
+- `--json` preserves the full debug payload for deeper troubleshooting.
 
 ---
 

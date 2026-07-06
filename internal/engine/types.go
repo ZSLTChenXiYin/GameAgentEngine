@@ -308,9 +308,13 @@ type MemoryUpdate struct {
 
 // ResponseMeta 记录本次推理的元信息。
 type ResponseMeta struct {
-	LLMModel         string `json:"llm_model"`
-	TokensUsed       int    `json:"tokens_used"`
-	ProcessingTimeMs int64  `json:"processing_time_ms"`
+	LLMModel               string `json:"llm_model"`
+	TokensUsed             int    `json:"tokens_used"`
+	ProcessingTimeMs       int64  `json:"processing_time_ms"`
+	ConfiguredPipelineMode string `json:"configured_pipeline_mode,omitempty"`
+	EffectivePipelineMode  string `json:"effective_pipeline_mode,omitempty"`
+	MaxAnalysisRounds      int    `json:"max_analysis_rounds,omitempty"`
+	RoundsUsed             int    `json:"rounds_used,omitempty"`
 }
 
 // WorldEvent 描述一个待评估的世界事件。

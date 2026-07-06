@@ -4,6 +4,8 @@ package store
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,7 +33,10 @@ func Init(driver, dsn string) error {
 
 	var err error
 	DB, err = gorm.Open(dial, &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
+		Logger: logger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), logger.Config{
+			LogLevel:                  logger.Warn,
+			IgnoreRecordNotFoundError: true,
+		}),
 	})
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
@@ -52,6 +57,7 @@ func Init(driver, dsn string) error {
 		&TimelineModel{},
 		&InferenceLogModel{},
 		&IdempotencyKeyModel{},
+		&WorldSnapshotModel{},
 		&WorldPolicyModel{},
 		&WorldSettingsModel{},
 		&PropagationChainModel{},

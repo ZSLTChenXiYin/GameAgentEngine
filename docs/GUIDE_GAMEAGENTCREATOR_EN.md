@@ -58,10 +58,13 @@ All sub-panels can be freely resized and scrolled.
 
 - **Create World**: create a new world from the navigation bar
 - **Import Config**: import world configuration from a file
-- **Clone World**: click "Clone World" on the world page, with a dialog asking whether to lock the source world
+- **Create Working Copy**: click "Create Working Copy" on the world page, with an optional prompt to lock the source world
+- **Save Snapshot**: click "Save Snapshot" on the world page to create a save-oriented snapshot for the current world
+- **Snapshots Panel**: open the `Snapshots` page to inspect saved snapshots, validate compatibility, restore a snapshot into a runnable world, or delete an obsolete save snapshot
 - **World Settings**: modify PipelineMode, memory limit, propagation parameters, and other dynamic configuration
 - **Advance Tick**: advance the world timeline
 - **Run Autonomous Behavior**: trigger node autonomous behavior
 - **Event Impact**: evaluate an event's impact on the world
 - **Scope Advance**: advance evolution within a specific scope
 - **Replan**: regenerate the world outline
+- **Trace Pipeline Visibility**: the `Traces` page shows configured pipeline mode, effective pipeline mode, and round usage for each debug trace

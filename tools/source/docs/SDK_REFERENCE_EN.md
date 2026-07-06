@@ -25,16 +25,21 @@ settings, err := client.GetWorldSettings(worldID)
 
 ### Setting World Configuration
 
+Use `UpdateWorldSettings` for partial updates so only the fields you set are changed:
+
 ```go
-settings := &sdk.WorldSettings{
-    PipelineMode:             "full",
-    PropagationMaxDepth:      3,
-    SubTaskMaxRetries:        3,
-    SubTaskTimeoutSecs:       120,
-    EnablePropagationMachine: true,
-}
-result, err := client.SetWorldSettings(worldID, settings)
+pipelineMode := "polling"
+propagationDepth := 0
+enableMachine := false
+
+result, err := client.UpdateWorldSettings(worldID, &sdk.WorldSettingsUpdate{
+    PipelineMode:             &pipelineMode,
+    PropagationMaxDepth:      &propagationDepth,
+    EnablePropagationMachine: &enableMachine,
+})
 ```
+
+Use `SetWorldSettings` when you want to submit a complete `WorldSettings` payload in one call.
 
 ### Advancing World Time
 
@@ -117,9 +122,16 @@ type Client struct {
 | `EvaluateWorldEvent(worldID string, event *WorldEvent) (*InvokeResponse, error)` | Evaluate event impact |
 | `ReplanWorldTimeline(worldID string) (*InvokeResponse, error)` | Regenerate timeline |
 | `AdvanceWorldScope(worldID, scopeID string) (*InvokeResponse, error)` | Advance a specific scope |
-| `CloneWorld(worldID, name string, lockWorld bool) (*Node, error)` | Clone a world (`lockWorld`: lock the source world during cloning) |
+| `ForkWorld(worldID, name string, lockWorld bool) (*Node, error)` | Create a working-copy fork of a world (`lockWorld`: lock the source world during copying) |
+| `CreateWorldSnapshot(worldID, name string, lockWorld bool) (*Node, error)` | Create a save snapshot of a world (`lockWorld`: lock the source world during snapshotting) |
+| `RestoreWorld(worldID, name string, lockWorld bool) (*Node, error)` | Restore a saved snapshot into a new world (`lockWorld`: lock the snapshot source world during restore) |
+| `ValidateWorldSnapshot(worldID string) (*SnapshotValidationResult, error)` | Validate whether a saved snapshot can still be safely restored and return a structured compatibility report |
+| `GetWorldSnapshotMetadata(worldID string) (*WorldSnapshotInfo, error)` | Retrieve snapshot metadata for a copied world |
+| `ListWorldSnapshots(worldID string) ([]WorldSnapshotInfo, error)` | List all save snapshots created from a source world |
+| `DeleteWorldSnapshot(worldID string) error` | Delete a saved snapshot world and its persisted snapshot metadata |
 | `GetWorldSettings(worldID string) (*WorldSettings, error)` | Get world settings |
-| `SetWorldSettings(worldID string, settings *WorldSettings) (*WorldSettings, error)` | Set world settings |
+| `UpdateWorldSettings(worldID string, settings *WorldSettingsUpdate) (*WorldSettings, error)` | Partially update world settings; only provided fields are changed |
+| `SetWorldSettings(worldID string, settings *WorldSettings) (*WorldSettings, error)` | Submit a complete world settings payload in one call |
 | `GetWorldPolicy(worldID string) (*WorldPolicy, error)` | Get world policy |
 | `SetWorldPolicy(worldID string, blocked, safe []string) (*WorldPolicy, error)` | Set world policy |
 
@@ -154,16 +166,30 @@ type Client struct {
 
 ```go
 type WorldSettings struct {
-    PipelineMode              string `json:"pipeline_mode,omitempty"`
-    MemoryLimit               int    `json:"memory_limit,omitempty"`
-    MaxAnalysisRounds         int    `json:"max_analysis_rounds,omitempty"`
-    MaxContextDepth           int    `json:"max_context_depth,omitempty"`
-    AutoApply                 bool   `json:"auto_apply,omitempty"`
-    RequireReviewAbove        string `json:"require_review_above,omitempty"`
-    PropagationMaxDepth       int    `json:"propagation_max_depth"`
-    EnablePropagationMachine  bool   `json:"enable_propagation_machine"`
-    SubTaskMaxRetries         int    `json:"sub_task_max_retries"`
-    SubTaskTimeoutSecs        int    `json:"sub_task_timeout_secs"`
+    WorldID                  string `json:"world_id"`
+    MemoryLimit              int    `json:"memory_limit"`
+    MaxAnalysisRounds        int    `json:"max_analysis_rounds"`
+    MaxContextDepth          int    `json:"max_context_depth"`
+    AutoApply                bool   `json:"auto_apply"`
+    RequireReviewAbove       string `json:"require_review_above"`
+    PropagationMaxDepth      int    `json:"propagation_max_depth"`
+    EnablePropagationMachine bool   `json:"enable_propagation_machine"`
+    SubTaskMaxRetries        int    `json:"sub_task_max_retries"`
+    SubTaskTimeoutSecs       int    `json:"sub_task_timeout_secs"`
+    PipelineMode             string `json:"pipeline_mode"`
+}
+
+type WorldSettingsUpdate struct {
+    MemoryLimit              *int    `json:"memory_limit,omitempty"`
+    MaxAnalysisRounds        *int    `json:"max_analysis_rounds,omitempty"`
+    MaxContextDepth          *int    `json:"max_context_depth,omitempty"`
+    AutoApply                *bool   `json:"auto_apply,omitempty"`
+    RequireReviewAbove       *string `json:"require_review_above,omitempty"`
+    PropagationMaxDepth      *int    `json:"propagation_max_depth,omitempty"`
+    EnablePropagationMachine *bool   `json:"enable_propagation_machine,omitempty"`
+    SubTaskMaxRetries        *int    `json:"sub_task_max_retries,omitempty"`
+    SubTaskTimeoutSecs       *int    `json:"sub_task_timeout_secs,omitempty"`
+    PipelineMode             *string `json:"pipeline_mode,omitempty"`
 }
 ```
 
@@ -179,6 +205,16 @@ type InvokeResponse struct {
     WorldChangePlan *WorldChangePlan    `json:"world_change_plan,omitempty"`
     FutureOutline   string              `json:"future_outline,omitempty"`
     Metadata        *ResponseMeta       `json:"metadata,omitempty"`
+}
+
+type ResponseMeta struct {
+    LLMModel               string `json:"llm_model"`
+    TokensUsed             int    `json:"tokens_used"`
+    ProcessingTimeMs       int64  `json:"processing_time_ms"`
+    ConfiguredPipelineMode string `json:"configured_pipeline_mode,omitempty"`
+    EffectivePipelineMode  string `json:"effective_pipeline_mode,omitempty"`
+    MaxAnalysisRounds      int    `json:"max_analysis_rounds,omitempty"`
+    RoundsUsed             int    `json:"rounds_used,omitempty"`
 }
 ```
 

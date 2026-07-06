@@ -58,7 +58,13 @@ func NewRouter(p *engine.Pipeline) *http.ServeMux {
 	mux.HandleFunc("DELETE /api/v1/relations/{id}", DeleteRelationHandler)
 
 	mux.HandleFunc("GET /api/v1/worlds", GetWorldsHandler)
-	mux.HandleFunc("POST /api/v1/worlds/{world_id}/clone", IdempotencyMiddleware(MakeCloneWorldHandler(p)))
+	mux.HandleFunc("POST /api/v1/worlds/{world_id}/fork", IdempotencyMiddleware(MakeForkWorldHandler(p)))
+	mux.HandleFunc("GET /api/v1/worlds/{world_id}/snapshots", MakeListWorldSnapshotsHandler(p))
+	mux.HandleFunc("POST /api/v1/worlds/{world_id}/snapshots", IdempotencyMiddleware(MakeCreateWorldSnapshotHandler(p)))
+	mux.HandleFunc("DELETE /api/v1/worlds/{world_id}/snapshot", MakeDeleteWorldSnapshotHandler(p))
+	mux.HandleFunc("GET /api/v1/worlds/{world_id}/snapshot-metadata", MakeGetWorldSnapshotMetadataHandler(p))
+	mux.HandleFunc("GET /api/v1/worlds/{world_id}/snapshot-validation", MakeValidateWorldSnapshotHandler(p))
+	mux.HandleFunc("POST /api/v1/worlds/{world_id}/restore", IdempotencyMiddleware(MakeRestoreWorldHandler(p)))
 
 	mux.HandleFunc("GET /api/v1/logs", GetLogsHandler)
 	mux.HandleFunc("GET /debug/traces", MakeDebugTracesHandler(p))

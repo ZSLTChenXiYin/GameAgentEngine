@@ -58,10 +58,11 @@ HTTP entry point. Routes requests to the appropriate handlers, validates input, 
 Contains business rules and transaction boundaries. Prevents duplicated validation logic across HTTP/CLI/editor.
 
 - **CRUD operations** — create/update/delete for nodes, components, memories, and relations with full validation
-- **World import/export** (graph.go) — YAML/JSON world config import with dry-run support
-- **World Tick** (world.go) — timeline advancement, autonomous node scheduling, event impact evaluation, scope advancement
-- **World cloning** (clone.go) — duplicates a complete world with all its data, optionally locking the source world against concurrent writes
-- **Autonomous behavior management** — configure, query, and manually trigger autonomous node behavior cycles
+- **World import/export** (import_export.go) - YAML/JSON world config import with dry-run support
+- **World Tick** (world.go) - timeline advancement, autonomous node scheduling, event impact evaluation, scope advancement
+- **Snapshot service** (snapshot_service.go) - snapshot metadata lookup, validation, listing, and deletion
+- **World copy service** (world_copy_service.go) - working-copy fork, save snapshot creation, and restore flows
+- **Autonomous behavior management** - configure, query, and manually trigger autonomous node behavior cycles
 
 ### 3. Engine Layer (internal/engine)
 
@@ -70,7 +71,8 @@ The core inference pipeline. Handles the entire inference lifecycle:
 - **Three pipeline modes** — vertical (single-pass), polling (multi-round LLM), full (complete with DAG sub-tasks)
 - **Context builder** (context.go) — loads node data, components, memories, and ancestor tree from storage
 - **Prompt generation** (prompt_builders.go) — builds task-specific system prompts
-- **Multi-round polling** (pipeline.go) — supports multiple LLM dialogue rounds, with request_data queries per round
+- **Multi-round polling** (pipeline.go) - supports multiple LLM dialogue rounds, with request_data queries per round
+- **Observability metadata** - response metadata, debug traces, and inference logs expose configured/effective pipeline mode and round usage
 - **Sub-task DAG** (dag.go) — orchestrates directed acyclic graphs of sub-tasks declared by the LLM, with retry, timeout, and merge modes
 - **Task node tree** (tasktree.go) — records the complete inference trace for context inheritance
 - **Memory propagation engine** (propagation_engine.go) — four propagation modes (upward/tag_broadcast/targeted/manual) with optional state machine
@@ -82,12 +84,13 @@ The core inference pipeline. Handles the entire inference lifecycle:
 
 GORM-based persistence. Handles database connection, auto-migration, and CRUD operations.
 
-- **Models** (models.go) — 9 data models: Node, Component, Memory, Relation, Timeline, InferenceLog, IdempotencyKey, WorldPolicy, WorldSettings
+- **Models** (models.go) - 10 data models: Node, Component, Memory, Relation, Timeline, InferenceLog, IdempotencyKey, WorldSnapshot, WorldPolicy, WorldSettings
 - **Node operations** (nodes.go) — CRUD + paginated filtering
 - **Component operations** (components.go) — get by node, by type, by world
 - **Memory operations** (memories.go) — CRUD + level filtering, bulk creation, manual propagation
 - **Relation operations** (relations.go) — CRUD + paginated filtering, get node-related relations
-- **Timeline & logs** (timeline.go) — timeline ticks, inference logs
+- **Timeline & logs** (timeline.go) - timeline ticks, inference logs
+- **Snapshot metadata** (snapshots.go) - snapshot metadata create/list/get operations
 - **World settings** (world_settings.go) — per-world runtime settings with CRUD + defaults
 - **World policy** (policy.go) — per-world blocked_actions / safe_actions policy
 - **Memory propagation** (propagation.go) — propagation rules, propagation state machine state
@@ -217,7 +220,7 @@ See [Configuration Reference](CONFIGURATION_EN.md).
 
 ## Database Schema
 
-Nine tables managed by GORM AutoMigrate:
+Ten tables managed by GORM AutoMigrate:
 
 - **nodes** — id, world_id, name, node_type, parent_id, timestamps
 - **components** — id, node_id, component_type, data, timestamps
@@ -225,6 +228,19 @@ Nine tables managed by GORM AutoMigrate:
 - **relations** — id, world_id, source_id, target_id, relation_type, weight, properties, created_at
 - **timelines** — id, world_id, tick_number, tick_type, game_time, summary, data, future_outline, created_at
 - **inference_logs** — id, world_id, task_type, node_id, request_data, response_data, llm_model, tokens_used, duration_ms, created_at
-- **idempotency_keys** — id, result, created_at
-- **world_policies** — world_id, blocked_actions, safe_actions, timestamps
-- **world_settings** — world_id, memory_limit, max_analysis_rounds, max_context_depth, auto_apply, require_review_above, pipeline_mode, propagation_max_depth, sub_task_max_retries, sub_task_timeout_secs, enable_propagation_machine, timestamps
+- **idempotency_keys** - id, result, created_at
+- **world_snapshots** - source_world_id, snapshot_world_id, snapshot_name, reason, engine/schema compatibility metadata, payload_hash, timestamps
+- **world_policies** - world_id, blocked_actions, safe_actions, timestamps
+- **world_settings** - world_id, memory_limit, max_analysis_rounds, max_context_depth, auto_apply, require_review_above, pipeline_mode, propagation_max_depth, sub_task_max_retries, sub_task_timeout_secs, enable_propagation_machine, timestamps
+
+---
+
+## World Copy Boundary
+
+The current world-copy boundary is intentionally split by intent:
+
+- `ForkWorld` creates a working copy for branching and simulation.
+- `CreateWorldSnapshot` creates a save-oriented snapshot plus compatibility metadata.
+- `RestoreWorld` validates snapshot compatibility before creating a fresh runnable world.
+
+This keeps save lifecycle concerns separate from ordinary branching copies while still reusing the same graph-copy foundation.

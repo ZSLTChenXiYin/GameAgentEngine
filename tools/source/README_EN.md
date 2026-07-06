@@ -43,14 +43,14 @@ cp tools/source/gameagentengine.conf.yaml .
 # 3. Start the engine service
 go run ./cmd/gameagentengine serve
 
-# 4. In another terminal, seed the demo world
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key --config gameagentengine.conf.yaml demo-seed
+# 4. In another terminal, import the demo world
+go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key import tools/source/demo-world.yaml --reset
 
 # 5. Open the visual editor
-# web/GameAgentCreator/index.html
+# tools/source/web/GameAgentCreator/index.html
 ```
 
-See [docs/GETTING_STARTED.md](docs/GETTING_STARTED_EN.md) for a detailed walkthrough.
+See [Getting Started](docs/GETTING_STARTED_EN.md) for a detailed walkthrough.
 
 ---
 

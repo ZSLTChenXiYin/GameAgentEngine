@@ -62,7 +62,11 @@ curl -H "X-API-Key: dev-key" http://127.0.0.1:8080/api/v1/status
   "world_change_plan": {},
   "metadata": {
     "llm_model": "deepseek-chat",
-    "processing_time_ms": 3980
+    "processing_time_ms": 3980,
+    "configured_pipeline_mode": "polling",
+    "effective_pipeline_mode": "vertical",
+    "max_analysis_rounds": 4,
+    "rounds_used": 1
   }
 }
 ```
@@ -266,17 +270,29 @@ curl -H "X-API-Key: dev-key" http://127.0.0.1:8080/api/v1/status
 }
 ```
 
-### POST /api/v1/worlds/{world_id}/ticks/replan
+### POST /api/v1/worlds/{world_id}/timeline/replan
 
 重新生成世界未来大纲。
 
-### POST /api/v1/worlds/{world_id}/scope/{scope_id}/advance
+### POST /api/v1/worlds/{world_id}/scopes/{scope_id}/advance
 
 局部范围推进演化。
 
-### POST /api/v1/worlds/{world_id}/clone
+### POST /api/v1/worlds/{world_id}/fork
 
-复制世界及其全部数据。请求体可选 `lock_world` (bool)，复制期间锁定源世界。
+创建世界工作副本。请求体可选 `name` 和 `lock_world`；当 `lock_world` 为 `true` 时，复制期间锁定源世界。
+
+### POST /api/v1/worlds/{world_id}/snapshots
+
+创建世界存档快照。请求体可选 `name` 和 `lock_world`；当 `lock_world` 为 `true` 时，存档期间锁定源世界。
+
+### POST /api/v1/worlds/{world_id}/restore
+
+从存档快照恢复一个新世界。`world_id` 应为快照世界 ID。请求体可选 `name` 和 `lock_world`；当 `lock_world` 为 `true` 时，恢复期间锁定源快照世界。
+
+### DELETE /api/v1/worlds/{world_id}/snapshot
+
+删除某个存档快照世界，以及与之关联的快照元数据。`world_id` 必须是 `save_snapshot` 类型的快照世界 ID。
 
 ---
 
@@ -309,9 +325,56 @@ curl -H "X-API-Key: dev-key" http://127.0.0.1:8080/api/v1/status
 ```json
 {
   "pipeline_mode": "polling",
-  "propagation_max_depth": 3
+  "propagation_max_depth": 0,
+  "sub_task_max_retries": 0,
+  "sub_task_timeout_secs": 0
 }
 ```
+
+说明：
+
+- `memory_limit`、`max_analysis_rounds`、`max_context_depth` 在传入时必须大于 `0`。
+- `propagation_max_depth`、`sub_task_max_retries`、`sub_task_timeout_secs` 支持显式设置为 `0`。
+- `pipeline_mode` 只能是 `vertical`、`polling`、`full` 之一。
+
+### GET /api/v1/worlds/{world_id}/snapshot-validation
+
+校验某个存档快照当前是否仍可安全恢复。返回结构化校验结果，包含版本兼容性、组件类型漂移、世界设置漂移、策略漂移等信息。
+
+```json
+{
+  "snapshot_world_id": "snapshot-world-id",
+  "source_world_id": "source-world-id",
+  "snapshot_name": "Save Slot 1",
+  "reason": "save_snapshot",
+  "valid": true,
+  "schema_version": "world_snapshot/v1",
+  "engine_version": "v0.4.3",
+  "min_compatible_version": "v0.4.3",
+  "current_engine_version": "v0.4.3",
+  "current_min_compatible_version": "v0.4.3",
+  "saved_component_types": ["profile", "rule"],
+  "current_component_types": ["profile", "rule"],
+  "issues": []
+}
+```
+
+### GET /api/v1/worlds/{world_id}/snapshot-metadata
+
+查询某个快照世界的存档元数据。
+
+### GET /api/v1/worlds/{world_id}/snapshots
+
+列出某个源世界创建过的全部存档快照，仅返回 `save_snapshot` 类型。
+
+### Invoke Response Metadata
+
+`metadata` 除了模型与耗时字段外，还可能包含以下管线可观测性字段：
+
+- `configured_pipeline_mode`：世界设置中的默认管线模式
+- `effective_pipeline_mode`：本次请求实际生效的管线模式
+- `max_analysis_rounds`：本次请求解析后的最大轮次数
+- `rounds_used`：本次请求实际消耗的轮次数
 
 ---
 

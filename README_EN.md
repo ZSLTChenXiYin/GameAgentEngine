@@ -18,7 +18,9 @@ GameAgentEngine is a Go-based engine that sits between your game logic and LLM c
 - **Inference Pipeline** — Context assembly → Prompt generation → LLM call → Action parsing → Memory persistence
 - **Action System** — Built-in sync/async actions (add_memory, update_mood, send_dialogue, adjust_relation, spawn_item)
 - **Policy Engine** — Guardrails for safe action execution (blocked actions, review thresholds)
-- **World Cloning** — Duplicate an entire world with all its data, with optional source world locking to prevent concurrent writes
+- **World Copy & Save Flows** - Distinguish between working-copy forks, save snapshots, and restored runnable worlds, with optional source world locking during copy operations
+- **Pipeline Mode Grading** - Choose `vertical`, `polling`, or `full` pipeline execution by world settings or per-request override to balance capability, latency, and runtime cost
+- **Observability** - Response metadata, debug traces, and inference logs expose configured/effective pipeline mode plus analysis-round usage
 - **Idempotency** — Safe retry for write operations
 - **Full CRUD API** — 20+ RESTful endpoints for nodes, components, memories, and relations
 - **Dual Storage** — SQLite (dev) and MySQL (production)
@@ -43,14 +45,14 @@ cp tools/source/gameagentengine.conf.yaml .
 # 3. Start the engine service
 go run ./cmd/gameagentengine serve
 
-# 4. In another terminal, seed the demo world
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key --config gameagentengine.conf.yaml demo-seed
+# 4. In another terminal, import the demo world
+go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key import tools/source/demo-world.yaml --reset
 
 # 5. Open the visual editor
-# web/GameAgentCreator/index.html
+# tools/source/web/GameAgentCreator/index.html
 ```
 
-See [docs/GETTING_STARTED.md](docs/GETTING_STARTED_EN.md) for a detailed walkthrough.
+See [Getting Started](docs/GETTING_STARTED_EN.md) for a detailed walkthrough.
 
 ---
 
@@ -90,6 +92,31 @@ GameAgentEngine/
 | **GameAgentDevCli** | Developer command-line tool | `cmd/gameagentdevcli/main.go` |
 | **GameAgentCreator** | Web-based visual editor | `web/GameAgentCreator/index.html` |
 | **Web Demo** | Demo showcase page | `web/Demo/index.html` |
+
+---
+
+## World Copy Semantics
+
+GameAgentEngine now treats world duplication as three related but different operations:
+
+- `ForkWorld`: create a working copy for branch simulation, debugging, or alternate progression.
+- `CreateWorldSnapshot`: create a save-oriented snapshot world with compatibility metadata for later validation and restore.
+- `RestoreWorld`: validate a saved snapshot and materialize a new runnable world copy from it.
+
+Snapshot metadata is stored separately from the world graph so the engine can validate schema/version compatibility, detect drift, and support save lifecycle tooling.
+
+---
+
+## Pipeline Observability
+
+When a task is invoked, the engine records:
+
+- the configured pipeline mode from world settings
+- the effective pipeline mode used for the current request
+- the maximum analysis rounds allowed
+- the number of rounds actually consumed
+
+These fields are available through `InvokeResponse.metadata`, debug trace output, and inference logs, making it easier to tune `pipeline_mode` by workload.
 
 ---
 

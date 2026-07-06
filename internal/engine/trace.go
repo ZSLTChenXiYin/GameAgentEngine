@@ -9,40 +9,44 @@ import (
 // Trace 记录一次完整的 LLM 推理轨迹。
 // 仅在 Debug 执行模式下启用。
 type TraceStep struct {
-	Name       string        `json:"name"`
-	DurationMs int64         `json:"duration_ms"`
-	Error      string        `json:"error,omitempty"`
+	Name       string `json:"name"`
+	DurationMs int64  `json:"duration_ms"`
+	Error      string `json:"error,omitempty"`
 }
 
 type Trace struct {
-	ID              string         `json:"id"`
-	WorldID         string         `json:"world_id"`
-	RequestID       string         `json:"request_id"`
-	TaskType        TaskType       `json:"task_type"`
-	NodeID          string         `json:"node_id"`
-	Timestamp       time.Time      `json:"timestamp"`
-	DurationMs      int64          `json:"duration_ms"`
-	PromptTokens    int            `json:"prompt_tokens"`
-	CompletionTokens int           `json:"completion_tokens"`
-	SystemPrompt    string         `json:"system_prompt,omitempty"`
-	Messages        []ChatMessage  `json:"messages,omitempty"`
-	RawLLMResponse  string         `json:"raw_llm_response,omitempty"`
-	ParsedActions   []ActionCall   `json:"parsed_actions,omitempty"`
-	ParsedMemories  []MemoryUpdate `json:"parsed_memories,omitempty"`
-	SubTasks        []SubTaskDeclaration `json:"sub_tasks,omitempty"`
-	WorldChangePlan *WorldChangePlan     `json:"world_change_plan,omitempty"`
-	Round           int            `json:"round"`
-	Steps           []TraceStep    `json:"steps,omitempty"`
-	Error           string         `json:"error,omitempty"`
+	ID                     string               `json:"id"`
+	WorldID                string               `json:"world_id"`
+	RequestID              string               `json:"request_id"`
+	TaskType               TaskType             `json:"task_type"`
+	NodeID                 string               `json:"node_id"`
+	ConfiguredPipelineMode string               `json:"configured_pipeline_mode,omitempty"`
+	EffectivePipelineMode  string               `json:"effective_pipeline_mode,omitempty"`
+	MaxAnalysisRounds      int                  `json:"max_analysis_rounds,omitempty"`
+	RoundsUsed             int                  `json:"rounds_used,omitempty"`
+	Timestamp              time.Time            `json:"timestamp"`
+	DurationMs             int64                `json:"duration_ms"`
+	PromptTokens           int                  `json:"prompt_tokens"`
+	CompletionTokens       int                  `json:"completion_tokens"`
+	SystemPrompt           string               `json:"system_prompt,omitempty"`
+	Messages               []ChatMessage        `json:"messages,omitempty"`
+	RawLLMResponse         string               `json:"raw_llm_response,omitempty"`
+	ParsedActions          []ActionCall         `json:"parsed_actions,omitempty"`
+	ParsedMemories         []MemoryUpdate       `json:"parsed_memories,omitempty"`
+	SubTasks               []SubTaskDeclaration `json:"sub_tasks,omitempty"`
+	WorldChangePlan        *WorldChangePlan     `json:"world_change_plan,omitempty"`
+	Round                  int                  `json:"round"`
+	Steps                  []TraceStep          `json:"steps,omitempty"`
+	Error                  string               `json:"error,omitempty"`
 }
 
 // TraceRing 是 Trace 的线程安全环形缓冲区。
 type TraceRing struct {
-	mu    sync.Mutex
-	buf   []*Trace
-	cap   int
-	pos   int
-	full  bool
+	mu   sync.Mutex
+	buf  []*Trace
+	cap  int
+	pos  int
+	full bool
 }
 
 // NewTraceRing 创建一个容量为 capacity 的环形缓冲区。
@@ -129,7 +133,6 @@ func (r *TraceRing) Len() int {
 // GlobalTraceRing 是全局 trace 环形缓冲区，Debug 模式下使用。
 var GlobalTraceRing = NewTraceRing(1000)
 
-
 // buildDebugTrace 构建一条 Debug 模式下的 LLM 调用 trace。
 func buildDebugTrace(
 	worldID, requestID string,
@@ -140,6 +143,7 @@ func buildDebugTrace(
 	messages []ChatMessage,
 	rawLLMResponse string,
 	resp *InvokeResponse,
+	runtime *executionConfig,
 	round int,
 	errStr string,
 ) *Trace {
@@ -149,23 +153,26 @@ func buildDebugTrace(
 		{Name: "parse_execute", DurationMs: time.Since(start).Milliseconds() - llmStart.Sub(start).Milliseconds() - time.Since(llmStart).Milliseconds()},
 	}
 	return &Trace{
-		ID:               uuid.NewString()[:8],
-		WorldID:          worldID,
-		RequestID:        requestID,
-		TaskType:         taskType,
-		NodeID:           nodeID,
-		Timestamp:        time.Now(),
-		DurationMs:       time.Since(start).Milliseconds(),
-		SystemPrompt:     truncateForContext(systemPrompt, 2000),
-		Messages:         messages,
-		RawLLMResponse:   truncateForContext(rawLLMResponse, 5000),
-		ParsedActions:    resp.ActionCalls,
-		ParsedMemories:   resp.MemoryUpdates,
-		SubTasks:         resp.SubTasks,
-		WorldChangePlan:  resp.WorldChangePlan,
-		Error:            errStr,
-		Round:            round,
-		Steps:            steps,
+		ID:                     uuid.NewString()[:8],
+		WorldID:                worldID,
+		RequestID:              requestID,
+		TaskType:               taskType,
+		NodeID:                 nodeID,
+		ConfiguredPipelineMode: configuredPipelineMode(runtime),
+		EffectivePipelineMode:  effectivePipelineMode(runtime),
+		MaxAnalysisRounds:      maxAnalysisRounds(runtime),
+		RoundsUsed:             round + 1,
+		Timestamp:              time.Now(),
+		DurationMs:             time.Since(start).Milliseconds(),
+		SystemPrompt:           truncateForContext(systemPrompt, 2000),
+		Messages:               messages,
+		RawLLMResponse:         truncateForContext(rawLLMResponse, 5000),
+		ParsedActions:          resp.ActionCalls,
+		ParsedMemories:         resp.MemoryUpdates,
+		SubTasks:               resp.SubTasks,
+		WorldChangePlan:        resp.WorldChangePlan,
+		Error:                  errStr,
+		Round:                  round,
+		Steps:                  steps,
 	}
 }
-

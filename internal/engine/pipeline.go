@@ -15,6 +15,160 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
+type inferenceLogRequestData struct {
+	WorldID             string        `json:"world_id,omitempty"`
+	NodeID              string        `json:"node_id,omitempty"`
+	TaskType            TaskType      `json:"task_type,omitempty"`
+	MessageCount        int           `json:"message_count,omitempty"`
+	IncludeRelatedNodes bool          `json:"include_related_nodes,omitempty"`
+	MemoryLimit         int           `json:"memory_limit,omitempty"`
+	MaxDepth            int           `json:"max_depth,omitempty"`
+	MaxAnalysisRounds   int           `json:"max_analysis_rounds,omitempty"`
+	PipelineMode        PipelineMode  `json:"pipeline_mode,omitempty"`
+	Event               *WorldEvent   `json:"event,omitempty"`
+	MessagePreview      []ChatMessage `json:"message_preview,omitempty"`
+}
+
+type inferenceLogResponseData struct {
+	RequestID               string        `json:"request_id,omitempty"`
+	ExecutionMode           ExecutionMode `json:"execution_mode,omitempty"`
+	ReplyPreview            string        `json:"reply_preview,omitempty"`
+	ActionCount             int           `json:"action_count,omitempty"`
+	MemoryUpdateCount       int           `json:"memory_update_count,omitempty"`
+	SubTaskCount            int           `json:"sub_task_count,omitempty"`
+	HasWorldChangePlan      bool          `json:"has_world_change_plan,omitempty"`
+	HasFutureOutline        bool          `json:"has_future_outline,omitempty"`
+	HasDataRequest          bool          `json:"has_data_request,omitempty"`
+	DataRequestLabel        string        `json:"data_request_label,omitempty"`
+	ConfiguredPipelineMode  string        `json:"configured_pipeline_mode,omitempty"`
+	EffectivePipelineMode   string        `json:"effective_pipeline_mode,omitempty"`
+	MaxAnalysisRounds       int           `json:"max_analysis_rounds,omitempty"`
+	RoundsUsed              int           `json:"rounds_used,omitempty"`
+	ActionPreview           []string      `json:"action_preview,omitempty"`
+	MemoryPreview           []string      `json:"memory_preview,omitempty"`
+	WorldChangePlanSummary  string        `json:"world_change_plan_summary,omitempty"`
+	WorldChangePlanImpact   string        `json:"world_change_plan_impact,omitempty"`
+	DataRequestQueryPreview []string      `json:"data_request_query_preview,omitempty"`
+}
+
+func truncateForLog(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	if value == "" || limit <= 0 {
+		return value
+	}
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit]) + "..."
+}
+
+func previewMessages(messages []ChatMessage, limit int) []ChatMessage {
+	if len(messages) == 0 || limit <= 0 {
+		return nil
+	}
+	count := len(messages)
+	if count > limit {
+		count = limit
+	}
+	result := make([]ChatMessage, 0, count)
+	for i := 0; i < count; i++ {
+		msg := messages[i]
+		result = append(result, ChatMessage{Role: msg.Role, Content: truncateForLog(msg.Content, 280)})
+	}
+	return result
+}
+
+func buildInferenceLogRequestData(req *InvokeRequest) string {
+	if req == nil {
+		return ""
+	}
+	payload := inferenceLogRequestData{
+		WorldID:        req.WorldID,
+		NodeID:         req.NodeID,
+		TaskType:       req.TaskType,
+		MessageCount:   len(req.Messages),
+		MessagePreview: previewMessages(req.Messages, 3),
+		Event:          req.Event,
+	}
+	if req.Context != nil {
+		payload.IncludeRelatedNodes = req.Context.IncludeRelatedNodes
+		payload.MemoryLimit = req.Context.MemoryLimit
+		payload.MaxDepth = req.Context.MaxDepth
+		payload.MaxAnalysisRounds = req.Context.MaxAnalysisRounds
+		payload.PipelineMode = req.Context.PipelineMode
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+func buildInferenceLogResponseData(resp *InvokeResponse) string {
+	if resp == nil {
+		return ""
+	}
+	payload := inferenceLogResponseData{
+		RequestID:          resp.RequestID,
+		ExecutionMode:      resp.ExecutionMode,
+		ReplyPreview:       truncateForLog(resp.Reply, 400),
+		ActionCount:        len(resp.ActionCalls),
+		MemoryUpdateCount:  len(resp.MemoryUpdates),
+		SubTaskCount:       len(resp.SubTasks),
+		HasWorldChangePlan: resp.WorldChangePlan != nil,
+		HasFutureOutline:   strings.TrimSpace(resp.FutureOutline) != "",
+		HasDataRequest:     resp.DataRequest != nil,
+	}
+	if resp.Metadata != nil {
+		payload.ConfiguredPipelineMode = resp.Metadata.ConfiguredPipelineMode
+		payload.EffectivePipelineMode = resp.Metadata.EffectivePipelineMode
+		payload.MaxAnalysisRounds = resp.Metadata.MaxAnalysisRounds
+		payload.RoundsUsed = resp.Metadata.RoundsUsed
+	}
+	if resp.DataRequest != nil {
+		payload.DataRequestLabel = resp.DataRequest.Label
+		for _, q := range resp.DataRequest.Queries {
+			label := q.Type
+			if q.NodeID != "" {
+				label += ":" + q.NodeID
+			}
+			if q.Filter != "" {
+				label += "#" + q.Filter
+			}
+			payload.DataRequestQueryPreview = append(payload.DataRequestQueryPreview, label)
+			if len(payload.DataRequestQueryPreview) >= 5 {
+				break
+			}
+		}
+	}
+	for _, call := range resp.ActionCalls {
+		preview := call.ActionID
+		if call.Mode != "" {
+			preview += "[" + call.Mode + "]"
+		}
+		payload.ActionPreview = append(payload.ActionPreview, preview)
+		if len(payload.ActionPreview) >= 5 {
+			break
+		}
+	}
+	for _, mem := range resp.MemoryUpdates {
+		payload.MemoryPreview = append(payload.MemoryPreview, mem.NodeID+":"+string(mem.Level))
+		if len(payload.MemoryPreview) >= 5 {
+			break
+		}
+	}
+	if resp.WorldChangePlan != nil {
+		payload.WorldChangePlanSummary = truncateForLog(resp.WorldChangePlan.Summary, 200)
+		payload.WorldChangePlanImpact = resp.WorldChangePlan.ImpactLevel
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
 // Pipeline is the shared execution shell. Request-specific state is created per Execute call.
 type Pipeline struct {
 	ctxBuilder  *ContextBuilder
@@ -23,12 +177,46 @@ type Pipeline struct {
 }
 
 type executionConfig struct {
-	memoryLimit    int
-	maxRounds      int
-	subTaskRetries int
-	subTaskTimeout int
-	pipelineMode   PipelineMode
-	policyEngine   *planner.PolicyEngine
+	memoryLimit            int
+	maxRounds              int
+	subTaskRetries         int
+	subTaskTimeout         int
+	configuredPipelineMode PipelineMode
+	pipelineMode           PipelineMode
+	policyEngine           *planner.PolicyEngine
+}
+
+func configuredPipelineMode(runtime *executionConfig) string {
+	if runtime == nil {
+		return ""
+	}
+	return string(runtime.configuredPipelineMode)
+}
+
+func effectivePipelineMode(runtime *executionConfig) string {
+	if runtime == nil {
+		return ""
+	}
+	return string(runtime.pipelineMode)
+}
+
+func maxAnalysisRounds(runtime *executionConfig) int {
+	if runtime == nil {
+		return 0
+	}
+	return runtime.maxRounds
+}
+
+func buildResponseMeta(runtime *executionConfig, model string, tokens int, started time.Time, roundsUsed int) *ResponseMeta {
+	return &ResponseMeta{
+		LLMModel:               model,
+		TokensUsed:             tokens,
+		ProcessingTimeMs:       time.Since(started).Milliseconds(),
+		ConfiguredPipelineMode: configuredPipelineMode(runtime),
+		EffectivePipelineMode:  effectivePipelineMode(runtime),
+		MaxAnalysisRounds:      maxAnalysisRounds(runtime),
+		RoundsUsed:             roundsUsed,
+	}
 }
 
 // NewPipeline creates a pipeline and registers built-in actions.
@@ -55,7 +243,27 @@ func (p *Pipeline) loadWorldSettings(worldID string) (int, int, int, int, string
 	if err != nil {
 		return 50, 5, 2, 60, string(PipelineFull)
 	}
-	return s.MemoryLimit, s.MaxAnalysisRounds, s.SubTaskMaxRetries, s.SubTaskTimeoutSecs, s.PipelineMode
+	memoryLimit := s.MemoryLimit
+	if memoryLimit <= 0 {
+		memoryLimit = 50
+	}
+	maxRounds := s.MaxAnalysisRounds
+	if maxRounds <= 0 {
+		maxRounds = 5
+	}
+	retries := s.SubTaskMaxRetries
+	if retries < 0 {
+		retries = 2
+	}
+	timeout := s.SubTaskTimeoutSecs
+	if timeout <= 0 {
+		timeout = 60
+	}
+	mode := s.PipelineMode
+	if !IsValidPipelineMode(mode) {
+		mode = string(PipelineFull)
+	}
+	return memoryLimit, maxRounds, retries, timeout, mode
 }
 
 func (p *Pipeline) loadWorldPolicy(worldID string) *planner.PolicyEngine {
@@ -98,10 +306,11 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 	}
 
 	memoryLimit, maxRounds, retries, timeout, pipelineMode := p.loadWorldSettings(req.WorldID)
-	mode := PipelineMode(pipelineMode)
-	if mode == "" {
-		mode = PipelineFull
+	configuredMode := PipelineMode(pipelineMode)
+	if configuredMode == "" {
+		configuredMode = PipelineFull
 	}
+	mode := configuredMode
 
 	includeRelated := false
 	if req.Context != nil {
@@ -118,12 +327,13 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 	}
 
 	runtime := &executionConfig{
-		memoryLimit:    memoryLimit,
-		maxRounds:      maxRounds,
-		subTaskRetries: retries,
-		subTaskTimeout: timeout,
-		pipelineMode:   mode,
-		policyEngine:   p.loadWorldPolicy(req.WorldID),
+		memoryLimit:            memoryLimit,
+		maxRounds:              maxRounds,
+		subTaskRetries:         retries,
+		subTaskTimeout:         timeout,
+		configuredPipelineMode: configuredMode,
+		pipelineMode:           mode,
+		policyEngine:           p.loadWorldPolicy(req.WorldID),
 	}
 
 	ctx, err := p.ctxBuilder.Build(req.NodeID, depth, runtime.memoryLimit, includeRelated)
@@ -226,11 +436,7 @@ func (p *Pipeline) executeMultiTurnLoop(
 							CallbackID: p.actionReg.CreateCallback("data_request", map[string]any{"label": dr.Label, "queries": dr.Queries}),
 							Args:       map[string]any{"data_request": dr},
 						}},
-						Metadata: &ResponseMeta{
-							LLMModel:         p.llmProvider.ModelName(),
-							TokensUsed:       llmResp.Tokens,
-							ProcessingTimeMs: time.Since(start).Milliseconds(),
-						},
+						Metadata: buildResponseMeta(runtime, p.llmProvider.ModelName(), llmResp.Tokens, start, round+1),
 					}
 					appendResponseLog(resp, req)
 					return resp, nil
@@ -291,11 +497,7 @@ func (p *Pipeline) executeMultiTurnLoop(
 			p.PropagateMemoryByRule(mem, mem.NodeID)
 		}
 
-		resp.Metadata = &ResponseMeta{
-			LLMModel:         p.llmProvider.ModelName(),
-			TokensUsed:       llmResp.Tokens,
-			ProcessingTimeMs: time.Since(start).Milliseconds(),
-		}
+		resp.Metadata = buildResponseMeta(runtime, p.llmProvider.ModelName(), llmResp.Tokens, start, round+1)
 
 		if state.Tree != nil && runtime.pipelineMode == PipelineFull && parsed.RawSubTasks != "" {
 			var subTasks []SubTaskDeclaration
@@ -337,7 +539,7 @@ func (p *Pipeline) executeMultiTurnLoop(
 				start, llmStart,
 				state.SystemPrompt, state.Messages,
 				parsed.Reply,
-				resp, round, "",
+				resp, runtime, round, "",
 			)
 			GlobalTraceRing.Push(trace)
 		case ModeReview:
@@ -376,12 +578,14 @@ func appendResponseLog(resp *InvokeResponse, req *InvokeRequest) {
 		return
 	}
 	store.CreateInferenceLog(&store.InferenceLogModel{
-		WorldUUID:  req.WorldID,
-		TaskType:   string(req.TaskType),
-		NodeUUID:   req.NodeID,
-		LLMModel:   resp.Metadata.LLMModel,
-		TokensUsed: resp.Metadata.TokensUsed,
-		DurationMs: resp.Metadata.ProcessingTimeMs,
+		WorldUUID:    req.WorldID,
+		TaskType:     string(req.TaskType),
+		NodeUUID:     req.NodeID,
+		RequestData:  buildInferenceLogRequestData(req),
+		ResponseData: buildInferenceLogResponseData(resp),
+		LLMModel:     resp.Metadata.LLMModel,
+		TokensUsed:   resp.Metadata.TokensUsed,
+		DurationMs:   resp.Metadata.ProcessingTimeMs,
 	})
 }
 
@@ -404,7 +608,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 			systemPrompt = buildAutonomousPrompt(ctxDesc, req.NodeID, cfg)
 		} else {
 			resp := &InvokeResponse{RequestID: requestID, TaskType: req.TaskType, Reply: "autonomous component not found or disabled", ExecutionMode: executionMode}
-			resp.Metadata = &ResponseMeta{LLMModel: p.llmProvider.ModelName(), ProcessingTimeMs: time.Since(start).Milliseconds()}
+			resp.Metadata = buildResponseMeta(runtime, p.llmProvider.ModelName(), 0, start, 0)
 			appendResponseLog(resp, req)
 			return resp, nil
 		}
@@ -449,7 +653,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 	for _, mem := range resp.MemoryUpdates {
 		p.PropagateMemoryByRule(mem, mem.NodeID)
 	}
-	resp.Metadata = &ResponseMeta{LLMModel: p.llmProvider.ModelName(), TokensUsed: llmResp.Tokens, ProcessingTimeMs: time.Since(start).Milliseconds()}
+	resp.Metadata = buildResponseMeta(runtime, p.llmProvider.ModelName(), llmResp.Tokens, start, 1)
 	appendResponseLog(resp, req)
 	return resp, nil
 }
@@ -551,17 +755,17 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 	}
 	if cfg == nil || comp == nil {
 		resp := &InvokeResponse{RequestID: requestID, TaskType: req.TaskType, Reply: "autonomous component not found"}
-		resp.Metadata = &ResponseMeta{LLMModel: p.llmProvider.ModelName(), ProcessingTimeMs: time.Since(start).Milliseconds()}
+		resp.Metadata = buildResponseMeta(runtime, p.llmProvider.ModelName(), 0, start, 0)
 		return resp, nil
 	}
 	if !cfg.Enabled {
 		resp := &InvokeResponse{RequestID: requestID, TaskType: req.TaskType, Reply: "autonomous behavior disabled"}
-		resp.Metadata = &ResponseMeta{LLMModel: p.llmProvider.ModelName(), ProcessingTimeMs: time.Since(start).Milliseconds()}
+		resp.Metadata = buildResponseMeta(runtime, p.llmProvider.ModelName(), 0, start, 0)
 		return resp, nil
 	}
 	if len(cfg.Capabilities) == 0 {
 		resp := &InvokeResponse{RequestID: requestID, TaskType: req.TaskType, Reply: "autonomous behavior has no capabilities"}
-		resp.Metadata = &ResponseMeta{LLMModel: p.llmProvider.ModelName(), ProcessingTimeMs: time.Since(start).Milliseconds()}
+		resp.Metadata = buildResponseMeta(runtime, p.llmProvider.ModelName(), 0, start, 0)
 		return resp, nil
 	}
 

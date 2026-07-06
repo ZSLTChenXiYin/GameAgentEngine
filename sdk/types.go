@@ -53,11 +53,11 @@ type ChatMessage struct {
 
 // InvokeContext 表示调用方希望追加的上下文约束，可在请求层面覆盖服务端配置。
 type InvokeContext struct {
-	MaxAnalysisRounds   int  `json:"max_analysis_rounds,omitempty"`   // LLM 内部轮询最大次数（0 表示使用服务端配置）
-	MaxDepth            int  `json:"max_depth,omitempty"`             // 上下文向上追溯的最大深度（0 表示使用服务端配置）
-	MemoryLimit         int  `json:"memory_limit,omitempty"`          // 每次推理最多加载的记忆数量（0 表示使用服务端配置）
+	MaxAnalysisRounds   int    `json:"max_analysis_rounds,omitempty"`   // LLM 内部轮询最大次数（0 表示使用服务端配置）
+	MaxDepth            int    `json:"max_depth,omitempty"`             // 上下文向上追溯的最大深度（0 表示使用服务端配置）
+	MemoryLimit         int    `json:"memory_limit,omitempty"`          // 每次推理最多加载的记忆数量（0 表示使用服务端配置）
 	IncludeRelatedNodes bool   `json:"include_related_nodes,omitempty"` // 是否加载关联节点的数据
-	PipelineMode       string `json:"pipeline_mode,omitempty"`           // 管线模式：vertical/polling/full
+	PipelineMode        string `json:"pipeline_mode,omitempty"`         // 管线模式：vertical/polling/full
 }
 
 // InvokeRequest 是 SDK 侧的统一推理请求结构。
@@ -81,15 +81,15 @@ type WorldEvent struct {
 
 // InvokeResponse 是 SDK 侧的统一推理响应结构。
 type InvokeResponse struct {
-	RequestID       string           `json:"request_id"`
-	TaskType        string           `json:"task_type"`
-	ExecutionMode   string           `json:"execution_mode"`
-	Reply           string           `json:"reply,omitempty"`
-	ActionCalls     []ActionCall     `json:"action_calls,omitempty"`
-	WorldChangePlan *WorldChangePlan `json:"world_change_plan,omitempty"`
-	MemoryUpdates   []MemoryUpdate        `json:"memory_updates,omitempty"`
-	SubTasks        []SubTaskDeclaration  `json:"sub_tasks,omitempty"`
-	Metadata        *ResponseMeta         `json:"metadata,omitempty"`
+	RequestID       string               `json:"request_id"`
+	TaskType        string               `json:"task_type"`
+	ExecutionMode   string               `json:"execution_mode"`
+	Reply           string               `json:"reply,omitempty"`
+	ActionCalls     []ActionCall         `json:"action_calls,omitempty"`
+	WorldChangePlan *WorldChangePlan     `json:"world_change_plan,omitempty"`
+	MemoryUpdates   []MemoryUpdate       `json:"memory_updates,omitempty"`
+	SubTasks        []SubTaskDeclaration `json:"sub_tasks,omitempty"`
+	Metadata        *ResponseMeta        `json:"metadata,omitempty"`
 }
 
 // AgentCapability 描述某个自主节点被显式授权调用的能力。
@@ -165,9 +165,13 @@ type ProposedAction struct {
 
 // ResponseMeta 描述一次推理调用的元信息。
 type ResponseMeta struct {
-	LLMModel         string `json:"llm_model"`
-	TokensUsed       int    `json:"tokens_used"`
-	ProcessingTimeMs int64  `json:"processing_time_ms"`
+	LLMModel               string `json:"llm_model"`
+	TokensUsed             int    `json:"tokens_used"`
+	ProcessingTimeMs       int64  `json:"processing_time_ms"`
+	ConfiguredPipelineMode string `json:"configured_pipeline_mode,omitempty"`
+	EffectivePipelineMode  string `json:"effective_pipeline_mode,omitempty"`
+	MaxAnalysisRounds      int    `json:"max_analysis_rounds,omitempty"`
+	RoundsUsed             int    `json:"rounds_used,omitempty"`
 }
 
 // InferenceLog 表示一次推理调用的服务端日志记录。
@@ -196,6 +200,59 @@ type ImportResult struct {
 }
 
 // WorldPolicy 表示世界的动作策略。
+type SnapshotValidationIssue struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type SnapshotValidationResult struct {
+	SnapshotWorldID             string                    `json:"snapshot_world_id"`
+	SourceWorldID               string                    `json:"source_world_id"`
+	SnapshotName                string                    `json:"snapshot_name"`
+	Reason                      string                    `json:"reason"`
+	Valid                       bool                      `json:"valid"`
+	SchemaVersion               string                    `json:"schema_version"`
+	EngineVersion               string                    `json:"engine_version"`
+	MinCompatibleVersion        string                    `json:"min_compatible_version"`
+	CurrentEngineVersion        string                    `json:"current_engine_version"`
+	CurrentMinCompatibleVersion string                    `json:"current_min_compatible_version"`
+	NodeCount                   int                       `json:"node_count"`
+	ComponentCount              int                       `json:"component_count"`
+	MemoryCount                 int                       `json:"memory_count"`
+	RelationCount               int                       `json:"relation_count"`
+	SavedComponentTypes         []string                  `json:"saved_component_types"`
+	CurrentComponentTypes       []string                  `json:"current_component_types"`
+	SavedSettingsHash           string                    `json:"saved_settings_hash"`
+	CurrentSettingsHash         string                    `json:"current_settings_hash"`
+	SavedPolicyHash             string                    `json:"saved_policy_hash"`
+	CurrentPolicyHash           string                    `json:"current_policy_hash"`
+	Issues                      []SnapshotValidationIssue `json:"issues,omitempty"`
+}
+
+type WorldSnapshotInfo struct {
+	ID                   string   `json:"id"`
+	SourceWorldID        string   `json:"source_world_id"`
+	SnapshotWorldID      string   `json:"snapshot_world_id"`
+	SnapshotName         string   `json:"snapshot_name"`
+	Reason               string   `json:"reason"`
+	Status               string   `json:"status"`
+	Restorable           bool     `json:"restorable"`
+	EngineVersion        string   `json:"engine_version"`
+	MinCompatibleVersion string   `json:"min_compatible_version"`
+	SchemaVersion        string   `json:"schema_version"`
+	NodeCount            int      `json:"node_count"`
+	ComponentCount       int      `json:"component_count"`
+	MemoryCount          int      `json:"memory_count"`
+	RelationCount        int      `json:"relation_count"`
+	ComponentTypes       []string `json:"component_types"`
+	SettingsHash         string   `json:"settings_hash"`
+	PolicyHash           string   `json:"policy_hash"`
+	PayloadHash          string   `json:"payload_hash"`
+	ValidationIssues     []string `json:"validation_issues,omitempty"`
+	CreatedAt            string   `json:"created_at"`
+	UpdatedAt            string   `json:"updated_at"`
+}
+
 type WorldPolicy struct {
 	WorldID        string   `json:"world_id"`
 	BlockedActions []string `json:"blocked_actions"`
@@ -219,11 +276,25 @@ type WorldSettings struct {
 	MaxContextDepth          int    `json:"max_context_depth"`
 	AutoApply                bool   `json:"auto_apply"`
 	RequireReviewAbove       string `json:"require_review_above"`
-	PropagationMaxDepth       int    `json:"propagation_max_depth"`
-	EnablePropagationMachine  bool   `json:"enable_propagation_machine"`
-	SubTaskMaxRetries         int    `json:"sub_task_max_retries"`
-	SubTaskTimeoutSecs        int    `json:"sub_task_timeout_secs"`
-	PipelineMode              string `json:"pipeline_mode"`
+	PropagationMaxDepth      int    `json:"propagation_max_depth"`
+	EnablePropagationMachine bool   `json:"enable_propagation_machine"`
+	SubTaskMaxRetries        int    `json:"sub_task_max_retries"`
+	SubTaskTimeoutSecs       int    `json:"sub_task_timeout_secs"`
+	PipelineMode             string `json:"pipeline_mode"`
+}
+
+// WorldSettingsUpdate represents a partial world settings update request.
+type WorldSettingsUpdate struct {
+	MemoryLimit              *int    `json:"memory_limit,omitempty"`
+	MaxAnalysisRounds        *int    `json:"max_analysis_rounds,omitempty"`
+	MaxContextDepth          *int    `json:"max_context_depth,omitempty"`
+	AutoApply                *bool   `json:"auto_apply,omitempty"`
+	RequireReviewAbove       *string `json:"require_review_above,omitempty"`
+	PropagationMaxDepth      *int    `json:"propagation_max_depth,omitempty"`
+	EnablePropagationMachine *bool   `json:"enable_propagation_machine,omitempty"`
+	SubTaskMaxRetries        *int    `json:"sub_task_max_retries,omitempty"`
+	SubTaskTimeoutSecs       *int    `json:"sub_task_timeout_secs,omitempty"`
+	PipelineMode             *string `json:"pipeline_mode,omitempty"`
 }
 
 // NodeDetail 表示节点详情接口返回的聚合结构。
@@ -234,8 +305,6 @@ type NodeDetail struct {
 	Children   []Node      `json:"children,omitempty"`
 	Relations  []Relation  `json:"relations,omitempty"`
 }
-
-
 
 // SubTaskDeclaration 描述 LLM 声明的一个子任务。
 type SubTaskDeclaration struct {

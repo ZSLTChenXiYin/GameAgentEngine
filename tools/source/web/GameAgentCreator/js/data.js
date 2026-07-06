@@ -1,12 +1,24 @@
 /* ============= Data Loaders ============= */
+function apiErrorMessage(err) {
+  if (!err) return tr('Unknown error');
+  var message = err.message || String(err);
+  try {
+    var parsed = JSON.parse(message);
+    if (parsed && parsed.error) {
+      return parsed.error;
+    }
+  } catch (e) {}
+  return message;
+}
+
 async function checkHealth() {
   try {
     await api('GET', '/health');
     state.connected = true;
-    document.getElementById('connStatus').innerHTML = '<span class="status-dot on"></span> Connected';
+    document.getElementById('connStatus').innerHTML = '<span class="status-dot on"></span> ' + tr('Connected');
   } catch(e) {
     state.connected = false;
-    document.getElementById('connStatus').innerHTML = '<span class="status-dot off"></span> Disconnected';
+    document.getElementById('connStatus').innerHTML = '<span class="status-dot off"></span> ' + tr('Disconnected');
   }
 }
 
@@ -26,7 +38,7 @@ async function loadWorlds() {
     }
   } catch(e) {
     state.worlds = [];
-    toast('Failed to load worlds: ' + e.message, 'error');
+    toast(tr('Failed to load worlds') + ': ' + apiErrorMessage(e), 'error');
   }
 }
 
@@ -34,10 +46,13 @@ async function selectWorld(worldId) {
   state.selectedWorldId = worldId;
   if (worldId) {
     try { state.nodes = await api('GET', '/api/v1/nodes?world_id=' + encodeURIComponent(worldId)); }
-    catch(e) { state.nodes = []; toast('Failed to load nodes', 'error'); }
-    loadPolicy(); loadSettings();
+    catch(e) { state.nodes = []; toast(tr('Failed to load nodes') + ': ' + apiErrorMessage(e), 'error'); }
+    state.logs = [];
+    loadPolicy(); loadSettings(); loadSnapshots();
+    if (state.page === 'logs') loadLogs();
   } else {
-    state.nodes = []; state.selectedNodeId = null; state.nodeDetail = null;
+    state.nodes = []; state.selectedNodeId = null; state.nodeDetail = null; state.snapshots = []; state.snapshotMeta = null;
+    state.snapshotListWorldId = null; state.logs = []; state.settings = null; state.policy = null;
   }
   renderTree(); renderCurrent();
 }
@@ -46,7 +61,7 @@ async function selectNode(nodeId, nodeType) {
   state.selectedNodeId = nodeId; state.selectedNodeType = nodeType || null; renderTree();
   if (!nodeId) { state.nodeDetail = null; renderCurrent(); return; }
   try { state.nodeDetail = await api('GET', '/api/v1/nodes/' + encodeURIComponent(nodeId)); }
-  catch(e) { state.nodeDetail = null; toast('Failed to load node details', 'error'); }
+  catch(e) { state.nodeDetail = null; toast(tr('Failed to load node details') + ': ' + apiErrorMessage(e), 'error'); }
   loadAutonomous(); renderCurrent(); if (typeof updateActionButtons === 'function') updateActionButtons();
 }
 
@@ -66,9 +81,15 @@ async function loadSettings() {
 
 async function loadLogs() {
   try {
-    state.logs = await api('GET', '/api/v1/logs?limit=100');
+    var q = '/api/v1/logs?limit=100';
+    if (state.selectedWorldId) q += '&world_id=' + encodeURIComponent(state.selectedWorldId);
+    state.logs = await api('GET', q);
     if (state.page === 'logs') renderCurrent();
-  } catch(e) { toast('Failed to load logs', 'error'); }
+  } catch(e) {
+    state.logs = [];
+    if (state.page === 'logs') renderCurrent();
+    toast(tr('Failed to load logs') + ': ' + apiErrorMessage(e), 'error');
+  }
 }
 
 async function loadAutonomous() {
@@ -83,7 +104,134 @@ async function loadCurrentWorld() {
     state.nodes = await api('GET', '/api/v1/nodes?world_id=' + encodeURIComponent(state.selectedWorldId));
     renderTree();
     if (state.selectedNodeId) { var sn = state.nodes.find(function(x) { return x.id === state.selectedNodeId; }); selectNode(state.selectedNodeId, sn ? sn.node_type : null); }
-  } catch(e) { toast('Refresh failed', 'error'); }
+  } catch(e) { toast(tr('Refresh failed') + ': ' + apiErrorMessage(e), 'error'); }
+}
+
+async function loadSnapshots() {
+  if (!state.selectedWorldId) {
+    state.snapshots = [];
+    state.snapshotMeta = null;
+    state.snapshotListWorldId = null;
+    return;
+  }
+  try {
+    state.snapshotMeta = await api('GET', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/snapshot-metadata');
+  } catch(e) {
+    state.snapshotMeta = null;
+  }
+  var listWorldID = state.selectedWorldId;
+  if (state.snapshotMeta && state.snapshotMeta.reason === 'save_snapshot' && state.snapshotMeta.source_world_id) {
+    listWorldID = state.snapshotMeta.source_world_id;
+  }
+  state.snapshotListWorldId = listWorldID;
+  try {
+    state.snapshots = await api('GET', '/api/v1/worlds/' + encodeURIComponent(listWorldID) + '/snapshots');
+  } catch(e) {
+    state.snapshots = [];
+  }
+  if (state.page === 'snapshots') renderCurrent();
+}
+
+async function refreshSnapshots() {
+  showLoading(tr('Loading snapshots...'));
+  try {
+    await loadSnapshots();
+    hideLoading();
+    toast(tr('Snapshots refreshed'), 'success');
+  } catch(e) {
+    hideLoading();
+    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+  }
+}
+
+async function validateSnapshot(snapshotWorldID) {
+  showLoading(tr('Validating snapshot...'));
+  try {
+    var result = await api('GET', '/api/v1/worlds/' + encodeURIComponent(snapshotWorldID) + '/snapshot-validation');
+    hideLoading();
+    openSnapshotValidationModal(result);
+  } catch(e) {
+    hideLoading();
+    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+  }
+}
+
+function openSnapshotValidationModal(result) {
+  var issues = result.issues || [];
+  var body = ce('div', { className: 'modal-field' }, [
+    ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Snapshot')]), ce('span', { className: 'val mono' }, [txt(result.snapshot_world_id || '-')])]),
+    ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Valid')]), ce('span', { className: 'val' }, [txt(result.valid ? tr('Yes') : tr('No'))])]),
+    ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Schema')]), ce('span', { className: 'val' }, [txt(result.schema_version || '-')])]),
+    ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Engine')]), ce('span', { className: 'val' }, [txt((result.engine_version || '-') + ' / ' + (result.current_engine_version || '-'))])]),
+    ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Issues')]), ce('span', { className: 'val' }, [txt(String(issues.length))])]),
+    issues.length > 0 ? el('pre', { style: {fontSize: '11px', whiteSpace: 'pre-wrap', maxHeight: '220px', overflow: 'auto', background: 'var(--bg-input)', padding: '8px', borderRadius: 'var(--radius)'}, textContent: JSON.stringify(issues, null, 2) }) : ce('div', { className: 'hint' }, [ttxt('No validation issues.')]),
+  ]);
+  openModal(tr('Snapshot Validation'), body, ce('div', {}, [el('button', { id: 'modalCloseSnapshotValidationBtn', textContent: tr('Close') })]));
+  document.getElementById('modalCloseSnapshotValidationBtn').addEventListener('click', closeModal);
+}
+
+function openRestoreSnapshotModal(snapshotWorldID, snapshotName) {
+  var f = ce('div', { className: 'modal-field' }, [
+    ce('label', { for: 'restoreSnapshotName' }, [ttxt('New World Name')]),
+    el('input', { id: 'restoreSnapshotName', value: (snapshotName || '') + ' restored', style: {width: '100%'} }),
+    ce('label', { className: 'checkbox-row' }, [el('input', { id: 'restoreSnapshotLockWorld', type: 'checkbox', checked: true }), ttxt('Lock source snapshot during restore')]),
+  ]);
+  openModal(tr('Restore Snapshot'), f,
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalRestoreSnapshotBtn' }, [ttxt('Restore')]), el('button', { id: 'modalCancelSnapshotRestoreBtn', textContent: tr('Cancel') })])
+  );
+  document.getElementById('modalRestoreSnapshotBtn').addEventListener('click', function() { restoreSnapshot(snapshotWorldID); });
+  document.getElementById('modalCancelSnapshotRestoreBtn').addEventListener('click', closeModal);
+}
+
+async function restoreSnapshot(snapshotWorldID) {
+  var name = document.getElementById('restoreSnapshotName').value.trim();
+  var lockWorld = document.getElementById('restoreSnapshotLockWorld').checked;
+  showLoading(tr('Restoring snapshot...'));
+  try {
+    var result = await api('POST', '/api/v1/worlds/' + encodeURIComponent(snapshotWorldID) + '/restore', { name: name, lock_world: lockWorld });
+    closeModal();
+    hideLoading();
+    toast(tr('Snapshot restored'), 'success');
+    await loadWorlds();
+    await loadSnapshots();
+    if (result && result.id) selectWorld(result.id);
+  } catch(e) {
+    hideLoading();
+    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+  }
+}
+
+function deleteSnapshot(snapshotWorldID) {
+  var body = ce('p', { style: { color: 'var(--text)', fontSize: '12px' } }, [ttxt('Delete this snapshot world and its metadata?')]);
+  var footer = ce('div', {}, [
+    ce('button', { className: 'danger', id: 'modalConfirmDeleteSnapshotBtn' }, [ttxt('Delete')]),
+    el('button', { id: 'modalCancelDeleteSnapshotBtn', textContent: tr('Cancel') }),
+  ]);
+  openModal(tr('Confirm'), body, footer);
+  document.getElementById('modalConfirmDeleteSnapshotBtn').addEventListener('click', async function() {
+    closeModal();
+    showLoading(tr('Deleting snapshot...'));
+    try {
+      await api('DELETE', '/api/v1/worlds/' + encodeURIComponent(snapshotWorldID) + '/snapshot');
+      hideLoading();
+      toast(tr('Snapshot deleted'), 'success');
+      var deletedSelected = state.selectedWorldId === snapshotWorldID;
+      await loadWorlds();
+      if (deletedSelected) {
+        state.selectedWorldId = state.worlds.length > 0 ? state.worlds[0].id : null;
+        if (state.selectedWorldId) {
+          await selectWorld(state.selectedWorldId);
+          return;
+        }
+      }
+      await loadSnapshots();
+      renderCurrent();
+    } catch(e) {
+      hideLoading();
+      toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    }
+  });
+  document.getElementById('modalCancelDeleteSnapshotBtn').addEventListener('click', closeModal);
 }
 
 /* ============= Create Modals ============= */
@@ -99,16 +247,28 @@ function openCreateWorldModal() {
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 }
 
-async function cloneWorld() {
+async function forkWorld() {
   if (!state.selectedWorldId) { toast(tr('Select a world first'), 'error'); return; }
-  const lockWorld = confirm(tr('Lock world during clone? This prevents concurrent writes.'));
-  showLoading(tr('Cloning world...'));
+  const lockWorld = confirm(tr('Lock world during working-copy creation? This prevents concurrent writes.'));
+  showLoading(tr('Creating working copy...'));
   try {
-    const result = await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/clone', { lock_world: lockWorld });
-    hideLoading(); toast(tr('World cloned'), 'success');
+    const result = await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/fork', { lock_world: lockWorld });
+    hideLoading(); toast(tr('Working copy created'), 'success');
     await loadWorlds();
     if (result && result.id) selectWorld(result.id);
-  } catch(e) { hideLoading(); toast(tr('Failed: ') + e.message, 'error'); }
+  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+}
+
+async function saveSnapshot() {
+  if (!state.selectedWorldId) { toast(tr('Select a world first'), 'error'); return; }
+  const lockWorld = confirm(tr('Lock world during snapshot save? This prevents concurrent writes.'));
+  showLoading(tr('Saving snapshot...'));
+  try {
+    const result = await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/snapshots', { lock_world: lockWorld });
+    hideLoading(); toast(tr('Snapshot saved'), 'success');
+    await loadWorlds();
+    if (result && result.id) selectWorld(result.id);
+  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 async function createWorld() {
@@ -117,7 +277,7 @@ async function createWorld() {
   try {
     await api('POST', '/api/v1/nodes', { name: name, node_type: 'world' });
     closeModal(); toast(tr('World created'), 'success'); loadWorlds();
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 function openCreateNodeModal(parentId) {
@@ -129,7 +289,7 @@ function openCreateNodeModal(parentId) {
     el('input', { id: 'createNodeParent', type: 'hidden', value: parentId || '' }),
   ]);
   openModal(tr('Create Node'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalCreateNodeBtn' }, [ttxt('Create')]), el('button', { id: 'modalCancelBtn', textContent: 'Cancel' })])
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalCreateNodeBtn' }, [ttxt('Create')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   document.getElementById('modalCreateNodeBtn').addEventListener('click', createNode);
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
@@ -139,13 +299,13 @@ async function createNode() {
   const name = document.getElementById('createNodeName').value.trim();
   const nodeType = document.getElementById('createNodeType').value;
   const parentId = document.getElementById('createNodeParent').value;
-  if (!name) { toast('Enter a node name', 'error'); return; }
+  if (!name) { toast(tr('Enter a node name'), 'error'); return; }
   try {
     var body = { name: name, node_type: nodeType, world_id: state.selectedWorldId };
     if (parentId) body.parent_id = parentId;
     await api('POST', '/api/v1/nodes', body);
     closeModal(); toast(tr('Node created'), 'success'); loadCurrentWorld();
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 function openEditNodeModal(nodeId) {
@@ -158,7 +318,7 @@ function openEditNodeModal(nodeId) {
     el('select', { id: 'editNodeType', innerHTML: '<option value="faction">faction</option><option value="location">location</option><option value="npc">npc</option><option value="item">item</option><option value="quest_line">quest_line</option><option value="event">event</option>' }),
   ]);
   openModal(tr('Edit Node'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalEditNodeBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: 'Cancel' })])
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalEditNodeBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   var et = document.getElementById('editNodeType'); if (et) et.value = n.node_type;
   document.getElementById('modalEditNodeBtn').addEventListener('click', function() { editNode(nodeId); });
@@ -168,11 +328,11 @@ function openEditNodeModal(nodeId) {
 async function editNode(nodeId) {
   const name = document.getElementById('editNodeName').value.trim();
   const nodeType = document.getElementById('editNodeType').value;
-  if (!name) { toast('Enter a node name', 'error'); return; }
+  if (!name) { toast(tr('Enter a node name'), 'error'); return; }
   try {
     await api('PUT', '/api/v1/nodes/' + encodeURIComponent(nodeId), { name: name, node_type: nodeType });
-    closeModal(); toast('Node updated', 'success'); loadCurrentWorld();
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+    closeModal(); toast(tr('Node updated'), 'success'); loadCurrentWorld();
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 async function moveNodeParent(nodeId, newParentId) {
@@ -180,14 +340,14 @@ async function moveNodeParent(nodeId, newParentId) {
   try {
     await api('PUT', '/api/v1/nodes/' + encodeURIComponent(nodeId), { parent_id: newParentId });
     toast(tr('Node moved'), 'success'); loadCurrentWorld();
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 async function deleteNodeHandler(nodeId) {
   const body = ce('p', { style: { color: 'var(--text)', fontSize: '12px' } }, [ttxt('Delete this node?')]);
   const footer = ce('div', {}, [
     ce('button', { className: 'danger', id: 'modalConfirmDelNodeBtn' }, [ttxt('Delete')]),
-    el('button', { id: 'modalCancelDelNodeBtn', textContent: 'Cancel' }),
+    el('button', { id: 'modalCancelDelNodeBtn', textContent: tr('Cancel') }),
   ]);
   openModal(tr('Confirm'), body, footer);
   document.getElementById('modalConfirmDelNodeBtn').addEventListener('click', async function() {
@@ -197,7 +357,7 @@ async function deleteNodeHandler(nodeId) {
       toast(tr('Node deleted'), 'success');
       if (state.selectedNodeId === nodeId) { state.selectedNodeId = null; state.nodeDetail = null; }
       loadCurrentWorld();
-    } catch(e) { toast('Failed: ' + e.message, 'error'); }
+    } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
   });
   document.getElementById('modalCancelDelNodeBtn').addEventListener('click', closeModal);
 }
@@ -211,7 +371,7 @@ function openAddComponentModal() {
     el('textarea', { id: 'addCompData', placeholder: tr('Enter component data...'), rows: 8, style: {width: '100%', fontFamily: 'var(--font-mono)'} }),
   ]);
   openModal(tr('Add Component'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalAddCompBtn' }, [ttxt('Add')]), el('button', { id: 'modalCancelBtn', textContent: 'Cancel' })])
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalAddCompBtn' }, [ttxt('Add')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   document.getElementById('modalAddCompBtn').addEventListener('click', addComponent);
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
@@ -220,11 +380,11 @@ function openAddComponentModal() {
 async function addComponent() {
   const compType = document.getElementById('addCompType').value;
   const data = document.getElementById('addCompData').value.trim();
-  if (!data) { toast('Enter component data', 'error'); return; }
+  if (!data) { toast(tr('Enter component data'), 'error'); return; }
   try {
     await api('POST', '/api/v1/components', { node_id: state.selectedNodeId, component_type: compType, data: data });
     closeModal(); toast(tr('Component added'), 'success'); selectNode(state.selectedNodeId);
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 function openAddMemoryModal() {
@@ -238,7 +398,7 @@ function openAddMemoryModal() {
     el('input', { id: 'addMemTags', placeholder: tr('tag1,tag2...'), style: {width: '100%'} }),
   ]);
   openModal(tr('Add Memory'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalAddMemBtn' }, [ttxt('Add')]), el('button', { id: 'modalCancelBtn', textContent: 'Cancel' })])
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalAddMemBtn' }, [ttxt('Add')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   document.getElementById('modalAddMemBtn').addEventListener('click', addMemory);
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
@@ -246,13 +406,13 @@ function openAddMemoryModal() {
 
 async function addMemory() {
   const content = document.getElementById('addMemContent').value.trim();
-  if (!content) { toast('Enter memory content', 'error'); return; }
+  if (!content) { toast(tr('Enter memory content'), 'error'); return; }
   const level = document.getElementById('addMemLevel').value;
   const tags = document.getElementById('addMemTags').value.trim();
   try {
     await api('POST', '/api/v1/memories', { node_id: state.selectedNodeId, content: content, level: level, tags: tags });
     closeModal(); toast(tr('Memory added'), 'success'); selectNode(state.selectedNodeId);
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 function openAddRelationModal() {
@@ -267,7 +427,7 @@ function openAddRelationModal() {
     el('input', { id: 'addRelWeight', type: 'number', value: '5', min: '0', max: '100', style: {width: '80px'} }),
   ]);
   openModal(tr('Add Relation'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalAddRelBtn' }, [ttxt('Add')]), el('button', { id: 'modalCancelBtn', textContent: 'Cancel' })])
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalAddRelBtn' }, [ttxt('Add')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   document.getElementById('modalAddRelBtn').addEventListener('click', addRelation);
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
@@ -277,11 +437,11 @@ async function addRelation() {
   const targetId = document.getElementById('addRelTarget').value;
   const relType = document.getElementById('addRelType').value;
   const weight = parseInt(document.getElementById('addRelWeight').value) || 5;
-  if (!targetId) { toast('Select a target node', 'error'); return; }
+  if (!targetId) { toast(tr('Select a target node'), 'error'); return; }
   try {
     await api('POST', '/api/v1/relations', { world_id: state.selectedWorldId, source_id: state.selectedNodeId, target_id: targetId, relation_type: relType, weight: weight });
     closeModal(); toast(tr('Relation added'), 'success'); selectNode(state.selectedNodeId);
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 /* ============= Import Modal ============= */
@@ -297,7 +457,7 @@ function openImportModal() {
     ]),
   ]);
   openModal(tr('Import Config'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalImportBtn' }, [ttxt('Import')]), el('button', { id: 'modalCancelBtn', textContent: 'Cancel' })])
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalImportBtn' }, [ttxt('Import')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   document.getElementById('modalImportBtn').addEventListener('click', importConfig);
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
@@ -312,9 +472,9 @@ async function importConfig() {
   try {
     const res = await api('POST', '/api/v1/creator/import', { format: format, content: content, dry_run: dryRun, reset: reset });
     closeModal();
-    toast('Imported: ' + res.node_count + ' nodes, ' + res.component_count + ' components', 'success');
+    toast(tr('Import successful'), 'success');
     if (!dryRun) loadWorlds();
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 /* ============= Config Modal ============= */
@@ -326,7 +486,7 @@ function openConfigModal() {
     el('input', { id: 'cfgKey', value: cfg.key, style: {width: '100%'} }),
   ]);
   openModal(tr('Server Config'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalSaveCfgBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: 'Cancel' })])
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalSaveCfgBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   document.getElementById('modalSaveCfgBtn').addEventListener('click', saveConfig);
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
@@ -346,8 +506,8 @@ async function tickAdvance() { if (!requireWorldGuard()) return;
   try {
     const res = await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/ticks/advance', { tick_type: 'hour', game_time: '' });
     hideLoading();
-    toast(tr('Tick advanced') + ': ' + (res.tick ? 'tick ' + res.tick.tick_number : 'ok'), 'success');
-  } catch(e) { hideLoading(); toast('Failed: ' + e.message, 'error'); }
+    toast(tr('Tick advanced') + ': ' + (res.tick ? 'tick ' + res.tick.tick_number : tr('Valid')), 'success');
+  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 async function runAutonomous() { if (!requireBothGuard()) return;
@@ -357,7 +517,7 @@ async function runAutonomous() { if (!requireBothGuard()) return;
     await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/nodes/' + encodeURIComponent(state.selectedNodeId) + '/autonomous/run', null);
     hideLoading();
     toast(tr('Autonomous triggered'), 'success');
-  } catch(e) { hideLoading(); toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 async function savePolicy() {
@@ -366,32 +526,59 @@ async function savePolicy() {
   try {
     await api('PUT', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/policy', { blocked_actions: blocked, safe_actions: safe });
     toast(tr('Policy saved'), 'success'); loadPolicy();
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 async function saveSettings() {
   try {
-    await api('PUT', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/settings', {
-      memory_limit: parseInt(document.getElementById('setMemoryLimit').value) || 50,
-      max_analysis_rounds: parseInt(document.getElementById('setMaxRounds').value) || 5,
-      max_context_depth: parseInt(document.getElementById('setMaxDepth').value) || 3,
-      auto_apply: document.getElementById('setAutoApply').checked,
-      require_review_above: document.getElementById('setReviewAbove').value || 'critical',
-      pipeline_mode: document.getElementById('setPipelineMode').value || 'full',
-      propagation_max_depth: parseInt(document.getElementById('setPropMaxDepth').value) || 0,
-      sub_task_max_retries: parseInt(document.getElementById('setSubTaskRetries').value) || 0,
-      sub_task_timeout_secs: parseInt(document.getElementById('setSubTaskTimeout').value) || 0,
-      enable_propagation_machine: document.getElementById('setEnablePropMachine').checked,
-    });
+    var current = state.settings || {};
+    var payload = {};
+
+    function maybeSetInt(key, elementId) {
+      var raw = document.getElementById(elementId).value.trim();
+      if (raw === '') return;
+      var next = parseInt(raw, 10);
+      if (!Number.isFinite(next)) return;
+      if (current[key] !== next) payload[key] = next;
+    }
+
+    function maybeSetBool(key, elementId) {
+      var next = !!document.getElementById(elementId).checked;
+      if (!!current[key] !== next) payload[key] = next;
+    }
+
+    function maybeSetString(key, elementId, fallback) {
+      var raw = document.getElementById(elementId).value.trim();
+      var next = raw || fallback;
+      if ((current[key] || '') !== next) payload[key] = next;
+    }
+
+    maybeSetInt('memory_limit', 'setMemoryLimit');
+    maybeSetInt('max_analysis_rounds', 'setMaxRounds');
+    maybeSetInt('max_context_depth', 'setMaxDepth');
+    maybeSetBool('auto_apply', 'setAutoApply');
+    maybeSetString('require_review_above', 'setReviewAbove', 'critical');
+    maybeSetString('pipeline_mode', 'setPipelineMode', 'full');
+    maybeSetInt('propagation_max_depth', 'setPropMaxDepth');
+    maybeSetInt('sub_task_max_retries', 'setSubTaskRetries');
+    maybeSetInt('sub_task_timeout_secs', 'setSubTaskTimeout');
+    maybeSetBool('enable_propagation_machine', 'setEnablePropMachine');
+
+    if (Object.keys(payload).length === 0) {
+      toast(tr('Settings saved'), 'success');
+      return;
+    }
+
+    await api('PUT', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/settings', payload);
     toast(tr('Settings saved'), 'success'); loadSettings();
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 async function deleteComponent(compId) {
   const body = ce('p', { style: { color: 'var(--text)', fontSize: '12px' } }, [ttxt('Delete this component?')]);
   const footer = ce('div', {}, [
     ce('button', { className: 'danger', id: 'modalConfirmDelBtn' }, [ttxt('Delete')]),
-    el('button', { id: 'modalCancelDelBtn', textContent: 'Cancel' }),
+    el('button', { id: 'modalCancelDelBtn', textContent: tr('Cancel') }),
   ]);
   openModal(tr('Confirm'), body, footer);
   document.getElementById('modalConfirmDelBtn').addEventListener('click', async function() {
@@ -399,7 +586,7 @@ async function deleteComponent(compId) {
     try {
       await api('DELETE', '/api/v1/components/' + encodeURIComponent(compId));
       toast(tr('Component deleted'), 'success'); selectNode(state.selectedNodeId);
-    } catch(e) { toast('Failed: ' + e.message, 'error'); }
+    } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
   });
   document.getElementById('modalCancelDelBtn').addEventListener('click', closeModal);
 }
@@ -408,7 +595,7 @@ async function deleteMemory(memId) {
   const body = ce('p', { style: { color: 'var(--text)', fontSize: '12px' } }, [ttxt('Delete this memory?')]);
   const footer = ce('div', {}, [
     ce('button', { className: 'danger', id: 'modalConfirmDelBtn' }, [ttxt('Delete')]),
-    el('button', { id: 'modalCancelDelBtn', textContent: 'Cancel' }),
+    el('button', { id: 'modalCancelDelBtn', textContent: tr('Cancel') }),
   ]);
   openModal(tr('Confirm'), body, footer);
   document.getElementById('modalConfirmDelBtn').addEventListener('click', async function() {
@@ -416,7 +603,7 @@ async function deleteMemory(memId) {
     try {
       await api('DELETE', '/api/v1/memories/' + encodeURIComponent(memId));
       toast(tr('Memory deleted'), 'success'); selectNode(state.selectedNodeId);
-    } catch(e) { toast('Failed: ' + e.message, 'error'); }
+    } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
   });
   document.getElementById('modalCancelDelBtn').addEventListener('click', closeModal);
 }
@@ -425,7 +612,7 @@ async function deleteRelation(relId) {
   const body = ce('p', { style: { color: 'var(--text)', fontSize: '12px' } }, [ttxt('Delete this relation?')]);
   const footer = ce('div', {}, [
     ce('button', { className: 'danger', id: 'modalConfirmDelBtn' }, [ttxt('Delete')]),
-    el('button', { id: 'modalCancelDelBtn', textContent: 'Cancel' }),
+    el('button', { id: 'modalCancelDelBtn', textContent: tr('Cancel') }),
   ]);
   openModal(tr('Confirm'), body, footer);
   document.getElementById('modalConfirmDelBtn').addEventListener('click', async function() {
@@ -433,7 +620,7 @@ async function deleteRelation(relId) {
     try {
       await api('DELETE', '/api/v1/relations/' + encodeURIComponent(relId));
       toast(tr('Relation deleted'), 'success'); selectNode(state.selectedNodeId);
-    } catch(e) { toast('Failed: ' + e.message, 'error'); }
+    } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
   });
   document.getElementById('modalCancelDelBtn').addEventListener('click', closeModal);
 }
@@ -451,7 +638,7 @@ function openEditComponentModal(compId) {
     el('textarea', { id: 'editCompData', rows: 10, style: {width: '100%', fontFamily: 'var(--font-mono)', fontSize: '11px'}, textContent: comp.data || '' }),
   ]);
   openModal(tr('Edit Component'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalEditCompBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: 'Cancel' })])
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalEditCompBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   var ec = document.getElementById('editCompType'); if (ec) ec.value = comp.component_type;
   document.getElementById('modalEditCompBtn').addEventListener('click', function() { editComponent(compId); });
@@ -461,11 +648,11 @@ function openEditComponentModal(compId) {
 async function editComponent(compId) {
   const compType = document.getElementById('editCompType').value;
   const data = document.getElementById('editCompData').value.trim();
-  if (!data) { toast('Enter component data', 'error'); return; }
+  if (!data) { toast(tr('Enter component data'), 'error'); return; }
   try {
     await api('PUT', '/api/v1/components/' + encodeURIComponent(compId), { component_type: compType, data: data });
     closeModal(); toast(tr('Component updated'), 'success'); selectNode(state.selectedNodeId);
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 function openEditMemoryModal(memId) {
@@ -482,7 +669,7 @@ function openEditMemoryModal(memId) {
     el('input', { id: 'editMemTags', value: mem.tags || '', style: {width: '100%'} }),
   ]);
   openModal(tr('Edit Memory'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalEditMemBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: 'Cancel' })])
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalEditMemBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   var em = document.getElementById('editMemLevel'); if (em) em.value = mem.level || 'long_term';
   document.getElementById('modalEditMemBtn').addEventListener('click', function() { editMemory(memId); });
@@ -493,11 +680,11 @@ async function editMemory(memId) {
   const content = document.getElementById('editMemContent').value.trim();
   const level = document.getElementById('editMemLevel').value;
   const tags = document.getElementById('editMemTags').value.trim();
-  if (!content) { toast('Enter memory content', 'error'); return; }
+  if (!content) { toast(tr('Enter memory content'), 'error'); return; }
   try {
     await api('PUT', '/api/v1/memories/' + encodeURIComponent(memId), { content: content, level: level, tags: tags });
-    closeModal(); toast('Memory updated', 'success'); selectNode(state.selectedNodeId);
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+    closeModal(); toast(tr('Memory updated'), 'success'); selectNode(state.selectedNodeId);
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 function openEditRelationModal(relId) {
@@ -517,7 +704,7 @@ function openEditRelationModal(relId) {
     el('input', { id: 'editRelWeight', type: 'number', value: String(rel.weight || 5), min: '0', max: '100', style: {width: '80px'} }),
   ]);
   openModal(tr('Edit Relation'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalEditRelBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: 'Cancel' })])
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalEditRelBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   var ers = document.getElementById('editRelSource'); if (ers) ers.value = rel.source_id;
   var ert = document.getElementById('editRelTarget'); if (ert) ert.value = rel.target_id;
@@ -531,11 +718,11 @@ async function editRelation(relId) {
   const targetId = document.getElementById('editRelTarget').value;
   const relType = document.getElementById('editRelType').value;
   const weight = parseInt(document.getElementById('editRelWeight').value) || 5;
-  if (!sourceId || !targetId) { toast('Select source and target', 'error'); return; }
+  if (!sourceId || !targetId) { toast(tr('Select source and target'), 'error'); return; }
   try {
     await api('PUT', '/api/v1/relations/' + encodeURIComponent(relId), { source_id: sourceId, target_id: targetId, relation_type: relType, weight: weight });
-    closeModal(); toast('Relation updated', 'success'); selectNode(state.selectedNodeId);
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+    closeModal(); toast(tr('Relation updated'), 'success'); selectNode(state.selectedNodeId);
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 /* ============= Event / Scope / Replan ============= */
@@ -552,7 +739,7 @@ function openEventImpactModal() { if (!requireWorldGuard()) return;
     el('select', { id: 'eiSeverity', innerHTML: '<option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="critical">critical</option>' }),
   ]);
   openModal(tr('Event Impact Assessment'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalEiBtn' }, [ttxt('Assess')]), el('button', { id: 'modalCancelBtn', textContent: 'Cancel' })])
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalEiBtn' }, [ttxt('Assess')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   document.getElementById('modalEiBtn').addEventListener('click', eventImpact);
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
@@ -563,7 +750,7 @@ async function eventImpact() {
   const scopeId = document.getElementById('eiScope').value.trim();
   const description = document.getElementById('eiDesc').value.trim();
   const severity = document.getElementById('eiSeverity').value;
-  if (!eventType || !description) { toast('Enter event type and description', 'error'); return; }
+  if (!eventType || !description) { toast(tr('Enter event type and description'), 'error'); return; }
   showLoading(tr('Assessing event impact...'));
   try {
     const res = await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/events/impact', { event_type: eventType, scope_id: scopeId || undefined, description: description, severity: severity });
@@ -576,22 +763,22 @@ async function eventImpact() {
     toast(tr('Event assessed'), 'success');
     openModal(tr('Assessment Result'), resultEl, ce('div', {}, [el('button', { id: 'modalCloseResultBtn', textContent: tr('Close') })]));
     document.getElementById('modalCloseResultBtn').addEventListener('click', closeModal);
-  } catch(e) { hideLoading(); toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 async function scopeAdvance() { if (!requireBothGuard()) return; if (state.selectedNodeType === 'world') { toast(tr('Scope Advance requires a non-world node'), 'error'); return; }
-  if (!state.selectedNodeId) { toast('Select a node as scope', 'error'); return; }
-  if (!state.selectedWorldId) { toast('Select a world', 'error'); return; }
+  if (!state.selectedNodeId) { toast(tr('Select a node as scope'), 'error'); return; }
+  if (!state.selectedWorldId) { toast(tr('Select a world'), 'error'); return; }
   showLoading(tr('Advancing scope...'));
   try {
-    await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/scope/' + encodeURIComponent(state.selectedNodeId) + '/advance', null);
+    await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/scopes/' + encodeURIComponent(state.selectedNodeId) + '/advance', null);
     hideLoading();
     toast(tr('Scope advanced'), 'success');
-  } catch(e) { hideLoading(); toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 async function timelineReplan() { if (!requireWorldGuard()) return;
-  if (!state.selectedWorldId) { toast('Select a world', 'error'); return; }
+  if (!state.selectedWorldId) { toast(tr('Select a world'), 'error'); return; }
   showLoading(tr('Replanning timeline...'));
   try {
     const res = await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/timeline/replan', null);
@@ -600,15 +787,15 @@ async function timelineReplan() { if (!requireWorldGuard()) return;
       el('pre', { style: {fontSize: '11px', whiteSpace: 'pre-wrap', maxHeight: '300px', overflow: 'auto', background: 'var(--bg-input)', padding: '8px', borderRadius: 'var(--radius)'}, textContent: JSON.stringify(res, null, 2) }),
     ]);
     toast(tr('Replan done'), 'success');
-    openModal(tr('Replan Result'), resultEl, ce('div', {}, [el('button', { id: 'modalCloseResultBtn', textContent: 'Close' })]));
+    openModal(tr('Replan Result'), resultEl, ce('div', {}, [el('button', { id: 'modalCloseResultBtn', textContent: tr('Close') })]));
     document.getElementById('modalCloseResultBtn').addEventListener('click', closeModal);
-  } catch(e) { hideLoading(); toast('Failed: ' + e.message, 'error'); }
+  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
 /* ============= Autonomous Config Modal ============= */
 function openAutonomousConfigModal() {
   const ac = state.autonomous ? state.autonomous.config : null;
-  if (!ac) { toast('Load autonomous config first', 'error'); return; }
+  if (!ac) { toast(tr('Load autonomous config first'), 'error'); return; }
   const f = ce('div', { className: 'modal-field' }, [
     ce('label', { for: 'autoEnabled' }, [ttxt('Enabled')]),
     el('input', { type: 'checkbox', id: 'autoEnabled', checked: !!ac.enabled }),
@@ -620,7 +807,7 @@ function openAutonomousConfigModal() {
     el('textarea', { id: 'autoCapabilities', rows: 4, style: {width: '100%', fontFamily: 'var(--font-mono)', fontSize: '11px'}, textContent: JSON.stringify(ac.capabilities || [], null, 2) }),
   ]);
   openModal(tr('Autonomous Config'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalSaveAutoBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: 'Cancel' })])
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalSaveAutoBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   var at = document.getElementById('autoTrigger'); if (at) at.value = (ac && ac.trigger) || 'manual';
   document.getElementById('modalSaveAutoBtn').addEventListener('click', saveAutonomousConfig);
@@ -633,10 +820,10 @@ async function saveAutonomousConfig() { if (!state.selectedNodeId) { toast(tr('P
   const interval = parseInt(document.getElementById('autoInterval').value) || 300;
   const capsText = document.getElementById('autoCapabilities').value.trim();
   let capabilities = [];
-  if (capsText) { try { capabilities = JSON.parse(capsText); } catch(e) { toast('Invalid JSON', 'error'); return; } }
+  if (capsText) { try { capabilities = JSON.parse(capsText); } catch(e) { toast(tr('Invalid JSON'), 'error'); return; } }
   try {
     await api('PUT', '/api/v1/nodes/' + encodeURIComponent(state.selectedNodeId) + '/autonomous', { enabled: enabled, trigger: trigger, interval_seconds: interval, capabilities: capabilities });
-    closeModal(); toast('Autonomous config saved', 'success'); loadAutonomous();
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+    closeModal(); toast(tr('Autonomous config saved'), 'success'); loadAutonomous();
+  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
