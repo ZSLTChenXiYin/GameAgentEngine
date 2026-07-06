@@ -1,8 +1,11 @@
 package api
 
 import (
-	"encoding/json"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 
@@ -77,11 +80,16 @@ func CORSMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
 // captureWriter 用于捕获响应状态码和 body，供幂等中间件缓存。
 type captureWriter struct {
 	http.ResponseWriter
 	statusCode int
 	buf        *bytes.Buffer
+}
+
+func newCaptureWriter(w http.ResponseWriter) *captureWriter {
+	return &captureWriter{ResponseWriter: w, statusCode: http.StatusOK, buf: &bytes.Buffer{}}
 }
 
 func (w *captureWriter) WriteHeader(code int) {
@@ -90,8 +98,18 @@ func (w *captureWriter) WriteHeader(code int) {
 }
 
 func (w *captureWriter) Write(data []byte) (int, error) {
+	if w.statusCode == 0 {
+		w.statusCode = http.StatusOK
+	}
 	w.buf.Write(data)
 	return w.ResponseWriter.Write(data)
+}
+
+func requestFingerprint(r *http.Request, body []byte) string {
+	bodyHash := sha256.Sum256(body)
+	raw := r.Method + "\n" + r.URL.Path + "\n" + r.URL.RawQuery + "\n" + hex.EncodeToString(bodyHash[:])
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
 }
 
 // IdempotencyMiddleware 检查 Idempotency-Key 请求头，对已处理的请求直接返回缓存结果。
@@ -108,21 +126,36 @@ func IdempotencyMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			errorJSON(w, http.StatusBadRequest, "failed to read request body")
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		fingerprint := requestFingerprint(r, body)
+
 		// 检查是否已处理
 		if result, err := store.GetIdempotencyResult(key); err == nil {
+			if result.Fingerprint != fingerprint {
+				errorJSONCode(w, http.StatusConflict, "idempotency_key_conflict", "idempotency key reused with different request payload")
+				return
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("X-Idempotency-Replayed", "true")
-			w.Write([]byte(result))
+			w.WriteHeader(result.StatusCode)
+			w.Write([]byte(result.Result))
 			return
+		} else if !store.IsRecordNotFound(err) {
+			log.Printf("load idempotency result: %v", err)
 		}
 
 		// 捕获响应
-		cw := &captureWriter{ResponseWriter: w, buf: &bytes.Buffer{}}
+		cw := newCaptureWriter(w)
 		next(cw, r)
 
 		// 成功的请求才缓存
 		if cw.statusCode >= 200 && cw.statusCode < 300 {
-			if err := store.SetIdempotencyResult(key, cw.buf.String()); err != nil {
+			if err := store.SetIdempotencyResult(key, fingerprint, cw.statusCode, cw.buf.String()); err != nil {
 				log.Printf("save idempotency result: %v", err)
 			}
 		}

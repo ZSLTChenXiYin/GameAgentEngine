@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
@@ -16,16 +17,16 @@ func GetWorldSettingsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{
-		"world_id":                  settings.WorldID,
-		"memory_limit":              settings.MemoryLimit,
-		"max_analysis_rounds":       settings.MaxAnalysisRounds,
-		"max_context_depth":         settings.MaxContextDepth,
-		"auto_apply":                settings.AutoApply,
-		"require_review_above":      settings.RequireReviewAbove,
-		"pipeline_mode":             settings.PipelineMode,
-		"propagation_max_depth":     settings.PropagationMaxDepth,
-		"sub_task_max_retries":      settings.SubTaskMaxRetries,
-		"sub_task_timeout_secs":     settings.SubTaskTimeoutSecs,
+		"world_id":                   settings.WorldID,
+		"memory_limit":               settings.MemoryLimit,
+		"max_analysis_rounds":        settings.MaxAnalysisRounds,
+		"max_context_depth":          settings.MaxContextDepth,
+		"auto_apply":                 settings.AutoApply,
+		"require_review_above":       settings.RequireReviewAbove,
+		"pipeline_mode":              settings.PipelineMode,
+		"propagation_max_depth":      settings.PropagationMaxDepth,
+		"sub_task_max_retries":       settings.SubTaskMaxRetries,
+		"sub_task_timeout_secs":      settings.SubTaskTimeoutSecs,
 		"enable_propagation_machine": settings.EnablePropagationMachine,
 	})
 }
@@ -67,6 +68,10 @@ func SetWorldSettingsHandler(w http.ResponseWriter, r *http.Request) {
 		partial.RequireReviewAbove = req.RequireReviewAbove
 	}
 	if req.PipelineMode != "" {
+		if !engine.IsValidPipelineMode(req.PipelineMode) {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_pipeline_mode", "pipeline_mode must be one of: vertical, polling, full")
+			return
+		}
 		partial.PipelineMode = req.PipelineMode
 	}
 	if req.PropagationMaxDepth != nil {
@@ -82,17 +87,22 @@ func SetWorldSettingsHandler(w http.ResponseWriter, r *http.Request) {
 		partial.EnablePropagationMachine = *req.EnablePropagationMachine
 	}
 
-	settings, err := store.UpsertWorldSettings(worldID, partial)
+	settings, err := store.UpsertWorldSettingsWithMask(worldID, partial, req.AutoApply != nil, req.EnablePropagationMachine != nil)
 	if err != nil {
 		errorJSON(w, 500, err.Error())
 		return
 	}
 	writeJSON(w, 200, map[string]any{
-		"world_id":             settings.WorldID,
-		"memory_limit":         settings.MemoryLimit,
-		"max_analysis_rounds":  settings.MaxAnalysisRounds,
-		"max_context_depth":    settings.MaxContextDepth,
-		"auto_apply":           settings.AutoApply,
-		"require_review_above": settings.RequireReviewAbove,
+		"world_id":                   settings.WorldID,
+		"memory_limit":               settings.MemoryLimit,
+		"max_analysis_rounds":        settings.MaxAnalysisRounds,
+		"max_context_depth":          settings.MaxContextDepth,
+		"auto_apply":                 settings.AutoApply,
+		"require_review_above":       settings.RequireReviewAbove,
+		"pipeline_mode":              settings.PipelineMode,
+		"propagation_max_depth":      settings.PropagationMaxDepth,
+		"sub_task_max_retries":       settings.SubTaskMaxRetries,
+		"sub_task_timeout_secs":      settings.SubTaskTimeoutSecs,
+		"enable_propagation_machine": settings.EnablePropagationMachine,
 	})
 }

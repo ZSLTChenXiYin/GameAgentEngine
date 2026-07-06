@@ -1,11 +1,15 @@
 package planner
 
-import "log"
+import (
+	"log"
+	"sync"
+)
 
 // PolicyEngine 根据入参判断动作是否允许执行。
 type PolicyEngine struct {
-	BlockedActions   map[string]bool
-	SafeActions      map[string]bool
+	mu             sync.RWMutex
+	BlockedActions map[string]bool
+	SafeActions    map[string]bool
 }
 
 // NewPolicyEngine 创建一个空策略引擎。策略数据通过 SetActions 设置。
@@ -18,6 +22,8 @@ func NewPolicyEngine() *PolicyEngine {
 
 // SetActions 设置阻塞动作和安全动作列表。
 func (pe *PolicyEngine) SetActions(blocked, safe []string) {
+	pe.mu.Lock()
+	defer pe.mu.Unlock()
 	pe.BlockedActions = make(map[string]bool)
 	pe.SafeActions = make(map[string]bool)
 	for _, a := range blocked {
@@ -30,6 +36,8 @@ func (pe *PolicyEngine) SetActions(blocked, safe []string) {
 
 // IsActionAllowed 判断某个动作是否被策略明确禁止。
 func (pe *PolicyEngine) IsActionAllowed(actionID string) bool {
+	pe.mu.RLock()
+	defer pe.mu.RUnlock()
 	if pe.BlockedActions[actionID] {
 		return false
 	}
@@ -38,6 +46,8 @@ func (pe *PolicyEngine) IsActionAllowed(actionID string) bool {
 
 // Evaluate 对提议动作做策略过滤。
 func (pe *PolicyEngine) Evaluate(plan *WorldChangePlan) *WorldChangePlan {
+	pe.mu.RLock()
+	defer pe.mu.RUnlock()
 	var filtered []ProposedAction
 	for _, action := range plan.ProposedActions {
 		if pe.BlockedActions[action.APIName] {

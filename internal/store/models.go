@@ -8,17 +8,17 @@ import (
 
 // NodeModel 是节点实体在数据库中的持久化结构。
 type NodeModel struct {
-	ID        int64          `gorm:"primaryKey;autoIncrement" json:"-"`
-	UUID      string         `gorm:"uniqueIndex;size:36;not null" json:"id"`
-	WorldID   int64          `gorm:"index;not null" json:"-"`
-	WorldUUID string         `gorm:"-" json:"world_id"`
-	Name      string         `gorm:"size:255;not null" json:"name"`
-	NodeType  string         `gorm:"size:50;not null;index" json:"node_type"`
-	ParentID  *int64         `gorm:"index" json:"-"`
-	ParentUUID *string       `gorm:"-" json:"parent_id,omitempty"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+	ID         int64          `gorm:"primaryKey;autoIncrement" json:"-"`
+	UUID       string         `gorm:"uniqueIndex;size:36;not null" json:"id"`
+	WorldID    int64          `gorm:"index;not null" json:"-"`
+	WorldUUID  string         `gorm:"-" json:"world_id"`
+	Name       string         `gorm:"size:255;not null" json:"name"`
+	NodeType   string         `gorm:"size:50;not null;index" json:"node_type"`
+	ParentID   *int64         `gorm:"index" json:"-"`
+	ParentUUID *string        `gorm:"-" json:"parent_id,omitempty"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	DeletedAt  gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 }
 
 func (NodeModel) TableName() string { return "nodes" }
@@ -107,9 +107,11 @@ func (InferenceLogModel) TableName() string { return "inference_logs" }
 
 // IdempotencyKeyModel 存储幂等操作的已缓存结果。
 type IdempotencyKeyModel struct {
-	ID        string    `gorm:"primaryKey;size:64" json:"id"`
-	Result    string    `gorm:"type:text;not null" json:"result"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          string    `gorm:"primaryKey;size:64" json:"id"`
+	Fingerprint string    `gorm:"size:64;not null" json:"fingerprint"`
+	StatusCode  int       `gorm:"default:200" json:"status_code"`
+	Result      string    `gorm:"type:text;not null" json:"result"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 func (IdempotencyKeyModel) TableName() string { return "idempotency_keys" }

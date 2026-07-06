@@ -142,14 +142,24 @@ const (
 	ModeReview     ExecutionMode = "review"
 	ModeProduction ExecutionMode = "production"
 )
+
 // PipelineMode 表示推理管线的运行模式。
 type PipelineMode string
 
 const (
-	PipelineVertical PipelineMode = "vertical"   // 垂直管线：一次 LLM 调用，无轮询无任务树
-	PipelinePolling  PipelineMode = "polling"    // 轮询管线：多轮 LLM 轮询，无任务树
-	PipelineFull     PipelineMode = "full"       // 全功能管线：当前完整实现
+	PipelineVertical PipelineMode = "vertical" // 垂直管线：一次 LLM 调用，无轮询无任务树
+	PipelinePolling  PipelineMode = "polling"  // 轮询管线：多轮 LLM 轮询，无任务树
+	PipelineFull     PipelineMode = "full"     // 全功能管线：当前完整实现
 )
+
+func IsValidPipelineMode(mode string) bool {
+	switch PipelineMode(mode) {
+	case "", PipelineVertical, PipelinePolling, PipelineFull:
+		return true
+	default:
+		return false
+	}
+}
 
 // Node 是节点实体的公开传输结构。
 type Node struct {
@@ -213,22 +223,22 @@ type ChatMessage struct {
 
 // InvokeContext 表示调用方希望追加的上下文约束。
 type InvokeContext struct {
-	IncludeRelatedNodes bool `json:"include_related_nodes,omitempty"`
-	MemoryLimit         int  `json:"memory_limit,omitempty"`
-	MaxDepth            int  `json:"max_depth,omitempty"`
+	IncludeRelatedNodes bool         `json:"include_related_nodes,omitempty"`
+	MemoryLimit         int          `json:"memory_limit,omitempty"`
+	MaxDepth            int          `json:"max_depth,omitempty"`
 	MaxAnalysisRounds   int          `json:"max_analysis_rounds,omitempty"`
-	PipelineMode        PipelineMode  `json:"pipeline_mode,omitempty"`
+	PipelineMode        PipelineMode `json:"pipeline_mode,omitempty"`
 }
 
 // InvokeResponse 是统一的推理响应结构。
 type InvokeResponse struct {
-	RequestID       string           `json:"request_id"`
-	TaskType        TaskType         `json:"task_type"`
-	ExecutionMode   ExecutionMode    `json:"execution_mode"`
-	Reply           string           `json:"reply,omitempty"`
-	ActionCalls     []ActionCall     `json:"action_calls,omitempty"`
-	WorldChangePlan *WorldChangePlan `json:"world_change_plan,omitempty"`
-	FutureOutline   string           `json:"future_outline,omitempty"`
+	RequestID       string               `json:"request_id"`
+	TaskType        TaskType             `json:"task_type"`
+	ExecutionMode   ExecutionMode        `json:"execution_mode"`
+	Reply           string               `json:"reply,omitempty"`
+	ActionCalls     []ActionCall         `json:"action_calls,omitempty"`
+	WorldChangePlan *WorldChangePlan     `json:"world_change_plan,omitempty"`
+	FutureOutline   string               `json:"future_outline,omitempty"`
 	MemoryUpdates   []MemoryUpdate       `json:"memory_updates,omitempty"`
 	DataRequest     *DataRequest         `json:"data_request,omitempty"`
 	SubTasks        []SubTaskDeclaration `json:"sub_tasks,omitempty"`
@@ -254,31 +264,30 @@ type ActionCall struct {
 type PropagationMode string
 
 const (
-	PropModeUpward       PropagationMode = "upward"          // 沿父链向上传播
-	PropModeTagBroadcast PropagationMode = "tag_broadcast"  // 按 tags 匹配节点扩散
-	PropModeTargeted     PropagationMode = "targeted"       // 定向传播到指定节点
-	PropModeManual       PropagationMode = "manual"         // 不自动传播，用户手动触发
+	PropModeUpward       PropagationMode = "upward"        // 沿父链向上传播
+	PropModeTagBroadcast PropagationMode = "tag_broadcast" // 按 tags 匹配节点扩散
+	PropModeTargeted     PropagationMode = "targeted"      // 定向传播到指定节点
+	PropModeManual       PropagationMode = "manual"        // 不自动传播，用户手动触发
 )
 
 // PropagationRule 描述一条记忆的传播规则。
 type PropagationRule struct {
-	Mode          PropagationMode     `json:"mode,omitempty"`          // 传播模式，默认 upward
-	TargetTags    []string            `json:"target_tags,omitempty"`   // tag_broadcast 模式：匹配这些 tag 的节点
-	TargetNodeIDs []string            `json:"target_node_ids,omitempty"` // targeted 模式：目标节点 ID 列表
-	MaxDepth      int                 `json:"max_depth,omitempty"`    // 0 = 全路径
-	PublishUp     bool                `json:"publish_up,omitempty"`   // 是否上升到上层节点
+	Mode          PropagationMode `json:"mode,omitempty"`            // 传播模式，默认 upward
+	TargetTags    []string        `json:"target_tags,omitempty"`     // tag_broadcast 模式：匹配这些 tag 的节点
+	TargetNodeIDs []string        `json:"target_node_ids,omitempty"` // targeted 模式：目标节点 ID 列表
+	MaxDepth      int             `json:"max_depth,omitempty"`       // 0 = 全路径
+	PublishUp     bool            `json:"publish_up,omitempty"`      // 是否上升到上层节点
 }
-
 
 // PropagateAction 描述规则链中触发后的一个传播动作。
 type PropagateAction struct {
-	Mode          PropagationMode     `json:"mode"`
-	TargetTags    []string            `json:"target_tags,omitempty"`
-	TargetNodeIDs []string            `json:"target_node_ids,omitempty"`
-	MaxDepth      int                 `json:"max_depth,omitempty"`
-	PublishUp     bool                `json:"publish_up,omitempty"`
-	Transform     *TransformRule      `json:"transform,omitempty"`
-	NextChainIDs  []string            `json:"next_chain_ids,omitempty"`
+	Mode          PropagationMode `json:"mode"`
+	TargetTags    []string        `json:"target_tags,omitempty"`
+	TargetNodeIDs []string        `json:"target_node_ids,omitempty"`
+	MaxDepth      int             `json:"max_depth,omitempty"`
+	PublishUp     bool            `json:"publish_up,omitempty"`
+	Transform     *TransformRule  `json:"transform,omitempty"`
+	NextChainIDs  []string        `json:"next_chain_ids,omitempty"`
 }
 
 // TransformRule 描述传播时对记忆内容的转换规则。
@@ -287,6 +296,7 @@ type TransformRule struct {
 	LevelUp       bool     `json:"level_up,omitempty"`
 	AppendTags    []string `json:"append_tags,omitempty"`
 }
+
 // MemoryUpdate 描述一次需要落库的记忆更新。
 type MemoryUpdate struct {
 	NodeID      string           `json:"node_id"`
@@ -355,9 +365,6 @@ type LLMResult struct {
 	Model   string `json:"model"`
 	Tokens  int    `json:"tokens"`
 }
-
-
-
 
 // ==================== Sub-Task DAG Types ====================
 

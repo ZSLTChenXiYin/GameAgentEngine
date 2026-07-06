@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/planner"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
@@ -120,14 +121,14 @@ func (p *Pipeline) parseActionCalls(rawJSON string, defaultNodeID string) []Acti
 	return result
 }
 
-func (p *Pipeline) executeActions(calls []ActionCall) []ActionCall {
+func (p *Pipeline) executeActions(policyEngine *planner.PolicyEngine, calls []ActionCall) []ActionCall {
 	var result []ActionCall
 
 	for _, call := range calls {
 		actionID := call.ActionID
 		args := call.Args
 
-		if !p.policyEngine.IsActionAllowed(actionID) {
+		if policyEngine != nil && !policyEngine.IsActionAllowed(actionID) {
 			log.Printf("[policy] action %s blocked", actionID)
 			continue
 		}
@@ -233,7 +234,7 @@ func sanitizeRoles(messages []ChatMessage) []ChatMessage {
 	return result
 }
 
-func (p *Pipeline) handleDataRequest(dr *DataRequest) string {
+func (p *Pipeline) handleDataRequest(policyEngine *planner.PolicyEngine, dr *DataRequest) string {
 	var parts []string
 	for _, q := range dr.Queries {
 		switch q.Type {
@@ -265,7 +266,10 @@ func (p *Pipeline) handleDataRequest(dr *DataRequest) string {
 				}
 			}
 		case "policy_check":
-			allowed := p.policyEngine.IsActionAllowed(q.Filter)
+			allowed := true
+			if policyEngine != nil {
+				allowed = policyEngine.IsActionAllowed(q.Filter)
+			}
 			status := "blocked"
 			if allowed {
 				status = "allowed"

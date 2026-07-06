@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,31 +15,33 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
-// Pipeline 是一次 Agent 推理执行的核心协调器。
+// Pipeline is the shared execution shell. Request-specific state is created per Execute call.
 type Pipeline struct {
-	ctxBuilder      *ContextBuilder
-	llmProvider     LLMProvider
-	policyEngine    *planner.PolicyEngine
-	actionReg       *action.Registry
-	subTaskRetries  int
-	subTaskTimeout  int
-	pipelineMode    PipelineMode
+	ctxBuilder  *ContextBuilder
+	llmProvider LLMProvider
+	actionReg   *action.Registry
 }
 
-// NewPipeline 创建推理管线，并注册内置动作。
+type executionConfig struct {
+	memoryLimit    int
+	maxRounds      int
+	subTaskRetries int
+	subTaskTimeout int
+	pipelineMode   PipelineMode
+	policyEngine   *planner.PolicyEngine
+}
+
+// NewPipeline creates a pipeline and registers built-in actions.
 func NewPipeline(llmProvider LLMProvider) *Pipeline {
 	p := &Pipeline{
-		ctxBuilder:   NewContextBuilder(),
-		llmProvider:  llmProvider,
-		policyEngine: planner.NewPolicyEngine(),
-		actionReg:    action.NewRegistry(),
-		pipelineMode: PipelineFull,
+		ctxBuilder:  NewContextBuilder(),
+		llmProvider: llmProvider,
+		actionReg:   action.NewRegistry(),
 	}
 	p.registerBuiltinActions()
 	return p
 }
 
-// registerBuiltinActions 注册引擎内置的同步和异步动作。
 func (p *Pipeline) registerBuiltinActions() {
 	p.actionReg.RegisterSync(&action.UpdateMood{})
 	p.actionReg.RegisterSync(&action.AddMemory{})
@@ -47,34 +50,30 @@ func (p *Pipeline) registerBuiltinActions() {
 	p.actionReg.RegisterAsync(&action.SpawnItem{})
 }
 
-// loadWorldSettings 从数据库加载世界运行设置，返回 memoryLimit 和 maxRounds。
 func (p *Pipeline) loadWorldSettings(worldID string) (int, int, int, int, string) {
 	s, err := store.GetOrCreateWorldSettings(worldID)
 	if err != nil {
-		return 50, 5, 2, 60, "full"
+		return 50, 5, 2, 60, string(PipelineFull)
 	}
 	return s.MemoryLimit, s.MaxAnalysisRounds, s.SubTaskMaxRetries, s.SubTaskTimeoutSecs, s.PipelineMode
 }
 
-// loadWorldPolicy 从数据库加载世界策略，并设置到 policyEngine 中。
-func (p *Pipeline) loadWorldPolicy(worldID string) {
+func (p *Pipeline) loadWorldPolicy(worldID string) *planner.PolicyEngine {
+	policyEngine := planner.NewPolicyEngine()
 	policy, err := store.GetWorldPolicy(worldID)
 	if err != nil {
-		p.policyEngine.SetActions(nil, nil)
-		return
+		policyEngine.SetActions(nil, nil)
+		return policyEngine
 	}
-	p.policyEngine.SetActions(policy.ParseBlockedActions(), policy.ParseSafeActions())
+	policyEngine.SetActions(policy.ParseBlockedActions(), policy.ParseSafeActions())
+	return policyEngine
 }
 
-// ActionRegistry 返回当前管线使用的动作注册表。
+// ActionRegistry returns the shared action registry used for callbacks.
 func (p *Pipeline) ActionRegistry() *action.Registry {
 	return p.actionReg
 }
 
-// Execute 执行一次完整的推理流程。
-// 流程包括上下文构建、多轮 Prompt 生成、LLM 调用、动作解析和记忆持久化。
-// 所有任务类型均支持 request_data 多轮数据和 game_client 异步回调。
-// getExecutionMode 返回当前引擎的执行模式。
 func (p *Pipeline) getExecutionMode() ExecutionMode {
 	switch em := config.ExecutionMode(); em {
 	case "debug":
@@ -91,8 +90,6 @@ func (p *Pipeline) getExecutionMode() ExecutionMode {
 func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 	start := time.Now()
 	requestID := uuid.NewString()
-
-	// 获取执行模式
 	executionMode := p.getExecutionMode()
 
 	depth := 3
@@ -100,13 +97,12 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 		depth = req.Context.MaxDepth
 	}
 
-	// 从数据库加载世界运行设置和策略。
 	memoryLimit, maxRounds, retries, timeout, pipelineMode := p.loadWorldSettings(req.WorldID)
-	p.subTaskRetries = retries
-	p.subTaskTimeout = timeout
-	if pipelineMode != "" {
-		p.pipelineMode = PipelineMode(pipelineMode)
+	mode := PipelineMode(pipelineMode)
+	if mode == "" {
+		mode = PipelineFull
 	}
+
 	includeRelated := false
 	if req.Context != nil {
 		if req.Context.MemoryLimit > 0 {
@@ -115,115 +111,111 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 		if req.Context.MaxAnalysisRounds > 0 {
 			maxRounds = req.Context.MaxAnalysisRounds
 		}
+		if req.Context.PipelineMode != "" {
+			mode = req.Context.PipelineMode
+		}
 		includeRelated = req.Context.IncludeRelatedNodes
 	}
 
-	p.loadWorldPolicy(req.WorldID)
+	runtime := &executionConfig{
+		memoryLimit:    memoryLimit,
+		maxRounds:      maxRounds,
+		subTaskRetries: retries,
+		subTaskTimeout: timeout,
+		pipelineMode:   mode,
+		policyEngine:   p.loadWorldPolicy(req.WorldID),
+	}
 
-	// 构建初始上下文。
-	ctx, err := p.ctxBuilder.Build(req.NodeID, depth, memoryLimit, includeRelated)
+	ctx, err := p.ctxBuilder.Build(req.NodeID, depth, runtime.memoryLimit, includeRelated)
 	if err != nil {
 		return nil, fmt.Errorf("build context: %w", err)
 	}
 
-	// 按任务类型执行。
-	switch req.TaskType {
-	case TaskNPCDialogue:
-		return p.executeDialogue(req, ctx, start, requestID, maxRounds, executionMode)
-	case TaskWorldTick:
-		return p.executeWorldTick(req, ctx, start, requestID, maxRounds, executionMode)
-	case TaskWorldEvent:
-		return p.executeWorldEvent(req, ctx, start, requestID, maxRounds, executionMode)
-	case TaskAutonomousAct:
-		return p.executeAutonomousAct(req, ctx, start, requestID, maxRounds, executionMode)
+	switch runtime.pipelineMode {
+	case PipelineVertical:
+		return p.executeVertical(req, start, requestID, runtime, executionMode)
+	case PipelinePolling:
+		return p.executePolling(req, ctx, start, requestID, runtime, executionMode)
 	default:
-		return p.executeCustom(req, ctx, start, requestID, maxRounds, executionMode)
+		return p.executeFull(req, ctx, start, requestID, runtime, executionMode)
 	}
 }
-// RoundState 承载一次多轮推理的中间状态。
+
 type RoundState struct {
-	Context       *BuiltContext  // 当前累积的上下文
-	Tree          *TaskTree      // 任务节点树，记录推理过程
-	SystemPrompt  string         // 当轮构建的 system prompt
-	Messages      []ChatMessage  // 用户消息
-	TargetNodeID  string         // 当前推理的目标节点 ID
-	MaxRounds     int            // 最大轮数
+	Context             *BuiltContext
+	Tree                *TaskTree
+	SystemPrompt        string
+	Messages            []ChatMessage
+	TargetNodeID        string
+	MaxRounds           int
+	SupplementalContext []string
 }
 
-// executeMultiTurnLoop 是所有任务共享的多轮推理循环。
-// 每轮创建一个 TaskNode，记录 prompt/response，上下文通过 BuildLLMContext() 构建。
-// executeMultiTurnLoop 是所有任务共享的多轮推理循环。
-// 每轮创建一个 TaskNode 记录完整推理轨迹，上下文通过树节点树继承。
+func (s *RoundState) buildPrompt(base string) string {
+	if len(s.SupplementalContext) == 0 {
+		return base
+	}
+	return strings.TrimSpace(base + "\n\n补充上下文:\n" + strings.Join(s.SupplementalContext, "\n"))
+}
+
 func (p *Pipeline) executeMultiTurnLoop(
 	req *InvokeRequest,
 	ctx *BuiltContext,
 	start time.Time,
 	requestID string,
-	maxRounds int,
+	runtime *executionConfig,
 	taskTree *TaskTree,
 	taskPromptFn func(treeContext string, req *InvokeRequest, nodeID string, round int) string,
 	finalizeFn func(*InvokeResponse, *llmParsedOutput, *BuiltContext, *InvokeRequest) *InvokeResponse,
 	executionMode ExecutionMode,
 ) (*InvokeResponse, error) {
-
 	targetNodeID := req.NodeID
-	tree := taskTree
-	if tree == nil {
-		tree = NewTaskTree(req.TaskType, req.WorldID, req.NodeID)
-	}
-
 	state := &RoundState{
 		Context:      ctx,
-		Tree:         tree,
+		Tree:         taskTree,
 		Messages:     sanitizeRoles(req.Messages),
 		TargetNodeID: targetNodeID,
-		MaxRounds:    maxRounds,
+		MaxRounds:    runtime.maxRounds,
 	}
 
-	for round := 0; round < maxRounds; round++ {
-		// 创建本轮任务节点
-		roundNode := tree.NewRound(fmt.Sprintf("round_%d", round+1))
-
-		// 基础上下文来自任务节点树（包含所有历史轮次和查询结果）
-		var treeContext string
-		if tree != nil {
-			treeContext = tree.BuildLLMContext()
-			roundNode.Prompt = taskPromptFn(treeContext, req, targetNodeID, round)
-			state.SystemPrompt = roundNode.Prompt
+	for round := 0; round < runtime.maxRounds; round++ {
+		var roundNode *TaskNode
+		var promptSeed string
+		if state.Tree != nil {
+			roundNode = state.Tree.NewRound(fmt.Sprintf("round_%d", round+1))
+			promptSeed = state.Tree.BuildLLMContext()
+			state.SystemPrompt = taskPromptFn(promptSeed, req, targetNodeID, round)
+			roundNode.Prompt = state.SystemPrompt
 		} else {
-			// 轮询模式：不创建 TaskTree，直接用上下文构建 prompt
-			state.SystemPrompt = taskPromptFn(ctx.SystemPrompt, req, targetNodeID, round)
+			promptSeed = ctx.SystemPrompt
+			state.SystemPrompt = state.buildPrompt(taskPromptFn(promptSeed, req, targetNodeID, round))
 		}
 
-		// 调用 LLM
 		llmStart := time.Now()
 		llmResp, err := p.llmProvider.Chat(state.SystemPrompt, state.Messages)
 		if err != nil {
+			return nil, fmt.Errorf("llm chat: %w", err)
 		}
-		parsed := p.parseLLMJSON(llmResp.Content)
-		roundNode.LLMResponse = llmResp.Content
 
-		// 写入轮次中间记忆
+		parsed := p.parseLLMJSON(llmResp.Content)
+		if roundNode != nil {
+			roundNode.LLMResponse = llmResp.Content
+		}
+
 		if parsed.RawInterimMemoryUpdates != "" {
 			if imus := p.parseMemoryUpdates(parsed.RawInterimMemoryUpdates); len(imus) > 0 {
 				writeMemories(imus)
-			// interim 记忆也执行传播
-			for _, imu := range imus {
-				p.PropagateMemoryByRule(imu, imu.NodeID)
-			}
+				for _, imu := range imus {
+					p.PropagateMemoryByRule(imu, imu.NodeID)
+				}
 			}
 		}
 
-		// 检查 LLM 是否请求额外数据
 		if parsed.RawRequestData != "" {
 			var dr DataRequest
 			if err := json.Unmarshal([]byte(parsed.RawRequestData), &dr); err == nil && len(dr.Queries) > 0 {
 				switch dr.Target {
 				case "game_client":
-					cbID := p.actionReg.CreateCallback("data_request", map[string]any{
-						"label":   dr.Label,
-						"queries": dr.Queries,
-					})
 					resp := &InvokeResponse{
 						RequestID:   requestID,
 						TaskType:    req.TaskType,
@@ -231,32 +223,33 @@ func (p *Pipeline) executeMultiTurnLoop(
 						ActionCalls: []ActionCall{{
 							ActionID:   "data_request",
 							Mode:       "async",
-							CallbackID: cbID,
+							CallbackID: p.actionReg.CreateCallback("data_request", map[string]any{"label": dr.Label, "queries": dr.Queries}),
 							Args:       map[string]any{"data_request": dr},
 						}},
 						Metadata: &ResponseMeta{
 							LLMModel:         p.llmProvider.ModelName(),
+							TokensUsed:       llmResp.Tokens,
 							ProcessingTimeMs: time.Since(start).Milliseconds(),
 						},
 					}
 					appendResponseLog(resp, req)
 					return resp, nil
-
 				default:
-					result := p.handleDataRequest(&dr)
-					roundNode.Analysis = result
-					roundNode.Decision = "[数据查询] " + dr.Label
+					result := p.handleDataRequest(runtime.policyEngine, &dr)
+					if roundNode != nil {
+						roundNode.Analysis = result
+						roundNode.Decision = "[数据查询] " + dr.Label
+					} else {
+						state.SupplementalContext = append(state.SupplementalContext, "[数据查询] "+dr.Label, result)
+					}
 					continue
 				}
 			}
 		}
 
-		// 没有数据请求——记录分析结果并构建最终响应
-		if tree != nil {
+		if roundNode != nil {
 			roundNode.Analysis = parsed.Reply
-		}
-		if parsed.RawActionCalls != "" {
-			if tree != nil {
+			if parsed.RawActionCalls != "" {
 				roundNode.Decision = fmt.Sprintf("动作: %s", truncateForContext(parsed.RawActionCalls, 100))
 			}
 		}
@@ -264,9 +257,9 @@ func (p *Pipeline) executeMultiTurnLoop(
 		resp := &InvokeResponse{
 			RequestID:     requestID,
 			TaskType:      req.TaskType,
-			ExecutionMode: ExecutionMode(config.ExecutionMode()),
+			ExecutionMode: executionMode,
 			Reply:         parsed.Reply,
-			ActionCalls:   p.executeActions(p.parseActionCalls(parsed.RawActionCalls, targetNodeID)),
+			ActionCalls:   p.executeActions(runtime.policyEngine, p.parseActionCalls(parsed.RawActionCalls, targetNodeID)),
 			MemoryUpdates: p.parseMemoryUpdates(parsed.RawMemoryUpdates),
 		}
 		if parsed.RawPlan != "" {
@@ -284,17 +277,12 @@ func (p *Pipeline) executeMultiTurnLoop(
 		}
 
 		for _, mem := range resp.MemoryUpdates {
-		memNodeID := store.ResolveNodeUUID(mem.NodeID)
-		if memNodeID == 0 {
-			log.Printf("[warn] write memory: unknown node UUID %s", mem.NodeID)
-			continue
-		}
-			mm := store.MemoryModel{
-				NodeID:  memNodeID,
-				Content: mem.Content,
-				Level:   string(mem.Level),
-				Tags:    mem.Tags,
+			memNodeID := store.ResolveNodeUUID(mem.NodeID)
+			if memNodeID == 0 {
+				log.Printf("[warn] write memory: unknown node UUID %s", mem.NodeID)
+				continue
 			}
+			mm := store.MemoryModel{NodeID: memNodeID, Content: mem.Content, Level: string(mem.Level), Tags: mem.Tags}
 			if err := store.CreateMemory(&mm); err != nil {
 				log.Printf("write memory: %v", err)
 			}
@@ -305,44 +293,34 @@ func (p *Pipeline) executeMultiTurnLoop(
 
 		resp.Metadata = &ResponseMeta{
 			LLMModel:         p.llmProvider.ModelName(),
+			TokensUsed:       llmResp.Tokens,
 			ProcessingTimeMs: time.Since(start).Milliseconds(),
 		}
-		// 解析并执行 LLM 声明的子任务（DAG 编排，仅全功能模式）
-		if tree != nil && parsed.RawSubTasks != "" {
+
+		if state.Tree != nil && runtime.pipelineMode == PipelineFull && parsed.RawSubTasks != "" {
 			var subTasks []SubTaskDeclaration
 			if err := json.Unmarshal([]byte(parsed.RawSubTasks), &subTasks); err == nil && len(subTasks) > 0 {
-				dag := NewDAGInstance(tree, p.llmProvider, p.subTaskRetries, time.Duration(p.subTaskTimeout)*time.Second)
+				dag := NewDAGInstance(state.Tree, p.llmProvider, runtime.subTaskRetries, time.Duration(runtime.subTaskTimeout)*time.Second)
 				for _, st := range subTasks {
 					if err := dag.Register(st); err != nil {
 						log.Printf("[dag] register sub-task %s: %v", st.Label, err)
 					}
 				}
-				// 循环执行就绪子任务，直到全部完成
 				for dag.HasReady() {
 					for _, st := range dag.ReadyTasks() {
 						dag.MarkRunning(st.Label)
-						log.Printf("[dag] executing sub-task %s (type=%s node=%s)", st.Label, st.TaskType, st.NodeID)
-
-						subReq := &InvokeRequest{
-							WorldID:  req.WorldID,
-							TaskType: st.TaskType,
-							NodeID:   st.NodeID,
-							Context:  req.Context,
-						}
+						subReq := &InvokeRequest{WorldID: req.WorldID, TaskType: st.TaskType, NodeID: st.NodeID, Context: req.Context}
 						subResp, err := p.Execute(subReq)
 						if err != nil {
 							log.Printf("[dag] sub-task %s failed: %v", st.Label, err)
 							dag.OnTaskFailed(st.Label, err)
 						} else {
-							log.Printf("[dag] sub-task %s completed", st.Label)
 							dag.OnTaskComplete(st.Label, subResp)
 						}
 					}
 				}
-				// 汇聚子任务结果
 				merged := dag.MergeResults()
 				resp.SubTasks = subTasks
-				// 将汇聚结果合并到当前响应
 				if merged.Reply != "" {
 					resp.Reply = merged.Reply
 				}
@@ -350,26 +328,22 @@ func (p *Pipeline) executeMultiTurnLoop(
 				resp.MemoryUpdates = append(resp.MemoryUpdates, merged.MemoryUpdates...)
 			}
 		}
-		// ExecutionMode 分支行为
+
 		switch executionMode {
 		case ModeDebug:
-			// Debug 模式：记录 LLM 调用 trace（含各步骤耗时）
-			errStr := ""
 			trace := buildDebugTrace(
 				req.WorldID, requestID,
 				req.TaskType, targetNodeID,
 				start, llmStart,
 				state.SystemPrompt, state.Messages,
 				parsed.Reply,
-				resp, round, errStr,
+				resp, round, "",
 			)
 			GlobalTraceRing.Push(trace)
 		case ModeReview:
-			// Review 模式：检查世界变更计划是否需审批
 			if resp.WorldChangePlan != nil && IsHighImpact(resp.WorldChangePlan.ImpactLevel) {
-				planID := NewPendingPlanID()
 				pendingPlan := &PendingPlan{
-					PlanID:          planID,
+					PlanID:          NewPendingPlanID(),
 					WorldID:         req.WorldID,
 					TickNumber:      0,
 					TaskType:        req.TaskType,
@@ -380,16 +354,10 @@ func (p *Pipeline) executeMultiTurnLoop(
 					Status:          "pending",
 				}
 				GlobalPlanReview.Add(pendingPlan)
-				// 清空动作和记忆，等待审批
-				parsed.RawActionCalls = ""
-				parsed.RawMemoryUpdates = ""
 				resp.ActionCalls = nil
 				resp.MemoryUpdates = nil
 				resp.ExecutionMode = ModeReview
 			}
-
-		default:
-			// Production 模式：不动（全自动执行）
 		}
 
 		if executionMode == ModeReview && resp.WorldChangePlan != nil && IsHighImpact(resp.WorldChangePlan.ImpactLevel) {
@@ -400,23 +368,24 @@ func (p *Pipeline) executeMultiTurnLoop(
 		return resp, nil
 	}
 
-	return nil, fmt.Errorf("%s exceeded max rounds (%d)", req.TaskType, maxRounds)
+	return nil, fmt.Errorf("%s exceeded max rounds (%d)", req.TaskType, runtime.maxRounds)
 }
 
-// appendResponseLog 记录推理日志到数据库。
 func appendResponseLog(resp *InvokeResponse, req *InvokeRequest) {
+	if resp == nil || resp.Metadata == nil {
+		return
+	}
 	store.CreateInferenceLog(&store.InferenceLogModel{
 		WorldUUID:  req.WorldID,
 		TaskType:   string(req.TaskType),
 		NodeUUID:   req.NodeID,
 		LLMModel:   resp.Metadata.LLMModel,
+		TokensUsed: resp.Metadata.TokensUsed,
 		DurationMs: resp.Metadata.ProcessingTimeMs,
 	})
 }
 
-// executeVertical 执行垂直管线模式：一次 LLM 调用，无轮询、无任务节点树、无 DAG 子任务。
-func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestID string) (*InvokeResponse, error) {
-	// 构建简化 prompt（不经过 ContextBuilder，直接根据任务类型生成）
+func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode) (*InvokeResponse, error) {
 	var systemPrompt string
 	ctxDesc := fmt.Sprintf("世界: %s, 节点: %s, 任务类型: %s", req.WorldID, req.NodeID, req.TaskType)
 	switch req.TaskType {
@@ -427,15 +396,14 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 	case TaskWorldEvent:
 		eventDesc := ""
 		if req.Event != nil {
-			eventDesc = fmt.Sprintf("事件类型:%s 范围:%s 描述:%s 严重度:%s",
-				req.Event.EventType, req.Event.ScopeID, req.Event.Description, req.Event.Severity)
+			eventDesc = fmt.Sprintf("事件类型:%s 范围:%s 描述:%s 严重度:%s", req.Event.EventType, req.Event.ScopeID, req.Event.Description, req.Event.Severity)
 		}
 		systemPrompt = buildEventImpactPrompt(ctxDesc, eventDesc, req.NodeID)
 	case TaskAutonomousAct:
 		if cfg, _, err := LoadAutonomousConfig(req.NodeID); err == nil && cfg != nil && cfg.Enabled {
 			systemPrompt = buildAutonomousPrompt(ctxDesc, req.NodeID, cfg)
 		} else {
-			resp := &InvokeResponse{RequestID: requestID, TaskType: req.TaskType, Reply: "autonomous component not found or disabled", ExecutionMode: ModeDebug}
+			resp := &InvokeResponse{RequestID: requestID, TaskType: req.TaskType, Reply: "autonomous component not found or disabled", ExecutionMode: executionMode}
 			resp.Metadata = &ResponseMeta{LLMModel: p.llmProvider.ModelName(), ProcessingTimeMs: time.Since(start).Milliseconds()}
 			appendResponseLog(resp, req)
 			return resp, nil
@@ -444,21 +412,18 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 		systemPrompt = ctxDesc
 	}
 
-	// 单次 LLM 调用
-	messages := sanitizeRoles(req.Messages)
-	llmResp, err := p.llmProvider.Chat(systemPrompt, messages)
+	llmResp, err := p.llmProvider.Chat(systemPrompt, sanitizeRoles(req.Messages))
 	if err != nil {
 		return nil, fmt.Errorf("vertical llm: %w", err)
 	}
 
-	// 解析输出
 	parsed := p.parseLLMJSON(llmResp.Content)
 	resp := &InvokeResponse{
 		RequestID:     requestID,
 		TaskType:      req.TaskType,
-		ExecutionMode: ModeDebug,
+		ExecutionMode: executionMode,
 		Reply:         parsed.Reply,
-		ActionCalls:   p.executeActions(p.parseActionCalls(parsed.RawActionCalls, req.NodeID)),
+		ActionCalls:   p.executeActions(runtime.policyEngine, p.parseActionCalls(parsed.RawActionCalls, req.NodeID)),
 		MemoryUpdates: p.parseMemoryUpdates(parsed.RawMemoryUpdates),
 	}
 	if parsed.RawPlan != "" {
@@ -470,8 +435,6 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 	if parsed.RawFutureOutline != "" {
 		resp.FutureOutline = parsed.RawFutureOutline
 	}
-
-	// 写记忆
 	for _, mem := range resp.MemoryUpdates {
 		nodeID := store.ResolveNodeUUID(mem.NodeID)
 		if nodeID == 0 {
@@ -479,46 +442,74 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 			continue
 		}
 		mm := store.MemoryModel{NodeID: nodeID, Content: mem.Content, Level: string(mem.Level), Tags: mem.Tags}
-		store.CreateMemory(&mm)
+		if err := store.CreateMemory(&mm); err != nil {
+			log.Printf("write memory: %v", err)
+		}
 	}
 	for _, mem := range resp.MemoryUpdates {
 		p.PropagateMemoryByRule(mem, mem.NodeID)
 	}
-
-	resp.Metadata = &ResponseMeta{LLMModel: p.llmProvider.ModelName(), ProcessingTimeMs: time.Since(start).Milliseconds()}
+	resp.Metadata = &ResponseMeta{LLMModel: p.llmProvider.ModelName(), TokensUsed: llmResp.Tokens, ProcessingTimeMs: time.Since(start).Milliseconds()}
 	appendResponseLog(resp, req)
 	return resp, nil
 }
 
-// executeDialogue 执行 NPC 对话推理。
-// 第一轮做局势分析（数值→定性），结果写入任务节点树，后续走公共多轮循环。
-func (p *Pipeline) executeDialogue(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, maxRounds int, executionMode ExecutionMode) (*InvokeResponse, error) {
-	tree := NewTaskTree(req.TaskType, req.WorldID, req.NodeID)
+func (p *Pipeline) executePolling(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode) (*InvokeResponse, error) {
+	switch req.TaskType {
+	case TaskNPCDialogue:
+		return p.executeDialogue(req, ctx, start, requestID, runtime, executionMode, false)
+	case TaskWorldTick:
+		return p.executeWorldTick(req, ctx, start, requestID, runtime, executionMode, false)
+	case TaskWorldEvent:
+		return p.executeWorldEvent(req, ctx, start, requestID, runtime, executionMode, false)
+	case TaskAutonomousAct:
+		return p.executeAutonomousAct(req, ctx, start, requestID, runtime, executionMode, false)
+	default:
+		return p.executeCustom(req, ctx, start, requestID, runtime, executionMode, false)
+	}
+}
 
-	// 第 0 轮：内部局势分析（独立于公共循环）
-	analysisNode := tree.NewRound("analysis")
-	analysisPrompt := fmt.Sprintf(
-		"请分析以下局势数据，并将其中的精确数值转化为模糊量词（如用「紧张」「充裕」「堪忧」「尚可」「严峻」「好转」替代具体数字），整理成后续对话可用的局势摘要。\n\n%s",
-		ctx.SystemPrompt,
-	)
-	analysisNode.Prompt = analysisPrompt
-	if analysisResp, err := p.llmProvider.Chat(analysisPrompt, nil); err == nil {
-		analysisNode.LLMResponse = analysisResp.Content
-		analysisNode.Analysis = analysisResp.Content
-		analysisNode.Decision = "局势分析完成"
-		// 将分析结果存入树，后续轮次通过 BuildLLMContext() 自动包含
+func (p *Pipeline) executeFull(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode) (*InvokeResponse, error) {
+	switch req.TaskType {
+	case TaskNPCDialogue:
+		return p.executeDialogue(req, ctx, start, requestID, runtime, executionMode, true)
+	case TaskWorldTick:
+		return p.executeWorldTick(req, ctx, start, requestID, runtime, executionMode, true)
+	case TaskWorldEvent:
+		return p.executeWorldEvent(req, ctx, start, requestID, runtime, executionMode, true)
+	case TaskAutonomousAct:
+		return p.executeAutonomousAct(req, ctx, start, requestID, runtime, executionMode, true)
+	default:
+		return p.executeCustom(req, ctx, start, requestID, runtime, executionMode, true)
+	}
+}
+
+func (p *Pipeline) executeDialogue(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {
+	var tree *TaskTree
+	if withTaskTree {
+		tree = NewTaskTree(req.TaskType, req.WorldID, req.NodeID)
+		analysisNode := tree.NewRound("analysis")
+		analysisPrompt := fmt.Sprintf("请分析以下局势数据，并将其中的精确数值转化为模糊量词，整理成后续对话可用的局势摘要。\n\n%s", ctx.SystemPrompt)
+		analysisNode.Prompt = analysisPrompt
+		if analysisResp, err := p.llmProvider.Chat(analysisPrompt, nil); err == nil {
+			analysisNode.LLMResponse = analysisResp.Content
+			analysisNode.Analysis = analysisResp.Content
+			analysisNode.Decision = "局势分析完成"
+		}
 	}
 
 	dialogueFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 		return buildDialoguePrompt(treeContext, nodeID)
 	}
 
-	// 剩余轮次走公共循环
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, maxRounds-1, tree, dialogueFn, nil, executionMode)
+	loopRuntime := *runtime
+	if loopRuntime.maxRounds > 1 && withTaskTree {
+		loopRuntime.maxRounds--
+	}
+	return p.executeMultiTurnLoop(req, ctx, start, requestID, &loopRuntime, tree, dialogueFn, nil, executionMode)
 }
 
-// executeWorldTick 执行世界刻推进推理。
-func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, maxRounds int, executionMode ExecutionMode) (*InvokeResponse, error) {
+func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {
 	var currentOutline string
 	if latest, err := store.GetLatestTick(req.WorldID); err == nil {
 		currentOutline = latest.FutureOutline
@@ -528,28 +519,32 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 		return buildWorldTickPrompt(treeContext, currentOutline)
 	}
 
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, maxRounds, nil, tickFn, nil, executionMode)
+	var tree *TaskTree
+	if withTaskTree {
+		tree = NewTaskTree(req.TaskType, req.WorldID, req.NodeID)
+	}
+	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, tickFn, nil, executionMode)
 }
 
-// executeWorldEvent 执行世界事件影响评估推理。
-func (p *Pipeline) executeWorldEvent(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, maxRounds int, executionMode ExecutionMode) (*InvokeResponse, error) {
+func (p *Pipeline) executeWorldEvent(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {
 	eventDesc := ""
 	if req.Event != nil {
-		eventDesc = fmt.Sprintf("事件类型:%s 范围:%s 描述:%s 严重度:%s",
-			req.Event.EventType, req.Event.ScopeID, req.Event.Description, req.Event.Severity)
+		eventDesc = fmt.Sprintf("事件类型:%s 范围:%s 描述:%s 严重度:%s", req.Event.EventType, req.Event.ScopeID, req.Event.Description, req.Event.Severity)
 	}
 
 	eventFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 		return buildEventImpactPrompt(treeContext, eventDesc, nodeID)
 	}
 
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, maxRounds, nil, eventFn, nil, executionMode)
+	var tree *TaskTree
+	if withTaskTree {
+		tree = NewTaskTree(req.TaskType, req.WorldID, req.NodeID)
+	}
+	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, eventFn, nil, executionMode)
 }
 
-// executeAutonomousAct 执行自主行为推理，带 capability 过滤。
-func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, maxRounds int, executionMode ExecutionMode) (*InvokeResponse, error) {
+func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {
 	targetNodeID := req.NodeID
-
 	cfg, comp, err := LoadAutonomousConfig(targetNodeID)
 	if err != nil {
 		return nil, err
@@ -574,7 +569,12 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 		return buildAutonomousPrompt(treeContext, nodeID, cfg)
 	}
 
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, maxRounds, nil, autonomousFn, func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
+	var tree *TaskTree
+	if withTaskTree {
+		tree = NewTaskTree(req.TaskType, req.WorldID, req.NodeID)
+	}
+
+	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, autonomousFn, func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
 		_ = parsed
 		_ = ctx
 		_ = req
@@ -584,23 +584,20 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 		for _, call := range rejected {
 			log.Printf("[autonomous:blocked] node=%s action=%s", targetNodeID, call.ActionID)
 		}
-		resp.ActionCalls = p.executeActions(allowedCalls)
+		resp.ActionCalls = p.executeActions(runtime.policyEngine, allowedCalls)
 
 		if len(resp.ActionCalls) == 0 && len(resp.MemoryUpdates) == 0 {
-			memUpdate := MemoryUpdate{
-				NodeID:  targetNodeID,
-				Content: "自主行为周期未采取行动。",
-				Level:   MemShortTerm,
-				Tags:    "autonomous,no_action",
-			}
+			memUpdate := MemoryUpdate{NodeID: targetNodeID, Content: "自主行为周期未采取行动。", Level: MemShortTerm, Tags: "autonomous,no_action"}
 			resp.MemoryUpdates = append(resp.MemoryUpdates, memUpdate)
 			nodeID2 := store.ResolveNodeUUID(targetNodeID)
-		if nodeID2 == 0 {
-			log.Printf("[warn] pipeline write memory: unknown node UUID %s", targetNodeID)
-			return resp
-		}
-		mm := store.MemoryModel{NodeID: nodeID2, Content: memUpdate.Content, Level: string(memUpdate.Level), Tags: memUpdate.Tags}
-		store.CreateMemory(&mm)
+			if nodeID2 == 0 {
+				log.Printf("[warn] pipeline write memory: unknown node UUID %s", targetNodeID)
+				return resp
+			}
+			mm := store.MemoryModel{NodeID: nodeID2, Content: memUpdate.Content, Level: string(memUpdate.Level), Tags: memUpdate.Tags}
+			if err := store.CreateMemory(&mm); err != nil {
+				log.Printf("write memory: %v", err)
+			}
 		}
 
 		now := time.Now()
@@ -613,20 +610,15 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 	}, executionMode)
 }
 
-// executeCustom 执行自定义推理。
-func (p *Pipeline) executeCustom(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, maxRounds int, executionMode ExecutionMode) (*InvokeResponse, error) {
+func (p *Pipeline) executeCustom(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {
 	customFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 		_ = nodeID
 		_ = round
 		return treeContext
 	}
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, maxRounds, nil, customFn, nil, executionMode)
+	var tree *TaskTree
+	if withTaskTree {
+		tree = NewTaskTree(req.TaskType, req.WorldID, req.NodeID)
+	}
+	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, customFn, nil, executionMode)
 }
-
-
-
-
-
-
-
-

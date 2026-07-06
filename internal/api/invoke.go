@@ -23,6 +23,10 @@ func MakeInvokeHandler(p *engine.Pipeline) http.HandlerFunc {
 			errorJSON(w, 400, "world_id and node_id required")
 			return
 		}
+		if req.Context != nil && req.Context.PipelineMode != "" && !engine.IsValidPipelineMode(string(req.Context.PipelineMode)) {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_pipeline_mode", "context.pipeline_mode must be one of: vertical, polling, full")
+			return
+		}
 		resp, err := p.Execute(&req)
 		if err != nil {
 			errorJSON(w, 500, err.Error())
@@ -37,9 +41,9 @@ func MakeInvokeHandler(p *engine.Pipeline) http.HandlerFunc {
 func MakeActionCallbackHandler(p *engine.Pipeline) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			CallbackID string      `json:"callback_id"`
-			Status     string      `json:"status"`
-			Result     any `json:"result,omitempty"`
+			CallbackID string `json:"callback_id"`
+			Status     string `json:"status"`
+			Result     any    `json:"result,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			errorJSON(w, 400, "invalid json: "+err.Error())
@@ -436,6 +440,7 @@ func UpdateRelationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, relation)
 }
+
 // DeleteRelationHandler 删除指定关系。
 func DeleteRelationHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")

@@ -1,6 +1,10 @@
 package store
 
-import "gorm.io/gorm"
+import (
+	"errors"
+
+	"gorm.io/gorm"
+)
 
 // ResetAll 清空当前数据库中的全部业务数据。
 // 该操作主要用于重建演示世界或测试环境初始化。
@@ -25,17 +29,21 @@ func ResetAll() error {
 	})
 }
 
-// GetIdempotencyResult 查询幂等键的已缓存结果。
-func GetIdempotencyResult(key string) (string, error) {
+// GetIdempotencyResult queries a cached idempotency record by key.
+func GetIdempotencyResult(key string) (*IdempotencyKeyModel, error) {
 	var m IdempotencyKeyModel
 	err := DB.First(&m, "id = ?", key).Error
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return m.Result, nil
+	return &m, nil
 }
 
-// SetIdempotencyResult 缓存幂等操作的结果。
-func SetIdempotencyResult(key string, result string) error {
-	return DB.Create(&IdempotencyKeyModel{ID: key, Result: result}).Error
+func IsRecordNotFound(err error) bool {
+	return errors.Is(err, gorm.ErrRecordNotFound)
+}
+
+// SetIdempotencyResult caches the response for an idempotency key.
+func SetIdempotencyResult(key, fingerprint string, statusCode int, result string) error {
+	return DB.Save(&IdempotencyKeyModel{ID: key, Fingerprint: fingerprint, StatusCode: statusCode, Result: result}).Error
 }
