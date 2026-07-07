@@ -145,6 +145,14 @@
 - `PUT /api/v1/components/{id}`
 - `DELETE /api/v1/components/{id}`
 
+组件写入接口现在会按组件类型执行数据校验：
+
+- `autonomous`：必须是合法 JSON 对象，并满足 Engine 当前的强类型字段约束
+- `profile`：必须是合法 JSON 对象，但字段集合保持开放
+- 其他当前内置类型：默认按纯文本处理，除非后续为该类型补充结构化规则
+
+当组件数据不符合对应规则时，接口会返回 `400`，错误码为 `invalid_component_data`。
+
 ---
 
 ## 记忆

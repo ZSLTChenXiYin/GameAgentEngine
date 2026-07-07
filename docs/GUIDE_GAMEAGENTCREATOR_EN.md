@@ -43,6 +43,7 @@ You can also use the CLI `inspect` flow when available in your environment.
 - edit node
 - delete leaf node
 - copy node
+- create outgoing relations from node actions
 - drag a node onto another node to reparent it
 - drag a node to the root drop zone to clear its parent
 
@@ -53,6 +54,15 @@ Node copy currently duplicates:
 - attached components
 - attached memories
 - relations that remain fully inside the copied subtree
+
+The outgoing-relation action opens the same relation editor used for relation creation, so the current node can create any supported relation to another node instead of only serving the old external-parent flow.
+
+### Component editing and validation
+
+- Creator surfaces whether a component is strong, weak, or free-text through shared component metadata
+- editing `autonomous` applies structured validation to required fields
+- editing `profile` requires a valid JSON object
+- current built-in text-oriented component types can still be edited as plain text
 
 ### Runtime operations
 
@@ -84,4 +94,5 @@ The Snapshots page is used for two related views:
 
 - Creator talks to the engine over HTTP and depends on a running server
 - world rename and node copy require the newer API routes now exposed by the engine
+- Creator's component validation hints come from the generated `js/component-meta.js` bundle artifact
 - the packaged `tools/source/web/GameAgentCreator` copy is the one intended for distribution and direct browser use

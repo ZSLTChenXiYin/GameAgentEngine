@@ -145,6 +145,14 @@ Manually trigger one autonomous run for a node.
 - `PUT /api/v1/components/{id}`
 - `DELETE /api/v1/components/{id}`
 
+Component mutation routes now validate payload data by component type:
+
+- `autonomous`: must be a valid JSON object and satisfy the Engine's current strong field checks
+- `profile`: must be a valid JSON object, but field shape remains open
+- other current built-in types: treated as free text unless structured rules are later added for that type
+
+If the payload does not satisfy the component rules, the API returns `400` with error code `invalid_component_data`.
+
 ---
 
 ## Memories

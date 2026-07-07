@@ -90,6 +90,18 @@ World: 灰港边境
 - `district_state` — `{"stability":48,"pressure":68,"output":72}`
 - `demo_state` — 跟踪 Demo UI 的游戏状态
 
+### 组件校验模式
+
+Engine、GameAgentCreator 与 GameAgentDevCli 现在共享同一份组件校验元数据，以保证导入、API 写入与可视化编辑时的规则一致。
+
+| 组件类型 | 校验模式 | 数据格式 | 当前约束 |
+|---|---|---|---|
+| `autonomous` | 强类型（strong） | JSON object | 会读取特定字段，当前至少要求 `enabled`、`trigger` 存在，并校验 `trigger` 枚举值；当 `trigger=scheduled` 时还会要求 `interval_seconds` 为正数 |
+| `profile` | 弱类型（weak） | JSON object | 只要求是合法 JSON 对象，不限制具体字段集合 |
+| `rule` / `timeline` / `action_policy` / `relations` / `prompt_profile` / `lore` | 无类型（free） | text | 当前按纯文本处理，不做结构化字段校验 |
+
+如果后续某类组件开始被 Engine 结构化读取字段，应将其升级到弱类型或强类型，而不是继续沿用纯文本约定。
+
 ---
 
 ## 3. 记忆（Memory）

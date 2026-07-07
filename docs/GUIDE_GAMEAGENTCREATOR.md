@@ -43,6 +43,7 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 - 编辑节点
 - 删除叶子节点
 - 复制节点
+- 从节点操作中添加“被指向关系”
 - 将节点拖到另一个节点上，修改父子关系
 - 将节点拖到根级放置区，清空父节点
 
@@ -53,6 +54,15 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 - 挂载组件
 - 挂载记忆
 - 仍然完全处于复制子树内部的关系
+
+“添加被指向关系”会打开与关系创建一致的关系编辑弹窗，用于从当前节点向其他节点创建任意关系类型，而不再局限于过去的外父节点场景。
+
+### 组件编辑与校验
+
+- Creator 会根据共享组件元数据提示当前组件是强类型、弱类型还是纯文本
+- 编辑 `autonomous` 时，会按结构化配置校验关键字段
+- 编辑 `profile` 时，要求输入合法 JSON 对象
+- 当前其他内置文本类组件允许直接按文本编辑
 
 ### 运行时操作
 
@@ -84,4 +94,5 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 
 - Creator 通过 HTTP 与引擎通信，因此依赖正在运行的服务端
 - 世界重命名与节点复制依赖新版 API 路由
+- Creator 的组件校验提示来自打包时生成的 `js/component-meta.js`
 - 用于打包与分发的 Creator 副本，是 `tools/source/web/GameAgentCreator`

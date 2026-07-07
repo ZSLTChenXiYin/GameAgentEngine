@@ -79,7 +79,7 @@ GOOS=windows GOARCH=amd64 go build -o dist/GameAgentEngine-windows-amd64.exe ./c
 GOOS=darwin GOARCH=amd64 go build -o dist/GameAgentEngine-darwin-amd64 ./cmd/gameagentengine/
 ```
 
-打包脚本会自动创建版本目录并复制 web/ 等资源文件。
+打包脚本会自动创建版本目录、重新生成 `tools/source/web/GameAgentCreator/js/component-meta.js`，并复制 `web/` 等资源文件。
 
 ---
 

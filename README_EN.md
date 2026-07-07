@@ -17,6 +17,7 @@ It does not replace Unity, Unreal, or Godot. It is designed to work alongside th
 - Tick advancement, event impact assessment, and scope-level evolution
 - Three pipeline modes: `vertical`, `polling`, `full`
 - World copy semantics split into working-copy fork, save snapshot, and restore
+- Shared component validation metadata across Engine, Creator, and DevCli
 - World settings and world policy managed dynamically at runtime
 - Web editor (`GameAgentCreator`) and CLI (`GameAgentDevCli`)
 - Go SDK for integrating the engine into tools and services
@@ -63,8 +64,10 @@ The Creator currently supports:
 - drag-and-drop node reparenting
 - drag-to-root reparenting
 - node creation, edit, delete, and copy
+- generic outgoing relation creation from node actions
 - snapshot save, validation, restore, and delete flows
 - world settings, world policy, logs, and traces
+- component-type-aware validation hints while editing data
 
 ### GameAgentDevCli
 
@@ -77,6 +80,7 @@ The CLI currently supports:
 - world runtime settings and world policy management
 - world rename via `world update`
 - node copy via `node copy`
+- import and mutation validation reusing Engine-side component rules
 
 ---
 

@@ -17,6 +17,7 @@ GameAgentEngine 是一个基于 Go 的引擎，位于游戏逻辑与大模型能
 - Tick 推进、事件影响评估、局部范围演化
 - 三档管线模式：`vertical`、`polling`、`full`
 - 将世界复制语义拆分为工作副本、存档快照、快照恢复三类操作
+- Engine、Creator、DevCli 共享组件校验元数据，减少前后端规则漂移
 - 运行时动态调整世界设置与世界策略
 - 提供 Web 编辑器 `GameAgentCreator` 与命令行工具 `GameAgentDevCli`
 - 提供 Go SDK，便于集成到自定义工具或服务
@@ -63,8 +64,10 @@ go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key import
 - 拖拽修改父子关系
 - 拖拽到根级
 - 节点创建、编辑、删除、复制
+- 从节点操作中创建通用“被指向关系”
 - 快照保存、校验、恢复、删除
 - 世界设置、世界策略、日志、调试轨迹查看
+- 按组件类型给出结构化校验提示
 
 ### GameAgentDevCli
 
@@ -77,6 +80,7 @@ go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key import
 - 世界运行时设置与世界策略管理
 - 通过 `world update` 修改世界名称
 - 通过 `node copy` 复制节点
+- 复用 Engine 侧组件校验规则进行导入与写入校验
 
 ---
 

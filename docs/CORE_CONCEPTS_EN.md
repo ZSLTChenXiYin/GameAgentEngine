@@ -90,6 +90,18 @@ Examples from the Demo world:
 - `district_state` — `{"stability":48,"pressure":68,"output":72}`
 - `demo_state` — Tracks Demo UI game state
 
+### Component Validation Modes
+
+Engine, GameAgentCreator, and GameAgentDevCli now share the same component validation metadata so import flows, API mutations, and visual editing all apply the same rules.
+
+| Component Type | Validation Mode | Data Format | Current Rules |
+|---|---|---|---|
+| `autonomous` | strong | JSON object | Reads specific fields. It currently requires `enabled` and `trigger`, validates the `trigger` enum, and requires a positive `interval_seconds` when `trigger=scheduled` |
+| `profile` | weak | JSON object | Must be a valid JSON object, but field shape remains flexible |
+| `rule` / `timeline` / `action_policy` / `relations` / `prompt_profile` / `lore` | free | text | Treated as plain text for now, with no structured field validation |
+
+If a component type later becomes field-aware inside the Engine, it should be promoted to weak or strong validation instead of remaining free text by convention.
+
 ---
 
 ## 3. Memory

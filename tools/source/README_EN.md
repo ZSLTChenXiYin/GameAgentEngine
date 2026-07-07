@@ -2,92 +2,153 @@
 
 [**中文**](./README.md) | **English**
 
-This directory is the bundled resource set distributed with GameAgentEngine. It contains the default config, demo world data, web tools, and user-facing reference documents.
+An AI agent creation and runtime engine for game developers.
 
-If you already have a runnable engine build or integration package, this is the usual starting point:
+GameAgentEngine is a Go-based engine that sits between game logic and LLM capabilities. It handles world modeling, NPC behavior, memory management, world timeline progression, and controlled runtime actions.
 
-- `gameagentengine.conf.yaml`: default configuration template
-- `demo-world.yaml`: demo world import file
-- `web/GameAgentCreator/`: Creator UI that can be opened directly in a browser
-- `web/Demo/`: demo showcase page
-- `docs/`: user-facing reference documents
+It does not replace Unity, Unreal, or Godot. It is designed to work alongside them.
 
 ---
 
-## Quick Use
+## Highlights
 
-### 1. Configure the Engine
+- Unified world graph based on nodes, components, memories, and relations
+- LLM-driven NPC dialogue and world reasoning
+- Tick advancement, event impact assessment, and scope-level evolution
+- Three pipeline modes: `vertical`, `polling`, `full`
+- World copy semantics split into working-copy fork, save snapshot, and restore
+- Shared component validation metadata across Engine, Creator, and DevCli
+- World settings and world policy managed dynamically at runtime
+- Web editor (`GameAgentCreator`) and CLI (`GameAgentDevCli`)
+- Go SDK for integrating the engine into tools and services
+- Observability through response metadata, logs, and debug traces
 
-Edit `gameagentengine.conf.yaml` in this directory and set at least:
+---
 
-```yaml
-llm:
-  provider: "openai"
-  model: "deepseek-chat"
-  api_key: "sk-your-key"
-  base_url: "https://api.deepseek.com/v1"
-```
-
-If `llm.api_key` is empty, the engine falls back to the mock provider for local testing.
-
-### 2. Import the Demo World
-
-```bash
-GameAgentDevCli import demo-world.yaml --reset
-```
-
-Useful variants:
+## Quick Start
 
 ```bash
-GameAgentDevCli import demo-world.yaml --dry-run
-GameAgentDevCli import demo-world.yaml
+# 1. Clone and build
+git clone <repo-url>
+cd GameAgentEngine
+go build ./...
+
+# 2. Copy the default config
+cp tools/source/gameagentengine.conf.yaml .
+
+# 3. Fill in llm.api_key in gameagentengine.conf.yaml
+
+# 4. Start the engine
+go run ./cmd/gameagentengine serve
+
+# 5. Import the demo world
+go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key import tools/source/demo-world.yaml --reset
+
+# 6. Open the Creator UI
+# tools/source/web/GameAgentCreator/index.html
 ```
 
-### 3. Open Creator
+See [Getting Started](./docs/GETTING_STARTED_EN.md) for the full walkthrough.
 
-Open this file in a browser:
+---
 
-`web/GameAgentCreator/index.html`
+## Current Tooling
 
-The current Creator supports:
+### GameAgentCreator
 
-- world creation and rename
-- drag-to-parent and drag-to-root node reparenting
-- node create, edit, delete, and copy
-- snapshot save, validate, restore, and delete
+The Creator currently supports:
+
+- world selection and world creation
+- world rename from the world page
+- node tree browsing with collapse state
+- drag-and-drop node reparenting
+- drag-to-root reparenting
+- node creation, edit, delete, and copy
+- generic outgoing relation creation from node actions
+- snapshot save, validation, restore, and delete flows
 - world settings, world policy, logs, and traces
+- component-type-aware validation hints while editing data
+
+### GameAgentDevCli
+
+The CLI currently supports:
+
+- import and validation flows
+- node / component / memory / relation CRUD
+- world tick, event impact, scope advance, and timeline replan
+- world fork, save snapshot, restore, validate snapshot, snapshot metadata, and snapshot deletion
+- world runtime settings and world policy management
+- world rename via `world update`
+- node copy via `node copy`
+- import and mutation validation reusing Engine-side component rules
 
 ---
 
-## Directory Layout
+## World Copy Semantics
+
+GameAgentEngine distinguishes three related but different world-copy operations:
+
+- `ForkWorld`: create a runnable working copy for branch simulation and editing
+- `CreateWorldSnapshot`: create a save-oriented snapshot world with compatibility metadata
+- `RestoreWorld`: validate a save snapshot and materialize a fresh runnable world from it
+
+Snapshots preserve compatibility metadata separately from the live world graph so the engine can validate restore safety before rebuilding runtime state.
+
+---
+
+## Pipeline Modes
+
+Each world can choose one of three pipeline modes:
+
+- `vertical`: minimal, single-pass execution
+- `polling`: multi-round reasoning without the full orchestration surface
+- `full`: complete orchestration, including the heavier engine features
+
+This lets games use only the amount of pipeline they need, improving response efficiency and reducing runtime cost.
+
+---
+
+## Project Structure
 
 ```text
-source/
+GameAgentEngine/
+|-- cmd/
+|   |-- gameagentengine/
+|   `-- gameagentdevcli/
 |-- docs/
-|-- web/
-|   |-- Demo/
-|   `-- GameAgentCreator/
-|-- demo-world.yaml
-|-- gameagentengine.conf.yaml
-|-- README.md
-`-- README_EN.md
+|-- internal/
+|   |-- action/
+|   |-- api/
+|   |-- config/
+|   |-- engine/
+|   |-- llm/
+|   |-- planner/
+|   |-- service/
+|   `-- store/
+|-- sdk/
+|-- tools/
+|   `-- source/
+|       `-- web/
+|           `-- GameAgentCreator/
+`-- web/
 ```
 
 ---
 
-## Document Index
+## Documentation
 
 - [Getting Started](./docs/GETTING_STARTED_EN.md)
+- [Architecture](./docs/ARCHITECTURE_EN.md)
 - [Core Concepts](./docs/CORE_CONCEPTS_EN.md)
-- [Configuration](./docs/CONFIGURATION_EN.md)
-- [GameAgentCreator Guide](./docs/GUIDE_GAMEAGENTCREATOR_EN.md)
-- [GameAgentDevCli Guide](./docs/GUIDE_GAMEAGENTDEVCLI_EN.md)
 - [API Reference](./docs/API_REFERENCE_EN.md)
+- [GameAgentDevCli Guide](./docs/GUIDE_GAMEAGENTDEVCLI_EN.md)
+- [GameAgentCreator Guide](./docs/GUIDE_GAMEAGENTCREATOR_EN.md)
 - [SDK Reference](./docs/SDK_REFERENCE_EN.md)
-- [Demo World: Gray Harbor](./docs/DEMO_WORLD_GRAY_HARBOR_EN.md)
+- [Configuration](./docs/CONFIGURATION_EN.md)
+- [Build & Deploy](./docs/BUILD_AND_DEPLOY_EN.md)
 
 ---
 
-## Note
+## License
 
-The `docs/` folder intentionally keeps only the documents that are useful to end users of the packaged engine resources. Internal architecture notes, build-chain details, and deeper implementation materials remain in the main repository documentation.
+MIT
