@@ -462,7 +462,7 @@ func UpdateRelationHandler(w http.ResponseWriter, r *http.Request) {
 		v := float64(*req.Weight)
 		weightF64 = &v
 	}
-	relation, err := service.UpdateRelation(id, req.RelationType, weightF64, req.Properties)
+	relation, err := service.UpdateRelation(id, req.SourceID, req.TargetID, req.RelationType, weightF64, req.Properties)
 	if err != nil {
 		handleServiceError(w, err)
 		return

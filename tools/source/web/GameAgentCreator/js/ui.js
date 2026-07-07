@@ -73,32 +73,20 @@ function renderTree() {
   const body = document.getElementById('treeBody');
   if (!body) return; body.innerHTML = '';
   const filter = state.treeFilter.toLowerCase();
-let nodes = state.nodes;
+  let nodes = state.nodes;
   if (filter) nodes = nodes.filter(function(n) { return n.name.toLowerCase().includes(filter) || n.node_type.includes(filter); });
   var selectedSet = {};
   (state.selectedNodeIds || []).forEach(function(id) { selectedSet[id] = true; });
   var visibleIds = [];
-
-  // Build parent-to-children map
-  var childMap = {};
-  for (var ni = 0; ni < nodes.length; ni++) {
-    var n = nodes[ni];
-    var pid = n.parent_id || '_root';
-    if (!childMap[pid]) childMap[pid] = [];
-    childMap[pid].push(n);
-  }
-
-  // Compute ancestor path of selected node
-  var ancestorSet = {};
-  if (state.selectedNodeId) {
-    var curId = state.selectedNodeId;
-    for (var tries = 0; tries < 100; tries++) {
-      var curNode = null;
-      for (var i = 0; i < nodes.length; i++) { if (nodes[i].id === curId) { curNode = nodes[i]; break; } }
-      if (!curNode || !curNode.parent_id) break;
-      ancestorSet[curNode.parent_id] = true;
-      curId = curNode.parent_id;
-    }
+  var projected = buildProjectedChildMap(nodes);
+  var childMap = projected.childMap;
+  var nodeMap = {};
+  nodes.forEach(function(n) { nodeMap[n.id] = n; });
+  var activePathSet = {};
+  if (state.selectedTreePathKey) {
+    state.selectedTreePathKey.split('|').forEach(function(key) {
+      if (key) activePathSet[key] = true;
+    });
   }
 
   // Collapse state: treeCollapsed[parentId] = true/false
@@ -126,21 +114,30 @@ let nodes = state.nodes;
 
   var rootDrop = ce('div', { className: 'tree-root-drop' }, [txt(tr('Drop here to move to root'))]);
   body.appendChild(rootDrop);
+  var treeContent = ce('div', { className: 'tree-content' }, []);
+  body.appendChild(treeContent);
 
-  function renderChildren(parentId, depth, container) {
+  function renderChildren(parentId, depth, container, ancestorIds, parentPathKey) {
     var children = childMap[parentId] || [];
     for (var ci = 0; ci < children.length; ci++) {
       (function() {
-        var node = children[ci];
+        var nodeId = children[ci];
+        var node = nodeMap[nodeId];
+        if (!node) return;
+        if (ancestorIds.indexOf(nodeId) >= 0) return;
+        var occurrenceKey = parentPathKey ? parentPathKey + '|' + nodeId : nodeId;
+        var nextAncestorIds = ancestorIds.concat([nodeId]);
         var hasChildren = childMap[node.id] && childMap[node.id].length > 0;
         var isCollapsed = state.treeCollapsed[node.id];
-        var isSelected = !!selectedSet[node.id];
+        var isSelected = !!selectedSet[node.id] && state.selectedTreePathKey === occurrenceKey;
         var isPrimarySelected = state.selectedNodeId === node.id;
-        var isAncestor = ancestorSet[node.id] && !isSelected;
+        var isAliasSelected = !!selectedSet[node.id] && state.selectedTreePathKey && state.selectedTreePathKey !== occurrenceKey;
+        var isAncestor = !!activePathSet[occurrenceKey] && !isSelected;
 
         var cls = 'tree-node';
         if (isSelected) cls += ' selected';
         if (isSelected && !isPrimarySelected) cls += ' multi-selected';
+        if (isAliasSelected) cls += ' alias-selected';
         if (isAncestor) cls += ' path-ancestor';
 
         var row = ce('div', { className: cls, dataset: { id: node.id, pid: node.parent_id || '' }, style: { paddingLeft: (12 + depth * 16) + 'px' } }, [
@@ -162,14 +159,14 @@ let nodes = state.nodes;
               return;
             }
             if (e.shiftKey) {
-              selectNode(nn.id, nn.node_type, { mode: 'range', preserveAnchor: true });
+              selectNode(nn.id, nn.node_type, { mode: 'range', preserveAnchor: true, treePathKey: occurrenceKey });
               return;
             }
             if (e.ctrlKey || e.metaKey) {
-              selectNode(nn.id, nn.node_type, { mode: 'toggle' });
+              selectNode(nn.id, nn.node_type, { mode: 'toggle', treePathKey: occurrenceKey });
               return;
             }
-            selectNode(nn.id, nn.node_type, { mode: 'single' });
+            selectNode(nn.id, nn.node_type, { mode: 'single', treePathKey: occurrenceKey });
           };
         })(node, hasChildren));
 
@@ -243,11 +240,12 @@ let nodes = state.nodes;
           return async function(e) {
             e.preventDefault();
             e.stopPropagation();
-            if (!selectedSet[nn.id]) await selectNode(nn.id, nn.node_type, { mode: 'single' });
+            if (!selectedSet[nn.id] || state.selectedTreePathKey !== occurrenceKey) await selectNode(nn.id, nn.node_type, { mode: 'single', treePathKey: occurrenceKey });
             showContextMenu([
               { label: tr('Edit'), onClick: function() { openEditNodeModal(nn.id); } },
               { label: tr('Copy Node'), onClick: function() { openCopyNodeModal(nn.id); } },
               { label: tr('Add New Parent'), onClick: function() { openCreateParentNodeModal(nn.id); } },
+              { label: tr('Link External Parent'), onClick: function() { openLinkExternalParentModal(nn.id); } },
               { label: tr('Create Child'), onClick: function() { openCreateNodeModal(nn.id); } },
               { label: tr('Delete'), danger: true, onClick: function() { deleteNodeHandler(nn.id); } },
             ], e.clientX, e.clientY);
@@ -259,19 +257,19 @@ let nodes = state.nodes;
         if (hasChildren && !isCollapsed) {
           var childCont = ce('div', { className: 'tree-children' }, []);
           container.appendChild(childCont);
-          renderChildren(node.id, depth + 1, childCont);
+          renderChildren(node.id, depth + 1, childCont, nextAncestorIds, occurrenceKey);
         }
       })();
     }
   }
 
   var rootContainer = ce('div', {}, []);
-  renderChildren('_root', 0, rootContainer);
-  while (rootContainer.firstChild) body.appendChild(rootContainer.firstChild);
+  renderChildren('_root', 0, rootContainer, [], '');
+  while (rootContainer.firstChild) treeContent.appendChild(rootContainer.firstChild);
   state.visibleNodeIds = visibleIds;
 
   if (nodes.length === 0) {
-    body.appendChild(ce('div', { className: 'hint' }, [ttxt('No nodes. Click + to create.')]));
+    treeContent.appendChild(ce('div', { className: 'hint' }, [ttxt('No nodes. Click + to create.')]));
   }
 }
 

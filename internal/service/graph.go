@@ -15,7 +15,9 @@ func CreateNode(worldID, name, nodeType string, parentID *string) (*store.NodeMo
 		created, err = createNodeTx(tx, worldID, name, nodeType, parentID)
 		return err
 	})
-	if err == nil && created != nil { store.ResolveNodeParentUUID(created) }
+	if err == nil && created != nil {
+		store.ResolveNodeParentUUID(created)
+	}
 	return created, err
 }
 
@@ -65,7 +67,7 @@ func UpdateNode(id string, name, nodeType, parentID *string, parentIDSet bool) (
 		if err := tx.Model(&store.NodeModel{}).Where("uuid = ?", id).Updates(updates).Error; err != nil {
 			return err
 		}
-			updated, err = getNodeTx(tx, id)
+		updated, err = getNodeTx(tx, id)
 		return err
 	})
 	if err == nil && updated != nil {
@@ -174,11 +176,29 @@ func CreateRelation(worldID, sourceID, targetID, relationType string, weight flo
 		if err != nil {
 			return err
 		}
+		if source.ID == target.ID {
+			return errorf(ErrorInvalidRelationType, "source node cannot point to itself")
+		}
 		if source.WorldID != world || target.WorldID != world {
 			return errorf(ErrorCrossWorldRelation, "both nodes must be in the same world")
 		}
 		if !engine.IsValidRelationType(relationType) {
 			return errorf(ErrorInvalidRelationType, "invalid relation_type: %s", relationType)
+		}
+		var existing int64
+		if err := tx.Model(&store.RelationModel{}).Where("world_id = ? AND source_id = ? AND target_id = ? AND relation_type = ?", world, source.ID, target.ID, relationType).Count(&existing).Error; err != nil {
+			return err
+		}
+		if existing > 0 {
+			return conflictf("relation already exists")
+		}
+		if relationType == string(engine.RelExternalParent) {
+			if source.ParentID != nil && *source.ParentID == target.ID {
+				return conflictf("target node is already the primary parent")
+			}
+			if err := ensureNoExternalParentCycleTx(tx, source.ID, target.ID); err != nil {
+				return err
+			}
 		}
 		created = &store.RelationModel{
 			UUID:         store.NewUUID(),
@@ -194,20 +214,106 @@ func CreateRelation(worldID, sourceID, targetID, relationType string, weight flo
 	return created, err
 }
 
+func ensureNoExternalParentCycleTx(tx *gorm.DB, sourceID, targetID int64) error {
+	visited := map[int64]bool{}
+	var walk func(int64) error
+	walk = func(nodeID int64) error {
+		if visited[nodeID] {
+			return nil
+		}
+		visited[nodeID] = true
+		if nodeID == sourceID {
+			return errorf(ErrorParentCycle, "external parent link would create a cycle")
+		}
+		var node store.NodeModel
+		if err := tx.Where("id = ?", nodeID).First(&node).Error; err != nil {
+			return err
+		}
+		if node.ParentID != nil {
+			if err := walk(*node.ParentID); err != nil {
+				return err
+			}
+		}
+		var extraParents []int64
+		if err := tx.Model(&store.RelationModel{}).Where("source_id = ? AND relation_type = ?", nodeID, string(engine.RelExternalParent)).Pluck("target_id", &extraParents).Error; err != nil {
+			return err
+		}
+		for _, parentID := range extraParents {
+			if err := walk(parentID); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(targetID)
+}
+
 // UpdateRelation 更新关系的内容。
-func UpdateRelation(id string, relationType *string, weight *float64, props *string) (*store.RelationModel, error) {
+func UpdateRelation(id string, sourceID, targetID, relationType *string, weight *float64, props *string) (*store.RelationModel, error) {
 	var updated *store.RelationModel
 	err := store.DB.Transaction(func(tx *gorm.DB) error {
 		relation, err := getRelationTx(tx, id)
 		if err != nil {
 			return err
 		}
+		sourceNodeID := relation.SourceID
+		targetNodeID := relation.TargetID
 		updates := map[string]any{}
+		if sourceID != nil {
+			sourceNode, err := getNodeTx(tx, *sourceID)
+			if err != nil {
+				return err
+			}
+			if sourceNode.WorldID != relation.WorldID {
+				return errorf(ErrorCrossWorldRelation, "source node must be in the same world")
+			}
+			sourceNodeID = sourceNode.ID
+			updates["source_id"] = sourceNode.ID
+		}
+		if targetID != nil {
+			targetNode, err := getNodeTx(tx, *targetID)
+			if err != nil {
+				return err
+			}
+			if targetNode.WorldID != relation.WorldID {
+				return errorf(ErrorCrossWorldRelation, "target node must be in the same world")
+			}
+			targetNodeID = targetNode.ID
+			updates["target_id"] = targetNode.ID
+		}
+		if sourceNodeID == targetNodeID {
+			return errorf(ErrorInvalidRelationType, "source node cannot point to itself")
+		}
 		if relationType != nil {
 			if !engine.IsValidRelationType(*relationType) {
 				return errorf(ErrorInvalidRelationType, "invalid relation_type: %s", *relationType)
 			}
+			if *relationType == string(engine.RelExternalParent) {
+				var sourceNode store.NodeModel
+				if err := tx.Where("id = ?", sourceNodeID).First(&sourceNode).Error; err != nil {
+					return err
+				}
+				if sourceNode.ParentID != nil && *sourceNode.ParentID == targetNodeID {
+					return conflictf("target node is already the primary parent")
+				}
+				if err := ensureNoExternalParentCycleTx(tx, sourceNodeID, targetNodeID); err != nil {
+					return err
+				}
+			}
 			updates["relation_type"] = *relationType
+		}
+		nextRelationType := relation.RelationType
+		if relationType != nil {
+			nextRelationType = *relationType
+		}
+		var duplicateCount int64
+		if err := tx.Model(&store.RelationModel{}).
+			Where("world_id = ? AND source_id = ? AND target_id = ? AND relation_type = ? AND id <> ?", relation.WorldID, sourceNodeID, targetNodeID, nextRelationType, relation.ID).
+			Count(&duplicateCount).Error; err != nil {
+			return err
+		}
+		if duplicateCount > 0 {
+			return conflictf("relation already exists")
 		}
 		if weight != nil {
 			updates["weight"] = int(*weight)
@@ -295,12 +401,3 @@ func UpdateMemory(id string, content, level, tags *string) (*store.MemoryModel, 
 func DeleteMemory(id string) error {
 	return deleteByID(&store.MemoryModel{}, id, getMemoryTx)
 }
-
-
-
-
-
-
-
-
-

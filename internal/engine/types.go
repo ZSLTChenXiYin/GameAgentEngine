@@ -48,17 +48,18 @@ func ValidComponentTypes() []ComponentType {
 type RelationType string
 
 const (
-	RelBelongsTo   RelationType = "belongs_to"
-	RelAlly        RelationType = "ally"
-	RelEnemy       RelationType = "enemy"
-	RelSubordinate RelationType = "subordinate"
-	RelKinship     RelationType = "kinship"
-	RelLocatedAt   RelationType = "located_at"
+	RelBelongsTo      RelationType = "belongs_to"
+	RelAlly           RelationType = "ally"
+	RelEnemy          RelationType = "enemy"
+	RelSubordinate    RelationType = "subordinate"
+	RelKinship        RelationType = "kinship"
+	RelLocatedAt      RelationType = "located_at"
+	RelExternalParent RelationType = "external_parent"
 )
 
 // ValidRelationTypes 返回当前支持的全部关系类型。
 func ValidRelationTypes() []RelationType {
-	return []RelationType{RelBelongsTo, RelAlly, RelEnemy, RelSubordinate, RelKinship, RelLocatedAt}
+	return []RelationType{RelBelongsTo, RelAlly, RelEnemy, RelSubordinate, RelKinship, RelLocatedAt, RelExternalParent}
 }
 
 // MemoryLevel 表示记忆的可见范围和持久性。

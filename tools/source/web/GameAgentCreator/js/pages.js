@@ -205,6 +205,11 @@ function renderNodeDetail(container) {
   if (!nd || !nd.node) return;
   const n = nd.node;
   const detail = ce('div', { className: 'node-detail' }, []);
+  var externalParents = (nd.relations || []).filter(function(rel) {
+    return rel.relation_type === 'external_parent' && rel.source_id === n.id;
+  }).map(function(rel) {
+    return getNodeNameById(rel.target_id) + ' (' + rel.target_id.slice(0, 8) + ')';
+  });
   
   // Overview card
   const overview = ce('div', { className: 'detail-card' }, [
@@ -213,7 +218,8 @@ function renderNodeDetail(container) {
       ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('ID')]), ce('span', { className: 'val mono' }, [txt(n.id)])]),
       ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Name')]), ce('span', { className: 'val' }, [txt(n.name)])]),
       ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Type')]), ce('span', { className: 'val' }, [txt(n.node_type)])]),
-      n.parent_id ? ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Parent')]), ce('span', { className: 'val mono' }, [txt(n.parent_id.slice(0,8))])]) : null,
+      n.parent_id ? ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Primary Parent')]), ce('span', { className: 'val' }, [txt(getNodeNameById(n.parent_id) + ' (' + n.parent_id.slice(0,8) + ')')])]) : null,
+      externalParents.length > 0 ? ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('External Parents')]), ce('span', { className: 'val' }, [txt(externalParents.join(', '))])]) : null,
     ]),
   ]);
   detail.appendChild(overview);
