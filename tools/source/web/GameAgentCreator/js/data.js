@@ -620,46 +620,72 @@ async function createParentNode(nodeId) {
   }
 }
 
-function openLinkExternalParentModal(nodeId) {
+function openAddOutgoingRelationModal(nodeId) {
   var node = state.nodes.find(function(x) { return x.id === nodeId; });
   if (!node) return;
-  var options = state.nodes
-    .filter(function(n) { return n.id !== nodeId; })
-    .map(function(n) { return '<option value="' + n.id + '">' + n.name + ' (' + n.node_type + ')</option>'; })
-    .join('');
   const f = ce('div', { className: 'modal-field' }, [
-    ce('label', { for: 'linkExternalParentTarget' }, [ttxt('Target Node')]),
-    el('select', { id: 'linkExternalParentTarget', innerHTML: options }),
+    ce('label', { for: 'addOutgoingRelSourceSearch' }, [ttxt('Search Nodes')]),
+    el('input', { id: 'addOutgoingRelSourceSearch', value: node.name || '', style: {width: '100%'}, disabled: true }),
+    ce('label', { for: 'addOutgoingRelSource' }, [ttxt('Source Node')]),
+    el('select', { id: 'addOutgoingRelSource', innerHTML: '<option value="' + node.id + '">' + node.name + ' (' + node.node_type + ')</option>', disabled: true }),
+    ce('label', { for: 'addOutgoingRelTargetSearch' }, [ttxt('Search Nodes')]),
+    el('input', { id: 'addOutgoingRelTargetSearch', placeholder: tr('Target node search...'), style: {width: '100%'} }),
+    ce('label', { for: 'addOutgoingRelTarget' }, [ttxt('Target Node')]),
+    el('select', { id: 'addOutgoingRelTarget', innerHTML: '' }),
+    ce('label', { for: 'addOutgoingRelType' }, [ttxt('Relation Type')]),
+    el('select', { id: 'addOutgoingRelType', innerHTML: relationTypeOptionsHTML() }),
+    ce('label', { for: 'addOutgoingRelWeight' }, [ttxt('Weight')]),
+    el('input', { id: 'addOutgoingRelWeight', type: 'number', value: '1', min: '0', max: '100', style: {width: '100px'} }),
+    ce('label', { for: 'addOutgoingRelProps' }, [ttxt('Relation Properties')]),
+    el('textarea', { id: 'addOutgoingRelProps', rows: 5, placeholder: tr('Optional notes, tags, role metadata...'), style: {width: '100%', fontFamily: 'var(--font-mono)', fontSize: '11px'} }),
+    ce('label', {}, [ttxt('Relation Meaning')]),
+    ce('div', { id: 'addOutgoingRelMeaning', className: 'hint', style: {padding: '8px', textAlign: 'left'} }, [txt('')]),
+    ce('label', {}, [ttxt('Relation Preview')]),
+    ce('div', { id: 'addOutgoingRelPreview', className: 'status-box' }, [txt('')]),
   ]);
-  openModal(tr('Link External Parent'), f,
-    ce('div', {}, [ce('button', { className: 'primary', id: 'modalLinkExternalParentBtn' }, [ttxt('Add')]), el('button', { id: 'modalCancelLinkExternalParentBtn', textContent: tr('Cancel') })])
+  openModal(tr('Add Outgoing Relation'), f,
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalAddOutgoingRelBtn' }, [ttxt('Add')]), el('button', { id: 'modalCancelAddOutgoingRelBtn', textContent: tr('Cancel') })])
   );
-  document.getElementById('modalLinkExternalParentBtn').addEventListener('click', function() { linkExternalParent(nodeId); });
-  document.getElementById('modalCancelLinkExternalParentBtn').addEventListener('click', closeModal);
+  bindRelationNodeFilter('addOutgoingRelTargetSearch', 'addOutgoingRelTarget', [nodeId], null);
+  var sourceSelect = document.getElementById('addOutgoingRelSource');
+  var targetSelect = document.getElementById('addOutgoingRelTarget');
+  var typeSelect = document.getElementById('addOutgoingRelType');
+  [sourceSelect, targetSelect, typeSelect].forEach(function(elm) {
+    if (elm) elm.addEventListener('change', function() { updateRelationFormPreview('addOutgoing'); });
+  });
+  updateRelationFormPreview('addOutgoing');
+  document.getElementById('modalAddOutgoingRelBtn').addEventListener('click', function() { addOutgoingRelation(nodeId); });
+  document.getElementById('modalCancelAddOutgoingRelBtn').addEventListener('click', closeModal);
 }
 
-async function linkExternalParent(nodeId) {
+async function addOutgoingRelation(nodeId) {
   var node = state.nodes.find(function(x) { return x.id === nodeId; });
-  var targetId = document.getElementById('linkExternalParentTarget').value;
-  if (!targetId) { toast(tr('Select an external parent node'), 'error'); return; }
-  if (targetId === nodeId) { toast(tr('Cannot link a node to itself'), 'error'); return; }
-  if (node && node.parent_id === targetId) { toast(tr('Target node is already the primary parent'), 'error'); return; }
-  var rels = state.nodeDetail && state.nodeDetail.relations ? state.nodeDetail.relations : [];
-  var exists = rels.some(function(rel) {
-    return rel.source_id === nodeId && rel.target_id === targetId && rel.relation_type === 'external_parent';
+  var sourceId = document.getElementById('addOutgoingRelSource').value;
+  var targetId = document.getElementById('addOutgoingRelTarget').value;
+  var relType = document.getElementById('addOutgoingRelType').value;
+  var weight = parseInt(document.getElementById('addOutgoingRelWeight').value, 10);
+  var properties = document.getElementById('addOutgoingRelProps').value.trim();
+  if (!sourceId) { toast(tr('Select a source node'), 'error'); return; }
+  if (!targetId) { toast(tr('Select a target node'), 'error'); return; }
+  if (sourceId === targetId) { toast(tr('Cannot link a node to itself'), 'error'); return; }
+  if (!relType) { toast(tr('Select a relation type'), 'error'); return; }
+  if (relType === 'external_parent' && node && node.parent_id === targetId) { toast(tr('Target node is already the primary parent'), 'error'); return; }
+  var exists = (state.relations || []).some(function(rel) {
+    return rel.source_id === sourceId && rel.target_id === targetId && rel.relation_type === relType;
   });
-  if (exists) { toast(tr('This node already points to the selected external parent'), 'error'); return; }
+  if (exists) { toast(tr('This relation already exists'), 'error'); return; }
   try {
     await api('POST', '/api/v1/relations', {
       world_id: state.selectedWorldId,
-      source_id: nodeId,
+      source_id: sourceId,
       target_id: targetId,
-      relation_type: 'external_parent',
-      weight: 1,
+      relation_type: relType,
+      weight: Number.isFinite(weight) ? weight : 1,
+      properties: properties,
     });
     closeModal();
-    toast(tr('External parent linked'), 'success');
-    await selectNode(nodeId, node && node.node_type ? node.node_type : null, { mode: 'single' });
+    toast(tr('Relation added'), 'success');
+    await selectNode(sourceId, node && node.node_type ? node.node_type : null, { mode: 'single' });
   } catch(e) {
     toast(tr('Failed: ') + apiErrorMessage(e), 'error');
   }

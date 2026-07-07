@@ -78,6 +78,7 @@ const i18n = {
     'Add': '添加',
     'Add New Parent': '添加新父节点',
     'Link External Parent': '指向外父节点',
+    'Add Outgoing Relation': '添加被指向关系',
     'Add Component': '添加组件',
     'Add Memory': '添加记忆',
     'Add Relation': '添加关系',
