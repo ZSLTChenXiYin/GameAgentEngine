@@ -176,6 +176,7 @@ function renderWorldsPage(container) {
     ce('button', { id: 'btnSaveSnapshot' }, [ttxt('Save Snapshot')]),
     ce('button', { id: 'btnTickAdvance' }, [ttxt('Advance Tick')]),
     ce('button', { id: 'btnAutonomous' }, [ttxt('Run Autonomous')]),
+    ce('button', { id: 'btnAutonomousConfig' }, [ttxt('Autonomous Config')]),
     ce('button', { id: 'btnEventImpact' }, [ttxt('Event Impact')]),
     ce('button', { id: 'btnScopeAdvance' }, [ttxt('Scope Advance')]),
     ce('button', { id: 'btnReplan' }, [ttxt('Replan')]),
@@ -193,6 +194,7 @@ function renderWorldsPage(container) {
   document.getElementById('btnSaveSnapshot').addEventListener('click', saveSnapshot);
   document.getElementById('btnTickAdvance').addEventListener('click', tickAdvance);
   document.getElementById('btnAutonomous').addEventListener('click', runAutonomous);
+  document.getElementById('btnAutonomousConfig').addEventListener('click', openAutonomousConfigModal);
   document.getElementById('btnEventImpact').addEventListener('click', openEventImpactModal);
   document.getElementById('btnScopeAdvance').addEventListener('click', scopeAdvance);
   document.getElementById('btnReplan').addEventListener('click', timelineReplan);
@@ -543,6 +545,7 @@ function renderLogsPage(container) {
 function updateActionButtons() {
   var btnTick = document.getElementById('btnTickAdvance');
   var btnAuto = document.getElementById('btnAutonomous');
+  var btnAutoConfig = document.getElementById('btnAutonomousConfig');
   var btnEvent = document.getElementById('btnEventImpact');
   var btnScope = document.getElementById('btnScopeAdvance');
   var btnReplan = document.getElementById('btnReplan');
@@ -551,6 +554,7 @@ function updateActionButtons() {
   if (btnScope) btnScope.classList.toggle('dim', !state.selectedWorldId);
   if (btnReplan) btnReplan.classList.toggle('dim', !state.selectedWorldId);
   if (btnAuto) btnAuto.classList.toggle('dim', !state.selectedWorldId || !state.selectedNodeId);
+  if (btnAutoConfig) btnAutoConfig.classList.toggle('dim', !state.selectedWorldId || !state.selectedNodeId);
 }
 /* ============= Traces Page (Debug) ============= */
 async function renderTracesPage(container) {
