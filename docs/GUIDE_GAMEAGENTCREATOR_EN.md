@@ -2,69 +2,86 @@
 
 [**中文**](./GUIDE_GAMEAGENTCREATOR.md) | **English**
 
-GameAgentCreator is the web-based visual editor for GameAgentEngine v0.2.0. It communicates with the engine HTTP API through the browser, providing node tree browsing, component editing, memory viewing, world operations, and more.
+GameAgentCreator is the browser-based visual editor bundled with GameAgentEngine.
 
 ---
 
-## Launch Methods
+## Open Creator
 
-```bash
-# Method 1: Open via DevCli
-GameAgentDevCli inspect
+Open this file in a browser:
 
-# Method 2: Open directly in the browser
-# Open tools/source/web/GameAgentCreator/index.html
-```
+`tools/source/web/GameAgentCreator/index.html`
+
+You can also use the CLI `inspect` flow when available in your environment.
 
 ---
 
-## Interface Layout
+## Main Layout
 
-The Creator interface follows mainstream game engine editor layouts, divided into the following areas:
-
-- **Top navigation bar**: world selection, language switch, configuration entry
-- **Left node tree**: displays all nodes hierarchically with collapse and drag support
-- **Center workspace**: shows component details of the selected node, supports key-value editing
-- **Right inspector**: recursively displays all data of the selected node (including properties and sub-objects)
-- **Bottom monitor**: runtime information, log output
-
-All sub-panels can be freely resized and scrolled.
+- top bar: world selection, language switch, theme switch, config entry
+- left tree: hierarchical node outline
+- center area: world page, snapshots, settings, policy, logs, traces
+- right side: node detail summary and attached data
 
 ---
 
-## Core Features
+## Supported Editing Flows
 
-### Node Tree
+### World operations
 
-- Displays world nodes in parent-child hierarchy
-- Different node types are identified by colored rounded labels
-- Selected node is highlighted, with ancestor path shown in a lighter shade
-- Supports drag-and-drop to attach child nodes
+- create a world
+- rename the selected world from the world page
+- create a working copy via `fork`
+- save a snapshot
+- validate, restore, and delete snapshots
+- edit world settings
+- edit world policy
 
-### Workspace
+### Node operations
 
-- View and edit component content of the selected node
-- Component name and action buttons are shown in the top row
-- KV key-value pairs recursively display all nesting levels
-- Supports adding, deleting, and modifying key-value pairs
+- create node
+- edit node
+- delete leaf node
+- copy node
+- drag a node onto another node to reparent it
+- drag a node to the root drop zone to clear its parent
 
-### Inspector
+Node copy currently duplicates:
 
-- Recursively displays key-value pairs of node properties
-- Hover tooltip shows full content
-- Horizontal and vertical scrollbars ensure content doesn't overflow the screen
+- the selected node
+- the subtree when subtree copy is enabled
+- attached components
+- attached memories
+- relations that remain fully inside the copied subtree
 
-### World Operations
+### Runtime operations
 
-- **Create World**: create a new world from the navigation bar
-- **Import Config**: import world configuration from a file
-- **Create Working Copy**: click "Create Working Copy" on the world page, with an optional prompt to lock the source world
-- **Save Snapshot**: click "Save Snapshot" on the world page to create a save-oriented snapshot for the current world
-- **Snapshots Panel**: open the `Snapshots` page to inspect saved snapshots, validate compatibility, restore a snapshot into a runnable world, or delete an obsolete save snapshot
-- **World Settings**: modify PipelineMode, memory limit, propagation parameters, and other dynamic configuration
-- **Advance Tick**: advance the world timeline
-- **Run Autonomous Behavior**: trigger node autonomous behavior
-- **Event Impact**: evaluate an event's impact on the world
-- **Scope Advance**: advance evolution within a specific scope
-- **Replan**: regenerate the world outline
-- **Trace Pipeline Visibility**: the `Traces` page shows configured pipeline mode, effective pipeline mode, and round usage for each debug trace
+- advance tick
+- run autonomous behavior
+- evaluate event impact
+- scope advance
+- timeline replan
+
+### Observability
+
+- inference logs
+- debug traces
+- configured / effective pipeline mode visibility
+- round usage visibility
+
+---
+
+## Snapshot Page Notes
+
+The Snapshots page is used for two related views:
+
+- if a normal runnable world is selected, the page shows snapshots created from that world
+- if a save snapshot world is selected, the page shows snapshot metadata for the current snapshot and lists all save snapshots from its source world
+
+---
+
+## Current Constraints
+
+- Creator talks to the engine over HTTP and depends on a running server
+- world rename and node copy require the newer API routes now exposed by the engine
+- the packaged `tools/source/web/GameAgentCreator` copy is the one intended for distribution and direct browser use

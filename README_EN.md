@@ -2,31 +2,25 @@
 
 [**中文**](./README.md) | **English**
 
-**An AI Agent Creation & Runtime Engine for Game Developers.**
+An AI agent creation and runtime engine for game developers.
 
-GameAgentEngine is a Go-based engine that sits between your game logic and LLM capabilities — responsible for world modeling, NPC intelligent behavior, memory management, and world timeline progression. Think of it as the **director system and intelligence layer** inside a game world.
+GameAgentEngine is a Go-based engine that sits between game logic and LLM capabilities. It handles world modeling, NPC behavior, memory management, world timeline progression, and controlled runtime actions.
 
-> It does **not** replace Unity, Unreal, or Godot. It works _alongside_ them.
+It does not replace Unity, Unreal, or Godot. It is designed to work alongside them.
 
 ---
 
-## Features
+## Highlights
 
-- **Unified World Modeling** — Nodes, Components, Memories, and Relations form a complete entity graph
-- **NPC Intelligence** — LLM-powered dialogue with contextual awareness (profile, lore, memories, relations)
-- **World Timeline** — Tick-based advancement with event impact assessment
-- **Inference Pipeline** — Context assembly → Prompt generation → LLM call → Action parsing → Memory persistence
-- **Action System** — Built-in sync/async actions (add_memory, update_mood, send_dialogue, adjust_relation, spawn_item)
-- **Policy Engine** — Guardrails for safe action execution (blocked actions, review thresholds)
-- **World Copy & Save Flows** - Distinguish between working-copy forks, save snapshots, and restored runnable worlds, with optional source world locking during copy operations
-- **Pipeline Mode Grading** - Choose `vertical`, `polling`, or `full` pipeline execution by world settings or per-request override to balance capability, latency, and runtime cost
-- **Observability** - Response metadata, debug traces, and inference logs expose configured/effective pipeline mode plus analysis-round usage
-- **Idempotency** — Safe retry for write operations
-- **Full CRUD API** — 20+ RESTful endpoints for nodes, components, memories, and relations
-- **Dual Storage** — SQLite (dev) and MySQL (production)
-- **Go SDK** — Native Go client library with Agent builder API
-- **GameAgentDevCli** — Developer CLI for scripted import, CRUD, world tick, verification
-- **GameAgentCreator** — Web-based visual editor with node tree, inspector, logs, and import
+- Unified world graph based on nodes, components, memories, and relations
+- LLM-driven NPC dialogue and world reasoning
+- Tick advancement, event impact assessment, and scope-level evolution
+- Three pipeline modes: `vertical`, `polling`, `full`
+- World copy semantics split into working-copy fork, save snapshot, and restore
+- World settings and world policy managed dynamically at runtime
+- Web editor (`GameAgentCreator`) and CLI (`GameAgentDevCli`)
+- Go SDK for integrating the engine into tools and services
+- Observability through response metadata, logs, and debug traces
 
 ---
 
@@ -38,118 +32,116 @@ git clone <repo-url>
 cd GameAgentEngine
 go build ./...
 
-# 2. Configure (copy default config and add LLM API key)
+# 2. Copy the default config
 cp tools/source/gameagentengine.conf.yaml .
-# Edit gameagentengine.conf.yaml — set llm.api_key
 
-# 3. Start the engine service
+# 3. Fill in llm.api_key in gameagentengine.conf.yaml
+
+# 4. Start the engine
 go run ./cmd/gameagentengine serve
 
-# 4. In another terminal, import the demo world
+# 5. Import the demo world
 go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key import tools/source/demo-world.yaml --reset
 
-# 5. Open the visual editor
+# 6. Open the Creator UI
 # tools/source/web/GameAgentCreator/index.html
 ```
 
-See [Getting Started](docs/GETTING_STARTED_EN.md) for a detailed walkthrough.
+See [Getting Started](./docs/GETTING_STARTED_EN.md) for the full walkthrough.
 
 ---
 
-## Project Structure
+## Current Tooling
 
-```
-GameAgentEngine/
-├── cmd/
-│   ├── gameagentengine/      # Engine server + CLI (serve, validate, version, import, ...)
-│   └── gameagentdevcli/      # Developer CLI (CRUD, world tick, import, verify, snapshot, ...)
-├── internal/
-│   ├── api/                  # HTTP API layer (router, handlers, middleware, error mapping)
-│   ├── service/              # Domain rules & transaction boundaries
-│   ├── engine/               # Inference pipeline, context builder, core types
-│   ├── store/                # GORM persistence (Node, Component, Memory, Relation, Timeline, Log)
-│   ├── llm/                  # LLM Provider (OpenAI-compatible + Mock)
-│   ├── action/               # Action registry & callback system
-│   ├── planner/              # Policy engine & world change plan evaluation
-│   └── config/               # Viper configuration loading
-├── sdk/                      # Go HTTP Client SDK
-├── web/
-│   ├── GameAgentCreator/     # Visual editor (node tree, inspector, logs, import)
-│   └── Demo/                 # Demo showcase page (Gray Harbor Council)
-├── tools/
-│   ├── scripts/              # Build scripts, encoding checks
-│   └── source/               # Default config
-└── docs/                     # Documentation
-```
+### GameAgentCreator
 
----
+The Creator currently supports:
 
-## Tools Overview
+- world selection and world creation
+- world rename from the world page
+- node tree browsing with collapse state
+- drag-and-drop node reparenting
+- drag-to-root reparenting
+- node creation, edit, delete, and copy
+- snapshot save, validation, restore, and delete flows
+- world settings, world policy, logs, and traces
 
-| Tool | Purpose | Entry Point |
-|---|---|---|
-| **GameAgentEngine** | Backend engine service + CLI | `cmd/gameagentengine/main.go` |
-| **GameAgentDevCli** | Developer command-line tool | `cmd/gameagentdevcli/main.go` |
-| **GameAgentCreator** | Web-based visual editor | `web/GameAgentCreator/index.html` |
-| **Web Demo** | Demo showcase page | `web/Demo/index.html` |
+### GameAgentDevCli
+
+The CLI currently supports:
+
+- import and validation flows
+- node / component / memory / relation CRUD
+- world tick, event impact, scope advance, and timeline replan
+- world fork, save snapshot, restore, validate snapshot, snapshot metadata, and snapshot deletion
+- world runtime settings and world policy management
+- world rename via `world update`
+- node copy via `node copy`
 
 ---
 
 ## World Copy Semantics
 
-GameAgentEngine now treats world duplication as three related but different operations:
+GameAgentEngine distinguishes three related but different world-copy operations:
 
-- `ForkWorld`: create a working copy for branch simulation, debugging, or alternate progression.
-- `CreateWorldSnapshot`: create a save-oriented snapshot world with compatibility metadata for later validation and restore.
-- `RestoreWorld`: validate a saved snapshot and materialize a new runnable world copy from it.
+- `ForkWorld`: create a runnable working copy for branch simulation and editing
+- `CreateWorldSnapshot`: create a save-oriented snapshot world with compatibility metadata
+- `RestoreWorld`: validate a save snapshot and materialize a fresh runnable world from it
 
-Snapshot metadata is stored separately from the world graph so the engine can validate schema/version compatibility, detect drift, and support save lifecycle tooling.
+Snapshots preserve compatibility metadata separately from the live world graph so the engine can validate restore safety before rebuilding runtime state.
 
 ---
 
-## Pipeline Observability
+## Pipeline Modes
 
-When a task is invoked, the engine records:
+Each world can choose one of three pipeline modes:
 
-- the configured pipeline mode from world settings
-- the effective pipeline mode used for the current request
-- the maximum analysis rounds allowed
-- the number of rounds actually consumed
+- `vertical`: minimal, single-pass execution
+- `polling`: multi-round reasoning without the full orchestration surface
+- `full`: complete orchestration, including the heavier engine features
 
-These fields are available through `InvokeResponse.metadata`, debug trace output, and inference logs, making it easier to tune `pipeline_mode` by workload.
+This lets games use only the amount of pipeline they need, improving response efficiency and reducing runtime cost.
+
+---
+
+## Project Structure
+
+```text
+GameAgentEngine/
+|-- cmd/
+|   |-- gameagentengine/
+|   `-- gameagentdevcli/
+|-- docs/
+|-- internal/
+|   |-- action/
+|   |-- api/
+|   |-- config/
+|   |-- engine/
+|   |-- llm/
+|   |-- planner/
+|   |-- service/
+|   `-- store/
+|-- sdk/
+|-- tools/
+|   `-- source/
+|       `-- web/
+|           `-- GameAgentCreator/
+`-- web/
+```
 
 ---
 
 ## Documentation
 
-| Document | Description |
-|---|---|
-| [Getting Started](docs/GETTING_STARTED_EN.md) | Installation, configuration, first run |
-| [Architecture](docs/ARCHITECTURE_EN.md) | System design, layers, data flow |
-| [Core Concepts](docs/CORE_CONCEPTS_EN.md) | Nodes, Components, Memories, Relations, Tasks |
-| [Autonomous Behavior](docs/AUTONOMOUS_BEHAVIOR_EN.md) | Optional node-level autonomous actions and capability allowlists |
-| [API Reference](docs/API_REFERENCE_EN.md) | Full HTTP API endpoint reference |
-| [GameAgentDevCli Guide](docs/GUIDE_GAMEAGENTDEVCLI_EN.md) | Complete CLI command reference |
-| [GameAgentCreator Guide](docs/GUIDE_GAMEAGENTCREATOR_EN.md) | Web UI usage guide |
-| [Configuration](docs/CONFIGURATION_EN.md) | Config file reference |
-| [SDK Reference](docs/SDK_REFERENCE_EN.md) | Go SDK API reference |
-| [Build & Deploy](docs/BUILD_AND_DEPLOY_EN.md) | Build, packaging, deployment |
-| [Pipeline Internals](docs/PIPELINE_INTERNALS_EN.md) | Inference pipeline deep dive |
-| [Demo World: Gray Harbor](docs/DEMO_WORLD_GRAY_HARBOR_EN.md) | Demo world guide |
-
----
-
-## Tech Stack
-
-| Layer | Tech | Purpose |
-|---|---|---|
-| Language | Go 1.25+ | Core engine |
-| HTTP | net/http, http.ServeMux | Service interface |
-| ORM | GORM v2 | Database access |
-| Storage | SQLite / MySQL | Persistence |
-| AI | OpenAI-compatible API | LLM inference |
-| CLI | Cobra | Command-line framework |
-| Config | Viper | Configuration management |
+- [Getting Started](./docs/GETTING_STARTED_EN.md)
+- [Architecture](./docs/ARCHITECTURE_EN.md)
+- [Core Concepts](./docs/CORE_CONCEPTS_EN.md)
+- [API Reference](./docs/API_REFERENCE_EN.md)
+- [GameAgentDevCli Guide](./docs/GUIDE_GAMEAGENTDEVCLI_EN.md)
+- [GameAgentCreator Guide](./docs/GUIDE_GAMEAGENTCREATOR_EN.md)
+- [SDK Reference](./docs/SDK_REFERENCE_EN.md)
+- [Configuration](./docs/CONFIGURATION_EN.md)
+- [Build & Deploy](./docs/BUILD_AND_DEPLOY_EN.md)
 
 ---
 

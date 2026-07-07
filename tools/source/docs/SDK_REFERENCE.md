@@ -2,7 +2,7 @@
 
 **中文** | [**English**](./SDK_REFERENCE_EN.md)
 
-GameAgentEngine v0.2.0 提供 Go SDK，用于在 Go 应用中与引擎服务通信。
+GameAgentEngine 提供 Go SDK，用于在 Go 应用中调用引擎服务。
 
 ---
 
@@ -16,37 +16,49 @@ import "github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 client := sdk.NewClient("http://127.0.0.1:8080", "dev-key")
 ```
 
+### 健康检查与版本
+
+```go
+if err := client.Health(); err != nil {
+    panic(err)
+}
+
+engineVersion, minCompatibleVersion, err := client.GetVersion()
+```
+
 ### 获取世界设置
 
 ```go
 settings, err := client.GetWorldSettings(worldID)
-// settings 包含 pipeline_mode、propagation_max_depth 等动态配置
+// settings.PipelineMode, settings.PropagationMaxDepth, ...
 ```
 
-### 设置世界配置
+### 更新世界设置
 
-使用 `UpdateWorldSettings` 进行部分更新，只有你显式传入的字段会被修改：
+使用 `UpdateWorldSettings` 做部分更新，只会修改你显式传入的字段：
 
 ```go
 pipelineMode := "polling"
 propagationDepth := 0
 enableMachine := false
 
-result, err := client.UpdateWorldSettings(worldID, &sdk.WorldSettingsUpdate{
+settings, err := client.UpdateWorldSettings(worldID, &sdk.WorldSettingsUpdate{
     PipelineMode:             &pipelineMode,
     PropagationMaxDepth:      &propagationDepth,
     EnablePropagationMachine: &enableMachine,
 })
 ```
 
-当你希望一次性提交完整 `WorldSettings` 载荷时，再使用 `SetWorldSettings`。
+如果你希望一次提交完整 `WorldSettings` 载荷，则使用 `SetWorldSettings`。
 
 ### 推进世界时间
 
 ```go
-result, err := client.AdvanceWorldTick(worldID, "scheduled", "第3天-傍晚", nil)
-// result.tick, result.invoke, result.autonomous_runs
+tick, err := client.AdvanceTick(worldID, "scheduled", "第 3 天 - 傍晚")
+// tick.Tick, tick.Invoke, tick.AutonomousRuns
 ```
+
+如果你需要限制本次 Tick 可触发的自主节点数量，可使用 `AdvanceTickWithAutonomousLimit`。
 
 ### 评估事件影响
 
@@ -54,115 +66,120 @@ result, err := client.AdvanceWorldTick(worldID, "scheduled", "第3天-傍晚", n
 event := &sdk.WorldEvent{
     EventType:   "diplomatic_crisis",
     ScopeID:     scopeID,
-    Description: "邻国在边境集结军队",
+    Description: "邻国正在边境集结军队",
     Severity:    "critical",
 }
-resp, err := client.EvaluateWorldEvent(worldID, event)
+
+resp, err := client.EventImpact(worldID, event)
 ```
 
 ---
 
-## Client 结构体
+## Client 方法
 
-```go
-type Client struct {
-    ServerURL string
-    APIKey    string
-}
-```
+### 服务与原始访问
+
+| 方法 | 说明 |
+|---|---|
+| `Health() error` | 调用健康检查接口 |
+| `GetVersion() (string, string, error)` | 读取当前引擎版本和最低兼容版本 |
+| `RawGet(path string) ([]byte, error)` | 发起原始的已鉴权 GET 请求 |
+| `WithIdempotency(key string) *Client` | 复制一个附带 `Idempotency-Key` 的客户端 |
 
 ### 节点操作
 
 | 方法 | 说明 |
 |---|---|
-| `CreateNode(worldID, name, nodeType, parentID string) (string, error)` | 创建节点 |
+| `GetNodes(worldID string, limit, offset int, nodeType string) ([]Node, error)` | 按条件列出节点 |
 | `GetNode(id string) (*NodeDetail, error)` | 获取节点详情 |
-| `UpdateNode(id string, name, nodeType, parentID *string, parentIDSet bool) (*NodeDetail, error)` | 更新节点 |
+| `CreateNode(worldID, name, nodeType, parentID string) (string, error)` | 创建节点 |
+| `UpdateNode(id string, name, nodeType string, parentID *string) (*Node, error)` | 更新节点 |
 | `DeleteNode(id string) error` | 删除节点 |
-| `ListNodeByWorld(worldID string, limit, offset int) ([]NodeModel, error)` | 列出世界节点 |
-| `ListNodeAll(limit, offset int) ([]NodeModel, error)` | 列出所有节点 |
+| `CopyNode(nodeID, name string, parentID *string, includeDescendants bool) (*Node, error)` | 复制节点，可选连同整棵子树 |
 
 ### 组件操作
 
 | 方法 | 说明 |
 |---|---|
-| `AddComponent(nodeID, componentType, data string) (string, error)` | 添加组件 |
-| `GetComponent(id string) (*ComponentModel, error)` | 获取组件 |
-| `GetComponents(nodeID string) ([]ComponentModel, error)` | 获取节点组件列表 |
-| `UpdateComponent(id string, componentType, data *string) error` | 更新组件 |
+| `AddComponent(nodeID, compType, data string) (string, error)` | 添加组件 |
+| `GetComponents(nodeID string) ([]Component, error)` | 列出节点组件 |
+| `GetComponent(id string) (*Component, error)` | 获取单个组件 |
+| `UpdateComponent(id string, componentType, data *string) (*Component, error)` | 更新组件 |
 | `DeleteComponent(id string) error` | 删除组件 |
 
 ### 记忆操作
 
 | 方法 | 说明 |
 |---|---|
-| `AddMemory(nodeID, content, level, tags string) (*MemoryModel, error)` | 添加记忆 |
-| `GetMemory(id string) (*MemoryModel, error)` | 获取记忆 |
-| `GetMemories(nodeID string) ([]MemoryModel, error)` | 获取节点记忆 |
-| `UpdateMemory(id string, content, level, tags *string) (*MemoryModel, error)` | 更新记忆 |
+| `AddMemory(nodeID, content, level, tags string) (string, error)` | 添加记忆 |
+| `GetMemories(nodeID string) ([]Memory, error)` | 列出节点记忆 |
+| `GetMemory(id string) (*Memory, error)` | 获取单条记忆 |
+| `UpdateMemory(id string, content, level, tags *string) (*Memory, error)` | 更新记忆 |
 | `DeleteMemory(id string) error` | 删除记忆 |
-| `PropagateMemory(memoryID, targetNode, mode string, tags []string, targetIDs []string, maxDepth int, publishUp bool) error` | 手动传播记忆 |
+| `PropagateMemory(memoryID, mode string, tags, targetIDs []string, maxDepth int, publishUp bool) error` | 显式触发记忆传播 |
 
 ### 关系操作
 
 | 方法 | 说明 |
 |---|---|
-| `CreateRelation(worldID, sourceID, targetID, relationType string) (string, error)` | 创建关系 |
-| `CreateRelationWithProps(worldID, sourceID, targetID, relationType string, weight int, properties string) (string, error)` | 创建关系（含权重和属性） |
-| `GetRelation(id string) (*RelationModel, error)` | 获取关系 |
-| `GetRelations(worldID string) ([]RelationModel, error)` | 列出世界关系 |
-| `UpdateRelation(id string, sourceID, targetID, relationType, properties *string, weight *int) error` | 更新关系 |
+| `GetRelations(worldID string, limit, offset int, relationType string) ([]Relation, error)` | 按条件列出关系 |
+| `GetRelation(id string) (*Relation, error)` | 获取单条关系 |
+| `CreateRelation(worldID, sourceID, targetID, relType string, weight int) (string, error)` | 创建关系 |
+| `CreateRelationWithProps(worldID, sourceID, targetID, relType string, weight int, props string) (string, error)` | 创建带属性的关系 |
+| `UpdateRelation(id string, sourceID, targetID, relationType, properties *string, weight *int) (*Relation, error)` | 更新关系 |
 | `DeleteRelation(id string) error` | 删除关系 |
 
 ### 世界操作
 
 | 方法 | 说明 |
 |---|---|
-| `AdvanceWorldTick(worldID, tickType, gameTime string, autonomousLimit *int) (*TickAdvanceResult, error)` | 推进世界时间 |
-| `EvaluateWorldEvent(worldID string, event *WorldEvent) (*InvokeResponse, error)` | 评估事件影响 |
-| `ReplanWorldTimeline(worldID string) (*InvokeResponse, error)` | 重新生成时间线 |
-| `AdvanceWorldScope(worldID, scopeID string) (*InvokeResponse, error)` | 局部范围推进 |
-| `ForkWorld(worldID, name string, lockWorld bool) (*Node, error)` | 创建世界工作副本（`lockWorld`: 复制期间锁定源世界） |
-| `CreateWorldSnapshot(worldID, name string, lockWorld bool) (*Node, error)` | 创建世界存档快照（`lockWorld`: 存档期间锁定源世界） |
-| `RestoreWorld(worldID, name string, lockWorld bool) (*Node, error)` | 从存档快照恢复新世界（`lockWorld`: 恢复期间锁定源快照世界） |
-| `ValidateWorldSnapshot(worldID string) (*SnapshotValidationResult, error)` | 校验存档快照当前是否仍可安全恢复，并返回结构化兼容性结果 |
-| `GetWorldSnapshotMetadata(worldID string) (*WorldSnapshotInfo, error)` | 查询某个快照世界的存档元数据 |
-| `ListWorldSnapshots(worldID string) ([]WorldSnapshotInfo, error)` | 列出某个源世界的全部存档快照 |
-| `DeleteWorldSnapshot(worldID string) error` | 删除某个存档快照世界，以及与之关联的快照元数据 |
-| `GetWorldSettings(worldID string) (*WorldSettings, error)` | 获取世界设置 |
-| `UpdateWorldSettings(worldID string, settings *WorldSettingsUpdate) (*WorldSettings, error)` | 部分更新世界设置，仅修改显式传入的字段 |
-| `SetWorldSettings(worldID string, settings *WorldSettings) (*WorldSettings, error)` | 一次性提交完整的世界设置载荷 |
-| `GetWorldPolicy(worldID string) (*WorldPolicy, error)` | 获取世界策略 |
-| `SetWorldPolicy(worldID string, blocked, safe []string) (*WorldPolicy, error)` | 设置世界策略 |
+| `GetWorlds() ([]Node, error)` | 列出世界根节点 |
+| `UpdateWorld(worldID, name string) (*Node, error)` | 重命名世界或更新世界可变字段 |
+| `ForkWorld(worldID, name string, lockWorld bool) (*Node, error)` | 创建可运行的工作副本 |
+| `CreateWorldSnapshot(worldID, name string, lockWorld bool) (*Node, error)` | 创建存档快照 |
+| `RestoreWorld(worldID, name string, lockWorld bool) (*Node, error)` | 将快照恢复为新世界 |
+| `ValidateWorldSnapshot(worldID string) (*SnapshotValidationResult, error)` | 校验快照兼容性 |
+| `GetWorldSnapshotMetadata(worldID string) (*WorldSnapshotInfo, error)` | 读取快照元数据 |
+| `ListWorldSnapshots(worldID string) ([]WorldSnapshotInfo, error)` | 列出某个源世界的全部快照 |
+| `DeleteWorldSnapshot(worldID string) error` | 删除快照世界及其元数据 |
 
-### 自主行为操作
-
-| 方法 | 说明 |
-|---|---|
-| `GetAutonomousConfig(nodeID string) (*AutonomousConfig, error)` | 获取自主行为配置 |
-| `SetAutonomousConfig(nodeID string, cfg *AutonomousConfig) (*AutonomousConfig, error)` | 设置自主行为配置 |
-| `RunAutonomousNode(worldID, nodeID string) (*InvokeResponse, error)` | 手动触发自主行为 |
-
-### 日志与导入
-
-| 方法 | 说明 |
-|---|---|
-| `GetInferenceLogs(worldID string, limit int) ([]InferenceLogModel, error)` | 读取推理日志 |
-| `CreatorImport(format, content string, reset, dryRun bool) (*ImportResult, error)` | 导入世界配置 |
-| `GetStatus() (*StatusResult, error)` | 获取服务状态 |
-
-### 推理操作
+### 运行时与推理操作
 
 | 方法 | 说明 |
 |---|---|
 | `Invoke(req *InvokeRequest) (*InvokeResponse, error)` | 统一推理入口 |
-| `ActionCallback(callbackID, status string, result any) error` | 异步动作回调 |
+| `AdvanceTick(worldID, tickType, gameTime string) (*TickResponse, error)` | 推进一个世界 Tick |
+| `AdvanceTickWithAutonomousLimit(worldID, tickType, gameTime string, autonomousLimit *int) (*TickResponse, error)` | 推进一个世界 Tick，并限制自主行为数量 |
+| `EventImpact(worldID string, event *WorldEvent) (*InvokeResponse, error)` | 评估事件影响 |
+| `ScopeAdvance(worldID, scopeID string) (*InvokeResponse, error)` | 推进指定局部范围 |
+| `TimelineReplan(worldID string) (*InvokeResponse, error)` | 重建世界未来大纲 |
+| `ActionCallback(callbackID, status string, result any) error` | 完成异步动作回调 |
+
+### 自主行为
+
+| 方法 | 说明 |
+|---|---|
+| `GetAutonomousConfig(nodeID string) (*AutonomousConfigResponse, error)` | 读取自主行为配置 |
+| `SetAutonomousConfig(nodeID string, cfg *AutonomousConfig) (*AutonomousConfigResponse, error)` | 创建或更新自主行为配置 |
+| `RunAutonomousNode(worldID, nodeID string) (*InvokeResponse, error)` | 手动触发一次自主行为执行 |
+
+### 设置、策略、日志与导入
+
+| 方法 | 说明 |
+|---|---|
+| `GetWorldSettings(worldID string) (*WorldSettings, error)` | 读取世界设置 |
+| `UpdateWorldSettings(worldID string, settings *WorldSettingsUpdate) (*WorldSettings, error)` | 部分更新世界设置 |
+| `SetWorldSettings(worldID string, settings *WorldSettings) (*WorldSettings, error)` | 用完整载荷覆盖世界设置 |
+| `GetWorldPolicy(worldID string) (*WorldPolicy, error)` | 读取世界策略 |
+| `SetWorldPolicy(worldID string, blocked, safe []string) (*WorldPolicy, error)` | 更新世界策略 |
+| `GetLogs(worldID string, limit, offset int, taskType string) ([]InferenceLog, error)` | 读取推理日志 |
+| `CreatorImport(format, content string, reset, dryRun bool) (*ImportResult, error)` | 导入世界配置 |
 
 ---
 
-## 常用类型定义
+## 常用类型
 
-### WorldSettings
+### `WorldSettings`
 
 ```go
 type WorldSettings struct {
@@ -178,7 +195,11 @@ type WorldSettings struct {
     SubTaskTimeoutSecs       int    `json:"sub_task_timeout_secs"`
     PipelineMode             string `json:"pipeline_mode"`
 }
+```
 
+### `WorldSettingsUpdate`
+
+```go
 type WorldSettingsUpdate struct {
     MemoryLimit              *int    `json:"memory_limit,omitempty"`
     MaxAnalysisRounds        *int    `json:"max_analysis_rounds,omitempty"`
@@ -193,22 +214,33 @@ type WorldSettingsUpdate struct {
 }
 ```
 
-### InvokeResponse
+### `TickResponse`
 
 ```go
-type InvokeResponse struct {
-    RequestID       string              `json:"request_id"`
-    TaskType        string              `json:"task_type"`
-    Reply           string              `json:"reply"`
-    ActionCalls     []ActionCall        `json:"action_calls,omitempty"`
-    MemoryUpdates   []MemoryUpdate      `json:"memory_updates,omitempty"`
-    WorldChangePlan *WorldChangePlan    `json:"world_change_plan,omitempty"`
-    FutureOutline   string              `json:"future_outline,omitempty"`
-    Metadata        *ResponseMeta       `json:"metadata,omitempty"`
+type TickResponse struct {
+    Tick           *Timeline             `json:"tick"`
+    Invoke         *InvokeResponse       `json:"invoke"`
+    AutonomousRuns []AutonomousRunResult `json:"autonomous_runs,omitempty"`
 }
 ```
 
-### ResponseMeta
+### `InvokeResponse`
+
+```go
+type InvokeResponse struct {
+    RequestID       string               `json:"request_id"`
+    TaskType        string               `json:"task_type"`
+    ExecutionMode   string               `json:"execution_mode"`
+    Reply           string               `json:"reply,omitempty"`
+    ActionCalls     []ActionCall         `json:"action_calls,omitempty"`
+    WorldChangePlan *WorldChangePlan     `json:"world_change_plan,omitempty"`
+    MemoryUpdates   []MemoryUpdate       `json:"memory_updates,omitempty"`
+    SubTasks        []SubTaskDeclaration `json:"sub_tasks,omitempty"`
+    Metadata        *ResponseMeta        `json:"metadata,omitempty"`
+}
+```
+
+### `ResponseMeta`
 
 ```go
 type ResponseMeta struct {
@@ -219,20 +251,5 @@ type ResponseMeta struct {
     EffectivePipelineMode  string `json:"effective_pipeline_mode,omitempty"`
     MaxAnalysisRounds      int    `json:"max_analysis_rounds,omitempty"`
     RoundsUsed             int    `json:"rounds_used,omitempty"`
-}
-```
-
-- `configured_pipeline_mode`：世界设置中的默认管线模式
-- `effective_pipeline_mode`：本次请求实际生效的管线模式（可能被请求上下文覆盖）
-- `max_analysis_rounds`：本次请求最终采用的最大轮次数
-- `rounds_used`：本次请求实际消耗的轮次数
-
-### WorldPolicy
-
-```go
-type WorldPolicy struct {
-    WorldID        string   `json:"world_id"`
-    BlockedActions []string `json:"blocked_actions"`
-    SafeActions    []string `json:"safe_actions"`
 }
 ```

@@ -8,7 +8,7 @@ GameAgentEngine v0.2.0 uses a two-layer configuration system: **static configura
 
 ## Static Configuration (gameagentengine.conf.yaml)
 
-Managed by Viper using YAML format. The default configuration is at `tools/source/gameagentengine.conf.yaml`.
+Managed by Viper using YAML format. The default configuration is at `gameagentengine.conf.yaml`.
 
 ### Search Paths
 

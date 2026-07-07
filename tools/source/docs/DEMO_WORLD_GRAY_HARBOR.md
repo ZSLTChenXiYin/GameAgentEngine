@@ -45,7 +45,7 @@
 
 ```bash
 # 使用 DevCli 导入
-GameAgentDevCli import tools/source/demo-world.yaml --reset
+GameAgentDevCli import demo-world.yaml --reset
 ```
 
 `--reset` 参数会在导入前清空数据库。如果不加 `--reset`，Demo 世界会在现有数据库中追加。

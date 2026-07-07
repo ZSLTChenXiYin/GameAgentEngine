@@ -177,7 +177,7 @@ sequenceDiagram
     participant DB as 数据库
 
     Client->>API: POST /api/v1/worlds/{id}/ticks/advance
-    API->>SVC: AdvanceWorldTickWithAutonomous(pipeline, worldID, tickType)
+    API->>SVC: AdvanceTick(worldID, tickType, gameTime, autonomousLimit)
     SVC->>ENG: Pipeline.Execute(world_tick 任务)
     ENG->>DB: 加载世界上下文、WorldSettings
     ENG->>ENG: 按 PipelineMode 执行推理

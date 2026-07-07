@@ -2,166 +2,118 @@
 
 [**中文**](./GETTING_STARTED.md) | **English**
 
-This guide walks you through setting up GameAgentEngine v0.2.0 from scratch, configuring an LLM provider, importing the Demo world, and interacting with NPCs.
+This guide is for users consuming the bundled GameAgentEngine resource package. It helps you configure the engine, import the demo world, and open Creator.
 
 ---
 
-## Prerequisites
+## What You Need
 
-- **Go 1.25+** — [Download Go](https://go.dev/dl/)
-- **LLM API Key** — An OpenAI-compatible API key (DeepSeek, OpenAI, Qwen, etc.)
-- **Git** — To clone the repository
+- a runnable `GameAgentEngine`
+- a runnable `GameAgentDevCli`
+- an OpenAI-compatible API key if you want real LLM responses
 
----
-
-## Installation
-
-```bash
-# Clone the repository
-git clone <repo-url>
-cd GameAgentEngine
-
-# Build all components
-go build ./...
-
-# Verify the build
-GameAgentEngine version
-# Output: GameAgentEngine version v0.2.0
-```
+If `llm.api_key` is empty, the engine automatically falls back to the mock provider for local testing.
 
 ---
 
-## Configuration
+## Configure the Engine
 
-Copy the default config file and fill in your LLM API key:
-
-```bash
-cp tools/source/gameagentengine.conf.yaml .
-```
-
-Edit `gameagentengine.conf.yaml` and set your LLM API key:
+Edit the bundled `gameagentengine.conf.yaml` in the current directory and set at least:
 
 ```yaml
 llm:
   provider: "openai"
-  model: "deepseek-chat"         # or gpt-4o-mini, qwen-turbo, etc.
-  api_key: "sk-your-key-here"   # <-- set your key here
+  model: "deepseek-chat"
+  api_key: "sk-your-key"
   base_url: "https://api.deepseek.com/v1"
 ```
 
-> **No API Key?** If `api_key` is left empty, the engine defaults to the Mock LLM Provider, which returns fixed responses — ideal for testing the pipeline without real API calls.
+See [Configuration](./CONFIGURATION_EN.md) for the rest of the settings.
 
 ---
 
-## Start the Engine Service
+## Start the Engine
 
 ```bash
 GameAgentEngine serve
 ```
 
-Expected output:
-```
-DB: sqlite (gameagentengine.db)
-LLM: deepseek-chat (https://api.deepseek.com/v1)
-listen on 0.0.0.0:8080
-```
-
-Verify the service is running:
+Verify the service with the health check:
 
 ```bash
 curl http://127.0.0.1:8080/health
-# {"status":"ok"}
+```
+
+Expected result:
+
+```json
+{"status":"ok"}
 ```
 
 ---
 
 ## Import the Demo World
 
-Open another terminal and import the Demo world "Gray Harbor Border":
-
 ```bash
-GameAgentDevCli import tools/source/demo-world.yaml --reset
+GameAgentDevCli import demo-world.yaml --reset
 ```
 
-The `--reset` flag clears the database before importing. Use `--dry-run` to validate without writing.
-
-This imports a complete world with:
-- 4 factions (Gray Harbor Council, Iron Tide Merchant Guild, etc.)
-- 8 locations (Council Hall, Round Table Chamber, Mist Bay Mine, etc.)
-- 4 NPCs (Speaker Elrin, Steward Brahm, Commander Cyllo, Representative Mira)
-- 14 weighted relations
-- Custom components (resource_state, district_state, demo_state)
-
-Verify the world was created:
+Useful variants:
 
 ```bash
-GameAgentDevCli status
+# Validate only
+GameAgentDevCli import demo-world.yaml --dry-run
+
+# Keep existing data
+GameAgentDevCli import demo-world.yaml
 ```
 
 ---
 
-## Quick Commands
-
-### List all nodes
+## Common Runtime Commands
 
 ```bash
-GameAgentDevCli node list
-```
+# List worlds
+GameAgentDevCli node list --type world
 
-### Interact with the world
-
-```bash
-# Advance world time
+# Advance one world tick
 GameAgentDevCli world tick <world-id>
 
-# Talk to an NPC (via REST API)
-curl -X POST http://127.0.0.1:8080/api/v1/invoke \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: dev-key" \
-  -d '{"world_id":"<world-id>","node_id":"<npc-id>","task_type":"npc_dialogue","context":{"messages":[{"role":"user","content":"Hello"}]}}'
+# Create a save snapshot
+GameAgentDevCli world save <world-id> "Save Slot 1"
 
-# Evaluate event impact
-GameAgentDevCli world event-impact <world-id> --type "crisis" --description "..." --severity "critical"
+# Rename a world
+GameAgentDevCli world update <world-id> --name "Renamed World"
 
-# Clone a world
-GameAgentDevCli world save <world-id> "My save slot 1" --lock-world
-
-# View world runtime settings
-GameAgentDevCli world settings get <world-id>
-
-# Switch pipeline mode only
-GameAgentDevCli world settings set <world-id> --pipeline-mode "polling"
-
-# Remove the upward propagation depth limit
-GameAgentDevCli world settings set <world-id> --propagation-max-depth 0
+# Copy a node
+GameAgentDevCli node copy <node-id> --name "Copied Node"
 ```
 
-*(See the [GameAgentDevCli Guide](GUIDE_GAMEAGENTDEVCLI_EN.md) for complete command reference.)*
+See the [GameAgentDevCli Guide](./GUIDE_GAMEAGENTDEVCLI_EN.md) for the full command set.
 
 ---
 
-## Open the Visual Editor
+## Open Creator
 
-Open `web/GameAgentCreator/index.html` in a browser.
+Open this file in a browser:
+
+`web/GameAgentCreator/index.html`
+
+The current Creator supports:
+
+- world creation and rename
+- drag-to-parent and drag-to-root node reparenting
+- node create, edit, delete, and copy
+- snapshot save, validate, restore, and delete
+- world settings, world policy, logs, and traces
+
+See the [GameAgentCreator Guide](./GUIDE_GAMEAGENTCREATOR_EN.md) for details.
 
 ---
 
-## Open the Demo Showcase
+## Read Next
 
-Open `web/Demo/index.html` in a browser.
-
-This is the playable "Gray Harbor Border" Demo: talk to different NPCs, make decisions each round, and advance the world timeline.
-
----
-
-## Next Steps
-
-| Topic | Document |
-|---|---|
-| Understand core concepts | [Core Concepts](CORE_CONCEPTS_EN.md) |
-| Explore all API endpoints | [API Reference](API_REFERENCE_EN.md) |
-| Master the CLI | [GameAgentDevCli Guide](GUIDE_GAMEAGENTDEVCLI_EN.md) |
-| Use the Web editor | [GameAgentCreator Guide](GUIDE_GAMEAGENTCREATOR_EN.md) |
-| Learn about the Demo world | [Demo World: Gray Harbor](DEMO_WORLD_GRAY_HARBOR_EN.md) |
-| Build and package for distribution | [Build & Deploy](BUILD_AND_DEPLOY_EN.md) |
-| Use the Go SDK in your project | [SDK Reference](SDK_REFERENCE_EN.md) |
+- [Core Concepts](./CORE_CONCEPTS_EN.md)
+- [API Reference](./API_REFERENCE_EN.md)
+- [SDK Reference](./SDK_REFERENCE_EN.md)
+- [Demo World: Gray Harbor](./DEMO_WORLD_GRAY_HARBOR_EN.md)

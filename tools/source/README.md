@@ -2,142 +2,92 @@
 
 **中文** | [**English**](./README_EN.md)
 
-**面向游戏开发者的 AI Agent 制作与运行引擎。**
+这是随 GameAgentEngine 一起分发的资源目录，包含默认配置、示例世界、Web 工具和可直接查阅的用户文档。
 
-GameAgentEngine 是一个基于 Go 语言的引擎，位于游戏逻辑与大模型能力之间——负责世界建模、NPC 智能行为、记忆管理和世界时间线推进。可以理解为游戏世界中的**导演系统与智能运行层**。
+如果你已经拿到了可运行的 Engine 或集成包，通常会从这里开始：
 
-> 它并**不替代** Unity、Unreal 或 Godot，而是与它们**协同工作**。
-
----
-
-## 特性
-
-- **统一世界建模** — 节点、组件、记忆、关系构成完整的实体图
-- **NPC 智能** — 基于 LLM 的对话，具备上下文感知（身份、背景、记忆、关系）
-- **世界时间线** — 基于 Tick 的推进机制与事件影响评估
-- **推理管线** — 上下文组装 → Prompt 生成 → LLM 调用 → 动作解析 → 记忆持久化
-- **动作系统** — 内置同步/异步动作（add_memory, update_mood, send_dialogue, adjust_relation, spawn_item）
-- **策略引擎** — 安全执行护栏（禁止动作、审核阈值）
-- **世界分叉与存档** — 支持创建工作副本（fork）和存档快照（snapshot），并可在复制期间锁定源世界
-- **幂等支持** — 写入操作的安全重试
-- **完整 CRUD API** — 20+ RESTful 端点
-- **双存储支持** — SQLite（开发）/ MySQL（生产）
-- **Go SDK** — 原生 Go 客户端库，含 Agent 构建器
-- **GameAgentDevCli** — 开发者 CLI，支持脚本化导入、CRUD、世界推进、验证
-- **GameAgentCreator** — 基于 Web 的可视化编辑器（节点树、检视器、日志、导入）
+- `gameagentengine.conf.yaml`：默认配置模板
+- `demo-world.yaml`：示例世界导入文件
+- `web/GameAgentCreator/`：可直接在浏览器打开的 Creator
+- `web/Demo/`：演示世界页面
+- `docs/`：面向使用者的参考文档
 
 ---
 
-## 世界复制与管线说明
+## 快速使用
 
-面向日常使用时，可以将世界复制相关能力理解为三种不同操作：
+### 1. 配置引擎
 
-- ForkWorld：创建工作副本，适合调试、分支推演和并行实验。
-- CreateWorldSnapshot：创建存档快照，适合保存当时的 Agent 世界状态。
-- RestoreWorld：从已校验的快照恢复出新的可运行世界。
+编辑当前目录下的 `gameagentengine.conf.yaml`，至少填写：
 
-此外，引擎支持 vertical、polling、full 三档 pipeline_mode，可以按游戏复杂度选择不同能力与成本等级。相关执行信息会体现在响应元数据、调试轨迹和推理日志中。
+```yaml
+llm:
+  provider: "openai"
+  model: "deepseek-chat"
+  api_key: "sk-your-key"
+  base_url: "https://api.deepseek.com/v1"
+```
 
----
+如果 `llm.api_key` 为空，引擎会退回到 Mock Provider，适合本地联调。
 
-## 快速开始
+### 2. 导入示例世界
 
 ```bash
-# 1. 克隆并构建
-git clone <仓库地址>
-cd GameAgentEngine
-go build ./...
-
-# 2. 配置（复制默认配置并填入 LLM API Key）
-cp tools/source/gameagentengine.conf.yaml .
-# 编辑 gameagentengine.conf.yaml — 设置 llm.api_key
-
-# 3. 启动引擎服务
-go run ./cmd/gameagentengine serve
-
-# 4. 另开终端，导入 Demo 世界
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key import tools/source/demo-world.yaml --reset
-
-# 5. 打开可视化编辑器
-# tools/source/web/GameAgentCreator/index.html
+GameAgentDevCli import demo-world.yaml --reset
 ```
 
-详见[入门指南](docs/GETTING_STARTED.md)。
+常用变体：
+
+```bash
+GameAgentDevCli import demo-world.yaml --dry-run
+GameAgentDevCli import demo-world.yaml
+```
+
+### 3. 打开 Creator
+
+在浏览器中打开：
+
+`web/GameAgentCreator/index.html`
+
+当前 Creator 已支持：
+
+- 世界创建与世界重命名
+- 节点树拖拽改父级与拖到根级
+- 节点创建、编辑、删除、复制
+- 快照保存、校验、恢复、删除
+- 世界设置、世界策略、日志与调试轨迹查看
 
 ---
 
-## 项目结构
+## 目录结构
 
-```
-GameAgentEngine/
-├── cmd/
-│   ├── gameagentengine/      # 引擎服务 + CLI（serve, validate, version, import ...）
-│   └── gameagentdevcli/      # 开发者 CLI（CRUD, world tick, import, verify, snapshot ...）
-├── internal/
-│   ├── api/                  # HTTP API 层（路由、处理器、中间件、错误映射）
-│   ├── service/              # 领域规则与事务边界
-│   ├── engine/               # 推理管线、上下文构建器、核心类型
-│   ├── store/                # GORM 持久化层
-│   ├── llm/                  # LLM Provider（兼容 OpenAI + Mock）
-│   ├── action/               # 动作注册与回调系统
-│   ├── planner/              # 策略引擎与世界变更计划评估
-│   └── config/               # Viper 配置加载
-├── sdk/                      # Go HTTP 客户端 SDK
-├── web/
-│   ├── GameAgentCreator/     # 可视化编辑器（节点树、检视器、日志、导入）
-│   └── Demo/                 # Demo 展示页面（灰港议会）
-├── tools/
-│   ├── scripts/              # 构建脚本、编码检查
-│   └── source/               # 默认配置文件
-└── docs/                     # 文档（支持中英双语）
+```text
+source/
+|-- docs/
+|-- web/
+|   |-- Demo/
+|   `-- GameAgentCreator/
+|-- demo-world.yaml
+|-- gameagentengine.conf.yaml
+|-- README.md
+`-- README_EN.md
 ```
 
 ---
 
-## 工具一览
+## 文档索引
 
-| 工具 | 用途 | 入口 |
-|---|---|---|
-| **GameAgentEngine** | 后端引擎服务 + CLI | `cmd/gameagentengine/main.go` |
-| **GameAgentDevCli** | 开发者命令行工具 | `cmd/gameagentdevcli/main.go` |
-| **GameAgentCreator** | 前端可视化编辑器 | `web/GameAgentCreator/index.html` |
-| **Web Demo** | Demo 展示页面 | `web/Demo/index.html` |
-
----
-
-## 文档（中英文双语）
-
-| 文档 | 中文 | English |
-|---|---|---|
-| 入门指南 | [GETTING_STARTED.md](docs/GETTING_STARTED.md) | [EN](docs/GETTING_STARTED_EN.md) |
-| 架构设计 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | [EN](docs/ARCHITECTURE_EN.md) |
-| 核心概念 | [CORE_CONCEPTS.md](docs/CORE_CONCEPTS.md) | [EN](docs/CORE_CONCEPTS_EN.md) |
-| 自主行为 | [AUTONOMOUS_BEHAVIOR.md](docs/AUTONOMOUS_BEHAVIOR.md) | [EN](docs/AUTONOMOUS_BEHAVIOR_EN.md) |
-| API 参考 | [API_REFERENCE.md](docs/API_REFERENCE.md) | [EN](docs/API_REFERENCE_EN.md) |
-| GameAgentDevCli 指南 | [GUIDE_GAMEAGENTDEVCLI.md](docs/GUIDE_GAMEAGENTDEVCLI.md) | [EN](docs/GUIDE_GAMEAGENTDEVCLI_EN.md) |
-| GameAgentCreator 指南 | [GUIDE_GAMEAGENTCREATOR.md](docs/GUIDE_GAMEAGENTCREATOR.md) | [EN](docs/GUIDE_GAMEAGENTCREATOR_EN.md) |
-| 配置参考 | [CONFIGURATION.md](docs/CONFIGURATION.md) | [EN](docs/CONFIGURATION_EN.md) |
-| SDK 参考 | [SDK_REFERENCE.md](docs/SDK_REFERENCE.md) | [EN](docs/SDK_REFERENCE_EN.md) |
-| 构建与部署 | [BUILD_AND_DEPLOY.md](docs/BUILD_AND_DEPLOY.md) | [EN](docs/BUILD_AND_DEPLOY_EN.md) |
-| 管线内部 | [PIPELINE_INTERNALS.md](docs/PIPELINE_INTERNALS.md) | [EN](docs/PIPELINE_INTERNALS_EN.md) |
-| Demo 世界：灰港 | [DEMO_WORLD_GRAY_HARBOR.md](docs/DEMO_WORLD_GRAY_HARBOR.md) | [EN](docs/DEMO_WORLD_GRAY_HARBOR_EN.md) |
+- [入门指南](./docs/GETTING_STARTED.md)
+- [核心概念](./docs/CORE_CONCEPTS.md)
+- [配置参考](./docs/CONFIGURATION.md)
+- [GameAgentCreator 指南](./docs/GUIDE_GAMEAGENTCREATOR.md)
+- [GameAgentDevCli 指南](./docs/GUIDE_GAMEAGENTDEVCLI.md)
+- [API 参考](./docs/API_REFERENCE.md)
+- [SDK 参考](./docs/SDK_REFERENCE.md)
+- [Demo 世界：灰港](./docs/DEMO_WORLD_GRAY_HARBOR.md)
 
 ---
 
-## 技术栈
+## 说明
 
-| 层次 | 技术 | 用途 |
-|---|---|---|
-| 语言 | Go 1.25+ | 核心引擎 |
-| HTTP | net/http, http.ServeMux | 服务接口 |
-| ORM | GORM v2 | 数据库访问 |
-| 存储 | SQLite / MySQL | 持久化 |
-| AI | OpenAI-compatible API | LLM 推理 |
-| CLI | Cobra | 命令行框架 |
-| 配置 | Viper | 配置管理 |
-
----
-
-## 许可证
-
-MIT
+`docs/` 目录只保留了适合最终使用者查阅的文档，不包含全部内部设计文档。更偏实现细节、构建链路或内部架构的材料应以仓库主文档为准。

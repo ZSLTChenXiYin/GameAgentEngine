@@ -106,7 +106,7 @@ function renderTree() {
     body.classList.remove('drag-active');
   }
 
-  var rootDrop = ce('div', { className: 'tree-root-drop' }, [txt('Drop here to move to root')]);
+  var rootDrop = ce('div', { className: 'tree-root-drop' }, [txt(tr('Drop here to move to root'))]);
   rootDrop.addEventListener('dragover', function(e) {
     if (!state.dragNodeId) return;
     e.preventDefault();
@@ -203,7 +203,7 @@ function renderTree() {
             e.stopPropagation();
             showContextMenu([
               { label: tr('Edit'), onClick: function() { openEditNodeModal(nn.id); } },
-              { label: 'Copy', onClick: function() { openCopyNodeModal(nn.id); } },
+              { label: tr('Copy'), onClick: function() { openCopyNodeModal(nn.id); } },
               { label: tr('Create Child'), onClick: function() { openCreateNodeModal(nn.id); } },
               { label: tr('Delete'), danger: true, onClick: function() { deleteNodeHandler(nn.id); } },
             ], e.clientX, e.clientY);
