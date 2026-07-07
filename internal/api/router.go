@@ -36,6 +36,7 @@ func NewRouter(p *engine.Pipeline) *http.ServeMux {
 	mux.HandleFunc("GET /api/v1/nodes/{id}", GetNodeHandler)
 	mux.HandleFunc("POST /api/v1/nodes", CreateNodeHandler)
 	mux.HandleFunc("PUT /api/v1/nodes/{id}", UpdateNodeHandler)
+	mux.HandleFunc("POST /api/v1/nodes/{id}/copy", IdempotencyMiddleware(CopyNodeHandler))
 	mux.HandleFunc("DELETE /api/v1/nodes/{id}", DeleteNodeHandler)
 	mux.HandleFunc("GET /api/v1/nodes/{node_id}/autonomous", MakeAutonomousConfigGetHandler(p))
 	mux.HandleFunc("PUT /api/v1/nodes/{node_id}/autonomous", IdempotencyMiddleware(MakeAutonomousConfigPutHandler(p)))
@@ -58,6 +59,7 @@ func NewRouter(p *engine.Pipeline) *http.ServeMux {
 	mux.HandleFunc("DELETE /api/v1/relations/{id}", DeleteRelationHandler)
 
 	mux.HandleFunc("GET /api/v1/worlds", GetWorldsHandler)
+	mux.HandleFunc("PUT /api/v1/worlds/{world_id}", UpdateWorldHandler)
 	mux.HandleFunc("POST /api/v1/worlds/{world_id}/fork", IdempotencyMiddleware(MakeForkWorldHandler(p)))
 	mux.HandleFunc("GET /api/v1/worlds/{world_id}/snapshots", MakeListWorldSnapshotsHandler(p))
 	mux.HandleFunc("POST /api/v1/worlds/{world_id}/snapshots", IdempotencyMiddleware(MakeCreateWorldSnapshotHandler(p)))

@@ -280,6 +280,36 @@ async function createWorld() {
   } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
+function openEditWorldModal() {
+  if (!state.selectedWorldId) { toast(tr('Select a world first'), 'error'); return; }
+  var world = state.worlds.find(function(x) { return x.id === state.selectedWorldId; });
+  if (!world) return;
+  const f = ce('div', { className: 'modal-field' }, [
+    ce('label', { for: 'editWorldName' }, [ttxt('World Name')]),
+    el('input', { id: 'editWorldName', value: world.name || '', style: {width: '100%'} }),
+  ]);
+  openModal('Edit World', f,
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalEditWorldBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelWorldEditBtn', textContent: tr('Cancel') })])
+  );
+  document.getElementById('modalEditWorldBtn').addEventListener('click', editWorld);
+  document.getElementById('modalCancelWorldEditBtn').addEventListener('click', closeModal);
+}
+
+async function editWorld() {
+  if (!state.selectedWorldId) return;
+  const name = document.getElementById('editWorldName').value.trim();
+  if (!name) { toast(tr('Enter a world name'), 'error'); return; }
+  try {
+    await api('PUT', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId), { name: name });
+    closeModal();
+    toast('World updated', 'success');
+    await loadWorlds();
+    await selectWorld(state.selectedWorldId);
+  } catch(e) {
+    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+  }
+}
+
 function openCreateNodeModal(parentId) {
   const f = ce('div', { className: 'modal-field' }, [
     ce('label', { for: 'createNodeName' }, [ttxt('Node Name')]),
@@ -341,6 +371,35 @@ async function moveNodeParent(nodeId, newParentId) {
     await api('PUT', '/api/v1/nodes/' + encodeURIComponent(nodeId), { parent_id: newParentId });
     toast(tr('Node moved'), 'success'); loadCurrentWorld();
   } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+}
+
+function openCopyNodeModal(nodeId) {
+  const n = state.nodes.find(function(x) { return x.id === nodeId; });
+  if (!n) return;
+  const f = ce('div', { className: 'modal-field' }, [
+    ce('label', { for: 'copyNodeName' }, [ttxt('Node Name')]),
+    el('input', { id: 'copyNodeName', value: (n.name || '') + ' (copy)', style: {width: '100%'} }),
+    ce('label', { className: 'checkbox-row' }, [el('input', { id: 'copyNodeWithChildren', type: 'checkbox', checked: true }), ttxt('Copy subtree')]),
+  ]);
+  openModal('Copy Node', f,
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalCopyNodeBtn' }, [ttxt('Create')]), el('button', { id: 'modalCancelCopyNodeBtn', textContent: tr('Cancel') })])
+  );
+  document.getElementById('modalCopyNodeBtn').addEventListener('click', function() { copyNode(nodeId); });
+  document.getElementById('modalCancelCopyNodeBtn').addEventListener('click', closeModal);
+}
+
+async function copyNode(nodeId) {
+  const name = document.getElementById('copyNodeName').value.trim();
+  const includeDescendants = document.getElementById('copyNodeWithChildren').checked;
+  try {
+    const result = await api('POST', '/api/v1/nodes/' + encodeURIComponent(nodeId) + '/copy', { name: name, include_descendants: includeDescendants });
+    closeModal();
+    toast('Node copied', 'success');
+    await loadCurrentWorld();
+    if (result && result.id) selectNode(result.id, result.node_type);
+  } catch(e) {
+    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+  }
 }
 
 async function deleteNodeHandler(nodeId) {

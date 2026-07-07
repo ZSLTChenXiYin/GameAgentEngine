@@ -332,14 +332,32 @@ var worldSettingsSetCmd = &cobra.Command{
 	},
 }
 
+var worldUpdateCmd = &cobra.Command{
+	Use:   "update <world-id>",
+	Short: "更新世界信息",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		name, changed := getChangedString(cmd, "name")
+		if !changed {
+			fail(fmt.Errorf("no update flags provided"))
+		}
+		result, err := newClient().UpdateWorld(args[0], name)
+		if err != nil {
+			fail(err)
+		}
+		printJSON(result)
+	},
+}
+
 func init() {
-	worldCmd.AddCommand(worldTickCmd, worldEventImpactCmd, worldScopeAdvanceCmd, worldReplanCmd, worldForkCmd, worldSaveCmd, worldRestoreCmd, worldValidateSnapshotCmd, worldSnapshotInfoCmd, worldListSnapshotsCmd, worldDeleteSnapshotCmd, worldSnapshotCmd, worldExportCmd, worldPolicyCmd, worldSettingsCmd)
+	worldCmd.AddCommand(worldTickCmd, worldEventImpactCmd, worldScopeAdvanceCmd, worldReplanCmd, worldForkCmd, worldSaveCmd, worldRestoreCmd, worldValidateSnapshotCmd, worldSnapshotInfoCmd, worldListSnapshotsCmd, worldDeleteSnapshotCmd, worldSnapshotCmd, worldExportCmd, worldPolicyCmd, worldSettingsCmd, worldUpdateCmd)
 
 	worldPolicyCmd.AddCommand(worldPolicyGetCmd, worldPolicySetCmd)
 	worldPolicySetCmd.Flags().StringSlice("blocked", []string{}, "阻塞的动作列表，逗号分隔")
 	worldPolicySetCmd.Flags().StringSlice("safe", []string{}, "安全的动作列表，逗号分隔")
 
 	worldSettingsCmd.AddCommand(worldSettingsGetCmd, worldSettingsSetCmd)
+	worldUpdateCmd.Flags().String("name", "", "新的世界名称")
 	worldSettingsSetCmd.Flags().Int("memory-limit", 0, "单次推理最多加载的记忆条数")
 	worldSettingsSetCmd.Flags().Int("analysis-rounds", 0, "LLM 内部轮询最大次数")
 	worldSettingsSetCmd.Flags().Int("context-depth", 0, "上下文向上追溯的最大深度")

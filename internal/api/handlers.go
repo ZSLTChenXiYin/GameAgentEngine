@@ -3,6 +3,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -75,6 +76,28 @@ func GetWorldsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, worlds)
+}
+
+// UpdateWorldHandler updates mutable world root fields.
+func UpdateWorldHandler(w http.ResponseWriter, r *http.Request) {
+	worldID := r.PathValue("world_id")
+	var req struct {
+		Name *string `json:"name,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		errorJSON(w, 400, "invalid json")
+		return
+	}
+	if req.Name == nil {
+		errorJSON(w, 400, "no world updates provided")
+		return
+	}
+	world, err := service.UpdateWorld(worldID, req.Name)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, 200, world)
 }
 
 // GetLogsHandler 返回最近的推理日志列表。

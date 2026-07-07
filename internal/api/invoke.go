@@ -310,6 +310,35 @@ func UpdateNodeHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, node)
 }
 
+// CopyNodeHandler duplicates a node, optionally including its descendants.
+func CopyNodeHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var req struct {
+		Name               string  `json:"name,omitempty"`
+		ParentID           *string `json:"parent_id,omitempty"`
+		IncludeDescendants *bool   `json:"include_descendants,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		errorJSON(w, 400, "invalid json")
+		return
+	}
+	includeDescendants := true
+	if req.IncludeDescendants != nil {
+		includeDescendants = *req.IncludeDescendants
+	}
+	node, err := service.CopyNode(id, service.CopyNodeOptions{
+		Name:               req.Name,
+		ParentID:           req.ParentID,
+		ParentIDSet:        req.ParentID != nil,
+		IncludeDescendants: includeDescendants,
+	})
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, 201, node)
+}
+
 // UpdateComponentHandler 更新组件类型或数据。
 func UpdateComponentHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")

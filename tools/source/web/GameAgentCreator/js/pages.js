@@ -168,6 +168,7 @@ function renderSnapshotsPage(container) {
 /* ============= Worlds Page ============= */
 function renderWorldsPage(container) {
   const toolbar = ce('div', { className: 'world-toolbar' }, [
+    ce('button', { id: 'btnEditWorld' }, [ttxt('Edit')]),
         ce('button', { id: 'btnForkWorld' }, [ttxt('Create Working Copy')]),
     ce('button', { id: 'btnSaveSnapshot' }, [ttxt('Save Snapshot')]),
     ce('button', { id: 'btnTickAdvance' }, [ttxt('Advance Tick')]),
@@ -184,6 +185,7 @@ function renderWorldsPage(container) {
   } else {
     container.appendChild(ce('div', { className: 'hint' }, [ttxt('Select a world to begin editing.')]));
   }
+  document.getElementById('btnEditWorld').addEventListener('click', openEditWorldModal);
   document.getElementById('btnForkWorld').addEventListener('click', forkWorld);
   document.getElementById('btnSaveSnapshot').addEventListener('click', saveSnapshot);
   document.getElementById('btnTickAdvance').addEventListener('click', tickAdvance);

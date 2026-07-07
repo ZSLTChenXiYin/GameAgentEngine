@@ -100,6 +100,31 @@ function renderTree() {
 
   // Collapse state: treeCollapsed[parentId] = true/false
   if (!state.treeCollapsed) state.treeCollapsed = {};
+  if (state.dragNodeId) {
+    body.classList.add('drag-active');
+  } else {
+    body.classList.remove('drag-active');
+  }
+
+  var rootDrop = ce('div', { className: 'tree-root-drop' }, [txt('Drop here to move to root')]);
+  rootDrop.addEventListener('dragover', function(e) {
+    if (!state.dragNodeId) return;
+    e.preventDefault();
+    this.classList.add('active');
+  });
+  rootDrop.addEventListener('dragleave', function() {
+    this.classList.remove('active');
+  });
+  rootDrop.addEventListener('drop', function(e) {
+    e.preventDefault();
+    this.classList.remove('active');
+    var srcId = state.dragNodeId || (e.dataTransfer ? e.dataTransfer.getData('text/plain') : '');
+    if (!srcId) return;
+    moveNodeParent(srcId, '');
+    state.dragNodeId = null;
+    body.classList.remove('drag-active');
+  });
+  body.appendChild(rootDrop);
 
   function renderChildren(parentId, depth, container) {
     var children = childMap[parentId] || [];
@@ -115,7 +140,7 @@ function renderTree() {
         if (isSelected) cls += ' selected';
         if (isAncestor) cls += ' path-ancestor';
 
-        var row = ce('div', { className: cls, dataset: { id: node.id, pid: node.parent_id || '' }, draggable: true, style: { paddingLeft: (12 + depth * 16) + 'px' } }, [
+        var row = ce('div', { className: cls, dataset: { id: node.id, pid: node.parent_id || '' }, draggable: node.node_type !== 'world', style: { paddingLeft: (12 + depth * 16) + 'px' } }, [
           ce('span', { className: 'tree-arrow' + (hasChildren ? (isCollapsed ? '' : ' expanded') : ' invisible') }, [ttxt('\u25b8')]),
           ce('span', { className: 'tree-icon ' + node.node_type }, []),
           ce('span', { className: 'tree-name' }, [txt(node.name)]),
@@ -135,26 +160,40 @@ function renderTree() {
         })(node, hasChildren));
         row.addEventListener('dragstart', (function(nn) {
           return function(e) {
+            state.dragNodeId = nn.id;
             e.dataTransfer.setData('text/plain', nn.id);
             e.dataTransfer.effectAllowed = 'move';
+            body.classList.add('drag-active');
+            this.classList.add('drag-source');
           };
         })(node));
+        row.addEventListener('dragend', function() {
+          state.dragNodeId = null;
+          body.classList.remove('drag-active');
+          this.classList.remove('drag-source');
+          this.style.outline = '';
+          rootDrop.classList.remove('active');
+          var activeDrops = body.querySelectorAll('.drop-target');
+          activeDrops.forEach(function(item) { item.classList.remove('drop-target'); });
+        });
         row.addEventListener('dragover', (function() {
           return function(e) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            this.style.outline = '2px dashed var(--accent)';
+            this.classList.add('drop-target');
           };
         })());
         row.addEventListener('dragleave', function() {
-          this.style.outline = '';
+          this.classList.remove('drop-target');
         });
         row.addEventListener('drop', (function(nn) {
           return function(e) {
             e.preventDefault();
-            this.style.outline = '';
-            var srcId = e.dataTransfer.getData('text/plain');
+            this.classList.remove('drop-target');
+            var srcId = state.dragNodeId || (e.dataTransfer ? e.dataTransfer.getData('text/plain') : '');
             if (!srcId || srcId === nn.id) return;
+            state.dragNodeId = null;
+            body.classList.remove('drag-active');
             moveNodeParent(srcId, nn.id);
           };
         })(node));
@@ -164,6 +203,7 @@ function renderTree() {
             e.stopPropagation();
             showContextMenu([
               { label: tr('Edit'), onClick: function() { openEditNodeModal(nn.id); } },
+              { label: 'Copy', onClick: function() { openCopyNodeModal(nn.id); } },
               { label: tr('Create Child'), onClick: function() { openCreateNodeModal(nn.id); } },
               { label: tr('Delete'), danger: true, onClick: function() { deleteNodeHandler(nn.id); } },
             ], e.clientX, e.clientY);

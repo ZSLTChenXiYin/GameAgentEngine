@@ -538,6 +538,45 @@ func (c *Client) GetWorlds() ([]Node, error) {
 	return worlds, nil
 }
 
+// UpdateWorld updates mutable world root fields such as the world name.
+func (c *Client) UpdateWorld(worldID, name string) (*Node, error) {
+	body := map[string]any{}
+	if name != "" {
+		body["name"] = name
+	}
+	data, err := c.do("PUT", "/api/v1/worlds/"+worldID, body)
+	if err != nil {
+		return nil, err
+	}
+	var world Node
+	if err := json.Unmarshal(data, &world); err != nil {
+		return nil, err
+	}
+	return &world, nil
+}
+
+// CopyNode duplicates a node in-place, optionally including descendants.
+func (c *Client) CopyNode(nodeID, name string, parentID *string, includeDescendants bool) (*Node, error) {
+	body := map[string]any{
+		"include_descendants": includeDescendants,
+	}
+	if name != "" {
+		body["name"] = name
+	}
+	if parentID != nil {
+		body["parent_id"] = *parentID
+	}
+	data, err := c.do("POST", "/api/v1/nodes/"+nodeID+"/copy", body)
+	if err != nil {
+		return nil, err
+	}
+	var node Node
+	if err := json.Unmarshal(data, &node); err != nil {
+		return nil, err
+	}
+	return &node, nil
+}
+
 // Invoke 调用统一推理入口。
 func (c *Client) Invoke(req *InvokeRequest) (*InvokeResponse, error) {
 	data, err := c.do("POST", "/api/v1/invoke", req)

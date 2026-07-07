@@ -11,12 +11,12 @@ import (
 
 var nodeCmd = &cobra.Command{
 	Use:   "node",
-	Short: "管理节点实例",
+	Short: "Manage node instances",
 }
 
 var nodeListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "列出节点",
+	Short: "List nodes",
 	Run: func(cmd *cobra.Command, args []string) {
 		worldID, _ := cmd.Flags().GetString("world")
 		limit, _ := cmd.Flags().GetInt("limit")
@@ -32,13 +32,13 @@ var nodeListCmd = &cobra.Command{
 
 var nodeLegacyListCmd = &cobra.Command{
 	Use:   "nodes",
-	Short: "列出所有节点",
+	Short: "List nodes",
 	Run:   nodeListCmd.Run,
 }
 
 var nodeGetCmd = &cobra.Command{
 	Use:   "get <id>",
-	Short: "获取节点详情",
+	Short: "Get node details",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		detail, err := newClient().GetNode(args[0])
@@ -51,7 +51,7 @@ var nodeGetCmd = &cobra.Command{
 
 var nodeCreateCmd = &cobra.Command{
 	Use:   "create",
-	Short: "创建节点",
+	Short: "Create a node",
 	Run: func(cmd *cobra.Command, args []string) {
 		worldID, _ := cmd.Flags().GetString("world")
 		name, _ := cmd.Flags().GetString("name")
@@ -75,7 +75,7 @@ var nodeCreateCmd = &cobra.Command{
 
 var nodeUpdateCmd = &cobra.Command{
 	Use:   "update <id>",
-	Short: "更新节点",
+	Short: "Update a node",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		name, nameChanged := getChangedString(cmd, "name")
@@ -105,7 +105,7 @@ var nodeUpdateCmd = &cobra.Command{
 
 var nodeDeleteCmd = &cobra.Command{
 	Use:   "delete <id>",
-	Short: "删除节点",
+	Short: "Delete a node",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := newClient().DeleteNode(args[0]); err != nil {
@@ -115,14 +115,36 @@ var nodeDeleteCmd = &cobra.Command{
 	},
 }
 
+var nodeCopyCmd = &cobra.Command{
+	Use:   "copy <id>",
+	Short: "Copy a node",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		name, _ := cmd.Flags().GetString("name")
+		parentValue, parentChanged := getChangedString(cmd, "parent")
+		withChildren, _ := cmd.Flags().GetBool("with-children")
+
+		var parentID *string
+		if parentChanged {
+			parentID = &parentValue
+		}
+
+		node, err := newClient().CopyNode(args[0], name, parentID, withChildren)
+		if err != nil {
+			fail(err)
+		}
+		printJSON(node)
+	},
+}
+
 var nodeAutonomousCmd = &cobra.Command{
 	Use:   "autonomous",
-	Short: "管理节点自主行为配置",
+	Short: "Manage autonomous node configuration",
 }
 
 var nodeAutonomousGetCmd = &cobra.Command{
 	Use:   "get <node-id>",
-	Short: "查看节点自主行为配置",
+	Short: "Get autonomous node configuration",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		resp, err := newClient().GetAutonomousConfig(args[0])
@@ -135,7 +157,7 @@ var nodeAutonomousGetCmd = &cobra.Command{
 
 var nodeAutonomousSetCmd = &cobra.Command{
 	Use:   "set <node-id>",
-	Short: "创建或更新节点自主行为配置",
+	Short: "Create or update autonomous configuration",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		enabled, _ := cmd.Flags().GetBool("enabled")
@@ -165,7 +187,7 @@ var nodeAutonomousSetCmd = &cobra.Command{
 
 var nodeAutonomousDisableCmd = &cobra.Command{
 	Use:   "disable <node-id>",
-	Short: "关闭节点自主行为",
+	Short: "Disable autonomous behavior",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		current, _ := newClient().GetAutonomousConfig(args[0])
@@ -184,7 +206,7 @@ var nodeAutonomousDisableCmd = &cobra.Command{
 
 var nodeAutonomousRunCmd = &cobra.Command{
 	Use:   "run <node-id>",
-	Short: "手动触发节点自主行为",
+	Short: "Run autonomous behavior",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		worldID, _ := cmd.Flags().GetString("world")
@@ -204,27 +226,31 @@ var nodeAutonomousRunCmd = &cobra.Command{
 }
 
 func init() {
-	nodeCmd.AddCommand(nodeListCmd, nodeGetCmd, nodeCreateCmd, nodeUpdateCmd, nodeDeleteCmd, nodeAutonomousCmd)
+	nodeCmd.AddCommand(nodeListCmd, nodeGetCmd, nodeCreateCmd, nodeUpdateCmd, nodeDeleteCmd, nodeCopyCmd, nodeAutonomousCmd)
 	nodeAutonomousCmd.AddCommand(nodeAutonomousGetCmd, nodeAutonomousSetCmd, nodeAutonomousDisableCmd, nodeAutonomousRunCmd)
 
-	nodeListCmd.Flags().String("world", "", "世界 ID")
-	nodeListCmd.Flags().Int("limit", 0, "返回条数上限（0 为不限制）")
-	nodeListCmd.Flags().Int("offset", 0, "偏移量")
-	nodeListCmd.Flags().String("type", "", "按节点类型过滤")
+	nodeListCmd.Flags().String("world", "", "World ID")
+	nodeListCmd.Flags().Int("limit", 0, "Maximum number of nodes to return")
+	nodeListCmd.Flags().Int("offset", 0, "List offset")
+	nodeListCmd.Flags().String("type", "", "Filter by node type")
 
-	nodeCreateCmd.Flags().String("world", "", "世界 ID；创建非 world 节点时必填")
-	nodeCreateCmd.Flags().String("name", "", "节点名称")
-	nodeCreateCmd.Flags().String("type", "", "节点类型")
-	nodeCreateCmd.Flags().String("parent", "", "父节点 ID")
+	nodeCreateCmd.Flags().String("world", "", "World ID; required for non-world nodes")
+	nodeCreateCmd.Flags().String("name", "", "Node name")
+	nodeCreateCmd.Flags().String("type", "", "Node type")
+	nodeCreateCmd.Flags().String("parent", "", "Parent node ID")
 
-	nodeUpdateCmd.Flags().String("name", "", "新的节点名称")
-	nodeUpdateCmd.Flags().String("type", "", "新的节点类型")
-	nodeUpdateCmd.Flags().String("parent", "", "新的父节点 ID")
-	nodeUpdateCmd.Flags().Bool("clear-parent", false, "清空父节点")
+	nodeUpdateCmd.Flags().String("name", "", "New node name")
+	nodeUpdateCmd.Flags().String("type", "", "New node type")
+	nodeUpdateCmd.Flags().String("parent", "", "New parent node ID")
+	nodeUpdateCmd.Flags().Bool("clear-parent", false, "Clear the parent node")
 
-	nodeAutonomousSetCmd.Flags().Bool("enabled", false, "是否启用自主行为")
-	nodeAutonomousSetCmd.Flags().String("trigger", "manual", "触发方式：manual / world_tick_sync / scheduled")
-	nodeAutonomousSetCmd.Flags().Int("interval", 0, "scheduled 触发间隔秒数")
-	nodeAutonomousSetCmd.Flags().String("capabilities", "[]", "能力白名单 JSON 数组")
-	nodeAutonomousRunCmd.Flags().String("world", "", "世界 ID；为空时从节点详情推断")
+	nodeCopyCmd.Flags().String("name", "", "Copied node name")
+	nodeCopyCmd.Flags().String("parent", "", "Copied parent node ID; defaults to the original parent")
+	nodeCopyCmd.Flags().Bool("with-children", true, "Copy the whole subtree")
+
+	nodeAutonomousSetCmd.Flags().Bool("enabled", false, "Enable autonomous behavior")
+	nodeAutonomousSetCmd.Flags().String("trigger", "manual", "Trigger mode: manual / world_tick_sync / scheduled")
+	nodeAutonomousSetCmd.Flags().Int("interval", 0, "Scheduled interval in seconds")
+	nodeAutonomousSetCmd.Flags().String("capabilities", "[]", "Capabilities whitelist as a JSON array")
+	nodeAutonomousRunCmd.Flags().String("world", "", "World ID; auto-detected from node when omitted")
 }
