@@ -79,7 +79,7 @@ GOOS=windows GOARCH=amd64 go build -o dist/GameAgentEngine-windows-amd64.exe ./c
 GOOS=darwin GOARCH=amd64 go build -o dist/GameAgentEngine-darwin-amd64 ./cmd/gameagentengine/
 ```
 
-The packaging script automatically creates version directories and copies resources such as the web/ directory.
+The packaging script automatically creates version directories, regenerates `tools/source/web/GameAgentCreator/js/component-meta.js`, and copies resources such as the web/ directory.
 
 ---
 

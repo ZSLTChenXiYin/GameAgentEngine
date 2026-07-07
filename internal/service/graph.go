@@ -113,6 +113,9 @@ func CreateComponent(nodeID, componentType, data string) (*store.ComponentModel,
 		if !engine.IsValidComponentType(componentType) {
 			return errorf(ErrorInvalidComponentType, "invalid component_type: %s", componentType)
 		}
+		if err := ValidateComponentData(componentType, data); err != nil {
+			return err
+		}
 		node, err := getNodeTx(tx, nodeID)
 		if err != nil {
 			return err
@@ -137,11 +140,23 @@ func UpdateComponent(id string, componentType, data *string) (*store.ComponentMo
 			return err
 		}
 		updates := map[string]any{}
+		nextType := component.ComponentType
+		if componentType != nil {
+			nextType = *componentType
+		}
 		if componentType != nil {
 			updates["component_type"] = *componentType
 		}
 		if data != nil {
+			if err := ValidateComponentData(nextType, *data); err != nil {
+				return err
+			}
 			updates["data"] = *data
+		}
+		if data == nil && componentType != nil {
+			if err := ValidateComponentData(nextType, component.Data); err != nil {
+				return err
+			}
 		}
 		if len(updates) == 0 {
 			return errorf(ErrorNoUpdates, "no component updates provided")

@@ -23,6 +23,8 @@ func handleServiceError(w http.ResponseWriter, err error) {
 		errorJSONCode(w, http.StatusBadRequest, "invalid_node_type", err.Error())
 	case service.IsKind(err, service.ErrorInvalidComponentType):
 		errorJSONCode(w, http.StatusBadRequest, "invalid_component_type", err.Error())
+	case service.IsKind(err, service.ErrorInvalidComponentData):
+		errorJSONCode(w, http.StatusBadRequest, "invalid_component_data", err.Error())
 	case service.IsKind(err, service.ErrorInvalidMemoryLevel):
 		errorJSONCode(w, http.StatusBadRequest, "invalid_memory_level", err.Error())
 	case service.IsKind(err, service.ErrorInvalidRelationType):

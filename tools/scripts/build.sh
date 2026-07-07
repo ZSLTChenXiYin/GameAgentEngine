@@ -65,6 +65,10 @@ echo " Output:  ${OUTPUT_DIR}/"
 echo "========================================="
 echo ""
 
+echo "Generating Creator component metadata..."
+go run ./tools/scripts/generate_component_meta.go
+echo ""
+
 for target in "${TARGETS[@]}"; do
   GOOS="${target%%/*}"
   GOARCH="${target##*/}"

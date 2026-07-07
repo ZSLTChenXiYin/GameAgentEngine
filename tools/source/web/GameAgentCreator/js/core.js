@@ -38,6 +38,12 @@ let state = {
   leftWidth: 260, rightWidth: 300,
 };
 
+const componentMetaList = Array.isArray(window.GAMEAGENT_COMPONENT_META) ? window.GAMEAGENT_COMPONENT_META : [];
+const componentMetaMap = {};
+componentMetaList.forEach(function(item) {
+  if (item && item.type) componentMetaMap[item.type] = item;
+});
+
 /* ============= DOM ============= */
 function el(tag, attrs) {
   const e = document.createElement(tag);
@@ -98,6 +104,15 @@ const i18n = {
     'Close': '关闭',
     'Component Data': '组件数据',
     'Component Data (JSON/Markdown)': '组件数据（JSON/Markdown）',
+    'Component data must be a valid JSON object': '组件数据必须是合法的 JSON 对象',
+    'Autonomous component data must be valid JSON': '自主行为组件数据必须是合法 JSON',
+    'Autonomous trigger must be one of manual, world_tick_sync, scheduled': '自主行为 trigger 必须是 manual、world_tick_sync、scheduled 之一',
+    'Autonomous scheduled trigger requires interval_seconds > 0': 'scheduled 自主行为必须设置大于 0 的 interval_seconds',
+    'JSON object required for this component type': '该组件类型需要 JSON 对象',
+    'Free text allowed for this component type': '该组件类型允许自由文本',
+    'Structured autonomous config JSON.': '结构化的 autonomous 配置 JSON',
+    'JSON object required; fields are flexible.': '需要 JSON 对象，但字段保持灵活',
+    'Free text allowed.': '允许自由文本',
     'Component Type': '组件类型',
     'Component added': '组件已添加',
     'Component deleted': '组件已删除',

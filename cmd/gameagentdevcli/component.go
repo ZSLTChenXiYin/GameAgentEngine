@@ -50,6 +50,9 @@ var componentCreateCmd = &cobra.Command{
 		if nodeID == "" || componentType == "" {
 			fail(fmt.Errorf("--node and --type are required"))
 		}
+		if err := validateCLIComponentData(componentType, data); err != nil {
+			fail(err)
+		}
 		id, err := newClient().AddComponent(nodeID, componentType, data)
 		if err != nil {
 			fail(err)
@@ -71,6 +74,19 @@ var componentUpdateCmd = &cobra.Command{
 		data, dataChanged := getChangedString(cmd, "data")
 		if !typeChanged && !dataChanged {
 			fail(fmt.Errorf("no update flags provided"))
+		}
+		if dataChanged {
+			typeForValidation := componentType
+			if !typeChanged {
+				item, err := newClient().GetComponent(args[0])
+				if err != nil {
+					fail(err)
+				}
+				typeForValidation = item.ComponentType
+			}
+			if err := validateCLIComponentData(typeForValidation, data); err != nil {
+				fail(err)
+			}
 		}
 		item, err := newClient().UpdateComponent(args[0], ptrIfChanged(componentType, typeChanged), ptrIfChanged(data, dataChanged))
 		if err != nil {

@@ -14,6 +14,7 @@ const (
 	// 领域级无效请求错误
 	ErrorInvalidNodeType      ErrorKind = "invalid_node_type"
 	ErrorInvalidComponentType ErrorKind = "invalid_component_type"
+	ErrorInvalidComponentData ErrorKind = "invalid_component_data"
 	ErrorInvalidMemoryLevel   ErrorKind = "invalid_memory_level"
 	ErrorInvalidRelationType  ErrorKind = "invalid_relation_type"
 	ErrorCrossWorldRelation   ErrorKind = "cross_world_relation"

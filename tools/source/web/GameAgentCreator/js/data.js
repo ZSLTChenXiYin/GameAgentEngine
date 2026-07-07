@@ -91,6 +91,56 @@ function relationTypeOptionsHTML() {
     '<option value="external_parent">external_parent</option>';
 }
 
+function componentValidationMode(componentType) {
+  var meta = componentMetaMap[componentType];
+  if (!meta || !meta.validation_mode) return 'free';
+  return meta.validation_mode;
+}
+
+function validateComponentEditorData(componentType, data) {
+  var trimmed = (data || '').trim();
+  if (!trimmed) return tr('Enter component data');
+  var mode = componentValidationMode(componentType);
+  if (mode === 'free') return '';
+  var meta = componentMetaMap[componentType] || {};
+  var parsed = null;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (e) {
+    return componentType === 'autonomous' ? tr('Autonomous component data must be valid JSON') : tr('Component data must be a valid JSON object');
+  }
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+    return tr('Component data must be a valid JSON object');
+  }
+  if (mode === 'strong' && componentType === 'autonomous') {
+    var trigger = parsed.trigger || 'manual';
+    var triggerEnum = meta.enum_fields && meta.enum_fields.trigger ? meta.enum_fields.trigger : ['manual', 'world_tick_sync', 'scheduled'];
+    if (triggerEnum.indexOf(trigger) < 0) {
+      return tr('Autonomous trigger must be one of manual, world_tick_sync, scheduled');
+    }
+    if (trigger === 'scheduled') {
+      var interval = Number(parsed.interval_seconds || 0);
+      if (!Number.isFinite(interval) || interval <= 0) {
+        return tr('Autonomous scheduled trigger requires interval_seconds > 0');
+      }
+    }
+  }
+  return '';
+}
+
+function updateComponentEditorHint(typeElementId, hintElementId) {
+  var typeEl = document.getElementById(typeElementId);
+  var hintEl = document.getElementById(hintElementId);
+  if (!typeEl || !hintEl) return;
+  var mode = componentValidationMode(typeEl.value);
+  var meta = componentMetaMap[typeEl.value] || {};
+  if (meta.help_text) {
+    hintEl.textContent = tr(meta.help_text);
+    return;
+  }
+  hintEl.textContent = mode === 'free' ? tr('Free text allowed for this component type') : tr('JSON object required for this component type');
+}
+
 function shouldProjectRelationInTree(relationType) {
   return relationType === 'external_parent' || relationType === 'belongs_to' || relationType === 'located_at' || relationType === 'subordinate';
 }
@@ -746,10 +796,13 @@ function openAddComponentModal() {
     el('select', { id: 'addCompType', innerHTML: '<option value="profile">profile</option><option value="rule">rule</option><option value="timeline">timeline</option><option value="action_policy">action_policy</option><option value="prompt_profile">prompt_profile</option><option value="lore">lore</option><option value="autonomous">autonomous</option>' }),
     ce('label', { for: 'addCompData' }, [ttxt('Component Data (JSON/Markdown)')]),
     el('textarea', { id: 'addCompData', placeholder: tr('Enter component data...'), rows: 8, style: {width: '100%', fontFamily: 'var(--font-mono)'} }),
+    ce('div', { id: 'addCompHint', className: 'hint', style: {textAlign: 'left'} }, [txt('')]),
   ]);
   openModal(tr('Add Component'), f,
     ce('div', {}, [ce('button', { className: 'primary', id: 'modalAddCompBtn' }, [ttxt('Add')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
+  document.getElementById('addCompType').addEventListener('change', function() { updateComponentEditorHint('addCompType', 'addCompHint'); });
+  updateComponentEditorHint('addCompType', 'addCompHint');
   document.getElementById('modalAddCompBtn').addEventListener('click', addComponent);
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 }
@@ -757,7 +810,8 @@ function openAddComponentModal() {
 async function addComponent() {
   const compType = document.getElementById('addCompType').value;
   const data = document.getElementById('addCompData').value.trim();
-  if (!data) { toast(tr('Enter component data'), 'error'); return; }
+  var validationError = validateComponentEditorData(compType, data);
+  if (validationError) { toast(validationError, 'error'); return; }
   try {
     await api('POST', '/api/v1/components', { node_id: state.selectedNodeId, component_type: compType, data: data });
     closeModal(); toast(tr('Component added'), 'success'); selectNode(state.selectedNodeId);
@@ -1043,11 +1097,14 @@ function openEditComponentModal(compId) {
     el('select', { id: 'editCompType', innerHTML: '<option value="profile">profile</option><option value="rule">rule</option><option value="timeline">timeline</option><option value="action_policy">action_policy</option><option value="prompt_profile">prompt_profile</option><option value="lore">lore</option><option value="autonomous">autonomous</option>' }),
     ce('label', { for: 'editCompData' }, [ttxt('Component Data')]),
     el('textarea', { id: 'editCompData', rows: 10, style: {width: '100%', fontFamily: 'var(--font-mono)', fontSize: '11px'}, textContent: comp.data || '' }),
+    ce('div', { id: 'editCompHint', className: 'hint', style: {textAlign: 'left'} }, [txt('')]),
   ]);
   openModal(tr('Edit Component'), f,
     ce('div', {}, [ce('button', { className: 'primary', id: 'modalEditCompBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   var ec = document.getElementById('editCompType'); if (ec) ec.value = comp.component_type;
+  if (ec) ec.addEventListener('change', function() { updateComponentEditorHint('editCompType', 'editCompHint'); });
+  updateComponentEditorHint('editCompType', 'editCompHint');
   document.getElementById('modalEditCompBtn').addEventListener('click', function() { editComponent(compId); });
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 }
@@ -1055,7 +1112,8 @@ function openEditComponentModal(compId) {
 async function editComponent(compId) {
   const compType = document.getElementById('editCompType').value;
   const data = document.getElementById('editCompData').value.trim();
-  if (!data) { toast(tr('Enter component data'), 'error'); return; }
+  var validationError = validateComponentEditorData(compType, data);
+  if (validationError) { toast(validationError, 'error'); return; }
   try {
     await api('PUT', '/api/v1/components/' + encodeURIComponent(compId), { component_type: compType, data: data });
     closeModal(); toast(tr('Component updated'), 'success'); selectNode(state.selectedNodeId);

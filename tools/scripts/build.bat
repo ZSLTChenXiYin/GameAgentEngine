@@ -38,6 +38,11 @@ echo  Output:  %OUTPUT_DIR%\
 echo =========================================
 echo.
 
+echo Generating Creator component metadata...
+go run .\tools\scripts\generate_component_meta.go
+if errorlevel 1 popd & exit /b 1
+echo.
+
 for %%p in (%TARGETS%) do (
   for /f "tokens=1,2 delims=/" %%a in ("%%p") do (
     set OUT_DIR=%OUTPUT_DIR%\GameAgentEngine-%%a-%%b-%VERSION%
