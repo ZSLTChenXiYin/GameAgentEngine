@@ -246,7 +246,7 @@ let nodes = state.nodes;
             if (!selectedSet[nn.id]) await selectNode(nn.id, nn.node_type, { mode: 'single' });
             showContextMenu([
               { label: tr('Edit'), onClick: function() { openEditNodeModal(nn.id); } },
-              { label: tr('Copy'), onClick: function() { openCopyNodeModal(nn.id); } },
+              { label: tr('Copy Node'), onClick: function() { openCopyNodeModal(nn.id); } },
               { label: tr('Add New Parent'), onClick: function() { openCreateParentNodeModal(nn.id); } },
               { label: tr('Create Child'), onClick: function() { openCreateNodeModal(nn.id); } },
               { label: tr('Delete'), danger: true, onClick: function() { deleteNodeHandler(nn.id); } },

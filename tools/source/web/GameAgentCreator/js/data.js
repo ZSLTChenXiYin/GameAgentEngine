@@ -83,13 +83,24 @@ async function selectNode(nodeId, nodeType, options) {
   var mode = options.mode || 'single';
   var preserveAnchor = !!options.preserveAnchor;
   var selectedIds = state.selectedNodeIds ? state.selectedNodeIds.slice() : [];
+  var nextSelectedNodeId = nodeId || null;
+  var nextAnchorId = preserveAnchor ? state.selectionAnchorId : (nodeId || null);
 
   if (mode === 'single') {
     selectedIds = nodeId ? [nodeId] : [];
   } else if (mode === 'toggle') {
     var idx = selectedIds.indexOf(nodeId);
-    if (idx >= 0) selectedIds.splice(idx, 1);
-    else selectedIds.push(nodeId);
+    if (idx >= 0) {
+      selectedIds.splice(idx, 1);
+      if (state.selectedNodeId === nodeId) {
+        nextSelectedNodeId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
+      } else {
+        nextSelectedNodeId = state.selectedNodeId;
+      }
+    } else {
+      selectedIds.push(nodeId);
+      nextSelectedNodeId = nodeId;
+    }
   } else if (mode === 'range') {
     var order = getVisibleTreeOrder();
     var anchor = state.selectionAnchorId || state.selectedNodeId || nodeId;
@@ -100,6 +111,7 @@ async function selectNode(nodeId, nodeType, options) {
       var end = Math.max(ai, bi);
       selectedIds = order.slice(start, end + 1);
       preserveAnchor = true;
+      nextAnchorId = anchor;
     } else {
       selectedIds = nodeId ? [nodeId] : [];
     }
@@ -108,8 +120,28 @@ async function selectNode(nodeId, nodeType, options) {
   }
 
   selectedIds = uniqueNodeIds(selectedIds);
-  state.selectedNodeId = nodeId; state.selectedNodeIds = selectedIds; state.selectedNodeType = nodeType || null; if (!preserveAnchor) state.selectionAnchorId = nodeId || null; renderTree();
-  if (!nodeId) { state.nodeDetail = null; renderCurrent(); return; }
+  if (nextSelectedNodeId && selectedIds.indexOf(nextSelectedNodeId) < 0) {
+    nextSelectedNodeId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
+  }
+  state.selectedNodeId = nextSelectedNodeId;
+  state.selectedNodeIds = selectedIds;
+  state.selectedNodeType = nodeType || null;
+  if (preserveAnchor) {
+    if (nextAnchorId && selectedIds.indexOf(nextAnchorId) < 0) {
+      nextAnchorId = selectedIds.length > 0 ? selectedIds[0] : null;
+    }
+    state.selectionAnchorId = nextAnchorId || null;
+  } else {
+    state.selectionAnchorId = nodeId || null;
+  }
+  renderTree();
+  if (!state.selectedNodeId) { state.nodeDetail = null; renderCurrent(); return; }
+  if (state.selectedNodeId !== nodeId) {
+    var currentNode = state.nodes.find(function(x) { return x.id === state.selectedNodeId; });
+    nodeId = state.selectedNodeId;
+    nodeType = currentNode ? currentNode.node_type : null;
+    state.selectedNodeType = nodeType || null;
+  }
   try { state.nodeDetail = await api('GET', '/api/v1/nodes/' + encodeURIComponent(nodeId)); }
   catch(e) { state.nodeDetail = null; toast(tr('Failed to load node details') + ': ' + apiErrorMessage(e), 'error'); }
   loadAutonomous(); renderCurrent(); if (typeof updateActionButtons === 'function') updateActionButtons();

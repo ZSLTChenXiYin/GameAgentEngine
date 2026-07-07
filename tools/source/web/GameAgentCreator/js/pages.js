@@ -171,8 +171,8 @@ function renderSnapshotsPage(container) {
 /* ============= Worlds Page ============= */
 function renderWorldsPage(container) {
   const toolbar = ce('div', { className: 'world-toolbar' }, [
-    ce('button', { id: 'btnEditWorld' }, [ttxt('Edit')]),
-        ce('button', { id: 'btnForkWorld' }, [ttxt('Create Working Copy')]),
+    ce('button', { id: 'btnEditWorld' }, [ttxt('Edit World')]),
+    ce('button', { id: 'btnForkWorld' }, [ttxt('Create Working Copy')]),
     ce('button', { id: 'btnSaveSnapshot' }, [ttxt('Save Snapshot')]),
     ce('button', { id: 'btnTickAdvance' }, [ttxt('Advance Tick')]),
     ce('button', { id: 'btnAutonomous' }, [ttxt('Run Autonomous')]),
