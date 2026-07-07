@@ -14,7 +14,7 @@ var inspectCmd = &cobra.Command{
 	Use:   "inspect",
 	Short: "Open GameAgentCreator",
 	Run: func(cmd *cobra.Command, args []string) {
-		for _, p := range []string{"web/GameAgentCreator/index.html"} {
+		for _, p := range []string{"web/GameAgentCreator/index.html", "tools/source/web/GameAgentCreator/index.html"} {
 			if _, err := os.Stat(p); err == nil {
 				abs, _ := filepath.Abs(p)
 				fmt.Println("Opening:", abs)

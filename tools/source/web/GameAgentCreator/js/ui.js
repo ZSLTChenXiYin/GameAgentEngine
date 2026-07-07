@@ -106,24 +106,22 @@ function renderTree() {
     body.classList.remove('drag-active');
   }
 
-  var rootDrop = ce('div', { className: 'tree-root-drop' }, [txt(tr('Drop here to move to root'))]);
-  rootDrop.addEventListener('dragover', function(e) {
-    if (!state.dragNodeId) return;
-    e.preventDefault();
-    this.classList.add('active');
-  });
-  rootDrop.addEventListener('dragleave', function() {
-    this.classList.remove('active');
-  });
-  rootDrop.addEventListener('drop', function(e) {
-    e.preventDefault();
-    this.classList.remove('active');
-    var srcId = state.dragNodeId || (e.dataTransfer ? e.dataTransfer.getData('text/plain') : '');
-    if (!srcId) return;
-    moveNodeParent(srcId, '');
+  function clearDropIndicators() {
+    rootDrop.classList.remove('active');
+    var activeDrops = body.querySelectorAll('.drop-target');
+    activeDrops.forEach(function(item) { item.classList.remove('drop-target'); });
+  }
+
+  function cleanupPointerDrag(sourceRow) {
     state.dragNodeId = null;
     body.classList.remove('drag-active');
-  });
+    clearDropIndicators();
+    if (sourceRow) sourceRow.classList.remove('drag-source');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  }
+
+  var rootDrop = ce('div', { className: 'tree-root-drop' }, [txt(tr('Drop here to move to root'))]);
   body.appendChild(rootDrop);
 
   function renderChildren(parentId, depth, container) {
@@ -140,7 +138,7 @@ function renderTree() {
         if (isSelected) cls += ' selected';
         if (isAncestor) cls += ' path-ancestor';
 
-        var row = ce('div', { className: cls, dataset: { id: node.id, pid: node.parent_id || '' }, draggable: node.node_type !== 'world', style: { paddingLeft: (12 + depth * 16) + 'px' } }, [
+        var row = ce('div', { className: cls, dataset: { id: node.id, pid: node.parent_id || '' }, style: { paddingLeft: (12 + depth * 16) + 'px' } }, [
           ce('span', { className: 'tree-arrow' + (hasChildren ? (isCollapsed ? '' : ' expanded') : ' invisible') }, [ttxt('\u25b8')]),
           ce('span', { className: 'tree-icon ' + node.node_type }, []),
           ce('span', { className: 'tree-name' }, [txt(node.name)]),
@@ -149,6 +147,7 @@ function renderTree() {
 
         row.addEventListener('click', (function(nn, hc) {
           return function(e) {
+            if (state.suppressTreeClickUntil && Date.now() < state.suppressTreeClickUntil) return;
             if (e.target.classList.contains('tree-arrow') && hc) {
               e.stopPropagation();
               state.treeCollapsed[nn.id] = !state.treeCollapsed[nn.id];
@@ -158,43 +157,71 @@ function renderTree() {
             selectNode(nn.id, nn.node_type);
           };
         })(node, hasChildren));
-        row.addEventListener('dragstart', (function(nn) {
+
+        row.addEventListener('mousedown', (function(nn) {
           return function(e) {
-            state.dragNodeId = nn.id;
-            e.dataTransfer.setData('text/plain', nn.id);
-            e.dataTransfer.effectAllowed = 'move';
-            body.classList.add('drag-active');
-            this.classList.add('drag-source');
-          };
-        })(node));
-        row.addEventListener('dragend', function() {
-          state.dragNodeId = null;
-          body.classList.remove('drag-active');
-          this.classList.remove('drag-source');
-          this.style.outline = '';
-          rootDrop.classList.remove('active');
-          var activeDrops = body.querySelectorAll('.drop-target');
-          activeDrops.forEach(function(item) { item.classList.remove('drop-target'); });
-        });
-        row.addEventListener('dragover', (function() {
-          return function(e) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            this.classList.add('drop-target');
-          };
-        })());
-        row.addEventListener('dragleave', function() {
-          this.classList.remove('drop-target');
-        });
-        row.addEventListener('drop', (function(nn) {
-          return function(e) {
-            e.preventDefault();
-            this.classList.remove('drop-target');
-            var srcId = state.dragNodeId || (e.dataTransfer ? e.dataTransfer.getData('text/plain') : '');
-            if (!srcId || srcId === nn.id) return;
-            state.dragNodeId = null;
-            body.classList.remove('drag-active');
-            moveNodeParent(srcId, nn.id);
+            if (e.button !== 0) return;
+            if (nn.node_type === 'world') return;
+            if (e.target.classList.contains('tree-arrow')) return;
+
+            var sourceRow = this;
+            var startX = e.clientX;
+            var startY = e.clientY;
+            var started = false;
+            var dropTargetId = null;
+
+            function onMove(ev) {
+              var dx = Math.abs(ev.clientX - startX);
+              var dy = Math.abs(ev.clientY - startY);
+              if (!started) {
+                if (Math.max(dx, dy) < 5) return;
+                started = true;
+                state.dragNodeId = nn.id;
+                body.classList.add('drag-active');
+                sourceRow.classList.add('drag-source');
+                document.body.style.userSelect = 'none';
+                document.body.style.cursor = 'grabbing';
+              }
+
+              ev.preventDefault();
+              clearDropIndicators();
+              dropTargetId = null;
+
+              var hit = document.elementFromPoint(ev.clientX, ev.clientY);
+              if (!hit) return;
+
+              var rootHit = hit === rootDrop || (hit.closest && hit.closest('.tree-root-drop') === rootDrop);
+              if (rootHit) {
+                rootDrop.classList.add('active');
+                dropTargetId = '';
+                return;
+              }
+
+              var targetRow = hit.closest ? hit.closest('.tree-node') : null;
+              if (!targetRow) return;
+              if (targetRow.dataset.id === nn.id) return;
+              targetRow.classList.add('drop-target');
+              dropTargetId = targetRow.dataset.id || null;
+            }
+
+            function onUp(ev) {
+              window.removeEventListener('mousemove', onMove, true);
+              window.removeEventListener('mouseup', onUp, true);
+              if (!started) {
+                cleanupPointerDrag(sourceRow);
+                return;
+              }
+
+              ev.preventDefault();
+              state.suppressTreeClickUntil = Date.now() + 250;
+              cleanupPointerDrag(sourceRow);
+
+              if (dropTargetId === null) return;
+              moveNodeParent(nn.id, dropTargetId);
+            }
+
+            window.addEventListener('mousemove', onMove, true);
+            window.addEventListener('mouseup', onUp, true);
           };
         })(node));
         row.addEventListener('contextmenu', (function(nn) {

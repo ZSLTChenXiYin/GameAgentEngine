@@ -32,6 +32,7 @@ let state = {
   page: 'worlds', nodeDetail: null, components: [], memories: [],
   relations: [], policy: null, settings: null, logs: [], snapshots: [], snapshotMeta: null, snapshotListWorldId: null,
   autonomous: null, treeFilter: '', connected: false,
+  dragNodeId: null, suppressTreeClickUntil: 0,
   leftWidth: 260, rightWidth: 300,
 };
 
