@@ -212,6 +212,7 @@ input { padding:0 7px; height:26px; }
 .sel-bar .lbl { color:var(--text-dim); }
 .sel-bar .name { font-weight:600; color:var(--accent); }
 .sel-bar .id { color:var(--text-muted); font-family:var(--font-mono); font-size:9px; }
+.sel-bar .count { color:var(--text-dim); }
 .act-list { display:grid; gap:4px; }
 .act-entry { padding:5px 7px; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius); font-size:10px; }
 .act-entry time { display:block; color:var(--text-muted); font-size:9px; margin-bottom:1px; }
@@ -301,6 +302,7 @@ input { padding:0 7px; height:26px; }
 .tree-node { user-select:none;-webkit-user-select:none; display:flex; align-items:center; gap:3px; padding-top:2px; padding-bottom:2px; cursor:pointer; border-radius:0; min-height:22px; }
 .tree-node:hover { background:var(--bg3); }
 .tree-node.selected { background:var(--accent-soft); outline:1px solid var(--accent); }
+.tree-node.multi-selected { background:rgba(108,140,255,0.08); outline:1px solid var(--border-focus); }
 .tree-node.path-ancestor { background:rgba(108,140,255,0.06); }
 .tree-node.path-ancestor.selected { background:var(--accent-soft); outline:1px solid var(--accent); }
 .tree-node.ref-highlight { outline:2px solid var(--yellow); outline-offset:-1px; }

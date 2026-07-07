@@ -73,8 +73,11 @@ function renderTree() {
   const body = document.getElementById('treeBody');
   if (!body) return; body.innerHTML = '';
   const filter = state.treeFilter.toLowerCase();
-  let nodes = state.nodes;
+let nodes = state.nodes;
   if (filter) nodes = nodes.filter(function(n) { return n.name.toLowerCase().includes(filter) || n.node_type.includes(filter); });
+  var selectedSet = {};
+  (state.selectedNodeIds || []).forEach(function(id) { selectedSet[id] = true; });
+  var visibleIds = [];
 
   // Build parent-to-children map
   var childMap = {};
@@ -131,11 +134,13 @@ function renderTree() {
         var node = children[ci];
         var hasChildren = childMap[node.id] && childMap[node.id].length > 0;
         var isCollapsed = state.treeCollapsed[node.id];
-        var isSelected = state.selectedNodeId === node.id;
+        var isSelected = !!selectedSet[node.id];
+        var isPrimarySelected = state.selectedNodeId === node.id;
         var isAncestor = ancestorSet[node.id] && !isSelected;
 
         var cls = 'tree-node';
         if (isSelected) cls += ' selected';
+        if (isSelected && !isPrimarySelected) cls += ' multi-selected';
         if (isAncestor) cls += ' path-ancestor';
 
         var row = ce('div', { className: cls, dataset: { id: node.id, pid: node.parent_id || '' }, style: { paddingLeft: (12 + depth * 16) + 'px' } }, [
@@ -144,6 +149,8 @@ function renderTree() {
           ce('span', { className: 'tree-name' }, [txt(node.name)]),
           ce('span', { className: 'tree-type node-type-' + node.node_type }, [txt(node.node_type)]),
         ]);
+
+        visibleIds.push(node.id);
 
         row.addEventListener('click', (function(nn, hc) {
           return function(e) {
@@ -154,7 +161,15 @@ function renderTree() {
               renderTree();
               return;
             }
-            selectNode(nn.id, nn.node_type);
+            if (e.shiftKey) {
+              selectNode(nn.id, nn.node_type, { mode: 'range', preserveAnchor: true });
+              return;
+            }
+            if (e.ctrlKey || e.metaKey) {
+              selectNode(nn.id, nn.node_type, { mode: 'toggle' });
+              return;
+            }
+            selectNode(nn.id, nn.node_type, { mode: 'single' });
           };
         })(node, hasChildren));
 
@@ -225,12 +240,14 @@ function renderTree() {
           };
         })(node));
         row.addEventListener('contextmenu', (function(nn) {
-          return function(e) {
+          return async function(e) {
             e.preventDefault();
             e.stopPropagation();
+            if (!selectedSet[nn.id]) await selectNode(nn.id, nn.node_type, { mode: 'single' });
             showContextMenu([
               { label: tr('Edit'), onClick: function() { openEditNodeModal(nn.id); } },
               { label: tr('Copy'), onClick: function() { openCopyNodeModal(nn.id); } },
+              { label: tr('Add New Parent'), onClick: function() { openCreateParentNodeModal(nn.id); } },
               { label: tr('Create Child'), onClick: function() { openCreateNodeModal(nn.id); } },
               { label: tr('Delete'), danger: true, onClick: function() { deleteNodeHandler(nn.id); } },
             ], e.clientX, e.clientY);
@@ -251,6 +268,7 @@ function renderTree() {
   var rootContainer = ce('div', {}, []);
   renderChildren('_root', 0, rootContainer);
   while (rootContainer.firstChild) body.appendChild(rootContainer.firstChild);
+  state.visibleNodeIds = visibleIds;
 
   if (nodes.length === 0) {
     body.appendChild(ce('div', { className: 'hint' }, [ttxt('No nodes. Click + to create.')]));

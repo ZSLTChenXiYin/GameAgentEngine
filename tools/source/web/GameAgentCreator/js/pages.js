@@ -9,6 +9,9 @@ function renderCenter() {
       selBar.appendChild(ce('span', { className: 'lbl' }, [ttxt('Selected:')]));
       selBar.appendChild(ce('span', { className: 'name' }, [txt(n.name)]));
       selBar.appendChild(ce('span', { className: 'id' }, [txt(n.id.slice(0,8))]));
+      if ((state.selectedNodeIds || []).length > 1) {
+        selBar.appendChild(ce('span', { className: 'count' }, [txt(String(state.selectedNodeIds.length) + ' ' + tr('nodes selected'))]));
+      }
     }
   } else if (state.selectedWorldId) {
     const w = state.worlds.find(function(x) { return x.id === state.selectedWorldId; });

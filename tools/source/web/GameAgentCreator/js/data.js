@@ -47,18 +47,68 @@ async function selectWorld(worldId) {
   if (worldId) {
     try { state.nodes = await api('GET', '/api/v1/nodes?world_id=' + encodeURIComponent(worldId)); }
     catch(e) { state.nodes = []; toast(tr('Failed to load nodes') + ': ' + apiErrorMessage(e), 'error'); }
+    state.selectedNodeIds = [];
+    state.selectionAnchorId = null;
+    state.selectedNodeId = null;
+    state.nodeDetail = null;
     state.logs = [];
     loadPolicy(); loadSettings(); loadSnapshots();
     if (state.page === 'logs') loadLogs();
   } else {
-    state.nodes = []; state.selectedNodeId = null; state.nodeDetail = null; state.snapshots = []; state.snapshotMeta = null;
+    state.nodes = []; state.selectedNodeId = null; state.selectedNodeIds = []; state.selectionAnchorId = null; state.nodeDetail = null; state.snapshots = []; state.snapshotMeta = null;
     state.snapshotListWorldId = null; state.logs = []; state.settings = null; state.policy = null;
   }
   renderTree(); renderCurrent();
 }
 
-async function selectNode(nodeId, nodeType) {
-  state.selectedNodeId = nodeId; state.selectedNodeType = nodeType || null; renderTree();
+function getVisibleTreeOrder() {
+  if (state.visibleNodeIds && state.visibleNodeIds.length > 0) return state.visibleNodeIds.slice();
+  return state.nodes.map(function(n) { return n.id; });
+}
+
+function uniqueNodeIds(ids) {
+  var seen = {};
+  var out = [];
+  for (var i = 0; i < ids.length; i++) {
+    var id = ids[i];
+    if (!id || seen[id]) continue;
+    seen[id] = true;
+    out.push(id);
+  }
+  return out;
+}
+
+async function selectNode(nodeId, nodeType, options) {
+  options = options || {};
+  var mode = options.mode || 'single';
+  var preserveAnchor = !!options.preserveAnchor;
+  var selectedIds = state.selectedNodeIds ? state.selectedNodeIds.slice() : [];
+
+  if (mode === 'single') {
+    selectedIds = nodeId ? [nodeId] : [];
+  } else if (mode === 'toggle') {
+    var idx = selectedIds.indexOf(nodeId);
+    if (idx >= 0) selectedIds.splice(idx, 1);
+    else selectedIds.push(nodeId);
+  } else if (mode === 'range') {
+    var order = getVisibleTreeOrder();
+    var anchor = state.selectionAnchorId || state.selectedNodeId || nodeId;
+    var ai = order.indexOf(anchor);
+    var bi = order.indexOf(nodeId);
+    if (ai >= 0 && bi >= 0) {
+      var start = Math.min(ai, bi);
+      var end = Math.max(ai, bi);
+      selectedIds = order.slice(start, end + 1);
+      preserveAnchor = true;
+    } else {
+      selectedIds = nodeId ? [nodeId] : [];
+    }
+  } else if (mode === 'preserve') {
+    if (nodeId && selectedIds.indexOf(nodeId) < 0) selectedIds.push(nodeId);
+  }
+
+  selectedIds = uniqueNodeIds(selectedIds);
+  state.selectedNodeId = nodeId; state.selectedNodeIds = selectedIds; state.selectedNodeType = nodeType || null; if (!preserveAnchor) state.selectionAnchorId = nodeId || null; renderTree();
   if (!nodeId) { state.nodeDetail = null; renderCurrent(); return; }
   try { state.nodeDetail = await api('GET', '/api/v1/nodes/' + encodeURIComponent(nodeId)); }
   catch(e) { state.nodeDetail = null; toast(tr('Failed to load node details') + ': ' + apiErrorMessage(e), 'error'); }
@@ -102,8 +152,21 @@ async function loadCurrentWorld() {
   if (!state.selectedWorldId) return;
   try {
     state.nodes = await api('GET', '/api/v1/nodes?world_id=' + encodeURIComponent(state.selectedWorldId));
+    var valid = {};
+    for (var i = 0; i < state.nodes.length; i++) valid[state.nodes[i].id] = true;
+    state.selectedNodeIds = (state.selectedNodeIds || []).filter(function(id) { return valid[id]; });
+    if (state.selectedNodeId && !valid[state.selectedNodeId]) {
+      state.selectedNodeId = state.selectedNodeIds.length > 0 ? state.selectedNodeIds[0] : null;
+    }
+    if (state.selectionAnchorId && !valid[state.selectionAnchorId]) state.selectionAnchorId = state.selectedNodeId || null;
     renderTree();
-    if (state.selectedNodeId) { var sn = state.nodes.find(function(x) { return x.id === state.selectedNodeId; }); selectNode(state.selectedNodeId, sn ? sn.node_type : null); }
+    if (state.selectedNodeId) {
+      var sn = state.nodes.find(function(x) { return x.id === state.selectedNodeId; });
+      selectNode(state.selectedNodeId, sn ? sn.node_type : null, { mode: 'preserve', preserveAnchor: true });
+    } else {
+      state.nodeDetail = null;
+      renderCurrent();
+    }
   } catch(e) { toast(tr('Refresh failed') + ': ' + apiErrorMessage(e), 'error'); }
 }
 
@@ -366,11 +429,46 @@ async function editNode(nodeId) {
 }
 
 async function moveNodeParent(nodeId, newParentId) {
-  if (!confirm(tr('Move this node?'))) return;
   try {
     await api('PUT', '/api/v1/nodes/' + encodeURIComponent(nodeId), { parent_id: newParentId });
     toast(tr('Node moved'), 'success'); loadCurrentWorld();
   } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+}
+
+function openCreateParentNodeModal(nodeId) {
+  const n = state.nodes.find(function(x) { return x.id === nodeId; });
+  if (!n) return;
+  const f = ce('div', { className: 'modal-field' }, [
+    ce('label', { for: 'createParentNodeName' }, [ttxt('Node Name')]),
+    el('input', { id: 'createParentNodeName', value: (n.name || '') + ' Parent', style: {width: '100%'} }),
+    ce('label', { for: 'createParentNodeType' }, [ttxt('Type')]),
+    el('select', { id: 'createParentNodeType', innerHTML: '<option value="faction">faction</option><option value="location">location</option><option value="npc">npc</option><option value="item">item</option><option value="quest_line">quest_line</option><option value="event">event</option>' }),
+  ]);
+  openModal(tr('Create Parent Node'), f,
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalCreateParentNodeBtn' }, [ttxt('Create')]), el('button', { id: 'modalCancelCreateParentNodeBtn', textContent: tr('Cancel') })])
+  );
+  document.getElementById('modalCreateParentNodeBtn').addEventListener('click', function() { createParentNode(nodeId); });
+  document.getElementById('modalCancelCreateParentNodeBtn').addEventListener('click', closeModal);
+}
+
+async function createParentNode(nodeId) {
+  const n = state.nodes.find(function(x) { return x.id === nodeId; });
+  if (!n) return;
+  const name = document.getElementById('createParentNodeName').value.trim();
+  const nodeType = document.getElementById('createParentNodeType').value;
+  if (!name) { toast(tr('Enter a node name'), 'error'); return; }
+  try {
+    var parentBody = { name: name, node_type: nodeType, world_id: state.selectedWorldId };
+    if (n.parent_id) parentBody.parent_id = n.parent_id;
+    var created = await api('POST', '/api/v1/nodes', parentBody);
+    await api('PUT', '/api/v1/nodes/' + encodeURIComponent(nodeId), { parent_id: created.id });
+    closeModal();
+    toast(tr('Parent node created'), 'success');
+    await loadCurrentWorld();
+    if (created && created.id) selectNode(created.id, created.node_type, { mode: 'single' });
+  } catch(e) {
+    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+  }
 }
 
 function openCopyNodeModal(nodeId) {
