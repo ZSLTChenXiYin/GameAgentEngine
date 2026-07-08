@@ -179,6 +179,7 @@ type WorldSettingsModel struct {
 	SubTaskMaxRetries        int       `gorm:"default:2" json:"sub_task_max_retries"`
 	SubTaskTimeoutSecs       int       `gorm:"default:60" json:"sub_task_timeout_secs"`
 	PipelineMode             string    `gorm:"size:20;default:full" json:"pipeline_mode"`
+	WorldTimeSettingsJSON    string    `gorm:"type:text" json:"world_time_settings,omitempty"`
 	CreatedAt                time.Time `json:"created_at"`
 	UpdatedAt                time.Time `json:"updated_at"`
 }

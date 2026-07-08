@@ -336,31 +336,70 @@ type PropagationRule struct {
 
 // WorldSettings 表示世界的运行设置。
 type WorldSettings struct {
-	WorldID                  string `json:"world_id"`
-	MemoryLimit              int    `json:"memory_limit"`
-	MaxAnalysisRounds        int    `json:"max_analysis_rounds"`
-	MaxContextDepth          int    `json:"max_context_depth"`
-	AutoApply                bool   `json:"auto_apply"`
-	RequireReviewAbove       string `json:"require_review_above"`
-	PropagationMaxDepth      int    `json:"propagation_max_depth"`
-	EnablePropagationMachine bool   `json:"enable_propagation_machine"`
-	SubTaskMaxRetries        int    `json:"sub_task_max_retries"`
-	SubTaskTimeoutSecs       int    `json:"sub_task_timeout_secs"`
-	PipelineMode             string `json:"pipeline_mode"`
+	WorldID                  string             `json:"world_id"`
+	MemoryLimit              int                `json:"memory_limit"`
+	MaxAnalysisRounds        int                `json:"max_analysis_rounds"`
+	MaxContextDepth          int                `json:"max_context_depth"`
+	AutoApply                bool               `json:"auto_apply"`
+	RequireReviewAbove       string             `json:"require_review_above"`
+	PropagationMaxDepth      int                `json:"propagation_max_depth"`
+	EnablePropagationMachine bool               `json:"enable_propagation_machine"`
+	SubTaskMaxRetries        int                `json:"sub_task_max_retries"`
+	SubTaskTimeoutSecs       int                `json:"sub_task_timeout_secs"`
+	PipelineMode             string             `json:"pipeline_mode"`
+	WorldTimeSettings        *WorldTimeSettings `json:"world_time_settings,omitempty"`
 }
 
 // WorldSettingsUpdate represents a partial world settings update request.
 type WorldSettingsUpdate struct {
-	MemoryLimit              *int    `json:"memory_limit,omitempty"`
-	MaxAnalysisRounds        *int    `json:"max_analysis_rounds,omitempty"`
-	MaxContextDepth          *int    `json:"max_context_depth,omitempty"`
-	AutoApply                *bool   `json:"auto_apply,omitempty"`
-	RequireReviewAbove       *string `json:"require_review_above,omitempty"`
-	PropagationMaxDepth      *int    `json:"propagation_max_depth,omitempty"`
-	EnablePropagationMachine *bool   `json:"enable_propagation_machine,omitempty"`
-	SubTaskMaxRetries        *int    `json:"sub_task_max_retries,omitempty"`
-	SubTaskTimeoutSecs       *int    `json:"sub_task_timeout_secs,omitempty"`
-	PipelineMode             *string `json:"pipeline_mode,omitempty"`
+	MemoryLimit              *int               `json:"memory_limit,omitempty"`
+	MaxAnalysisRounds        *int               `json:"max_analysis_rounds,omitempty"`
+	MaxContextDepth          *int               `json:"max_context_depth,omitempty"`
+	AutoApply                *bool              `json:"auto_apply,omitempty"`
+	RequireReviewAbove       *string            `json:"require_review_above,omitempty"`
+	PropagationMaxDepth      *int               `json:"propagation_max_depth,omitempty"`
+	EnablePropagationMachine *bool              `json:"enable_propagation_machine,omitempty"`
+	SubTaskMaxRetries        *int               `json:"sub_task_max_retries,omitempty"`
+	SubTaskTimeoutSecs       *int               `json:"sub_task_timeout_secs,omitempty"`
+	PipelineMode             *string            `json:"pipeline_mode,omitempty"`
+	WorldTimeSettings        *WorldTimeSettings `json:"world_time_settings,omitempty"`
+}
+
+// WorldTimeSettings describes the engine-enforced world time configuration.
+type WorldTimeSettings struct {
+	TickScaleMode     string                  `json:"tick_scale_mode,omitempty"`
+	TickMinUnit       string                  `json:"tick_min_unit,omitempty"`
+	TickStep          int                     `json:"tick_step,omitempty"`
+	TickUnits         []string                `json:"tick_units,omitempty"`
+	TimeScaleCarry    []WorldTimeCarryRule    `json:"time_scale_carry,omitempty"`
+	TimeCalendar      *WorldTimeCalendar      `json:"time_calendar,omitempty"`
+	UnitValueSequence []WorldTimeUnitSequence `json:"unit_value_sequences,omitempty"`
+}
+
+// WorldTimeCarryRule describes one adjacent carry relationship between configured time units.
+type WorldTimeCarryRule struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+	Base int    `json:"base"`
+}
+
+// WorldTimeCalendar describes the optional named calendar template for one world.
+type WorldTimeCalendar struct {
+	Enabled      bool                    `json:"enabled"`
+	CalendarName string                  `json:"calendar_name,omitempty"`
+	Units        []WorldTimeCalendarUnit `json:"units,omitempty"`
+}
+
+// WorldTimeCalendarUnit stores one configured calendar unit and its current value.
+type WorldTimeCalendarUnit struct {
+	Unit  string `json:"unit"`
+	Value string `json:"value,omitempty"`
+}
+
+// WorldTimeUnitSequence stores ordered symbolic values for a unit such as 时辰.
+type WorldTimeUnitSequence struct {
+	Unit   string   `json:"unit"`
+	Values []string `json:"values,omitempty"`
 }
 
 // StateComponentEnvelope describes one engine-recognized continuity component.
@@ -378,8 +417,8 @@ type StateComponentsResponse struct {
 
 // StateComponentResponse is the single-component response for world continuity state.
 type StateComponentResponse struct {
-	WorldID         string                 `json:"world_id"`
-	StateComponent  StateComponentEnvelope `json:"state_component"`
+	WorldID        string                 `json:"world_id"`
+	StateComponent StateComponentEnvelope `json:"state_component"`
 }
 
 // TimelineTick describes one persisted world tick archive entry.
@@ -420,11 +459,11 @@ type LatestTimelineResponse struct {
 
 // ContinuityBundleOptions controls how much continuity debugging context to load.
 type ContinuityBundleOptions struct {
-	LogLimit      int
-	TraceLimit    int
-	SkipLogs      bool
-	SkipTraces    bool
-	LogQuery      *InferenceLogQuery
+	LogLimit   int
+	TraceLimit int
+	SkipLogs   bool
+	SkipTraces bool
+	LogQuery   *InferenceLogQuery
 }
 
 // ContinuityBundle aggregates the core artifacts used to inspect world tick continuity.

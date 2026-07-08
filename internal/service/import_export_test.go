@@ -80,6 +80,7 @@ func TestForkWorldCopiesStructureAndSnapshotMetadata(t *testing.T) {
 		SubTaskMaxRetries:        7,
 		SubTaskTimeoutSecs:       88,
 		EnablePropagationMachine: true,
+		WorldTimeSettingsJSON:    `{"tick_scale_mode":"fixed","tick_min_unit":"时辰","tick_step":2}`,
 	}, &store.WorldSettingsUpdateMask{
 		MemoryLimit:              true,
 		MaxAnalysisRounds:        true,
@@ -91,6 +92,7 @@ func TestForkWorldCopiesStructureAndSnapshotMetadata(t *testing.T) {
 		SubTaskMaxRetries:        true,
 		SubTaskTimeoutSecs:       true,
 		EnablePropagationMachine: true,
+		WorldTimeSettings:        true,
 	}); err != nil {
 		t.Fatalf("upsert settings: %v", err)
 	}
@@ -225,7 +227,7 @@ func TestForkWorldCopiesStructureAndSnapshotMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get cloned settings: %v", err)
 	}
-	if clonedSettings.MemoryLimit != 77 || clonedSettings.MaxAnalysisRounds != 4 || clonedSettings.MaxContextDepth != 5 || clonedSettings.AutoApply != false || clonedSettings.RequireReviewAbove != "high" || clonedSettings.PipelineMode != "polling" || clonedSettings.PropagationMaxDepth != 6 || clonedSettings.SubTaskMaxRetries != 7 || clonedSettings.SubTaskTimeoutSecs != 88 || clonedSettings.EnablePropagationMachine != true {
+	if clonedSettings.MemoryLimit != 77 || clonedSettings.MaxAnalysisRounds != 4 || clonedSettings.MaxContextDepth != 5 || clonedSettings.AutoApply != false || clonedSettings.RequireReviewAbove != "high" || clonedSettings.PipelineMode != "polling" || clonedSettings.PropagationMaxDepth != 6 || clonedSettings.SubTaskMaxRetries != 7 || clonedSettings.SubTaskTimeoutSecs != 88 || clonedSettings.EnablePropagationMachine != true || clonedSettings.WorldTimeSettingsJSON != `{"tick_scale_mode":"fixed","tick_min_unit":"时辰","tick_step":2}` {
 		t.Fatalf("unexpected cloned settings: %#v", clonedSettings)
 	}
 

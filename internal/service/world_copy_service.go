@@ -133,6 +133,7 @@ func duplicateWorld(worldID, newName string, lockWorld bool, mode worldCopyMode,
 				"sub_task_max_retries":       settings.SubTaskMaxRetries,
 				"sub_task_timeout_secs":      settings.SubTaskTimeoutSecs,
 				"enable_propagation_machine": settings.EnablePropagationMachine,
+				"world_time_settings_json":   settings.WorldTimeSettingsJSON,
 			}).Error; err != nil {
 				return err
 			}

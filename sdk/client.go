@@ -1041,6 +1041,9 @@ func buildWorldSettingsUpdateBody(settings *WorldSettingsUpdate) map[string]any 
 	if settings.PipelineMode != nil {
 		body["pipeline_mode"] = *settings.PipelineMode
 	}
+	if settings.WorldTimeSettings != nil {
+		body["world_time_settings"] = settings.WorldTimeSettings
+	}
 	return body
 }
 
@@ -1071,6 +1074,7 @@ func (c *Client) SetWorldSettings(worldID string, settings *WorldSettings) (*Wor
 		SubTaskMaxRetries:        &settings.SubTaskMaxRetries,
 		SubTaskTimeoutSecs:       &settings.SubTaskTimeoutSecs,
 		PipelineMode:             &settings.PipelineMode,
+		WorldTimeSettings:        settings.WorldTimeSettings,
 	})
 }
 

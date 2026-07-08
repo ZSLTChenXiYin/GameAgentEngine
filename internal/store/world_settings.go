@@ -17,6 +17,7 @@ type WorldSettingsUpdateMask struct {
 	SubTaskMaxRetries        bool
 	SubTaskTimeoutSecs       bool
 	EnablePropagationMachine bool
+	WorldTimeSettings        bool
 }
 
 // GetWorldSettings 获取世界的运行设置。
@@ -93,6 +94,9 @@ func ApplyWorldSettingsUpdate(s *WorldSettingsModel, updates *WorldSettingsModel
 	if mask.EnablePropagationMachine {
 		s.EnablePropagationMachine = updates.EnablePropagationMachine
 	}
+	if mask.WorldTimeSettings {
+		s.WorldTimeSettingsJSON = updates.WorldTimeSettingsJSON
+	}
 	s.UpdatedAt = time.Now()
 }
 
@@ -107,6 +111,7 @@ func UpsertWorldSettings(worldUUID string, settings *WorldSettingsModel) (*World
 		PropagationMaxDepth: settings.PropagationMaxDepth > 0,
 		SubTaskMaxRetries:   settings.SubTaskMaxRetries > 0,
 		SubTaskTimeoutSecs:  settings.SubTaskTimeoutSecs > 0,
+		WorldTimeSettings:   settings.WorldTimeSettingsJSON != "",
 	})
 }
 

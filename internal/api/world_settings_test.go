@@ -161,3 +161,63 @@ func TestSetWorldSettingsHandlerRejectsEmptyRequireReviewAbove(t *testing.T) {
 		t.Fatalf("expected invalid_world_setting code, got %s", w.Body.String())
 	}
 }
+
+func TestSetWorldSettingsHandlerPersistsWorldTimeSettings(t *testing.T) {
+	worldID := initWorldSettingsTestDB(t)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/worlds/"+worldID+"/settings", strings.NewReader(`{
+		"world_time_settings": {
+			"tick_scale_mode": "fixed",
+			"tick_min_unit": "时辰",
+			"tick_step": 2,
+			"tick_units": ["年", "月", "日", "时辰"],
+			"time_scale_carry": [
+				{"from": "时辰", "to": "日", "base": 12},
+				{"from": "日", "to": "月", "base": 30},
+				{"from": "月", "to": "年", "base": 12}
+			],
+			"time_calendar": {
+				"enabled": true,
+				"calendar_name": "太阴",
+				"units": [
+					{"unit": "年", "value": "8"},
+					{"unit": "月", "value": "7"},
+					{"unit": "日", "value": "20"},
+					{"unit": "时辰", "value": "卯"}
+				]
+			},
+			"unit_value_sequences": [
+				{"unit": "时辰", "values": ["子", "丑", "寅", "卯"]}
+			]
+		}
+	}`))
+	req.SetPathValue("world_id", worldID)
+	w := httptest.NewRecorder()
+
+	SetWorldSettingsHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	settings, err := store.GetWorldSettings(worldID)
+	if err != nil {
+		t.Fatalf("load settings: %v", err)
+	}
+	if !strings.Contains(settings.WorldTimeSettingsJSON, `"tick_scale_mode":"fixed"`) {
+		t.Fatalf("expected world_time_settings_json to contain tick_scale_mode, got %s", settings.WorldTimeSettingsJSON)
+	}
+	var body struct {
+		WorldTimeSettings struct {
+			TickMinUnit  string `json:"tick_min_unit"`
+			TickStep     int    `json:"tick_step"`
+			TimeCalendar struct {
+				CalendarName string `json:"calendar_name"`
+			} `json:"time_calendar"`
+		} `json:"world_time_settings"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.WorldTimeSettings.TickMinUnit != "时辰" || body.WorldTimeSettings.TickStep != 2 || body.WorldTimeSettings.TimeCalendar.CalendarName != "太阴" {
+		t.Fatalf("unexpected world_time_settings response: %#v", body.WorldTimeSettings)
+	}
+}

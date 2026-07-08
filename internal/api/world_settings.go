@@ -4,12 +4,40 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
+func parseWorldTimeSettings(raw string) (*engine.WorldTimeSettings, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var settings engine.WorldTimeSettings
+	if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+		return nil, err
+	}
+	return &settings, nil
+}
+
+func encodeWorldTimeSettings(settings *engine.WorldTimeSettings) (string, error) {
+	if settings == nil {
+		return "", nil
+	}
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
 func writeWorldSettingsResponse(w http.ResponseWriter, settings *store.WorldSettingsModel) {
+	worldTimeSettings, err := parseWorldTimeSettings(settings.WorldTimeSettingsJSON)
+	if err != nil {
+		errorJSON(w, 500, "invalid world_time_settings: "+err.Error())
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"world_id":                   settings.WorldUUID,
 		"memory_limit":               settings.MemoryLimit,
@@ -22,6 +50,7 @@ func writeWorldSettingsResponse(w http.ResponseWriter, settings *store.WorldSett
 		"sub_task_max_retries":       settings.SubTaskMaxRetries,
 		"sub_task_timeout_secs":      settings.SubTaskTimeoutSecs,
 		"enable_propagation_machine": settings.EnablePropagationMachine,
+		"world_time_settings":        worldTimeSettings,
 	})
 }
 
@@ -54,16 +83,17 @@ func GetWorldSettingsHandler(w http.ResponseWriter, r *http.Request) {
 func SetWorldSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	worldID := r.PathValue("world_id")
 	var req struct {
-		MemoryLimit              *int    `json:"memory_limit,omitempty"`
-		MaxAnalysisRounds        *int    `json:"max_analysis_rounds,omitempty"`
-		MaxContextDepth          *int    `json:"max_context_depth,omitempty"`
-		AutoApply                *bool   `json:"auto_apply,omitempty"`
-		RequireReviewAbove       *string `json:"require_review_above,omitempty"`
-		PipelineMode             *string `json:"pipeline_mode,omitempty"`
-		PropagationMaxDepth      *int    `json:"propagation_max_depth,omitempty"`
-		SubTaskMaxRetries        *int    `json:"sub_task_max_retries,omitempty"`
-		SubTaskTimeoutSecs       *int    `json:"sub_task_timeout_secs,omitempty"`
-		EnablePropagationMachine *bool   `json:"enable_propagation_machine,omitempty"`
+		MemoryLimit              *int                      `json:"memory_limit,omitempty"`
+		MaxAnalysisRounds        *int                      `json:"max_analysis_rounds,omitempty"`
+		MaxContextDepth          *int                      `json:"max_context_depth,omitempty"`
+		AutoApply                *bool                     `json:"auto_apply,omitempty"`
+		RequireReviewAbove       *string                   `json:"require_review_above,omitempty"`
+		PipelineMode             *string                   `json:"pipeline_mode,omitempty"`
+		PropagationMaxDepth      *int                      `json:"propagation_max_depth,omitempty"`
+		SubTaskMaxRetries        *int                      `json:"sub_task_max_retries,omitempty"`
+		SubTaskTimeoutSecs       *int                      `json:"sub_task_timeout_secs,omitempty"`
+		EnablePropagationMachine *bool                     `json:"enable_propagation_machine,omitempty"`
+		WorldTimeSettings        *engine.WorldTimeSettings `json:"world_time_settings,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		errorJSON(w, 400, "invalid json: "+err.Error())
@@ -145,6 +175,15 @@ func SetWorldSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	if req.EnablePropagationMachine != nil {
 		updates.EnablePropagationMachine = *req.EnablePropagationMachine
 		mask.EnablePropagationMachine = true
+	}
+	if req.WorldTimeSettings != nil {
+		encoded, err := encodeWorldTimeSettings(req.WorldTimeSettings)
+		if err != nil {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_world_time_settings", "world_time_settings must be valid structured JSON: "+err.Error())
+			return
+		}
+		updates.WorldTimeSettingsJSON = encoded
+		mask.WorldTimeSettings = true
 	}
 	settings, err := store.UpsertWorldSettingsWithMask(worldID, updates, mask)
 	if err != nil {
