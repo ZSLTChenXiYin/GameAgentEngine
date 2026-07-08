@@ -109,8 +109,8 @@ Abstracts LLM API calls through a common interface:
 
 A registry-based action system supporting both synchronous and asynchronous modes:
 
-- **Sync actions** — executed immediately within the pipeline (add_memory, update_mood, send_dialogue)
-- **Async actions** — return a callback ID for the game side to execute (adjust_relation, spawn_item)
+- **Sync actions** — executed immediately within the pipeline. Current built-in examples include `add_memory`, `update_mood`, and `send_dialogue`
+- **Async actions** — return a callback ID for the game side to execute. Current built-in examples include `adjust_relation` and `spawn_item`
 
 ### 7. Planner & Policy (internal/planner)
 

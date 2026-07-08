@@ -109,8 +109,8 @@ HTTP 入口。将请求路由到对应的处理函数，验证输入，将错误
 
 基于注册表的动作系统，支持同步和异步两种模式：
 
-- **同步动作** — 在管线内立即执行（add_memory, update_mood, send_dialogue）
-- **异步动作** — 返回回调 ID 供游戏侧执行（adjust_relation, spawn_item）
+- **同步动作** — 在管线内立即执行。当前内置示例包括 `add_memory`、`update_mood`、`send_dialogue`
+- **异步动作** — 返回回调 ID 供游戏侧执行。当前内置示例包括 `adjust_relation`、`spawn_item`
 
 ### 7. 规划器与策略（internal/planner）
 
