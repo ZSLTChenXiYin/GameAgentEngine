@@ -54,12 +54,14 @@ async function selectWorld(worldId) {
     state.selectedNodeId = null;
     state.selectedTreePathKey = null;
     state.nodeDetail = null;
-    state.logs = [];
-    loadPolicy(); loadSettings(); loadPlans(true); loadSnapshots();
+    state.logs = []; state.stateComponents = []; state.timelines = [];
+    loadPolicy(); loadSettings(); loadPlans(true); loadSnapshots(); loadStateComponents(); loadTimelines();
     if (state.page === 'logs') loadLogs();
+    if (state.page === 'state') loadStateComponents();
+    if (state.page === 'timelines') loadTimelines();
   } else {
     state.nodes = []; state.relations = []; state.selectedNodeId = null; state.selectedNodeIds = []; state.selectionAnchorId = null; state.selectedTreePathKey = null; state.nodeDetail = null; state.snapshots = []; state.snapshotMeta = null;
-    state.snapshotListWorldId = null; state.logs = []; state.settings = null; state.policy = null; state.plans = [];
+    state.snapshotListWorldId = null; state.logs = []; state.stateComponents = []; state.timelines = []; state.settings = null; state.policy = null; state.plans = [];
   }
   renderTree(); renderCurrent();
 }
@@ -1235,6 +1237,40 @@ async function propagateMemory(memId) {
     toast(tr('Propagation request submitted'), 'success');
   } catch(e) {
     toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+  }
+}
+
+async function loadStateComponents() {
+  if (!state.selectedWorldId) {
+    state.stateComponents = [];
+    if (state.page === 'state') renderCurrent();
+    return;
+  }
+  try {
+    var result = await api('GET', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/state-components');
+    state.stateComponents = result.components || [];
+    if (state.page === 'state') renderCurrent();
+  } catch(e) {
+    state.stateComponents = [];
+    if (state.page === 'state') renderCurrent();
+    toast(tr('Failed to load state components') + ': ' + apiErrorMessage(e), 'error');
+  }
+}
+
+async function loadTimelines() {
+  if (!state.selectedWorldId) {
+    state.timelines = [];
+    if (state.page === 'timelines') renderCurrent();
+    return;
+  }
+  try {
+    var result = await api('GET', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/timelines?limit=50');
+    state.timelines = result.timelines || [];
+    if (state.page === 'timelines') renderCurrent();
+  } catch(e) {
+    state.timelines = [];
+    if (state.page === 'timelines') renderCurrent();
+    toast(tr('Failed to load timelines') + ': ' + apiErrorMessage(e), 'error');
   }
 }
 

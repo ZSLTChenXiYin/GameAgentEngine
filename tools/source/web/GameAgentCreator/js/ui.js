@@ -26,6 +26,8 @@ function renderTopbar() {
   center.appendChild(pageBtn('plans', tr('Plans')));
   center.appendChild(pageBtn('policy', tr('Policy')));
   center.appendChild(pageBtn('settings', tr('Settings')));
+  center.appendChild(pageBtn('state', tr('State')));
+  center.appendChild(pageBtn('timelines', tr('Timelines')));
   center.appendChild(pageBtn('logs', tr('Logs')));
   center.appendChild(pageBtn('traces', tr('Traces')));
   const right = ce('div', { className: 'topbar-right' }, [

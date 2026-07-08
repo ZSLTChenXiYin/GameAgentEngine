@@ -27,6 +27,8 @@ function renderCenter() {
     case 'plans': renderPlansPage(center); break;
     case 'policy': renderPolicyPage(center); break;
     case 'settings': renderSettingsPage(center); break;
+    case 'state': renderStatePage(center); break;
+    case 'timelines': renderTimelinesPage(center); break;
     case 'logs': renderLogsPage(center); break;
     case 'traces': renderTracesPage(center); break;
     default: renderWorldsPage(center);
@@ -594,6 +596,12 @@ function renderLogsPage(container) {
     body.appendChild(renderPropRow('Duration', String(log.duration_ms || 0) + 'ms'));
     body.appendChild(renderPropRow('Pipeline', pipeline));
     body.appendChild(renderPropRow('Rounds', rounds));
+    if (log.category || log.event_name || log.execution_mode) {
+      body.appendChild(renderPropRow('State Component', [log.category || '-', log.event_name || '-', log.execution_mode || '-'].join(' / ')));
+    }
+    if (log.message) {
+      body.appendChild(renderPropRow('Summary', log.message));
+    }
 
     if (requestData) {
       body.appendChild(renderLogDetailBlock('Request', requestData));
@@ -601,11 +609,74 @@ function renderLogsPage(container) {
     if (responseData) {
       body.appendChild(renderLogDetailBlock('Response', responseData));
     }
+    if (log.detail_data) {
+      body.appendChild(renderLogDetailBlock('Detail', parseLogJSON(log.detail_data || '') || log.detail_data));
+    }
 
     list.appendChild(detailCard.card);
   }
   container.appendChild(list);
   document.getElementById('btnRefreshLogs').addEventListener('click', loadLogs);
+}
+
+function renderStatePage(container) {
+  const toolbar = ce('div', { className: 'world-toolbar' }, [
+    ce('button', { id: 'btnRefreshState' }, [ttxt('Refresh State')]),
+  ]);
+  container.appendChild(toolbar);
+  const list = ce('div', { className: 'trace-container' }, []);
+  if (!state.stateComponents || state.stateComponents.length === 0) {
+    list.appendChild(ce('div', { className: 'hint' }, [ttxt('No state components yet.')]));
+  }
+  for (var i = 0; i < (state.stateComponents || []).length; i++) {
+    var item = state.stateComponents[i];
+    var detailCard = createToggleDetailCard([
+      ce('span', { style: { fontWeight: 600 } }, [txt(item.component_type || '?')]),
+      txt(item.component ? ' present' : ' missing'),
+    ], false);
+    var body = detailCard.body;
+    body.appendChild(renderPropRow('Type', item.component_type || '-'));
+    body.appendChild(renderPropRow('ID', item.component && item.component.id ? item.component.id.slice(0, 8) : '-', { mono: true }));
+    body.appendChild(renderPropRow('Node', item.component && item.component.node_id ? item.component.node_id.slice(0, 8) : '-', { mono: true }));
+    body.appendChild(renderPropRow('Summary', tr('Structured world tick continuity state.')));
+    if (item.data) {
+      body.appendChild(renderLogDetailBlock('Data', item.data));
+    }
+    list.appendChild(detailCard.card);
+  }
+  container.appendChild(list);
+  document.getElementById('btnRefreshState').addEventListener('click', loadStateComponents);
+}
+
+function renderTimelinesPage(container) {
+  const toolbar = ce('div', { className: 'world-toolbar' }, [
+    ce('button', { id: 'btnRefreshTimelines' }, [ttxt('Refresh Timelines')]),
+  ]);
+  container.appendChild(toolbar);
+  const list = ce('div', { className: 'trace-container' }, []);
+  if (!state.timelines || state.timelines.length === 0) {
+    list.appendChild(ce('div', { className: 'hint' }, [ttxt('No timelines yet.')]));
+  }
+  for (var i = 0; i < (state.timelines || []).length; i++) {
+    var item = state.timelines[i];
+    var detailCard = createToggleDetailCard([
+      ce('span', { style: { fontWeight: 600 } }, [txt('#' + String(item.tick_number || 0))]),
+      txt(' ' + (item.tick_type || '-')),
+      txt(item.game_time ? ' ' + item.game_time : ''),
+    ], false);
+    var body = detailCard.body;
+    body.appendChild(renderPropRow('Tick', String(item.tick_number || 0)));
+    body.appendChild(renderPropRow('Type', item.tick_type || '-'));
+    body.appendChild(renderPropRow('Time', item.game_time || '-'));
+    body.appendChild(renderPropRow('Summary', item.summary || '-'));
+    body.appendChild(renderPropRow('Future Outline', item.future_outline || '-'));
+    if (item.data) {
+      body.appendChild(renderLogDetailBlock('Timeline Payload', item.data));
+    }
+    list.appendChild(detailCard.card);
+  }
+  container.appendChild(list);
+  document.getElementById('btnRefreshTimelines').addEventListener('click', loadTimelines);
 }
 
 
