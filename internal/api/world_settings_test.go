@@ -186,7 +186,7 @@ func TestSetWorldSettingsHandlerPersistsWorldTimeSettings(t *testing.T) {
 				]
 			},
 			"unit_value_sequences": [
-				{"unit": "时辰", "values": ["子", "丑", "寅", "卯"]}
+				{"unit": "时辰", "values": ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]}
 			]
 		}
 	}`))

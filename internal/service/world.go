@@ -251,7 +251,7 @@ func persistWorldTickStateComponentsTx(tx *gorm.DB, worldID string, tick *store.
 func buildWorldTimeStateComponentTx(tx *gorm.DB, worldID string, tick *store.TimelineModel, advancedTicks int) (engine.WorldTimeStateComponent, error) {
 	state := engine.WorldTimeStateComponent{
 		CurrentTimeLabel:  tick.GameTime,
-		TotalTicks:        tick.TickNumber,
+		TotalTicks:        advancedTicks,
 		LastTickNumber:    tick.TickNumber,
 		LastTickType:      tick.TickType,
 		LastAdvancedTicks: advancedTicks,
@@ -263,21 +263,45 @@ func buildWorldTimeStateComponentTx(tx *gorm.DB, worldID string, tick *store.Tim
 		},
 	}
 	settings, err := store.GetWorldSettingsTx(tx, worldID)
-	if err != nil || settings == nil {
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return state, nil
+		}
+		return state, err
+	}
+	if settings == nil {
 		return state, nil
 	}
 	worldTimeSettings, err := engine.DecodeWorldTimeSettings(settings.WorldTimeSettingsJSON)
 	if err != nil || worldTimeSettings == nil {
 		return state, err
 	}
-	state.TickScaleMode = worldTimeSettings.TickScaleMode
-	state.TickMinUnit = worldTimeSettings.TickMinUnit
-	state.TickStep = worldTimeSettings.TickStep
-	state.TickUnits = append([]string{}, worldTimeSettings.TickUnits...)
-	if worldTimeSettings.TimeCalendar != nil {
-		state.CalendarName = worldTimeSettings.TimeCalendar.CalendarName
-		state.CurrentUnits = append([]engine.WorldTimeCalendarUnit{}, worldTimeSettings.TimeCalendar.Units...)
+
+	var previous *engine.WorldTimeStateComponent
+	component, err := getStateComponentTx(tx, worldID, engine.CompWorldTimeState)
+	if err != nil {
+		return state, err
 	}
+	if component != nil && strings.TrimSpace(component.Data) != "" {
+		decoded := engine.WorldTimeStateComponent{}
+		if err := json.Unmarshal([]byte(component.Data), &decoded); err != nil {
+			return state, invalidf("invalid world_time_state payload: %v", err)
+		}
+		previous = &decoded
+	}
+	state, err = engine.AdvanceWorldTimeState(worldTimeSettings, previous, advancedTicks, tick.GameTime)
+	if err != nil {
+		return state, invalidf("invalid world_time_settings progression: %v", err)
+	}
+	state.LastTickNumber = tick.TickNumber
+	state.LastTickType = tick.TickType
+	if state.Metadata == nil {
+		state.Metadata = map[string]any{}
+	}
+	state.Metadata["tick_number"] = tick.TickNumber
+	state.Metadata["tick_type"] = tick.TickType
+	state.Metadata["game_time"] = tick.GameTime
+	state.Metadata["advanced_ticks"] = advancedTicks
 	return state, nil
 }
 
