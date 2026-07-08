@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
@@ -49,7 +50,7 @@ func TestAdvanceWorldTickWithAutonomousPersistsServiceLogs(t *testing.T) {
 	config.Global.Engine.ExecutionMode = "review"
 	defer func() { config.Global.Engine.ExecutionMode = previousMode }()
 
-	pipeline := engine.NewPipeline(&stubProvider{response: `{"reply":"tick","action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"世界推进","world_events":[],"proposed_actions":[]},"future_outline":"next"}`})
+	pipeline := engine.NewPipeline(&stubProvider{response: `{"reply":"地下52米处存在运行近3000年的非人类量子谐振腔。","action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"世界推进","world_events":[],"proposed_actions":[]},"future_outline":"next"}`})
 	tick, resp, autonomousRuns, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", nil)
 	if err != nil {
 		t.Fatalf("advance world tick: %v", err)
@@ -69,6 +70,9 @@ func TestAdvanceWorldTickWithAutonomousPersistsServiceLogs(t *testing.T) {
 	}
 	if worldState == nil || worldState.Data == "" {
 		t.Fatal("expected persisted world_state component")
+	}
+	if !strings.Contains(worldState.Data, "地下52米") {
+		t.Fatalf("expected canonical fact retained in world_state, got %s", worldState.Data)
 	}
 	storyState, err := GetStateComponent(worldID, engine.CompStoryState)
 	if err != nil {

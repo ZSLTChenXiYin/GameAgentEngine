@@ -2,11 +2,12 @@ package engine
 
 // WorldStateComponent 保存当前世界的可继承状态快照。
 type WorldStateComponent struct {
-	Summary       string         `json:"summary,omitempty"`
-	KeyFacts      []string       `json:"key_facts,omitempty"`
-	OpenQuestions []string       `json:"open_questions,omitempty"`
-	ActiveArcs    []string       `json:"active_arcs,omitempty"`
-	Metadata      map[string]any `json:"metadata,omitempty"`
+	Summary        string         `json:"summary,omitempty"`
+	KeyFacts       []string       `json:"key_facts,omitempty"`
+	CanonicalFacts []string       `json:"canonical_facts,omitempty"`
+	OpenQuestions  []string       `json:"open_questions,omitempty"`
+	ActiveArcs     []string       `json:"active_arcs,omitempty"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
 // StoryStateComponent 保存当前剧情上下文与悬而未决的线索。

@@ -388,6 +388,9 @@ func TestExecuteWorldTickIncludesPersistentContinuityState(t *testing.T) {
 	if !strings.Contains(provider.lastPrompt, "保持地点和关键设施连续") {
 		t.Fatalf("expected tick policy in prompt, got %s", provider.lastPrompt)
 	}
+	if !strings.Contains(provider.lastPrompt, "不要无故重置") {
+		t.Fatalf("expected continuity guard in prompt, got %s", provider.lastPrompt)
+	}
 }
 
 func TestExecuteFallsBackToDefaultSettingsWhenStoredValuesAreInvalid(t *testing.T) {

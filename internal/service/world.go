@@ -139,10 +139,12 @@ func buildWorldTickTimelineData(resp *engine.InvokeResponse) (string, error) {
 
 func persistWorldTickStateComponentsTx(tx *gorm.DB, worldID string, tick *store.TimelineModel, resp *engine.InvokeResponse) error {
 	recentFacts := collectWorldTickFacts(resp)
+	canonicalFacts := collectCanonicalWorldFacts(resp)
 	if _, err := upsertStateComponentTx(tx, worldID, engine.CompWorldState, engine.WorldStateComponent{
-		Summary:    worldPlanSummary(resp),
-		KeyFacts:   recentFacts,
-		ActiveArcs: collectPlanEventDescriptions(resp),
+		Summary:        worldPlanSummary(resp),
+		KeyFacts:       recentFacts,
+		CanonicalFacts: canonicalFacts,
+		ActiveArcs:     collectPlanEventDescriptions(resp),
 		Metadata: map[string]any{
 			"tick_number":    tick.TickNumber,
 			"tick_type":      tick.TickType,
@@ -154,7 +156,7 @@ func persistWorldTickStateComponentsTx(tx *gorm.DB, worldID string, tick *store.
 	}
 	if _, err := upsertStateComponentTx(tx, worldID, engine.CompStoryState, engine.StoryStateComponent{
 		CurrentSituation: truncateWorldTickText(resp.Reply, 1200),
-		RecentChanges:    recentFacts,
+		RecentChanges:    append([]string{}, canonicalFacts...),
 		PendingThreads:   collectPendingThreads(resp),
 		Metadata: map[string]any{
 			"tick_number": tick.TickNumber,
@@ -174,7 +176,7 @@ func persistWorldTickStateComponentsTx(tx *gorm.DB, worldID string, tick *store.
 	history.Entries = append([]engine.StoryHistoryEntry{{
 		TickNumber: tick.TickNumber,
 		Summary:    worldPlanSummary(resp),
-		Facts:      recentFacts,
+		Facts:      append([]string{}, canonicalFacts...),
 		GameTime:   tick.GameTime,
 	}}, history.Entries...)
 	if len(history.Entries) > 12 {
@@ -227,6 +229,55 @@ func collectWorldTickFacts(resp *engine.InvokeResponse) []string {
 		}
 	}
 	return facts
+}
+
+func collectCanonicalWorldFacts(resp *engine.InvokeResponse) []string {
+	set := map[string]bool{}
+	var facts []string
+	add := func(value string) {
+		value = normalizeCanonicalFact(value)
+		if value == "" || set[value] {
+			return
+		}
+		set[value] = true
+		facts = append(facts, value)
+	}
+	for _, line := range strings.Split(resp.Reply, "\n") {
+		add(line)
+	}
+	for _, mem := range resp.MemoryUpdates {
+		add(mem.Content)
+	}
+	if resp.WorldChangePlan != nil {
+		for _, evt := range resp.WorldChangePlan.WorldEvents {
+			add(evt.Description)
+		}
+	}
+	if len(facts) > 10 {
+		facts = facts[:10]
+	}
+	return facts
+}
+
+func normalizeCanonicalFact(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	value = strings.Trim(value, `"'`)
+	value = strings.ReplaceAll(value, "  ", " ")
+	interesting := []string{"地下", "米", "量子", "谐振", "裂隙", "财团", "叛军", "林博士", "Dar-shade", "达尔谢德", "轨道", "实验室", "He-3", "精炼厂"}
+	keep := false
+	for _, token := range interesting {
+		if strings.Contains(value, token) {
+			keep = true
+			break
+		}
+	}
+	if !keep && len([]rune(value)) < 18 {
+		return ""
+	}
+	return truncateWorldTickText(value, 180)
 }
 
 func collectPlanEventDescriptions(resp *engine.InvokeResponse) []string {

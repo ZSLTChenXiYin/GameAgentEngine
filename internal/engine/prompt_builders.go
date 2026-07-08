@@ -44,6 +44,7 @@ func buildWorldTickPrompt(systemContext string, outline string, continuityBlocks
 	if len(continuityBlocks) > 0 {
 		sb.WriteString("\n\n必须延续的世界状态与剧情状态：\n")
 		sb.WriteString(strings.Join(continuityBlocks, "\n"))
+		sb.WriteString("\n这些事实默认仍然成立，除非当前 tick 明确给出新的因果变化；不要无故重置、遗忘或改写其中的关键地点、设施、人物关系和数值趋势。")
 	}
 	if len(recentTimeline) > 0 {
 		sb.WriteString("\n\n最近时间线记录：\n")
