@@ -81,6 +81,13 @@ func TestAdvanceWorldTickWithAutonomousPersistsServiceLogs(t *testing.T) {
 	if storyState == nil || storyState.Data == "" {
 		t.Fatal("expected persisted story_state component")
 	}
+	worldTimeState, err := GetStateComponent(worldID, engine.CompWorldTimeState)
+	if err != nil {
+		t.Fatalf("get world time state: %v", err)
+	}
+	if worldTimeState == nil || !strings.Contains(worldTimeState.Data, "day-1") {
+		t.Fatalf("expected persisted world_time_state component, got %#v", worldTimeState)
+	}
 
 	logs, err := store.GetInferenceLogs(worldID, 50, 0, string(engine.TaskWorldTick))
 	if err != nil {

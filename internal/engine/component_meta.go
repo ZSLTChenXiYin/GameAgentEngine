@@ -100,6 +100,12 @@ var componentMetaRegistry = map[ComponentType]ComponentMeta{
 		DataFormat:     "json_object",
 		HelpText:       "Structured tick policy and continuity constraints. Optional fields must keep their expected string-array / object shapes.",
 	},
+	CompWorldTimeState: {
+		Type:           CompWorldTimeState,
+		ValidationMode: ComponentValidationStrong,
+		DataFormat:     "json_object",
+		HelpText:       "Structured current world time state for engine-managed tick progression.",
+	},
 	CompStateSnapshot: {
 		Type:           CompStateSnapshot,
 		ValidationMode: ComponentValidationWeak,
@@ -114,7 +120,7 @@ func ComponentMetaFor(componentType ComponentType) (ComponentMeta, bool) {
 }
 
 func ComponentMetaList() []ComponentMeta {
-	ordered := []ComponentType{CompProfile, CompRule, CompTimeline, CompActionPolicy, CompRelations, CompPromptProfile, CompLore, CompAutonomous, CompWorldState, CompStoryState, CompStoryHistory, CompTickPolicy, CompStateSnapshot}
+	ordered := []ComponentType{CompProfile, CompRule, CompTimeline, CompActionPolicy, CompRelations, CompPromptProfile, CompLore, CompAutonomous, CompWorldState, CompStoryState, CompStoryHistory, CompTickPolicy, CompWorldTimeState, CompStateSnapshot}
 	items := make([]ComponentMeta, 0, len(ordered))
 	for _, componentType := range ordered {
 		if meta, ok := componentMetaRegistry[componentType]; ok {

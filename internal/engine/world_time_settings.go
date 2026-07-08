@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -170,4 +171,28 @@ func ValidateWorldTimeSettings(settings *WorldTimeSettings) error {
 		return fmt.Errorf("time_calendar smallest unit must match tick_min_unit")
 	}
 	return nil
+}
+
+// DecodeWorldTimeSettings parses stored world time settings JSON.
+func DecodeWorldTimeSettings(raw string) (*WorldTimeSettings, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var settings WorldTimeSettings
+	if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+		return nil, err
+	}
+	return &settings, nil
+}
+
+// EncodeWorldTimeSettings serializes one world time settings payload.
+func EncodeWorldTimeSettings(settings *WorldTimeSettings) (string, error) {
+	if settings == nil {
+		return "", nil
+	}
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }

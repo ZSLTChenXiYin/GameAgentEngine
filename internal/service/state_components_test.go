@@ -64,7 +64,7 @@ func TestUpsertStateComponentCreatesAndUpdatesStructuredComponents(t *testing.T)
 	if loaded.ComponentType != string(engine.CompWorldState) {
 		t.Fatalf("unexpected component type: %s", loaded.ComponentType)
 	}
-	if len(engine.ValidComponentTypes()) < 14 {
+	if len(engine.ValidComponentTypes()) < 15 {
 		t.Fatalf("expected new component types registered, got %#v", engine.ValidComponentTypes())
 	}
 }

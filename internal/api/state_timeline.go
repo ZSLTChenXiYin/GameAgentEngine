@@ -11,6 +11,14 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
+func stateComponentTypeErrorMessage() string {
+	items := make([]string, 0, len(engine.StateComponentTypes()))
+	for _, item := range engine.StateComponentTypes() {
+		items = append(items, string(item))
+	}
+	return "component_type must be one of: " + strings.Join(items, ", ")
+}
+
 type stateComponentEnvelope struct {
 	ComponentType string                `json:"component_type"`
 	Component     *store.ComponentModel `json:"component,omitempty"`
@@ -80,7 +88,7 @@ func GetStateComponentHandler(w http.ResponseWriter, r *http.Request) {
 	worldID := r.PathValue("world_id")
 	componentType := r.PathValue("component_type")
 	if !engine.IsStateComponentType(componentType) {
-		errorJSONCode(w, http.StatusBadRequest, "invalid_component_type", "component_type must be one of: world_state, story_state, story_history, tick_policy, state_snapshot")
+		errorJSONCode(w, http.StatusBadRequest, "invalid_component_type", stateComponentTypeErrorMessage())
 		return
 	}
 	component, err := service.GetStateComponent(worldID, engine.ComponentType(componentType))
@@ -96,7 +104,7 @@ func PutStateComponentHandler(w http.ResponseWriter, r *http.Request) {
 	worldID := r.PathValue("world_id")
 	componentType := r.PathValue("component_type")
 	if !engine.IsStateComponentType(componentType) {
-		errorJSONCode(w, http.StatusBadRequest, "invalid_component_type", "component_type must be one of: world_state, story_state, story_history, tick_policy, state_snapshot")
+		errorJSONCode(w, http.StatusBadRequest, "invalid_component_type", stateComponentTypeErrorMessage())
 		return
 	}
 	var payload any

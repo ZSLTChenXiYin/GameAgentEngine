@@ -40,6 +40,8 @@ func ValidateComponentData(componentType, data string) error {
 			return validateStoryHistoryComponentData(trimmed)
 		case engine.CompTickPolicy:
 			return validateTickPolicyComponentData(trimmed)
+		case engine.CompWorldTimeState:
+			return validateWorldTimeStateComponentData(trimmed)
 		}
 	}
 
@@ -116,6 +118,14 @@ func validateTickPolicyComponentData(data string) error {
 	var payload engine.TickPolicyComponent
 	if err := json.Unmarshal([]byte(data), &payload); err != nil {
 		return codedErrorf(ErrorInvalidComponentData, "component_data_invalid_json", "tick_policy component data must be valid structured JSON: %v", err)
+	}
+	return nil
+}
+
+func validateWorldTimeStateComponentData(data string) error {
+	var payload engine.WorldTimeStateComponent
+	if err := json.Unmarshal([]byte(data), &payload); err != nil {
+		return codedErrorf(ErrorInvalidComponentData, "component_data_invalid_json", "world_time_state component data must be valid structured JSON: %v", err)
 	}
 	return nil
 }

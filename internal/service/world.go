@@ -141,6 +141,10 @@ func buildWorldTickTimelineData(resp *engine.InvokeResponse) (string, error) {
 func persistWorldTickStateComponentsTx(tx *gorm.DB, worldID string, tick *store.TimelineModel, resp *engine.InvokeResponse) error {
 	recentFacts := collectWorldTickFacts(resp)
 	canonicalFacts := collectCanonicalWorldFacts(resp)
+	worldTimeState, err := buildWorldTimeStateComponentTx(tx, worldID, tick)
+	if err != nil {
+		return err
+	}
 	if _, err := upsertStateComponentTx(tx, worldID, engine.CompWorldState, engine.WorldStateComponent{
 		Summary:        worldPlanSummary(resp),
 		KeyFacts:       recentFacts,
@@ -186,6 +190,9 @@ func persistWorldTickStateComponentsTx(tx *gorm.DB, worldID string, tick *store.
 	if _, err := upsertStateComponentTx(tx, worldID, engine.CompStoryHistory, history); err != nil {
 		return err
 	}
+	if _, err := upsertStateComponentTx(tx, worldID, engine.CompWorldTimeState, worldTimeState); err != nil {
+		return err
+	}
 	if _, err := upsertStateComponentTx(tx, worldID, engine.CompStateSnapshot, engine.StateSnapshotComponent{
 		SnapshotType: "world_tick",
 		Version:      "v1",
@@ -200,6 +207,38 @@ func persistWorldTickStateComponentsTx(tx *gorm.DB, worldID string, tick *store.
 		return err
 	}
 	return nil
+}
+
+func buildWorldTimeStateComponentTx(tx *gorm.DB, worldID string, tick *store.TimelineModel) (engine.WorldTimeStateComponent, error) {
+	state := engine.WorldTimeStateComponent{
+		CurrentTimeLabel:  tick.GameTime,
+		TotalTicks:        tick.TickNumber,
+		LastTickNumber:    tick.TickNumber,
+		LastTickType:      tick.TickType,
+		LastAdvancedTicks: 1,
+		Metadata: map[string]any{
+			"tick_number": tick.TickNumber,
+			"tick_type":   tick.TickType,
+			"game_time":   tick.GameTime,
+		},
+	}
+	settings, err := store.GetWorldSettingsTx(tx, worldID)
+	if err != nil || settings == nil {
+		return state, nil
+	}
+	worldTimeSettings, err := engine.DecodeWorldTimeSettings(settings.WorldTimeSettingsJSON)
+	if err != nil || worldTimeSettings == nil {
+		return state, err
+	}
+	state.TickScaleMode = worldTimeSettings.TickScaleMode
+	state.TickMinUnit = worldTimeSettings.TickMinUnit
+	state.TickStep = worldTimeSettings.TickStep
+	state.TickUnits = append([]string{}, worldTimeSettings.TickUnits...)
+	if worldTimeSettings.TimeCalendar != nil {
+		state.CalendarName = worldTimeSettings.TimeCalendar.CalendarName
+		state.CurrentUnits = append([]engine.WorldTimeCalendarUnit{}, worldTimeSettings.TimeCalendar.Units...)
+	}
+	return state, nil
 }
 
 func collectWorldTickFacts(resp *engine.InvokeResponse) []string {

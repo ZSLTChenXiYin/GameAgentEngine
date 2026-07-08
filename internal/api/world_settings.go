@@ -4,32 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
 func parseWorldTimeSettings(raw string) (*engine.WorldTimeSettings, error) {
-	if strings.TrimSpace(raw) == "" {
-		return nil, nil
-	}
-	var settings engine.WorldTimeSettings
-	if err := json.Unmarshal([]byte(raw), &settings); err != nil {
-		return nil, err
-	}
-	return &settings, nil
+	return engine.DecodeWorldTimeSettings(raw)
 }
 
 func encodeWorldTimeSettings(settings *engine.WorldTimeSettings) (string, error) {
-	if settings == nil {
-		return "", nil
-	}
-	data, err := json.Marshal(settings)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
+	return engine.EncodeWorldTimeSettings(settings)
 }
 
 func writeWorldSettingsResponse(w http.ResponseWriter, settings *store.WorldSettingsModel) {
