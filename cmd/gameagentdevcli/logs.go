@@ -71,6 +71,25 @@ func formatInferenceLogTime(value string) string {
 func summarizeInferenceLog(log sdk.InferenceLog) []string {
 	lines := []string{fmt.Sprintf("[%s] %s %dms %d tokens", formatInferenceLogTime(log.CreatedAt), log.TaskType, log.DurationMs, log.TokensUsed)}
 	lines = append(lines, fmt.Sprintf("  world=%s node=%s model=%s", shortID(log.WorldID), shortID(log.NodeID), log.LLMModel))
+	if log.Category != "" || log.EventName != "" || log.LogLevel != "" {
+		parts := make([]string, 0, 4)
+		if log.Category != "" {
+			parts = append(parts, "category="+log.Category)
+		}
+		if log.EventName != "" {
+			parts = append(parts, "event="+log.EventName)
+		}
+		if log.LogLevel != "" {
+			parts = append(parts, "level="+log.LogLevel)
+		}
+		if log.ExecutionMode != "" {
+			parts = append(parts, "mode="+log.ExecutionMode)
+		}
+		lines = append(lines, "  "+strings.Join(parts, " "))
+	}
+	if log.Message != "" {
+		lines = append(lines, "  message="+log.Message)
+	}
 
 	request := parseInferenceLogRequestData(log.RequestData)
 	if request != nil {

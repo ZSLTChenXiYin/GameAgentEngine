@@ -233,6 +233,52 @@ func TestExecuteDebugTraceIncludesPipelineObservability(t *testing.T) {
 	}
 }
 
+func TestExecutePersistsStructuredPipelineLogs(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp == nil || resp.Metadata == nil {
+		t.Fatal("expected response metadata")
+	}
+
+	logs, err := store.GetInferenceLogs(worldID, 10, 0, string(TaskCustom))
+	if err != nil {
+		t.Fatalf("get logs: %v", err)
+	}
+	if len(logs) < 3 {
+		t.Fatalf("expected at least 3 pipeline logs, got %d", len(logs))
+	}
+	seen := map[string]store.InferenceLogModel{}
+	for _, item := range logs {
+		seen[item.EventName] = item
+	}
+	if _, ok := seen["request_started"]; !ok {
+		t.Fatalf("expected request_started log, got %#v", seen)
+	}
+	if _, ok := seen["context_built"]; !ok {
+		t.Fatalf("expected context_built log, got %#v", seen)
+	}
+	completed, ok := seen["response_completed"]
+	if !ok {
+		t.Fatalf("expected response_completed log, got %#v", seen)
+	}
+	if completed.Category != "pipeline" {
+		t.Fatalf("expected pipeline category, got %q", completed.Category)
+	}
+	if completed.ExecutionMode != string(ModeProduction) {
+		t.Fatalf("expected production execution mode, got %q", completed.ExecutionMode)
+	}
+	if completed.ResponseData == "" {
+		t.Fatal("expected response data in completed log")
+	}
+}
+
 func TestExecuteFallsBackToDefaultSettingsWhenStoredValuesAreInvalid(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)

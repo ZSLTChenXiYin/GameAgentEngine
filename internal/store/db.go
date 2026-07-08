@@ -64,7 +64,66 @@ func Init(driver, dsn string) error {
 	); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
+	if err := migrateInferenceLogsToLogs(DB); err != nil {
+		return fmt.Errorf("migrate logs: %w", err)
+	}
 	return nil
+}
+
+func migrateInferenceLogsToLogs(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	if !db.Migrator().HasTable("inference_logs") || !db.Migrator().HasTable("logs") {
+		return nil
+	}
+	var count int64
+	if err := db.Table("logs").Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	type legacyInferenceLogRow struct {
+		ID           int64
+		UUID         string
+		WorldID      int64
+		TaskType     string
+		NodeID       *int64
+		RequestData  string
+		ResponseData string
+		LLMModel     string
+		TokensUsed   int
+		DurationMs   int64
+		CreatedAt    time.Time
+	}
+	var legacy []legacyInferenceLogRow
+	if err := db.Table("inference_logs").Find(&legacy).Error; err != nil {
+		return err
+	}
+	if len(legacy) == 0 {
+		return nil
+	}
+	rows := make([]InferenceLogModel, 0, len(legacy))
+	for _, item := range legacy {
+		rows = append(rows, InferenceLogModel{
+			ID:           item.ID,
+			UUID:         item.UUID,
+			WorldID:      item.WorldID,
+			TaskType:     item.TaskType,
+			NodeID:       item.NodeID,
+			Category:     "pipeline",
+			EventName:    "legacy_inference",
+			LogLevel:     "info",
+			RequestData:  item.RequestData,
+			ResponseData: item.ResponseData,
+			LLMModel:     item.LLMModel,
+			TokensUsed:   item.TokensUsed,
+			DurationMs:   item.DurationMs,
+			CreatedAt:    item.CreatedAt,
+		})
+	}
+	return db.Table("logs").Create(&rows).Error
 }
 
 // NewUUID 生成统一使用的 UUID 字符串标识。

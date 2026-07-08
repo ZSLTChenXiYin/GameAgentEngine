@@ -196,16 +196,26 @@ type ResponseMeta struct {
 
 // InferenceLog 表示一次推理调用的服务端日志记录。
 type InferenceLog struct {
-	ID           string `json:"id"`
-	WorldID      string `json:"world_id"`
-	TaskType     string `json:"task_type"`
-	NodeID       string `json:"node_id"`
-	RequestData  string `json:"request_data,omitempty"`
-	ResponseData string `json:"response_data,omitempty"`
-	LLMModel     string `json:"llm_model"`
-	TokensUsed   int    `json:"tokens_used"`
-	DurationMs   int64  `json:"duration_ms"`
-	CreatedAt    string `json:"created_at"`
+	ID                     string `json:"id"`
+	WorldID                string `json:"world_id"`
+	TaskType               string `json:"task_type"`
+	NodeID                 string `json:"node_id"`
+	Category               string `json:"category,omitempty"`
+	EventName              string `json:"event_name,omitempty"`
+	LogLevel               string `json:"log_level,omitempty"`
+	Message                string `json:"message,omitempty"`
+	RequestID              string `json:"request_id,omitempty"`
+	ExecutionMode          string `json:"execution_mode,omitempty"`
+	ConfiguredPipelineMode string `json:"configured_pipeline_mode,omitempty"`
+	EffectivePipelineMode  string `json:"effective_pipeline_mode,omitempty"`
+	Round                  int    `json:"round,omitempty"`
+	RequestData            string `json:"request_data,omitempty"`
+	ResponseData           string `json:"response_data,omitempty"`
+	DetailData             string `json:"detail_data,omitempty"`
+	LLMModel               string `json:"llm_model"`
+	TokensUsed             int    `json:"tokens_used"`
+	DurationMs             int64  `json:"duration_ms"`
+	CreatedAt              string `json:"created_at"`
 }
 
 // DebugTrace 表示一条引擎调试轨迹。

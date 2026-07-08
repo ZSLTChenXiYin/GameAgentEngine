@@ -299,6 +299,15 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 	start := time.Now()
 	requestID := uuid.NewString()
 	executionMode := p.getExecutionMode()
+	p.emitLog(req, nil, nil, executionMode, pipelineLogEvent{
+		Category:  "pipeline",
+		EventName: "request_started",
+		Message:   fmt.Sprintf("start task %s", req.TaskType),
+		DetailData: marshalLogDetail(map[string]any{
+			"request_id": requestID,
+			"request":    req,
+		}),
+	})
 
 	depth := 3
 	if req.Context != nil && req.Context.MaxDepth > 0 {
@@ -338,8 +347,22 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 
 	ctx, err := p.ctxBuilder.Build(req.NodeID, depth, runtime.memoryLimit, includeRelated)
 	if err != nil {
+		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+			Category:   "pipeline",
+			EventName:  "context_build_failed",
+			LogLevel:   "error",
+			Message:    err.Error(),
+			DurationMs: time.Since(start).Milliseconds(),
+		})
 		return nil, fmt.Errorf("build context: %w", err)
 	}
+	p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+		Category:   "pipeline",
+		EventName:  "context_built",
+		Message:    "context ready",
+		DurationMs: time.Since(start).Milliseconds(),
+		DetailData: buildContextLogDetail(ctx, start),
+	})
 
 	switch runtime.pipelineMode {
 	case PipelineVertical:
@@ -577,15 +600,29 @@ func appendResponseLog(resp *InvokeResponse, req *InvokeRequest) {
 	if resp == nil || resp.Metadata == nil {
 		return
 	}
-	store.CreateInferenceLog(&store.InferenceLogModel{
-		WorldUUID:    req.WorldID,
-		TaskType:     string(req.TaskType),
-		NodeUUID:     req.NodeID,
+	runtime := &executionConfig{
+		configuredPipelineMode: PipelineMode(resp.Metadata.ConfiguredPipelineMode),
+		pipelineMode:           PipelineMode(resp.Metadata.EffectivePipelineMode),
+		maxRounds:              resp.Metadata.MaxAnalysisRounds,
+	}
+	mode := resp.ExecutionMode
+	if mode == "" {
+		mode = ModeProduction
+	}
+	logger := &Pipeline{}
+	logger.emitLog(req, resp, runtime, mode, pipelineLogEvent{
+		Category:     "pipeline",
+		EventName:    "response_completed",
+		Message:      resp.Reply,
+		Round:        resp.Metadata.RoundsUsed,
 		RequestData:  buildInferenceLogRequestData(req),
 		ResponseData: buildInferenceLogResponseData(resp),
-		LLMModel:     resp.Metadata.LLMModel,
-		TokensUsed:   resp.Metadata.TokensUsed,
-		DurationMs:   resp.Metadata.ProcessingTimeMs,
+		DetailData: marshalLogDetail(map[string]any{
+			"request":  req,
+			"response": resp,
+		}),
+		DurationMs: resp.Metadata.ProcessingTimeMs,
+		TokensUsed: resp.Metadata.TokensUsed,
 	})
 }
 

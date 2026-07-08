@@ -29,7 +29,9 @@ func GetLatestTick(worldUUID string) (*TimelineModel, error) {
 	var m TimelineModel
 	err := DB.Where("world_id = ?", worldID).Order("tick_number DESC").First(&m).Error
 	if err == nil {
-		l2 := []TimelineModel{m}; resolveTimelineWorldUUIDs(l2); m.WorldUUID = l2[0].WorldUUID
+		l2 := []TimelineModel{m}
+		resolveTimelineWorldUUIDs(l2)
+		m.WorldUUID = l2[0].WorldUUID
 	}
 	return &m, err
 }
@@ -38,6 +40,14 @@ func GetLatestTick(worldUUID string) (*TimelineModel, error) {
 func CreateInferenceLog(m *InferenceLogModel) error {
 	if m.UUID == "" {
 		m.UUID = NewUUID()
+	}
+	if m.WorldID == 0 && m.WorldUUID != "" {
+		m.WorldID = ResolveWorldUUID(m.WorldUUID)
+	}
+	if m.NodeID == nil && m.NodeUUID != "" {
+		if nodeID := ResolveNodeUUID(m.NodeUUID); nodeID != 0 {
+			m.NodeID = &nodeID
+		}
 	}
 	return DB.Create(m).Error
 }
@@ -67,4 +77,3 @@ func GetInferenceLogs(worldUUID string, limit, offset int, taskType string) ([]I
 	}
 	return list, err
 }
-

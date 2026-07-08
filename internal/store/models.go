@@ -86,24 +86,34 @@ type TimelineModel struct {
 
 func (TimelineModel) TableName() string { return "timelines" }
 
-// InferenceLogModel 是推理调用日志的持久化结构。
+// InferenceLogModel 是统一运行日志的持久化结构。
 type InferenceLogModel struct {
-	ID           int64     `gorm:"primaryKey;autoIncrement" json:"-"`
-	UUID         string    `gorm:"uniqueIndex;size:36;not null" json:"id"`
-	WorldID      int64     `gorm:"index;not null" json:"-"`
-	WorldUUID    string    `gorm:"-" json:"world_id"`
-	TaskType     string    `gorm:"size:50;not null" json:"task_type"`
-	NodeID       *int64    `gorm:"index" json:"-"`
-	NodeUUID     string    `gorm:"-" json:"node_id,omitempty"`
-	RequestData  string    `gorm:"type:text" json:"request_data,omitempty"`
-	ResponseData string    `gorm:"type:text" json:"response_data,omitempty"`
-	LLMModel     string    `gorm:"size:100" json:"llm_model"`
-	TokensUsed   int       `gorm:"default:0" json:"tokens_used"`
-	DurationMs   int64     `gorm:"default:0" json:"duration_ms"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID                     int64     `gorm:"primaryKey;autoIncrement" json:"-"`
+	UUID                   string    `gorm:"uniqueIndex;size:36;not null" json:"id"`
+	WorldID                int64     `gorm:"index;not null" json:"-"`
+	WorldUUID              string    `gorm:"-" json:"world_id"`
+	TaskType               string    `gorm:"size:50;not null;index" json:"task_type"`
+	NodeID                 *int64    `gorm:"index" json:"-"`
+	NodeUUID               string    `gorm:"-" json:"node_id,omitempty"`
+	Category               string    `gorm:"size:50;index" json:"category,omitempty"`
+	EventName              string    `gorm:"size:100;index" json:"event_name,omitempty"`
+	LogLevel               string    `gorm:"size:20;index" json:"log_level,omitempty"`
+	Message                string    `gorm:"type:text" json:"message,omitempty"`
+	RequestID              string    `gorm:"size:36;index" json:"request_id,omitempty"`
+	ExecutionMode          string    `gorm:"size:20;index" json:"execution_mode,omitempty"`
+	ConfiguredPipelineMode string    `gorm:"size:20" json:"configured_pipeline_mode,omitempty"`
+	EffectivePipelineMode  string    `gorm:"size:20" json:"effective_pipeline_mode,omitempty"`
+	Round                  int       `gorm:"default:0" json:"round,omitempty"`
+	RequestData            string    `gorm:"type:text" json:"request_data,omitempty"`
+	ResponseData           string    `gorm:"type:text" json:"response_data,omitempty"`
+	DetailData             string    `gorm:"type:text" json:"detail_data,omitempty"`
+	LLMModel               string    `gorm:"size:100" json:"llm_model"`
+	TokensUsed             int       `gorm:"default:0" json:"tokens_used"`
+	DurationMs             int64     `gorm:"default:0" json:"duration_ms"`
+	CreatedAt              time.Time `json:"created_at"`
 }
 
-func (InferenceLogModel) TableName() string { return "inference_logs" }
+func (InferenceLogModel) TableName() string { return "logs" }
 
 // IdempotencyKeyModel 存储幂等操作的已缓存结果。
 type IdempotencyKeyModel struct {
