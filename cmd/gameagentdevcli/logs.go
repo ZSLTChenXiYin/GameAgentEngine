@@ -237,7 +237,7 @@ func init() {
 	logsCmd.Flags().Int("offset", 0, "偏移量")
 	logsCmd.Flags().String("task-type", "", "按任务类型过滤（如 npc_dialogue, world_tick）")
 	logsCmd.Flags().String("category", "", "按日志分类过滤（如 pipeline, engine_execution）")
-	logsCmd.Flags().String("event", "", "按事件名过滤（如 raw_llm_response_received）")
+	logsCmd.Flags().String("event", "", "按事件名过滤（如 llm_response_received）")
 	logsCmd.Flags().String("mode", "", "按执行模式过滤（debug, review, production）")
 	logsCmd.Flags().String("request-id", "", "按请求 ID 过滤日志")
 	logsCmd.Flags().Int("round", 0, "按推理轮次过滤日志")
