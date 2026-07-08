@@ -79,7 +79,7 @@ func TestAdvanceWorldTickWithAutonomousPersistsServiceLogs(t *testing.T) {
 	defer func() { config.Global.Engine.ExecutionMode = previousMode }()
 
 	pipeline := engine.NewPipeline(&stubProvider{response: `{"reply":"地下52米处存在运行近3000年的非人类量子谐振腔。","action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"世界推进","world_events":[],"proposed_actions":[]},"future_outline":"next"}`})
-	tick, resp, autonomousRuns, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", nil, nil)
+	tick, resp, worldTimeStateState, autonomousRuns, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", nil, nil)
 	if err != nil {
 		t.Fatalf("advance world tick: %v", err)
 	}
@@ -115,6 +115,9 @@ func TestAdvanceWorldTickWithAutonomousPersistsServiceLogs(t *testing.T) {
 	}
 	if worldTimeState == nil || !strings.Contains(worldTimeState.Data, "day-1") {
 		t.Fatalf("expected persisted world_time_state component, got %#v", worldTimeState)
+	}
+	if worldTimeStateState == nil || worldTimeStateState.CurrentTimeLabel == "" {
+		t.Fatalf("expected returned world time state, got %#v", worldTimeStateState)
 	}
 
 	logs, err := store.GetInferenceLogs(worldID, 50, 0, string(engine.TaskWorldTick))
@@ -155,7 +158,7 @@ func TestAdvanceWorldTickWithAutonomousRejectsRequestedTicksForFixedScale(t *tes
 	pipeline := engine.NewPipeline(&stubProvider{response: `{"reply":"世界推进","action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"世界推进","world_events":[],"proposed_actions":[]},"future_outline":"next"}`})
 	requestedTicks := 2
 
-	_, _, _, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", &requestedTicks, nil)
+	_, _, _, _, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", &requestedTicks, nil)
 	if err == nil {
 		t.Fatal("expected fixed scale mode to reject requested_ticks=2")
 	}
@@ -184,7 +187,7 @@ func TestAdvanceWorldTickWithAutonomousPersistsFlexibleRequestedTicks(t *testing
 	pipeline := engine.NewPipeline(&stubProvider{response: `{"reply":"世界推进","action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"世界推进","world_events":[],"proposed_actions":[]},"future_outline":"next"}`})
 	requestedTicks := 3
 
-	tick, _, _, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", &requestedTicks, nil)
+	tick, _, _, _, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", &requestedTicks, nil)
 	if err != nil {
 		t.Fatalf("advance world tick: %v", err)
 	}
@@ -220,7 +223,7 @@ func TestAdvanceWorldTickWithAutonomousUsesModelAdvancedTicksForFlexibleScale(t 
 	pipeline := engine.NewPipeline(&stubProvider{response: `{"reply":"世界推进","advanced_ticks":4,"action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"世界推进","world_events":[],"proposed_actions":[]},"future_outline":"next"}`})
 	requestedTicks := 2
 
-	_, resp, _, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", &requestedTicks, nil)
+	_, resp, _, _, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", &requestedTicks, nil)
 	if err != nil {
 		t.Fatalf("advance world tick: %v", err)
 	}

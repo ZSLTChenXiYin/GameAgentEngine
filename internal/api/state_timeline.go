@@ -29,6 +29,7 @@ type timelineEnvelope struct {
 	TickNumber    int    `json:"tick_number"`
 	TickType      string `json:"tick_type"`
 	GameTime      string `json:"game_time,omitempty"`
+	AdvancedTicks int    `json:"advanced_ticks,omitempty"`
 	Summary       string `json:"summary,omitempty"`
 	FutureOutline string `json:"future_outline,omitempty"`
 	Timeline      any    `json:"timeline"`
@@ -57,14 +58,35 @@ func writeStateComponentEnvelope(componentType engine.ComponentType, component *
 }
 
 func writeTimelineEnvelope(item store.TimelineModel) timelineEnvelope {
+	data := decodeComponentJSON(item.Data)
 	return timelineEnvelope{
 		TickNumber:    item.TickNumber,
 		TickType:      item.TickType,
 		GameTime:      item.GameTime,
+		AdvancedTicks: extractAdvancedTicks(data),
 		Summary:       item.Summary,
 		FutureOutline: item.FutureOutline,
 		Timeline:      item,
-		Data:          decodeComponentJSON(item.Data),
+		Data:          data,
+	}
+}
+
+func extractAdvancedTicks(data any) int {
+	object, ok := data.(map[string]any)
+	if !ok {
+		return 0
+	}
+	value, ok := object["advanced_ticks"]
+	if !ok {
+		return 0
+	}
+	switch typed := value.(type) {
+	case float64:
+		return int(typed)
+	case int:
+		return typed
+	default:
+		return 0
 	}
 }
 

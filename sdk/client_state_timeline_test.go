@@ -16,7 +16,7 @@ func TestGetStateComponentsUsesWorldStateEndpoint(t *testing.T) {
 			"world_id": "world-1",
 			"components": []map[string]any{{
 				"component_type": "world_state",
-				"data": map[string]any{"summary": "vault breach"},
+				"data":           map[string]any{"summary": "vault breach"},
 			}},
 		})
 	}))
@@ -54,7 +54,7 @@ func TestPutStateComponentSendsStructuredPayload(t *testing.T) {
 			"world_id": "world-1",
 			"state_component": map[string]any{
 				"component_type": "tick_policy",
-				"data": payload,
+				"data":           payload,
 			},
 		})
 	}))
@@ -92,10 +92,11 @@ func TestGetTimelinesUsesTimelinesEndpoint(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"world_id": "world-1",
 			"timelines": []map[string]any{{
-				"tick_number": 7,
-				"tick_type": "daily",
-				"data": map[string]any{"future_outline": "watch the ridge"},
-				"timeline": map[string]any{"id": "tick-7", "world_id": "world-1", "tick_number": 7, "tick_type": "daily", "created_at": "2026-01-01T00:00:00Z"},
+				"tick_number":    7,
+				"tick_type":      "daily",
+				"advanced_ticks": 3,
+				"data":           map[string]any{"future_outline": "watch the ridge", "advanced_ticks": 3},
+				"timeline":       map[string]any{"id": "tick-7", "world_id": "world-1", "tick_number": 7, "tick_type": "daily", "created_at": "2026-01-01T00:00:00Z"},
 			}},
 		})
 	}))
@@ -114,5 +115,8 @@ func TestGetTimelinesUsesTimelinesEndpoint(t *testing.T) {
 	}
 	if len(result.Timelines) != 1 || result.Timelines[0].TickNumber != 7 {
 		t.Fatalf("unexpected result: %#v", result)
+	}
+	if result.Timelines[0].AdvancedTicks != 3 {
+		t.Fatalf("expected advanced_ticks=3, got %#v", result.Timelines[0])
 	}
 }

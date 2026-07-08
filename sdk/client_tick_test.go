@@ -17,8 +17,10 @@ func TestAdvanceTickWithOptionsSendsRequestedTicks(t *testing.T) {
 			t.Fatalf("decode payload: %v", err)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"tick":   map[string]any{"id": "tick-1", "world_id": "world-1", "tick_number": 1, "tick_type": "manual", "game_time": "day-1", "created_at": "2026-01-01T00:00:00Z"},
-			"invoke": map[string]any{"reply": "ok"},
+			"tick":             map[string]any{"id": "tick-1", "world_id": "world-1", "tick_number": 1, "tick_type": "manual", "game_time": "day-1", "created_at": "2026-01-01T00:00:00Z"},
+			"invoke":           map[string]any{"reply": "ok", "advanced_ticks": 4},
+			"advanced_ticks":   4,
+			"world_time_state": map[string]any{"current_time_label": "太阴历 8年 7月 20日 卯时辰", "last_advanced_ticks": 4},
 		})
 	}))
 	defer ts.Close()
@@ -32,6 +34,9 @@ func TestAdvanceTickWithOptionsSendsRequestedTicks(t *testing.T) {
 	}
 	if result.Tick == nil || result.Tick.TickNumber != 1 {
 		t.Fatalf("unexpected result: %#v", result)
+	}
+	if result.AdvancedTicks != 4 || result.WorldTimeState == nil || result.WorldTimeState.LastAdvancedTicks != 4 {
+		t.Fatalf("unexpected world time result: %#v", result)
 	}
 	if payload["requested_ticks"] != float64(4) {
 		t.Fatalf("expected requested_ticks=4, got %#v", payload)

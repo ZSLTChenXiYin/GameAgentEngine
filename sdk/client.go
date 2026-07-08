@@ -602,6 +602,8 @@ type TickRequest struct {
 type TickResponse struct {
 	Tick           *Timeline             `json:"tick"`
 	Invoke         *InvokeResponse       `json:"invoke"`
+	AdvancedTicks  int                   `json:"advanced_ticks,omitempty"`
+	WorldTimeState *WorldTimeState       `json:"world_time_state,omitempty"`
 	AutonomousRuns []AutonomousRunResult `json:"autonomous_runs,omitempty"`
 }
 

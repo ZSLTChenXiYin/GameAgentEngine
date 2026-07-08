@@ -403,6 +403,22 @@ type WorldTimeUnitSequence struct {
 	Values []string `json:"values,omitempty"`
 }
 
+// WorldTimeState describes the persisted runtime world time state after one world tick.
+type WorldTimeState struct {
+	TickScaleMode     string                  `json:"tick_scale_mode,omitempty"`
+	TickMinUnit       string                  `json:"tick_min_unit,omitempty"`
+	TickStep          int                     `json:"tick_step,omitempty"`
+	TickUnits         []string                `json:"tick_units,omitempty"`
+	CalendarName      string                  `json:"calendar_name,omitempty"`
+	CurrentUnits      []WorldTimeCalendarUnit `json:"current_units,omitempty"`
+	CurrentTimeLabel  string                  `json:"current_time_label,omitempty"`
+	TotalTicks        int                     `json:"total_ticks,omitempty"`
+	LastTickNumber    int                     `json:"last_tick_number,omitempty"`
+	LastTickType      string                  `json:"last_tick_type,omitempty"`
+	LastAdvancedTicks int                     `json:"last_advanced_ticks,omitempty"`
+	Metadata          map[string]any          `json:"metadata,omitempty"`
+}
+
 // StateComponentEnvelope describes one engine-recognized continuity component.
 type StateComponentEnvelope struct {
 	ComponentType string     `json:"component_type"`
@@ -440,6 +456,7 @@ type TimelineEnvelope struct {
 	TickNumber    int          `json:"tick_number"`
 	TickType      string       `json:"tick_type"`
 	GameTime      string       `json:"game_time,omitempty"`
+	AdvancedTicks int          `json:"advanced_ticks,omitempty"`
 	Summary       string       `json:"summary,omitempty"`
 	FutureOutline string       `json:"future_outline,omitempty"`
 	Timeline      TimelineTick `json:"timeline"`

@@ -53,17 +53,17 @@ func marshalWorldServiceDetail(detail any, mode string) string {
 }
 
 // AdvanceWorldTickWithAutonomous 推进世界刻，并按请求级限制触发 world_tick_sync 自主节点。
-func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameTime string, requestedTicks *int, autonomousLimit *int) (*store.TimelineModel, *engine.InvokeResponse, []engine.AutonomousRunResult, error) {
+func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameTime string, requestedTicks *int, autonomousLimit *int) (*store.TimelineModel, *engine.InvokeResponse, *engine.WorldTimeStateComponent, []engine.AutonomousRunResult, error) {
 	if tickType == "" {
 		tickType = "scheduled"
 	}
 	if _, err := ensureWorldNodeTx(store.DB, worldID); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	resolvedTicks, err := resolveRequestedWorldTicksTx(store.DB, worldID, requestedTicks)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_requested", tickType, map[string]any{"game_time": gameTime, "requested_ticks": requestedTicks, "resolved_ticks": resolvedTicks, "autonomous_limit": autonomousLimit})
 
@@ -73,11 +73,11 @@ func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameT
 		NodeID:   worldID,
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	effectiveTicks, err := resolveEffectiveWorldTicksTx(store.DB, worldID, resolvedTicks, resp)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if resp != nil {
 		resp.AdvancedTicks = effectiveTicks
@@ -85,19 +85,20 @@ func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameT
 	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_completed", worldPlanSummary(resp), resp)
 
 	var tick *store.TimelineModel
+	var worldTimeState *engine.WorldTimeStateComponent
 	err = store.DB.Transaction(func(tx *gorm.DB) error {
 		var err error
-		tick, err = persistWorldTickArtifactsTx(tx, worldID, tickType, gameTime, effectiveTicks, resp)
+		tick, worldTimeState, err = persistWorldTickArtifactsTx(tx, worldID, tickType, gameTime, effectiveTicks, resp)
 		return err
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_persisted", tick.Summary, tick)
 
 	autonomousRuns := RunWorldTickAutonomous(p, worldID, autonomousLimit)
 	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_autonomous_completed", "autonomous runs completed", autonomousRuns)
-	return tick, resp, autonomousRuns, nil
+	return tick, resp, worldTimeState, autonomousRuns, nil
 }
 
 func resolveRequestedWorldTicksTx(tx *gorm.DB, worldID string, requestedTicks *int) (int, error) {
@@ -158,20 +159,16 @@ func resolveEffectiveWorldTicksTx(tx *gorm.DB, worldID string, requestedTicks in
 	return requestedTicks, nil
 }
 
-func persistWorldTickArtifactsTx(tx *gorm.DB, worldID, tickType, gameTime string, advancedTicks int, resp *engine.InvokeResponse) (*store.TimelineModel, error) {
+func persistWorldTickArtifactsTx(tx *gorm.DB, worldID, tickType, gameTime string, advancedTicks int, resp *engine.InvokeResponse) (*store.TimelineModel, *engine.WorldTimeStateComponent, error) {
 	latest, err := getLatestTickTx(tx, worldID)
 	tickNum := 1
 	if err == nil {
 		tickNum = latest.TickNumber + 1
 	} else if !IsKind(err, ErrorNotFound) {
-		return nil, err
+		return nil, nil, err
 	}
 
 	worldInt := txResolveWorldUUID(tx, worldID)
-	timelinePayload, err := buildWorldTickTimelineData(resp)
-	if err != nil {
-		return nil, err
-	}
 	tick := &store.TimelineModel{
 		UUID:          store.NewUUID(),
 		WorldID:       worldInt,
@@ -180,26 +177,41 @@ func persistWorldTickArtifactsTx(tx *gorm.DB, worldID, tickType, gameTime string
 		TickType:      tickType,
 		GameTime:      gameTime,
 		Summary:       worldPlanSummary(resp),
-		Data:          timelinePayload,
 		FutureOutline: resp.FutureOutline,
 	}
+	worldTimeState, previousWorldTimeState, err := buildWorldTimeStateComponentTx(tx, worldID, tick, advancedTicks)
+	if err != nil {
+		return nil, nil, err
+	}
+	timelinePayload, err := buildWorldTickTimelineData(resp, advancedTicks, previousWorldTimeState, &worldTimeState)
+	if err != nil {
+		return nil, nil, err
+	}
+	tick.Data = timelinePayload
 	if err := tx.Create(tick).Error; err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if err := persistWorldTickStateComponentsTx(tx, worldID, tick, advancedTicks, resp); err != nil {
-		return nil, err
+	if err := persistWorldTickStateComponentsTx(tx, worldID, tick, worldTimeState, resp); err != nil {
+		return nil, nil, err
 	}
-	return tick, nil
+	return tick, &worldTimeState, nil
 }
 
-func buildWorldTickTimelineData(resp *engine.InvokeResponse) (string, error) {
+func buildWorldTickTimelineData(resp *engine.InvokeResponse, advancedTicks int, previousWorldTimeState *engine.WorldTimeStateComponent, worldTimeState *engine.WorldTimeStateComponent) (string, error) {
 	payload := map[string]any{
 		"reply":             resp.Reply,
+		"advanced_ticks":    advancedTicks,
 		"world_change_plan": resp.WorldChangePlan,
 		"future_outline":    resp.FutureOutline,
 		"memory_updates":    resp.MemoryUpdates,
 		"action_calls":      resp.ActionCalls,
+	}
+	if previousWorldTimeState != nil {
+		payload["previous_world_time_state"] = previousWorldTimeState
+	}
+	if worldTimeState != nil {
+		payload["world_time_state"] = worldTimeState
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -208,13 +220,9 @@ func buildWorldTickTimelineData(resp *engine.InvokeResponse) (string, error) {
 	return string(data), nil
 }
 
-func persistWorldTickStateComponentsTx(tx *gorm.DB, worldID string, tick *store.TimelineModel, advancedTicks int, resp *engine.InvokeResponse) error {
+func persistWorldTickStateComponentsTx(tx *gorm.DB, worldID string, tick *store.TimelineModel, worldTimeState engine.WorldTimeStateComponent, resp *engine.InvokeResponse) error {
 	recentFacts := collectWorldTickFacts(resp)
 	canonicalFacts := collectCanonicalWorldFacts(resp)
-	worldTimeState, err := buildWorldTimeStateComponentTx(tx, worldID, tick, advancedTicks)
-	if err != nil {
-		return err
-	}
 	if _, err := upsertStateComponentTx(tx, worldID, engine.CompWorldState, engine.WorldStateComponent{
 		Summary:        worldPlanSummary(resp),
 		KeyFacts:       recentFacts,
@@ -279,7 +287,7 @@ func persistWorldTickStateComponentsTx(tx *gorm.DB, worldID string, tick *store.
 	return nil
 }
 
-func buildWorldTimeStateComponentTx(tx *gorm.DB, worldID string, tick *store.TimelineModel, advancedTicks int) (engine.WorldTimeStateComponent, error) {
+func buildWorldTimeStateComponentTx(tx *gorm.DB, worldID string, tick *store.TimelineModel, advancedTicks int) (engine.WorldTimeStateComponent, *engine.WorldTimeStateComponent, error) {
 	state := engine.WorldTimeStateComponent{
 		CurrentTimeLabel:  tick.GameTime,
 		TotalTicks:        advancedTicks,
@@ -296,33 +304,33 @@ func buildWorldTimeStateComponentTx(tx *gorm.DB, worldID string, tick *store.Tim
 	settings, err := store.GetWorldSettingsTx(tx, worldID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return state, nil
+			return state, nil, nil
 		}
-		return state, err
+		return state, nil, err
 	}
 	if settings == nil {
-		return state, nil
+		return state, nil, nil
 	}
 	worldTimeSettings, err := engine.DecodeWorldTimeSettings(settings.WorldTimeSettingsJSON)
 	if err != nil || worldTimeSettings == nil {
-		return state, err
+		return state, nil, err
 	}
 
 	var previous *engine.WorldTimeStateComponent
 	component, err := getStateComponentTx(tx, worldID, engine.CompWorldTimeState)
 	if err != nil {
-		return state, err
+		return state, nil, err
 	}
 	if component != nil && strings.TrimSpace(component.Data) != "" {
 		decoded := engine.WorldTimeStateComponent{}
 		if err := json.Unmarshal([]byte(component.Data), &decoded); err != nil {
-			return state, invalidf("invalid world_time_state payload: %v", err)
+			return state, nil, invalidf("invalid world_time_state payload: %v", err)
 		}
 		previous = &decoded
 	}
 	state, err = engine.AdvanceWorldTimeState(worldTimeSettings, previous, advancedTicks, tick.GameTime)
 	if err != nil {
-		return state, invalidf("invalid world_time_settings progression: %v", err)
+		return state, previous, invalidf("invalid world_time_settings progression: %v", err)
 	}
 	state.LastTickNumber = tick.TickNumber
 	state.LastTickType = tick.TickType
@@ -333,7 +341,7 @@ func buildWorldTimeStateComponentTx(tx *gorm.DB, worldID string, tick *store.Tim
 	state.Metadata["tick_type"] = tick.TickType
 	state.Metadata["game_time"] = tick.GameTime
 	state.Metadata["advanced_ticks"] = advancedTicks
-	return state, nil
+	return state, previous, nil
 }
 
 func collectWorldTickFacts(resp *engine.InvokeResponse) []string {

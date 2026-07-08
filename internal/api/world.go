@@ -25,15 +25,17 @@ func MakeTickAdvanceHandler(p *engine.Pipeline) http.HandlerFunc {
 			return
 		}
 
-		tick, resp, autonomousRuns, err := service.AdvanceWorldTickWithAutonomous(p, worldID, req.TickType, req.GameTime, req.RequestedTicks, req.AutonomousLimit)
+		tick, resp, worldTimeState, autonomousRuns, err := service.AdvanceWorldTickWithAutonomous(p, worldID, req.TickType, req.GameTime, req.RequestedTicks, req.AutonomousLimit)
 		if err != nil {
 			handleServiceError(w, err)
 			return
 		}
 		writeJSON(w, 200, map[string]any{
-			"tick":            tick,
-			"invoke":          resp,
-			"autonomous_runs": autonomousRuns,
+			"tick":             tick,
+			"invoke":           resp,
+			"advanced_ticks":   resp.AdvancedTicks,
+			"world_time_state": worldTimeState,
+			"autonomous_runs":  autonomousRuns,
 		})
 	}
 }
