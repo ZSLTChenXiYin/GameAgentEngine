@@ -702,7 +702,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 	case TaskNPCDialogue:
 		systemPrompt = buildDialoguePrompt(ctxDesc, req.NodeID)
 	case TaskWorldTick:
-		systemPrompt = buildWorldTickPrompt(ctxDesc, "")
+		systemPrompt = buildWorldTickPrompt(ctxDesc, "", nil, nil)
 	case TaskWorldEvent:
 		eventDesc := ""
 		if req.Event != nil {
@@ -838,9 +838,23 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 	if latest, err := store.GetLatestTick(req.WorldID); err == nil {
 		currentOutline = latest.FutureOutline
 	}
+	var recentTimeline []string
+	if ticks, err := store.GetTimelineTicks(req.WorldID, 3); err == nil {
+		for _, tick := range ticks {
+			summary := strings.TrimSpace(tick.Summary)
+			if summary == "" {
+				continue
+			}
+			recentTimeline = append(recentTimeline, fmt.Sprintf("[tick %d] %s", tick.TickNumber, summary))
+		}
+	}
 
 	tickFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-		return buildWorldTickPrompt(treeContext, currentOutline)
+		baseContext := ctx.SystemPrompt
+		if strings.TrimSpace(treeContext) != "" {
+			baseContext = strings.TrimSpace(ctx.SystemPrompt + "\n\n任务树分析：\n" + treeContext)
+		}
+		return buildWorldTickPrompt(baseContext, currentOutline, ctx.StateBlocks, recentTimeline)
 	}
 
 	var tree *TaskTree

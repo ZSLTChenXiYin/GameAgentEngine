@@ -24,6 +24,12 @@ type barrierProvider struct {
 	calls    int
 }
 
+type captureProvider struct {
+	response   string
+	lastPrompt string
+	lastMsgs   []ChatMessage
+}
+
 func (s *stubProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error) {
 	s.calls++
 	if s.err != nil {
@@ -47,6 +53,14 @@ func (b *barrierProvider) Chat(systemPrompt string, messages []ChatMessage) (*LL
 }
 
 func (b *barrierProvider) ModelName() string { return "barrier" }
+
+func (c *captureProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error) {
+	c.lastPrompt = systemPrompt
+	c.lastMsgs = messages
+	return &LLMResult{Content: c.response, Model: "capture", Tokens: 11}, nil
+}
+
+func (c *captureProvider) ModelName() string { return "capture" }
 
 func initTestDB(t *testing.T) {
 	t.Helper()
@@ -347,6 +361,32 @@ func TestExecuteReviewModePersistsPendingPlanLog(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected plan_pending_review log")
+	}
+}
+
+func TestExecuteWorldTickIncludesPersistentContinuityState(t *testing.T) {
+	initTestDB(t)
+	worldID, _ := createWorldAndNode(t)
+	world := store.ResolveNodeUUID(worldID)
+	if world == 0 {
+		t.Fatal("expected world id")
+	}
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: world, NodeUUID: worldID, ComponentType: string(CompStoryState), Data: `{"current_situation":"地下52米量子谐振腔已经暴露"}`}); err != nil {
+		t.Fatalf("create story_state: %v", err)
+	}
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: world, NodeUUID: worldID, ComponentType: string(CompTickPolicy), Data: `{"continuity_rules":["保持地点和关键设施连续"]}`}); err != nil {
+		t.Fatalf("create tick_policy: %v", err)
+	}
+	provider := &captureProvider{response: `{"reply":"tick","action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"推进","world_events":[],"proposed_actions":[]}}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: worldID, TaskType: TaskWorldTick}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(provider.lastPrompt, "地下52米量子谐振腔已经暴露") {
+		t.Fatalf("expected story state in prompt, got %s", provider.lastPrompt)
+	}
+	if !strings.Contains(provider.lastPrompt, "保持地点和关键设施连续") {
+		t.Fatalf("expected tick policy in prompt, got %s", provider.lastPrompt)
 	}
 }
 

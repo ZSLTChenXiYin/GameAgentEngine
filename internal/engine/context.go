@@ -21,6 +21,7 @@ type BuiltContext struct {
 	Relations    []store.RelationModel  `json:"relations"`
 	Children     []store.NodeModel      `json:"children"`
 	Ancestors    []store.NodeModel      `json:"ancestors"`
+	StateBlocks  []string               `json:"state_blocks,omitempty"`
 	SystemPrompt string                 `json:"system_prompt"`
 }
 
@@ -63,7 +64,8 @@ func (b *ContextBuilder) Build(nodeID string, depth int, memoryLimit int, includ
 		}
 	}
 
-	sysPrompt := b.buildSystemPrompt(node, comps, mems, ancestors)
+	stateBlocks := b.buildStateBlocks(node.UUID)
+	sysPrompt := b.buildSystemPrompt(node, comps, mems, ancestors, stateBlocks)
 	return &BuiltContext{
 		Node:         node,
 		Components:   comps,
@@ -71,6 +73,7 @@ func (b *ContextBuilder) Build(nodeID string, depth int, memoryLimit int, includ
 		Relations:    rels,
 		Children:     children,
 		Ancestors:    ancestors,
+		StateBlocks:  stateBlocks,
 		SystemPrompt: sysPrompt,
 	}, nil
 }
@@ -92,7 +95,7 @@ func (b *ContextBuilder) collectAncestors(node *store.NodeModel, maxDepth int) [
 	return ancestors
 }
 
-func (b *ContextBuilder) buildSystemPrompt(node *store.NodeModel, comps []store.ComponentModel, mems []store.MemoryModel, ancestors []store.NodeModel) string {
+func (b *ContextBuilder) buildSystemPrompt(node *store.NodeModel, comps []store.ComponentModel, mems []store.MemoryModel, ancestors []store.NodeModel, stateBlocks []string) string {
 	var parts []string
 	parts = append(parts, fmt.Sprintf("你是 %s（%s）。", node.Name, node.NodeType))
 
@@ -114,5 +117,24 @@ func (b *ContextBuilder) buildSystemPrompt(node *store.NodeModel, comps []store.
 			parts = append(parts, fmt.Sprintf("  [%s] %s", m.Level, m.Content))
 		}
 	}
+	if len(stateBlocks) > 0 {
+		parts = append(parts, "连续性状态：")
+		parts = append(parts, stateBlocks...)
+	}
 	return strings.Join(parts, "\n")
+}
+
+func (b *ContextBuilder) buildStateBlocks(nodeID string) []string {
+	componentTypes := []string{string(CompWorldState), string(CompStoryState), string(CompStoryHistory), string(CompTickPolicy), string(CompStateSnapshot)}
+	blocks := make([]string, 0, len(componentTypes))
+	for _, componentType := range componentTypes {
+		components, err := store.GetComponentsByType(nodeID, componentType)
+		if err != nil || len(components) == 0 {
+			continue
+		}
+		for _, comp := range components {
+			blocks = append(blocks, fmt.Sprintf("【%s】%s", comp.ComponentType, comp.Data))
+		}
+	}
+	return blocks
 }

@@ -29,18 +29,26 @@ request_data格式（可选，需要时添加）:
 }
 
 type resourceState struct {
-	Food    int `json:"food,omitempty"`
-	Order   int `json:"order,omitempty"`
-	Defense int `json:"defense,omitempty"`
-	Morale  int `json:"morale,omitempty"`
+	Food     int `json:"food,omitempty"`
+	Order    int `json:"order,omitempty"`
+	Defense  int `json:"defense,omitempty"`
+	Morale   int `json:"morale,omitempty"`
 	Treasury int `json:"treasury,omitempty"`
 }
 
 // buildWorldTickPrompt 构建世界刻推进任务的系统提示词。
-func buildWorldTickPrompt(systemContext string, outline string) string {
+func buildWorldTickPrompt(systemContext string, outline string, continuityBlocks []string, recentTimeline []string) string {
 	sb := &strings.Builder{}
 	sb.WriteString(systemContext)
 	sb.WriteString("\n\n你正在推演世界时间线。")
+	if len(continuityBlocks) > 0 {
+		sb.WriteString("\n\n必须延续的世界状态与剧情状态：\n")
+		sb.WriteString(strings.Join(continuityBlocks, "\n"))
+	}
+	if len(recentTimeline) > 0 {
+		sb.WriteString("\n\n最近时间线记录：\n")
+		sb.WriteString(strings.Join(recentTimeline, "\n"))
+	}
 
 	if outline != "" {
 		sb.WriteString("\n\n现有世界线大纲：\n")
