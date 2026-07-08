@@ -87,6 +87,11 @@ The outgoing-relation action opens the same relation editor used for relation cr
 - scope advance
 - timeline replan
 
+World time inspection currently flows through:
+
+- `world_time_state` in continuity state views
+- timeline payloads that now include `advanced_ticks`, `previous_world_time_state`, and `world_time_state`
+
 ### Memory propagation
 
 - explicitly trigger propagation from the memory list in node detail

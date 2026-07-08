@@ -169,6 +169,7 @@ bundle, err := client.GetContinuityBundle(worldID, &sdk.ContinuityBundleOptions{
 | `Invoke(req *InvokeRequest) (*InvokeResponse, error)` | Unified inference entry point |
 | `AdvanceTick(worldID, tickType, gameTime string) (*TickResponse, error)` | Advance one world tick |
 | `AdvanceTickWithAutonomousLimit(worldID, tickType, gameTime string, autonomousLimit *int) (*TickResponse, error)` | Advance one world tick with an autonomous-run cap |
+| `AdvanceTickWithOptions(worldID, tickType, gameTime string, requestedTicks *int, autonomousLimit *int) (*TickResponse, error)` | Advance one world tick with explicit requested base ticks |
 | `EventImpact(worldID string, event *WorldEvent) (*InvokeResponse, error)` | Evaluate event impact |
 | `ScopeAdvance(worldID, scopeID string) (*InvokeResponse, error)` | Advance a specific scope |
 | `TimelineReplan(worldID string) (*InvokeResponse, error)` | Rebuild a world's future outline |
@@ -245,6 +246,8 @@ type WorldSettingsUpdate struct {
 type TickResponse struct {
     Tick           *Timeline             `json:"tick"`
     Invoke         *InvokeResponse       `json:"invoke"`
+    AdvancedTicks  int                   `json:"advanced_ticks,omitempty"`
+    WorldTimeState *WorldTimeState       `json:"world_time_state,omitempty"`
     AutonomousRuns []AutonomousRunResult `json:"autonomous_runs,omitempty"`
 }
 ```

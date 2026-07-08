@@ -131,6 +131,16 @@ GameAgentDevCli world policy set <world-id> --blocked spawn_item --safe add_memo
 
 `world settings set` is a partial update command. Only explicitly passed flags are changed.
 
+World tick progression controls:
+
+```bash
+GameAgentDevCli tick <world-id> --requested-ticks 3
+GameAgentDevCli world tick <world-id> --requested-ticks 3
+```
+
+Use `--requested-ticks` together with `world_time_settings.tick_scale_mode`.
+In `fixed` mode, the engine only accepts `1`. In `flexible` mode, the final adopted value is returned as `advanced_ticks`.
+
 ---
 
 ## Memory Propagation

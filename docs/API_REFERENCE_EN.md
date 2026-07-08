@@ -210,9 +210,18 @@ Typical request body:
 {
   "tick_type": "scheduled",
   "game_time": "Day 3 - Evening",
+  "requested_ticks": 1,
   "autonomous_limit": 10
 }
 ```
+
+Notes:
+
+- `requested_ticks` is the caller-declared base tick multiplier.
+- In `fixed` world time mode, the engine only accepts `requested_ticks = 1`.
+- In `flexible` world time mode, the model may return a different `advanced_ticks`, and the engine will persist that effective value.
+- The response now includes top-level `advanced_ticks` and `world_time_state` fields.
+- The persisted timeline payload also includes `advanced_ticks`, `previous_world_time_state`, and `world_time_state`.
 
 ### `POST /api/v1/worlds/{world_id}/events/impact`
 

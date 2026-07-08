@@ -107,7 +107,7 @@ Engine, GameAgentCreator, and GameAgentDevCli now share the same component valid
 
 If a component type later becomes field-aware inside the Engine, it should be promoted to weak or strong validation instead of remaining free text by convention.
 
-The continuity-oriented state components are world-level persistence artifacts used by `world_tick`. They are readable through API, SDK, DevCli, and Creator, while `state_snapshot` is intended to remain read-only in tooling.
+The continuity-oriented state components are world-level persistence artifacts used by `world_tick`: `world_state`, `story_state`, `story_history`, `tick_policy`, `world_time_state`, and `state_snapshot`. They are readable through API, SDK, DevCli, and Creator, while `state_snapshot` is intended to remain read-only in tooling.
 
 ---
 
