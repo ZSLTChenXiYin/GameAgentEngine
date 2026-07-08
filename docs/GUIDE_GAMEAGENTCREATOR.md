@@ -20,8 +20,7 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 
 - 顶栏：世界选择、语言切换、主题切换、配置入口
 - 左侧树：层级化节点大纲
-- 中央区域：世界页、快照页、计划页、设置页、策略页、日志页、轨迹页
-- 中央区域：世界页、快照页、计划页、设置页、策略页、状态页、时间线页、日志页、轨迹页
+- 中央区域：世界页、快照页、计划页、设置页、策略页、连续性页、日志页、轨迹页
 - 右侧区域：节点摘要与挂载数据
 
 ---
@@ -63,6 +62,7 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 
 - Creator 会根据共享组件元数据提示当前组件是强类型、弱类型还是纯文本
 - 编辑 `autonomous` 时，会按结构化配置校验关键字段
+- 编辑 `world_state`、`story_state`、`story_history`、`tick_policy` 时，会按字段结构做连续性状态校验
 - 编辑 `profile` 时，要求输入合法 JSON 对象
 - 当前其他内置文本类组件允许直接按文本编辑
 
@@ -82,10 +82,20 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 
 ### 可观测性
 
+- 连续性聚合页，用于查看最近一次 `world_tick` 的整体连续性工件
+- `Continuity Diff` 卡片，用于对比当前 tick 与上一轮 tick 的摘要和事实变化
 - 推理日志
 - 调试轨迹
 - configured / effective pipeline mode 可见性
 - round usage 可见性
+
+## 连续性工作流
+
+- 打开 `Continuity` 页面，先加载最近一次 world-oriented continuity bundle
+- 使用 request 过滤器，把日志和轨迹收敛到单个 `request_id`
+- 在 `Continuity Diff` 中对比 `Latest Tick Summary`、`Previous Tick Summary` 和事实增删
+- 需要直接修连续性状态时，再切换到 `State` 页面编辑 `world_state`、`story_state`、`story_history`、`tick_policy`
+- 除非你明确要重建引擎生成状态，否则保持 `state_snapshot` 只读
 
 ### 连续性状态与时间线
 
