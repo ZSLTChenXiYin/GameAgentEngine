@@ -306,8 +306,8 @@ type InferenceLogQuery struct {
 
 ```go
 type ContinuityBundleOptions struct {
-    IncludeLogs   bool               `json:"include_logs,omitempty"`
-    IncludeTraces bool               `json:"include_traces,omitempty"`
+    SkipLogs      bool               `json:"skip_logs,omitempty"`
+    SkipTraces    bool               `json:"skip_traces,omitempty"`
     LogLimit      int                `json:"log_limit,omitempty"`
     TraceLimit    int                `json:"trace_limit,omitempty"`
     LogQuery      *InferenceLogQuery `json:"log_query,omitempty"`
