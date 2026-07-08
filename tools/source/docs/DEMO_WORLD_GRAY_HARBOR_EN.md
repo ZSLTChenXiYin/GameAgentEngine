@@ -45,7 +45,7 @@ The world tracks regional resources through custom components:
 
 ```bash
 # Import using DevCli
-GameAgentDevCli import demo-world.yaml --reset
+GameAgentDevCli import tools/source/demo-world.yaml --reset
 ```
 
 The `--reset` flag clears the database before importing. If you omit `--reset`, the Demo world is appended to the existing database.

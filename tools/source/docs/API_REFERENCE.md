@@ -296,6 +296,46 @@
 
 ---
 
+## 连续性状态与时间线
+
+### `GET /api/v1/worlds/{world_id}/state-components`
+
+读取一个世界当前全部由 Engine 识别的 world tick 连续性状态组件。
+
+当前组件类型包括：
+
+- `world_state`
+- `story_state`
+- `story_history`
+- `tick_policy`
+- `state_snapshot`
+
+### `GET /api/v1/worlds/{world_id}/state-components/{component_type}`
+
+读取某一个连续性状态组件。
+
+如果 `component_type` 不属于当前受支持的连续性组件类型，接口会返回 `400`，错误码为 `invalid_component_type`。
+
+### `PUT /api/v1/worlds/{world_id}/state-components/{component_type}`
+
+创建或整体替换某一个连续性状态组件。
+
+请求体必须是合法 JSON。像 `world_state`、`story_state`、`story_history`、`tick_policy` 这类结构化组件会按 Engine 当前的字段形状规则做校验。
+
+### `GET /api/v1/worlds/{world_id}/timelines`
+
+读取最近持久化的 world tick 时间线归档。
+
+查询参数：
+
+- `limit` - 可选，默认 `20`，最大 `200`
+
+### `GET /api/v1/worlds/{world_id}/timelines/latest`
+
+读取最近一条持久化的 world tick 时间线归档。
+
+---
+
 ## Creator 导入
 
 ### `POST /api/v1/creator/import`
@@ -319,7 +359,20 @@
 
 ### `GET /api/v1/logs`
 
-读取推理日志，支持 `world_id`、`task_type`、`limit`、`offset` 查询参数。
+读取推理日志。
+
+查询参数：
+
+- `world_id`
+- `task_type`
+- `node_id`
+- `category`
+- `event_name`
+- `execution_mode`
+- `request_id`
+- `round`
+- `limit`
+- `offset`
 
 ### `GET /debug/traces`
 

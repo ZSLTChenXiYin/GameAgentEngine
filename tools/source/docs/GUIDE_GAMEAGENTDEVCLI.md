@@ -22,8 +22,8 @@ GameAgentDevCli 是通过 HTTP API 操作 GameAgentEngine 的命令行工具。
 ## 导入
 
 ```bash
-GameAgentDevCli import demo-world.yaml --reset
-GameAgentDevCli import demo-world.yaml --dry-run
+GameAgentDevCli import tools/source/demo-world.yaml --reset
+GameAgentDevCli import tools/source/demo-world.yaml --dry-run
 ```
 
 ---
@@ -78,6 +78,12 @@ GameAgentDevCli world validate-snapshot <snapshot-world-id>
 GameAgentDevCli world snapshot-info <snapshot-world-id>
 GameAgentDevCli world list-snapshots <world-id>
 GameAgentDevCli world delete-snapshot <snapshot-world-id>
+
+# 审批计划
+GameAgentDevCli world plan pending
+GameAgentDevCli world plan pending <world-id>
+GameAgentDevCli world plan approve <world-id> <plan-id>
+GameAgentDevCli world plan reject <world-id> <plan-id>
 ```
 
 ---
@@ -109,15 +115,73 @@ GameAgentDevCli world policy set <world-id> --blocked spawn_item --safe add_memo
 
 ---
 
+## 记忆传播
+
+```bash
+GameAgentDevCli memory propagate <memory-id>
+GameAgentDevCli memory propagate <memory-id> --mode tag_broadcast --tags rumor,politics
+GameAgentDevCli memory propagate <memory-id> --mode targeted --target node-a,node-b
+GameAgentDevCli memory propagate <memory-id> --max-depth 2 --publish-up
+```
+
+---
+
+## 异步动作回调
+
+```bash
+GameAgentDevCli action callback <callback-id>
+GameAgentDevCli action callback <callback-id> --status failed
+GameAgentDevCli action callback <callback-id> --status success --result '{"item_id":"sword-01","quality":"rare"}'
+```
+
+`--result` 优先按 JSON 解析；如果不是合法 JSON，则会按纯文本原样上报。
+
+---
+
 ## 日志与调试轨迹
 
 ```bash
 GameAgentDevCli logs --world <world-id> --limit 10
 GameAgentDevCli logs --world <world-id> --limit 10 --json
+GameAgentDevCli logs --world <world-id> --task-type world_tick --category pipeline --event llm_response_received --mode debug --request-id <request-id> --details
 
 GameAgentDevCli debug traces --world <world-id> --limit 10
 GameAgentDevCli debug traces --world <world-id> --limit 10 --json
+GameAgentDevCli debug continuity <world-id>
+GameAgentDevCli debug continuity <world-id> --mode debug --request-id <request-id> --log-limit 20 --trace-limit 10
 ```
+
+`logs` 现在支持 `--node`、`--category`、`--event`、`--mode`、`--request-id`、`--round` 等服务端结构化过滤参数。
+
+`debug continuity` 是目前最快的连续性排查入口，它会一次性汇总最近时间线、连续性状态组件、`world_tick` 日志和调试轨迹。
+
+---
+
+## 连续性状态与时间线
+
+```bash
+GameAgentDevCli state list <world-id>
+GameAgentDevCli state get <world-id> world_state
+GameAgentDevCli state get <world-id> story_state
+GameAgentDevCli state get <world-id> story_history
+GameAgentDevCli state get <world-id> tick_policy
+GameAgentDevCli state set <world-id> tick_policy --data '{"continuity_rules":["Do not discard established reactor facts."]}'
+
+GameAgentDevCli timeline latest <world-id>
+GameAgentDevCli timeline list <world-id> --limit 5
+```
+
+这组命令主要用于排查 `world_tick` 连续性问题：
+
+- `state` 查看和修改引擎持续继承的结构化状态组件
+- `timeline` 对照最近几次 tick 的历史归档
+- `logs --details` 检查 request / response / detail_data
+
+当你需要从单次 tick 反查连续性问题时，优先顺序建议是：
+
+1. `timeline latest` 查看最新 tick 的摘要与 `future_outline`
+2. `state get` 检查 `world_state`、`story_history`、`tick_policy`
+3. `logs --details` 或 `debug continuity` 对齐同一个 `request_id` 下的日志与轨迹
 
 ---
 
