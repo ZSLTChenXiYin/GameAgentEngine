@@ -91,6 +91,20 @@ event := &sdk.WorldEvent{
 resp, err := client.EventImpact(worldID, event)
 ```
 
+### 加载连续性调试包
+
+```go
+bundle, err := client.GetContinuityBundle(worldID, &sdk.ContinuityBundleOptions{
+    LogLimit:   20,
+    TraceLimit: 10,
+    LogQuery: &sdk.InferenceLogQuery{
+        TaskType:      "world_tick",
+        ExecutionMode: "debug",
+    },
+})
+// bundle.LatestTimeline, bundle.StateComponents, bundle.Logs, bundle.Traces
+```
+
 ---
 
 ## Client 方法
@@ -196,7 +210,9 @@ resp, err := client.EventImpact(worldID, event)
 | `GetWorldPolicy(worldID string) (*WorldPolicy, error)` | 读取世界策略 |
 | `SetWorldPolicy(worldID string, blocked, safe []string) (*WorldPolicy, error)` | 更新世界策略 |
 | `GetLogs(worldID string, limit, offset int, taskType string) ([]InferenceLog, error)` | 读取推理日志 |
+| `GetLogsByQuery(query InferenceLogQuery) ([]InferenceLog, error)` | 使用结构化服务端过滤条件读取推理日志 |
 | `GetDebugTraces(worldID string, limit int) (*DebugTraceList, error)` | 读取最近的调试轨迹 |
+| `GetContinuityBundle(worldID string, options *ContinuityBundleOptions) (*ContinuityBundle, error)` | 一次性加载时间线、连续性状态、日志和调试轨迹 |
 | `GetStateComponents(worldID string) (*StateComponentsResponse, error)` | 读取全部连续性状态组件 |
 | `GetStateComponent(worldID, componentType string) (*StateComponentResponse, error)` | 读取单个连续性状态组件 |
 | `PutStateComponent(worldID, componentType string, payload any) (*StateComponentResponse, error)` | 创建或更新连续性状态组件 |
@@ -266,6 +282,47 @@ type StateComponentsResponse struct {
 type TimelinesResponse struct {
     WorldID   string             `json:"world_id"`
     Timelines []TimelineEnvelope `json:"timelines"`
+}
+```
+
+### `InferenceLogQuery`
+
+```go
+type InferenceLogQuery struct {
+    WorldID       string `json:"world_id,omitempty"`
+    NodeID        string `json:"node_id,omitempty"`
+    TaskType      string `json:"task_type,omitempty"`
+    Category      string `json:"category,omitempty"`
+    EventName     string `json:"event_name,omitempty"`
+    ExecutionMode string `json:"execution_mode,omitempty"`
+    RequestID     string `json:"request_id,omitempty"`
+    Round         int    `json:"round,omitempty"`
+    Limit         int    `json:"limit,omitempty"`
+    Offset        int    `json:"offset,omitempty"`
+}
+```
+
+### `ContinuityBundleOptions`
+
+```go
+type ContinuityBundleOptions struct {
+    IncludeLogs   bool               `json:"include_logs,omitempty"`
+    IncludeTraces bool               `json:"include_traces,omitempty"`
+    LogLimit      int                `json:"log_limit,omitempty"`
+    TraceLimit    int                `json:"trace_limit,omitempty"`
+    LogQuery      *InferenceLogQuery `json:"log_query,omitempty"`
+}
+```
+
+### `ContinuityBundle`
+
+```go
+type ContinuityBundle struct {
+    WorldID         string                   `json:"world_id"`
+    LatestTimeline  *LatestTimelineResponse  `json:"latest_timeline,omitempty"`
+    StateComponents *StateComponentsResponse `json:"state_components,omitempty"`
+    Logs            []InferenceLog           `json:"logs,omitempty"`
+    Traces          []DebugTrace             `json:"traces,omitempty"`
 }
 ```
 
