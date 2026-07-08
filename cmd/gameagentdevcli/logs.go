@@ -196,47 +196,51 @@ var logsCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		client := newClient()
 		worldID, _ := cmd.Flags().GetString("world")
+		nodeID, _ := cmd.Flags().GetString("node")
 		limit, _ := cmd.Flags().GetInt("limit")
 		offset, _ := cmd.Flags().GetInt("offset")
 		taskType, _ := cmd.Flags().GetString("task-type")
-		jsonOutput, _ := cmd.Flags().GetBool("json")
-		logs, err := client.GetLogs(worldID, limit, offset, taskType)
-		if err != nil {
-			fail(err)
-		}
 		category, _ := cmd.Flags().GetString("category")
 		eventName, _ := cmd.Flags().GetString("event")
 		executionMode, _ := cmd.Flags().GetString("mode")
-		showDetails, _ := cmd.Flags().GetBool("details")
-		filtered := make([]sdk.InferenceLog, 0, len(logs))
-		for _, log := range logs {
-			if category != "" && log.Category != category {
-				continue
-			}
-			if eventName != "" && log.EventName != eventName {
-				continue
-			}
-			if executionMode != "" && log.ExecutionMode != executionMode {
-				continue
-			}
-			filtered = append(filtered, log)
+		requestID, _ := cmd.Flags().GetString("request-id")
+		round, _ := cmd.Flags().GetInt("round")
+		jsonOutput, _ := cmd.Flags().GetBool("json")
+		logs, err := client.GetLogsByQuery(sdk.InferenceLogQuery{
+			WorldID:       worldID,
+			NodeID:        nodeID,
+			TaskType:      taskType,
+			Category:      category,
+			EventName:     eventName,
+			ExecutionMode: executionMode,
+			RequestID:     requestID,
+			Round:         round,
+			Limit:         limit,
+			Offset:        offset,
+		})
+		if err != nil {
+			fail(err)
 		}
+		showDetails, _ := cmd.Flags().GetBool("details")
 		if jsonOutput {
-			printJSON(filtered)
+			printJSON(logs)
 			return
 		}
-		printInferenceLogSummary(filtered, showDetails)
+		printInferenceLogSummary(logs, showDetails)
 	},
 }
 
 func init() {
 	logsCmd.Flags().String("world", "", "按世界 ID 过滤日志")
+	logsCmd.Flags().String("node", "", "按节点 ID 过滤日志")
 	logsCmd.Flags().Int("limit", 20, "返回日志条数")
 	logsCmd.Flags().Int("offset", 0, "偏移量")
 	logsCmd.Flags().String("task-type", "", "按任务类型过滤（如 npc_dialogue, world_tick）")
 	logsCmd.Flags().String("category", "", "按日志分类过滤（如 pipeline, engine_execution）")
 	logsCmd.Flags().String("event", "", "按事件名过滤（如 raw_llm_response_received）")
 	logsCmd.Flags().String("mode", "", "按执行模式过滤（debug, review, production）")
+	logsCmd.Flags().String("request-id", "", "按请求 ID 过滤日志")
+	logsCmd.Flags().Int("round", 0, "按推理轮次过滤日志")
 	logsCmd.Flags().Bool("details", false, "输出 request/response/detail 明细")
 	logsCmd.Flags().Bool("json", false, "输出原始 JSON")
 }
