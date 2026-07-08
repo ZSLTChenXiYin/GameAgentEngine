@@ -20,6 +20,11 @@ func NewRouter(p *engine.Pipeline) *http.ServeMux {
 	mux.HandleFunc("PUT /api/v1/worlds/{world_id}/policy", SetWorldPolicyHandler)
 	mux.HandleFunc("GET /api/v1/worlds/{world_id}/settings", GetWorldSettingsHandler)
 	mux.HandleFunc("PUT /api/v1/worlds/{world_id}/settings", SetWorldSettingsHandler)
+	mux.HandleFunc("GET /api/v1/worlds/{world_id}/state-components", GetStateComponentsHandler)
+	mux.HandleFunc("GET /api/v1/worlds/{world_id}/state-components/{component_type}", GetStateComponentHandler)
+	mux.HandleFunc("PUT /api/v1/worlds/{world_id}/state-components/{component_type}", PutStateComponentHandler)
+	mux.HandleFunc("GET /api/v1/worlds/{world_id}/timelines", GetTimelinesHandler)
+	mux.HandleFunc("GET /api/v1/worlds/{world_id}/timelines/latest", GetLatestTimelineHandler)
 
 	mux.HandleFunc("POST /api/v1/worlds/{world_id}/ticks/advance", IdempotencyMiddleware(MakeTickAdvanceHandler(p)))
 	mux.HandleFunc("POST /api/v1/worlds/{world_id}/events/impact", IdempotencyMiddleware(MakeEventImpactHandler(p)))

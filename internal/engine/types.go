@@ -49,6 +49,21 @@ func ValidComponentTypes() []ComponentType {
 	return []ComponentType{CompProfile, CompMemory, CompRule, CompTimeline, CompActionPolicy, CompRelations, CompPromptProfile, CompLore, CompAutonomous, CompWorldState, CompStoryState, CompStoryHistory, CompTickPolicy, CompStateSnapshot}
 }
 
+// StateComponentTypes returns the engine-recognized world continuity component types.
+func StateComponentTypes() []ComponentType {
+	return []ComponentType{CompWorldState, CompStoryState, CompStoryHistory, CompTickPolicy, CompStateSnapshot}
+}
+
+// IsStateComponentType reports whether the given component type is used for persistent world tick continuity.
+func IsStateComponentType(componentType string) bool {
+	for _, item := range StateComponentTypes() {
+		if string(item) == componentType {
+			return true
+		}
+	}
+	return false
+}
+
 // RelationType 表示两个节点之间的有向关系类型。
 type RelationType string
 
