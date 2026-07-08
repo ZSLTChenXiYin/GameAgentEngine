@@ -37,11 +37,16 @@ const (
 	CompPromptProfile ComponentType = "prompt_profile"
 	CompLore          ComponentType = "lore"
 	CompAutonomous    ComponentType = "autonomous"
+	CompWorldState    ComponentType = "world_state"
+	CompStoryState    ComponentType = "story_state"
+	CompStoryHistory  ComponentType = "story_history"
+	CompTickPolicy    ComponentType = "tick_policy"
+	CompStateSnapshot ComponentType = "state_snapshot"
 )
 
 // ValidComponentTypes 返回当前支持的全部组件类型。
 func ValidComponentTypes() []ComponentType {
-	return []ComponentType{CompProfile, CompMemory, CompRule, CompTimeline, CompActionPolicy, CompRelations, CompPromptProfile, CompLore, CompAutonomous}
+	return []ComponentType{CompProfile, CompMemory, CompRule, CompTimeline, CompActionPolicy, CompRelations, CompPromptProfile, CompLore, CompAutonomous, CompWorldState, CompStoryState, CompStoryHistory, CompTickPolicy, CompStateSnapshot}
 }
 
 // RelationType 表示两个节点之间的有向关系类型。

@@ -1,5 +1,7 @@
 package store
 
+import "fmt"
+
 // CreateComponent 创建一个组件记录。
 func CreateComponent(m *ComponentModel) error {
 	if m.UUID == "" {
@@ -28,6 +30,18 @@ func GetComponentsByType(nodeUUID string, compType string) ([]ComponentModel, er
 		resolveComponentNodeUUIDs(list)
 	}
 	return list, err
+}
+
+// GetSingleComponentByType 返回节点上某个类型的首个组件。
+func GetSingleComponentByType(nodeUUID string, compType string) (*ComponentModel, error) {
+	list, err := GetComponentsByType(nodeUUID, compType)
+	if err != nil {
+		return nil, err
+	}
+	if len(list) == 0 {
+		return nil, nil
+	}
+	return &list[0], nil
 }
 
 // GetComponentsByTypeForWorld 获取指定世界内所有某类型组件。
@@ -59,4 +73,27 @@ func GetComponent(uuid string) (*ComponentModel, error) {
 // UpdateComponent 更新组件类型或数据。
 func UpdateComponent(uuid string, updates map[string]any) error {
 	return DB.Model(&ComponentModel{}).Where("uuid = ?", uuid).Updates(updates).Error
+}
+
+// UpsertComponentByType creates or replaces a node-local component by type.
+func UpsertComponentByType(nodeUUID string, compType string, data string) (*ComponentModel, error) {
+	nodeID := ResolveNodeUUID(nodeUUID)
+	if nodeID == 0 {
+		return nil, fmt.Errorf("node %s not found", nodeUUID)
+	}
+	existing, err := GetSingleComponentByType(nodeUUID, compType)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil {
+		created := &ComponentModel{UUID: NewUUID(), NodeID: nodeID, NodeUUID: nodeUUID, ComponentType: compType, Data: data}
+		if err := CreateComponent(created); err != nil {
+			return nil, err
+		}
+		return GetComponent(created.UUID)
+	}
+	if err := UpdateComponent(existing.UUID, map[string]any{"data": data}); err != nil {
+		return nil, err
+	}
+	return GetComponent(existing.UUID)
 }
