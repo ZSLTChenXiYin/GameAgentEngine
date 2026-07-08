@@ -20,8 +20,21 @@ You can also use the CLI `inspect` flow when available in your environment.
 
 - top bar: world selection, language switch, theme switch, config entry
 - left tree: hierarchical node outline
-- center area: world page, snapshots, plans, settings, policy, continuity, logs, traces
+- center area: world page, snapshots, plans, settings, policy, continuity, state, timelines, logs, traces
 - right side: node detail summary and attached data
+
+### Page Overview
+
+- `Worlds`: manage the current world, node tree, node detail, and common runtime entry points
+- `Snapshots`: inspect snapshot lists for runnable worlds or source metadata and restore candidates for snapshot worlds
+- `Plans`: review and approve pending world change plans
+- `Policy`: edit world-level policy configuration
+- `Settings`: edit world-level runtime settings
+- `Continuity`: inspect the latest `world_tick` continuity bundle, diff, and request-scoped artifacts
+- `State`: inspect and edit continuity-related state components including `world_state`, `story_state`, `story_history`, and `tick_policy`
+- `Timelines`: inspect recent tick timeline archives, structured payloads, and result summaries
+- `Logs`: inspect inference execution logs by request and event type
+- `Traces`: inspect Debug-mode prompts, parse results, and pipeline details
 
 ---
 
@@ -84,8 +97,8 @@ The outgoing-relation action opens the same relation editor used for relation cr
 
 - continuity aggregation page for the latest `world_tick` bundle
 - continuity diff card for current vs previous tick facts and summaries
-- inference logs
-- debug traces
+- `Logs` page for inspecting inference logs by event type and `request_id`
+- `Traces` page for Debug-mode prompts, parse results, and pipeline details
 - configured / effective pipeline mode visibility
 - round usage visibility
 
@@ -96,6 +109,20 @@ The outgoing-relation action opens the same relation editor used for relation cr
 - compare `Latest Tick Summary`, `Previous Tick Summary`, and fact additions/removals in `Continuity Diff`
 - move to `State` when you want to directly edit `world_state`, `story_state`, `story_history`, or `tick_policy`
 - keep `state_snapshot` as a read-only engine checkpoint unless you are intentionally rebuilding generated state
+
+### Continuity State and Timelines
+
+- `State` is used to inspect `world_state`, `story_state`, `story_history`, `tick_policy`, and `state_snapshot`
+- `Timelines` is used to inspect recent tick archives and structured payloads
+- `State` can edit continuity state components directly, except for `state_snapshot`
+- `state_snapshot` remains read-only and works best as an engine-generated checkpoint view
+
+When you need to investigate story-context drift, this reading order works well:
+
+1. `Timelines` for the latest tick `reply` and `future_outline`
+2. `State` for `world_state.canonical_facts` and `story_history.entries`
+3. `Logs` for request / response / detail events
+4. `Traces` for Debug-mode prompts and parse results
 
 ---
 

@@ -20,8 +20,21 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 
 - 顶栏：世界选择、语言切换、主题切换、配置入口
 - 左侧树：层级化节点大纲
-- 中央区域：世界页、快照页、计划页、设置页、策略页、连续性页、日志页、轨迹页
+- 中央区域：世界页、快照页、计划页、设置页、策略页、连续性页、状态页、时间线页、日志页、轨迹页
 - 右侧区域：节点摘要与挂载数据
+
+### 页面概览
+
+- `Worlds`：管理当前世界、节点树、节点详情和常规运行入口
+- `Snapshots`：查看普通世界的存档列表，或查看存档世界的来源信息与可恢复快照
+- `Plans`：查看和审批待处理的世界变更计划
+- `Policy`：编辑世界级策略配置
+- `Settings`：编辑世界级运行设置
+- `Continuity`：查看最近一次 `world_tick` 聚合出的连续性 bundle、diff、请求维度信息
+- `State`：查看并编辑连续性相关状态组件，包括 `world_state`、`story_state`、`story_history`、`tick_policy`
+- `Timelines`：查看最近 tick 产生的时间线归档、结构化 payload 与结果摘要
+- `Logs`：按请求和事件查看推理执行日志
+- `Traces`：查看 Debug 模式下记录的 prompt、解析结果与链路细节
 
 ---
 
@@ -84,8 +97,8 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 
 - 连续性聚合页，用于查看最近一次 `world_tick` 的整体连续性工件
 - `Continuity Diff` 卡片，用于对比当前 tick 与上一轮 tick 的摘要和事实变化
-- 推理日志
-- 调试轨迹
+- `Logs` 页面用于按事件类型和 `request_id` 检查推理日志
+- `Traces` 页面用于查看 Debug 模式下的 prompt、解析结果和链路细节
 - configured / effective pipeline mode 可见性
 - round usage 可见性
 
