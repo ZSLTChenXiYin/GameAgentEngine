@@ -143,10 +143,31 @@ GameAgentDevCli action callback <callback-id> --status success --result '{"item_
 ```bash
 GameAgentDevCli logs --world <world-id> --limit 10
 GameAgentDevCli logs --world <world-id> --limit 10 --json
+GameAgentDevCli logs --world <world-id> --task-type world_tick --category pipeline --event raw_llm_response_received --mode debug --details
 
 GameAgentDevCli debug traces --world <world-id> --limit 10
 GameAgentDevCli debug traces --world <world-id> --limit 10 --json
 ```
+
+---
+
+## 连续性状态与时间线
+
+```bash
+GameAgentDevCli state list <world-id>
+GameAgentDevCli state get <world-id> world_state
+GameAgentDevCli state get <world-id> story_state
+GameAgentDevCli state set <world-id> tick_policy --data '{"continuity_rules":["Do not discard established reactor facts."]}'
+
+GameAgentDevCli timeline latest <world-id>
+GameAgentDevCli timeline list <world-id> --limit 5
+```
+
+这组命令主要用于排查 `world_tick` 连续性问题：
+
+- `state` 查看和修改引擎持续继承的结构化状态组件
+- `timeline` 对照最近几次 tick 的历史归档
+- `logs --details` 检查 request / response / detail_data
 
 ---
 

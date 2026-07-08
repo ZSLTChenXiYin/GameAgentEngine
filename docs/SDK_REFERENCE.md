@@ -51,6 +51,24 @@ settings, err := client.UpdateWorldSettings(worldID, &sdk.WorldSettingsUpdate{
 
 如果你希望一次提交完整 `WorldSettings` 载荷，则使用 `SetWorldSettings`。
 
+### 读取连续性状态组件
+
+```go
+state, err := client.GetStateComponents(worldID)
+single, err := client.GetStateComponent(worldID, "world_state")
+
+_, err = client.PutStateComponent(worldID, "tick_policy", map[string]any{
+    "continuity_rules": []string{"Do not discard established underground reactor facts."},
+})
+```
+
+### 读取时间线归档
+
+```go
+timelines, err := client.GetTimelines(worldID, 10)
+latest, err := client.GetLatestTimeline(worldID)
+```
+
 ### 推进世界时间
 
 ```go
@@ -157,6 +175,8 @@ resp, err := client.EventImpact(worldID, event)
 | `ListPendingPlans(worldID string) ([]PendingPlan, error)` | 列出待审批计划 |
 | `ApprovePlan(worldID, planID string) (*PlanDecisionResponse, error)` | 批准一条待审批计划 |
 | `RejectPlan(worldID, planID string) (*PlanDecisionResponse, error)` | 拒绝一条待审批计划 |
+| `GetTimelines(worldID string, limit int) (*TimelinesResponse, error)` | 读取最近的 world tick 时间线归档 |
+| `GetLatestTimeline(worldID string) (*LatestTimelineResponse, error)` | 读取最近一条 world tick 时间线归档 |
 
 ### 自主行为
 
@@ -177,6 +197,9 @@ resp, err := client.EventImpact(worldID, event)
 | `SetWorldPolicy(worldID string, blocked, safe []string) (*WorldPolicy, error)` | 更新世界策略 |
 | `GetLogs(worldID string, limit, offset int, taskType string) ([]InferenceLog, error)` | 读取推理日志 |
 | `GetDebugTraces(worldID string, limit int) (*DebugTraceList, error)` | 读取最近的调试轨迹 |
+| `GetStateComponents(worldID string) (*StateComponentsResponse, error)` | 读取全部连续性状态组件 |
+| `GetStateComponent(worldID, componentType string) (*StateComponentResponse, error)` | 读取单个连续性状态组件 |
+| `PutStateComponent(worldID, componentType string, payload any) (*StateComponentResponse, error)` | 创建或更新连续性状态组件 |
 | `CreatorImport(format, content string, reset, dryRun bool) (*ImportResult, error)` | 导入世界配置 |
 
 ---
@@ -225,6 +248,24 @@ type TickResponse struct {
     Tick           *Timeline             `json:"tick"`
     Invoke         *InvokeResponse       `json:"invoke"`
     AutonomousRuns []AutonomousRunResult `json:"autonomous_runs,omitempty"`
+}
+```
+
+### `StateComponentsResponse`
+
+```go
+type StateComponentsResponse struct {
+    WorldID    string                   `json:"world_id"`
+    Components []StateComponentEnvelope `json:"components"`
+}
+```
+
+### `TimelinesResponse`
+
+```go
+type TimelinesResponse struct {
+    WorldID   string             `json:"world_id"`
+    Timelines []TimelineEnvelope `json:"timelines"`
 }
 ```
 

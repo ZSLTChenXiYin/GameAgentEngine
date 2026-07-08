@@ -21,6 +21,7 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 - 顶栏：世界选择、语言切换、主题切换、配置入口
 - 左侧树：层级化节点大纲
 - 中央区域：世界页、快照页、计划页、设置页、策略页、日志页、轨迹页
+- 中央区域：世界页、快照页、计划页、设置页、策略页、状态页、时间线页、日志页、轨迹页
 - 右侧区域：节点摘要与挂载数据
 
 ---
@@ -85,6 +86,20 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 - 调试轨迹
 - configured / effective pipeline mode 可见性
 - round usage 可见性
+
+### 连续性状态与时间线
+
+- `State` 页面用于查看 `world_state`、`story_state`、`story_history`、`tick_policy`、`state_snapshot`
+- `Timelines` 页面用于查看最近的 tick 历史归档与结构化 payload
+- `State` 页面可直接编辑除 `state_snapshot` 外的连续性状态组件
+- `state_snapshot` 保持只读，更适合作为引擎生成的检查点观察面
+
+当你要排查剧情上下文失真时，推荐按以下顺序看：
+
+1. `Timelines` 查看最近一次 tick 的 `reply` / `future_outline`
+2. `State` 查看 `world_state.canonical_facts` 和 `story_history.entries`
+3. `Logs` 查看 request / response / detail
+4. `Traces` 查看 Debug 模式下的 prompt 与解析结果
 
 ---
 
