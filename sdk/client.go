@@ -867,6 +867,76 @@ func (c *Client) GetWorldSettings(worldID string) (*WorldSettings, error) {
 	return &settings, nil
 }
 
+// GetStateComponents returns all engine-recognized continuity state components for a world.
+func (c *Client) GetStateComponents(worldID string) (*StateComponentsResponse, error) {
+	data, err := c.do("GET", "/api/v1/worlds/"+worldID+"/state-components", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result StateComponentsResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetStateComponent returns one continuity state component for a world.
+func (c *Client) GetStateComponent(worldID, componentType string) (*StateComponentResponse, error) {
+	data, err := c.do("GET", "/api/v1/worlds/"+worldID+"/state-components/"+componentType, nil)
+	if err != nil {
+		return nil, err
+	}
+	var result StateComponentResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// PutStateComponent creates or updates one continuity state component for a world.
+func (c *Client) PutStateComponent(worldID, componentType string, payload any) (*StateComponentResponse, error) {
+	data, err := c.do("PUT", "/api/v1/worlds/"+worldID+"/state-components/"+componentType, payload)
+	if err != nil {
+		return nil, err
+	}
+	var result StateComponentResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetTimelines returns recent world tick archive entries.
+func (c *Client) GetTimelines(worldID string, limit int) (*TimelinesResponse, error) {
+	p := "/api/v1/worlds/" + worldID + "/timelines"
+	query := buildQuery(map[string]any{"limit": limit})
+	if query != "" {
+		p += "?" + query
+	}
+	data, err := c.do("GET", p, nil)
+	if err != nil {
+		return nil, err
+	}
+	var result TimelinesResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetLatestTimeline returns the latest world tick archive entry.
+func (c *Client) GetLatestTimeline(worldID string) (*LatestTimelineResponse, error) {
+	data, err := c.do("GET", "/api/v1/worlds/"+worldID+"/timelines/latest", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result LatestTimelineResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SetWorldSettings 更新世界的运行设置。
 func buildWorldSettingsUpdateBody(settings *WorldSettingsUpdate) map[string]any {
 	if settings == nil {

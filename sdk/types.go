@@ -349,6 +349,61 @@ type WorldSettingsUpdate struct {
 	PipelineMode             *string `json:"pipeline_mode,omitempty"`
 }
 
+// StateComponentEnvelope describes one engine-recognized continuity component.
+type StateComponentEnvelope struct {
+	ComponentType string     `json:"component_type"`
+	Component     *Component `json:"component,omitempty"`
+	Data          any        `json:"data,omitempty"`
+}
+
+// StateComponentsResponse is the list response for world continuity components.
+type StateComponentsResponse struct {
+	WorldID    string                   `json:"world_id"`
+	Components []StateComponentEnvelope `json:"components"`
+}
+
+// StateComponentResponse is the single-component response for world continuity state.
+type StateComponentResponse struct {
+	WorldID         string                 `json:"world_id"`
+	StateComponent  StateComponentEnvelope `json:"state_component"`
+}
+
+// TimelineTick describes one persisted world tick archive entry.
+type TimelineTick struct {
+	ID            string `json:"id"`
+	WorldID       string `json:"world_id"`
+	TickNumber    int    `json:"tick_number"`
+	TickType      string `json:"tick_type"`
+	GameTime      string `json:"game_time,omitempty"`
+	Summary       string `json:"summary,omitempty"`
+	Data          string `json:"data,omitempty"`
+	FutureOutline string `json:"future_outline,omitempty"`
+	CreatedAt     string `json:"created_at"`
+}
+
+// TimelineEnvelope provides parsed timeline payload together with the raw row.
+type TimelineEnvelope struct {
+	TickNumber    int          `json:"tick_number"`
+	TickType      string       `json:"tick_type"`
+	GameTime      string       `json:"game_time,omitempty"`
+	Summary       string       `json:"summary,omitempty"`
+	FutureOutline string       `json:"future_outline,omitempty"`
+	Timeline      TimelineTick `json:"timeline"`
+	Data          any          `json:"data,omitempty"`
+}
+
+// TimelinesResponse is the list response for world tick archives.
+type TimelinesResponse struct {
+	WorldID   string             `json:"world_id"`
+	Timelines []TimelineEnvelope `json:"timelines"`
+}
+
+// LatestTimelineResponse is the latest-entry response for world tick archives.
+type LatestTimelineResponse struct {
+	WorldID  string           `json:"world_id"`
+	Timeline TimelineEnvelope `json:"timeline"`
+}
+
 // NodeDetail 表示节点详情接口返回的聚合结构。
 type NodeDetail struct {
 	Node       Node        `json:"node"`
