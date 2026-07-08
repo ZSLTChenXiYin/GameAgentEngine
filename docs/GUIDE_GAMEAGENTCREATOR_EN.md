@@ -20,7 +20,7 @@ You can also use the CLI `inspect` flow when available in your environment.
 
 - top bar: world selection, language switch, theme switch, config entry
 - left tree: hierarchical node outline
-- center area: world page, snapshots, plans, settings, policy, logs, traces
+- center area: world page, snapshots, plans, settings, policy, continuity, logs, traces
 - right side: node detail summary and attached data
 
 ---
@@ -62,6 +62,7 @@ The outgoing-relation action opens the same relation editor used for relation cr
 
 - Creator surfaces whether a component is strong, weak, or free-text through shared component metadata
 - editing `autonomous` applies structured validation to required fields
+- editing `world_state`, `story_state`, `story_history`, and `tick_policy` now applies field-aware structured validation
 - editing `profile` requires a valid JSON object
 - current built-in text-oriented component types can still be edited as plain text
 
@@ -81,10 +82,20 @@ The outgoing-relation action opens the same relation editor used for relation cr
 
 ### Observability
 
+- continuity aggregation page for the latest `world_tick` bundle
+- continuity diff card for current vs previous tick facts and summaries
 - inference logs
 - debug traces
 - configured / effective pipeline mode visibility
 - round usage visibility
+
+## Continuity Workflow
+
+- open `Continuity` to load the latest world-oriented continuity bundle
+- use the request filter to focus logs and traces for a single `request_id`
+- compare `Latest Tick Summary`, `Previous Tick Summary`, and fact additions/removals in `Continuity Diff`
+- move to `State` when you want to directly edit `world_state`, `story_state`, `story_history`, or `tick_policy`
+- keep `state_snapshot` as a read-only engine checkpoint unless you are intentionally rebuilding generated state
 
 ---
 

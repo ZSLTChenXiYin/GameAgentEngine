@@ -127,3 +127,13 @@ Final regression completed successfully with:
 ```bash
 go test ./...
 ```
+
+## Follow-Up Enhancements
+
+The next enhancement wave added deeper continuity tooling on top of the original sync baseline:
+
+- server-side structured log filtering by `world_id`, `node_id`, `task_type`, `category`, `event_name`, `execution_mode`, `request_id`, and `round`
+- SDK continuity bundle loading through `GetContinuityBundle`
+- DevCli continuity diagnosis through `GameAgentDevCli debug continuity`
+- Creator continuity aggregation and continuity diff views
+- stronger structured validation for `world_state`, `story_state`, `story_history`, and `tick_policy`

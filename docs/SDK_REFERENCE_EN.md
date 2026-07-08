@@ -73,6 +73,20 @@ event := &sdk.WorldEvent{
 resp, err := client.EventImpact(worldID, event)
 ```
 
+### Loading a Continuity Bundle
+
+```go
+bundle, err := client.GetContinuityBundle(worldID, &sdk.ContinuityBundleOptions{
+    LogLimit:   20,
+    TraceLimit: 10,
+    LogQuery: &sdk.InferenceLogQuery{
+        TaskType:      "world_tick",
+        ExecutionMode: "debug",
+    },
+})
+// bundle.LatestTimeline, bundle.StateComponents, bundle.Logs, bundle.Traces
+```
+
 ---
 
 ## Client Methods
@@ -142,6 +156,11 @@ resp, err := client.EventImpact(worldID, event)
 | `GetWorldSnapshotMetadata(worldID string) (*WorldSnapshotInfo, error)` | Read snapshot metadata |
 | `ListWorldSnapshots(worldID string) ([]WorldSnapshotInfo, error)` | List snapshots created from a source world |
 | `DeleteWorldSnapshot(worldID string) error` | Delete a snapshot world and its metadata |
+| `GetStateComponents(worldID string) (*StateComponentsResponse, error)` | Read the world continuity state bundle |
+| `GetStateComponent(worldID, componentType string) (*StateComponentResponse, error)` | Read one continuity state component |
+| `PutStateComponent(worldID, componentType string, payload any) (*StateComponentResponse, error)` | Replace one continuity state component |
+| `GetTimelines(worldID string, limit int) (*TimelinesResponse, error)` | Read recent world tick archives |
+| `GetLatestTimeline(worldID string) (*LatestTimelineResponse, error)` | Read the latest world tick archive |
 
 ### Runtime and Inference Operations
 
@@ -176,7 +195,9 @@ resp, err := client.EventImpact(worldID, event)
 | `GetWorldPolicy(worldID string) (*WorldPolicy, error)` | Read world policy |
 | `SetWorldPolicy(worldID string, blocked, safe []string) (*WorldPolicy, error)` | Update world policy |
 | `GetLogs(worldID string, limit, offset int, taskType string) ([]InferenceLog, error)` | Read inference logs |
+| `GetLogsByQuery(query InferenceLogQuery) ([]InferenceLog, error)` | Read inference logs with structured server-side filters |
 | `GetDebugTraces(worldID string, limit int) (*DebugTraceList, error)` | Read recent debug traces |
+| `GetContinuityBundle(worldID string, options *ContinuityBundleOptions) (*ContinuityBundle, error)` | Load timelines, continuity state, logs, and traces together |
 | `CreatorImport(format, content string, reset, dryRun bool) (*ImportResult, error)` | Import world configuration |
 
 ---

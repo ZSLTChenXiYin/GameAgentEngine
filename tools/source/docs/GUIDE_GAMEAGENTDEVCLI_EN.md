@@ -93,6 +93,24 @@ GameAgentDevCli world replan <world-id>
 
 ---
 
+## Continuity State and Timeline
+
+```bash
+GameAgentDevCli state list <world-id>
+GameAgentDevCli state get <world-id> world_state
+GameAgentDevCli state get <world-id> story_state
+GameAgentDevCli state get <world-id> story_history
+GameAgentDevCli state get <world-id> tick_policy
+GameAgentDevCli state set <world-id> tick_policy --data '{"continuity_rules":["Do not discard established underground reactor facts."]}'
+
+GameAgentDevCli timeline latest <world-id>
+GameAgentDevCli timeline list <world-id> --limit 5
+```
+
+Use these commands when you want to inspect or patch the continuity state that feeds the next `world_tick`.
+
+---
+
 ## World Settings and Policy
 
 ```bash
@@ -114,10 +132,17 @@ GameAgentDevCli world policy set <world-id> --blocked spawn_item --safe add_memo
 ```bash
 GameAgentDevCli logs --world <world-id> --limit 10
 GameAgentDevCli logs --world <world-id> --limit 10 --json
+GameAgentDevCli logs --world <world-id> --task-type world_tick --category pipeline --event llm_response_received --mode debug --request-id <request-id> --details
 
 GameAgentDevCli debug traces --world <world-id> --limit 10
 GameAgentDevCli debug traces --world <world-id> --limit 10 --json
+GameAgentDevCli debug continuity <world-id>
+GameAgentDevCli debug continuity <world-id> --mode debug --request-id <request-id> --log-limit 20 --trace-limit 10
 ```
+
+`logs` now supports server-side filters such as `--node`, `--category`, `--event`, `--mode`, `--request-id`, and `--round`.
+
+`debug continuity` is the fastest way to load the latest timeline, continuity state components, recent `world_tick` logs, and debug traces in one summary view.
 
 ---
 

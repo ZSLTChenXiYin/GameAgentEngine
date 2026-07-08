@@ -9,10 +9,13 @@ Use DevCli:
 ```bash
 GameAgentDevCli timeline latest <world-id>
 GameAgentDevCli timeline list <world-id> --limit 5
+GameAgentDevCli debug continuity <world-id>
 ```
 
 Use Creator:
 
+- Open the `Continuity` page first for the aggregated world-tick bundle
+- Use `Continuity Diff` to compare the latest tick against the previous one
 - Open the `Timelines` page
 - Inspect the latest tick summary
 - Expand `Timeline Payload` to compare `reply`, `future_outline`, `memory_updates`, and `action_calls`
@@ -42,11 +45,13 @@ Use DevCli:
 ```bash
 GameAgentDevCli logs --world <world-id> --task-type world_tick --mode debug --details
 GameAgentDevCli logs --world <world-id> --category pipeline --event raw_llm_response_received --details
+GameAgentDevCli logs --world <world-id> --request-id <request-id> --round 1 --details
 GameAgentDevCli debug traces --world <world-id> --limit 10
 ```
 
 Use Creator:
 
+- Use the `Continuity` page request filter to isolate one `request_id`
 - Open the `Logs` page for structured request/response/detail payloads
 - Open the `Traces` page for debug-mode prompt and parsed-output inspection
 
