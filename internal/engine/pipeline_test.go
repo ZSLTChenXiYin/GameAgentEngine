@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -276,6 +277,76 @@ func TestExecutePersistsStructuredPipelineLogs(t *testing.T) {
 	}
 	if completed.ResponseData == "" {
 		t.Fatal("expected response data in completed log")
+	}
+}
+
+func TestExecuteDebugModePersistsFullRoundDetails(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	previousMode := config.Global.Engine.ExecutionMode
+	config.Global.Engine.ExecutionMode = "debug"
+	defer func() { config.Global.Engine.ExecutionMode = previousMode }()
+
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	logs, err := store.GetInferenceLogs(worldID, 20, 0, string(TaskCustom))
+	if err != nil {
+		t.Fatalf("get logs: %v", err)
+	}
+	var found bool
+	for _, item := range logs {
+		if item.EventName == "llm_response_received" {
+			found = true
+			if item.DetailData == "" {
+				t.Fatal("expected full detail data in debug mode")
+			}
+			if !strings.Contains(item.DetailData, "raw_response") {
+				t.Fatalf("expected raw_response in detail data, got %s", item.DetailData)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected llm_response_received log in debug mode")
+	}
+}
+
+func TestExecuteReviewModePersistsPendingPlanLog(t *testing.T) {
+	initTestDB(t)
+	worldID, _ := createWorldAndNode(t)
+	previousMode := config.Global.Engine.ExecutionMode
+	config.Global.Engine.ExecutionMode = "review"
+	defer func() { config.Global.Engine.ExecutionMode = previousMode }()
+	GlobalPlanReview = NewPlanReviewStore()
+
+	provider := &stubProvider{response: `{"reply":"plan","action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"major","summary":"需要审批","world_events":[],"proposed_actions":[]}}`}
+	pipeline := NewPipeline(provider)
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: worldID, TaskType: TaskWorldTick})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp.ExecutionMode != ModeReview {
+		t.Fatalf("expected review execution mode, got %q", resp.ExecutionMode)
+	}
+
+	logs, err := store.GetInferenceLogs(worldID, 20, 0, string(TaskWorldTick))
+	if err != nil {
+		t.Fatalf("get logs: %v", err)
+	}
+	var found bool
+	for _, item := range logs {
+		if item.EventName == "plan_pending_review" {
+			found = true
+			if item.DetailData == "" {
+				t.Fatal("expected pending plan detail data")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected plan_pending_review log")
 	}
 }
 

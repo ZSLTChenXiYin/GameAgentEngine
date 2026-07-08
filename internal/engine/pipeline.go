@@ -423,20 +423,51 @@ func (p *Pipeline) executeMultiTurnLoop(
 			promptSeed = ctx.SystemPrompt
 			state.SystemPrompt = state.buildPrompt(taskPromptFn(promptSeed, req, targetNodeID, round))
 		}
+		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+			Category:   "pipeline_round",
+			EventName:  "prompt_prepared",
+			Message:    fmt.Sprintf("round %d prompt prepared", round+1),
+			Round:      round + 1,
+			DetailData: buildRoundLogDetail(state.SystemPrompt, state.Messages, round+1, targetNodeID, state.Tree),
+		})
 
 		llmStart := time.Now()
 		llmResp, err := p.llmProvider.Chat(state.SystemPrompt, state.Messages)
 		if err != nil {
+			p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+				Category:   "pipeline_round",
+				EventName:  "llm_call_failed",
+				LogLevel:   "error",
+				Message:    err.Error(),
+				Round:      round + 1,
+				DurationMs: time.Since(llmStart).Milliseconds(),
+			})
 			return nil, fmt.Errorf("llm chat: %w", err)
 		}
 
 		parsed := p.parseLLMJSON(llmResp.Content)
+		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+			Category:   "pipeline_round",
+			EventName:  "llm_response_received",
+			Message:    truncateForLog(parsed.Reply, 180),
+			Round:      round + 1,
+			TokensUsed: llmResp.Tokens,
+			DurationMs: time.Since(llmStart).Milliseconds(),
+			DetailData: buildLLMResponseDetail(llmResp.Content, parsed),
+		})
 		if roundNode != nil {
 			roundNode.LLMResponse = llmResp.Content
 		}
 
 		if parsed.RawInterimMemoryUpdates != "" {
 			if imus := p.parseMemoryUpdates(parsed.RawInterimMemoryUpdates); len(imus) > 0 {
+				p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+					Category:   "pipeline_round",
+					EventName:  "interim_memory_updates",
+					Message:    fmt.Sprintf("round %d produced %d interim memories", round+1, len(imus)),
+					Round:      round + 1,
+					DetailData: marshalLogDetail(imus),
+				})
 				writeMemories(imus)
 				for _, imu := range imus {
 					p.PropagateMemoryByRule(imu, imu.NodeID)
@@ -447,6 +478,13 @@ func (p *Pipeline) executeMultiTurnLoop(
 		if parsed.RawRequestData != "" {
 			var dr DataRequest
 			if err := json.Unmarshal([]byte(parsed.RawRequestData), &dr); err == nil && len(dr.Queries) > 0 {
+				p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+					Category:   "pipeline_round",
+					EventName:  "data_request_emitted",
+					Message:    dr.Label,
+					Round:      round + 1,
+					DetailData: marshalLogDetail(dr),
+				})
 				switch dr.Target {
 				case "game_client":
 					resp := &InvokeResponse{
@@ -461,10 +499,27 @@ func (p *Pipeline) executeMultiTurnLoop(
 						}},
 						Metadata: buildResponseMeta(runtime, p.llmProvider.ModelName(), llmResp.Tokens, start, round+1),
 					}
+					p.emitLog(req, resp, runtime, executionMode, pipelineLogEvent{
+						Category:     "pipeline_round",
+						EventName:    "data_request_paused_for_client",
+						Message:      dr.Label,
+						Round:        round + 1,
+						TokensUsed:   llmResp.Tokens,
+						DurationMs:   time.Since(start).Milliseconds(),
+						ResponseData: buildFullResponseLogData(resp),
+						DetailData:   buildResponseOutcomeDetail(resp),
+					})
 					appendResponseLog(resp, req)
 					return resp, nil
 				default:
 					result := p.handleDataRequest(runtime.policyEngine, &dr)
+					p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+						Category:   "pipeline_round",
+						EventName:  "data_request_resolved",
+						Message:    dr.Label,
+						Round:      round + 1,
+						DetailData: marshalLogDetail(map[string]any{"request": dr, "result": result}),
+					})
 					if roundNode != nil {
 						roundNode.Analysis = result
 						roundNode.Decision = "[数据查询] " + dr.Label
@@ -521,10 +576,27 @@ func (p *Pipeline) executeMultiTurnLoop(
 		}
 
 		resp.Metadata = buildResponseMeta(runtime, p.llmProvider.ModelName(), llmResp.Tokens, start, round+1)
+		p.emitLog(req, resp, runtime, executionMode, pipelineLogEvent{
+			Category:     "pipeline_round",
+			EventName:    "round_completed",
+			Message:      truncateForLog(resp.Reply, 180),
+			Round:        round + 1,
+			TokensUsed:   llmResp.Tokens,
+			DurationMs:   time.Since(start).Milliseconds(),
+			ResponseData: buildFullResponseLogData(resp),
+			DetailData:   buildResponseOutcomeDetail(resp),
+		})
 
 		if state.Tree != nil && runtime.pipelineMode == PipelineFull && parsed.RawSubTasks != "" {
 			var subTasks []SubTaskDeclaration
 			if err := json.Unmarshal([]byte(parsed.RawSubTasks), &subTasks); err == nil && len(subTasks) > 0 {
+				p.emitLog(req, resp, runtime, executionMode, pipelineLogEvent{
+					Category:   "pipeline_round",
+					EventName:  "sub_tasks_declared",
+					Message:    fmt.Sprintf("round %d declared %d sub tasks", round+1, len(subTasks)),
+					Round:      round + 1,
+					DetailData: marshalLogDetail(subTasks),
+				})
 				dag := NewDAGInstance(state.Tree, p.llmProvider, runtime.subTaskRetries, time.Duration(runtime.subTaskTimeout)*time.Second)
 				for _, st := range subTasks {
 					if err := dag.Register(st); err != nil {
@@ -579,6 +651,13 @@ func (p *Pipeline) executeMultiTurnLoop(
 					Status:          "pending",
 				}
 				GlobalPlanReview.Add(pendingPlan)
+				p.emitLog(req, resp, runtime, executionMode, pipelineLogEvent{
+					Category:   "pipeline_review",
+					EventName:  "plan_pending_review",
+					Message:    resp.WorldChangePlan.Summary,
+					Round:      round + 1,
+					DetailData: marshalLogDetail(pendingPlan),
+				})
 				resp.ActionCalls = nil
 				resp.MemoryUpdates = nil
 				resp.ExecutionMode = ModeReview
@@ -655,10 +734,34 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 
 	llmResp, err := p.llmProvider.Chat(systemPrompt, sanitizeRoles(req.Messages))
 	if err != nil {
+		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+			Category:   "pipeline_round",
+			EventName:  "llm_call_failed",
+			LogLevel:   "error",
+			Message:    err.Error(),
+			Round:      1,
+			DurationMs: time.Since(start).Milliseconds(),
+		})
 		return nil, fmt.Errorf("vertical llm: %w", err)
 	}
 
 	parsed := p.parseLLMJSON(llmResp.Content)
+	p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+		Category:   "pipeline_round",
+		EventName:  "prompt_prepared",
+		Message:    "vertical prompt prepared",
+		Round:      1,
+		DetailData: buildRoundLogDetail(systemPrompt, sanitizeRoles(req.Messages), 1, req.NodeID, nil),
+	})
+	p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+		Category:   "pipeline_round",
+		EventName:  "llm_response_received",
+		Message:    truncateForLog(parsed.Reply, 180),
+		Round:      1,
+		TokensUsed: llmResp.Tokens,
+		DurationMs: time.Since(start).Milliseconds(),
+		DetailData: buildLLMResponseDetail(llmResp.Content, parsed),
+	})
 	resp := &InvokeResponse{
 		RequestID:     requestID,
 		TaskType:      req.TaskType,

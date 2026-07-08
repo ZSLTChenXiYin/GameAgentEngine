@@ -12,6 +12,8 @@ import (
 
 type llmParsedOutput struct {
 	Reply                   string
+	CleanedContent          string
+	ParseError              string
 	RawActionCalls          string
 	RawMemoryUpdates        string
 	RawPlan                 string
@@ -26,9 +28,11 @@ func (p *Pipeline) parseLLMJSON(content string) *llmParsedOutput {
 	out := &llmParsedOutput{Reply: content}
 
 	cleaned := p.cleanJSON(content)
+	out.CleanedContent = cleaned
 
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(cleaned), &raw); err != nil {
+		out.ParseError = err.Error()
 		log.Printf("[warn] LLM output is not valid JSON, using raw: %v", err)
 		return out
 	}

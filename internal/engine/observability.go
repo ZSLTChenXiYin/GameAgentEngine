@@ -195,3 +195,42 @@ func buildContextLogDetail(ctx *BuiltContext, started time.Time) string {
 		"built_at":        time.Since(started).Milliseconds(),
 	})
 }
+
+func buildRoundLogDetail(systemPrompt string, messages []ChatMessage, round int, targetNodeID string, taskTree *TaskTree) string {
+	data := map[string]any{
+		"round":          round,
+		"target_node_id": targetNodeID,
+		"system_prompt":  systemPrompt,
+		"messages":       messages,
+	}
+	if taskTree != nil {
+		data["task_tree"] = taskTree
+	}
+	return marshalLogDetail(data)
+}
+
+func buildLLMResponseDetail(raw string, parsed *llmParsedOutput) string {
+	data := map[string]any{
+		"raw_response": raw,
+	}
+	if parsed != nil {
+		data["cleaned_response"] = parsed.CleanedContent
+		data["parse_error"] = parsed.ParseError
+		data["reply"] = parsed.Reply
+		data["action_calls"] = parsed.RawActionCalls
+		data["memory_updates"] = parsed.RawMemoryUpdates
+		data["world_change_plan"] = parsed.RawPlan
+		data["request_data"] = parsed.RawRequestData
+		data["interim_memory_updates"] = parsed.RawInterimMemoryUpdates
+		data["future_outline"] = parsed.RawFutureOutline
+		data["sub_tasks"] = parsed.RawSubTasks
+	}
+	return marshalLogDetail(data)
+}
+
+func buildResponseOutcomeDetail(resp *InvokeResponse) string {
+	if resp == nil {
+		return ""
+	}
+	return marshalLogDetail(resp)
+}
