@@ -11,6 +11,14 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
 
+func decodeJSONValue(raw string) (any, error) {
+	var out any
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type inferenceLogRequestView struct {
 	TaskType          string `json:"task_type,omitempty"`
 	MessageCount      int    `json:"message_count,omitempty"`
@@ -87,6 +95,9 @@ func summarizeInferenceLog(log sdk.InferenceLog) []string {
 		}
 		lines = append(lines, "  "+strings.Join(parts, " "))
 	}
+	if log.Round > 0 {
+		lines = append(lines, fmt.Sprintf("  round=%d", log.Round))
+	}
 	if log.Message != "" {
 		lines = append(lines, "  message="+log.Message)
 	}
@@ -149,13 +160,30 @@ func summarizeInferenceLog(log sdk.InferenceLog) []string {
 	return lines
 }
 
-func printInferenceLogSummary(logs []sdk.InferenceLog) {
+func appendInferenceLogDetails(lines []string, log sdk.InferenceLog) []string {
+	if log.RequestData != "" {
+		lines = append(lines, "  request_data="+log.RequestData)
+	}
+	if log.ResponseData != "" {
+		lines = append(lines, "  response_data="+log.ResponseData)
+	}
+	if log.DetailData != "" {
+		lines = append(lines, "  detail_data="+log.DetailData)
+	}
+	return lines
+}
+
+func printInferenceLogSummary(logs []sdk.InferenceLog, showDetails bool) {
 	if len(logs) == 0 {
 		fmt.Println("No logs found.")
 		return
 	}
 	for _, log := range logs {
-		for _, line := range summarizeInferenceLog(log) {
+		lines := summarizeInferenceLog(log)
+		if showDetails {
+			lines = appendInferenceLogDetails(lines, log)
+		}
+		for _, line := range lines {
 			fmt.Println(line)
 		}
 		fmt.Println()
@@ -176,11 +204,28 @@ var logsCmd = &cobra.Command{
 		if err != nil {
 			fail(err)
 		}
+		category, _ := cmd.Flags().GetString("category")
+		eventName, _ := cmd.Flags().GetString("event")
+		executionMode, _ := cmd.Flags().GetString("mode")
+		showDetails, _ := cmd.Flags().GetBool("details")
+		filtered := make([]sdk.InferenceLog, 0, len(logs))
+		for _, log := range logs {
+			if category != "" && log.Category != category {
+				continue
+			}
+			if eventName != "" && log.EventName != eventName {
+				continue
+			}
+			if executionMode != "" && log.ExecutionMode != executionMode {
+				continue
+			}
+			filtered = append(filtered, log)
+		}
 		if jsonOutput {
-			printJSON(logs)
+			printJSON(filtered)
 			return
 		}
-		printInferenceLogSummary(logs)
+		printInferenceLogSummary(filtered, showDetails)
 	},
 }
 
@@ -189,5 +234,9 @@ func init() {
 	logsCmd.Flags().Int("limit", 20, "返回日志条数")
 	logsCmd.Flags().Int("offset", 0, "偏移量")
 	logsCmd.Flags().String("task-type", "", "按任务类型过滤（如 npc_dialogue, world_tick）")
+	logsCmd.Flags().String("category", "", "按日志分类过滤（如 pipeline, engine_execution）")
+	logsCmd.Flags().String("event", "", "按事件名过滤（如 raw_llm_response_received）")
+	logsCmd.Flags().String("mode", "", "按执行模式过滤（debug, review, production）")
+	logsCmd.Flags().Bool("details", false, "输出 request/response/detail 明细")
 	logsCmd.Flags().Bool("json", false, "输出原始 JSON")
 }

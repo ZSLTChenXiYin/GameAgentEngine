@@ -145,6 +145,8 @@ func main() {
 	rootCmd.AddCommand(actionCmd)
 	rootCmd.AddCommand(worldCmd)
 	rootCmd.AddCommand(tickCmd)
+	rootCmd.AddCommand(stateCmd)
+	rootCmd.AddCommand(timelineCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(logsCmd)
 	rootCmd.AddCommand(inspectCmd)
