@@ -78,6 +78,11 @@ Components are structured data attached to Nodes. They contain all descriptive i
 | `relations` | Relation summaries | Cached relationship overview |
 | `prompt_profile` | LLM behavior constraints | Character tone and style |
 | `autonomous` | Autonomous behavior config | Triggers, capability allowlist |
+| `world_state` | Persistent world continuity summary | Summary, canonical facts, active arcs |
+| `story_state` | Current story continuity state | Situation, recent changes, pending threads |
+| `story_history` | Recent tick continuity history | Tick entries, summaries, retained facts |
+| `tick_policy` | Continuity constraints | Rules, preferred facts, prompt guidance |
+| `state_snapshot` | Engine-generated checkpoint | Latest structured world tick payload |
 | `memory` | Legacy memory (deprecated) | Use the Memory entity instead |
 
 ### Custom Components
@@ -101,6 +106,8 @@ Engine, GameAgentCreator, and GameAgentDevCli now share the same component valid
 | `rule` / `timeline` / `action_policy` / `relations` / `prompt_profile` / `lore` | free | text | Treated as plain text for now, with no structured field validation |
 
 If a component type later becomes field-aware inside the Engine, it should be promoted to weak or strong validation instead of remaining free text by convention.
+
+The continuity-oriented state components are world-level persistence artifacts used by `world_tick`. They are readable through API, SDK, DevCli, and Creator, while `state_snapshot` is intended to remain read-only in tooling.
 
 ---
 
@@ -249,8 +256,21 @@ The World Timeline tracks game state changes between Ticks.
 2. Pipeline executes a `world_tick` task according to PipelineMode
 3. Policy engine evaluates the plan
 4. Memories are written and propagated
-5. `world_tick_sync` autonomous nodes are triggered
-6. A TimelineModel record is created
+5. Timeline rows and continuity state components are persisted
+6. `world_tick_sync` autonomous nodes are triggered
+7. A TimelineModel record is created
+
+### Continuity Persistence
+
+`world_tick` does not rely only on the latest `future_outline`. The engine now persists a structured continuity bundle through:
+
+- `world_state`
+- `story_state`
+- `story_history`
+- `tick_policy`
+- `state_snapshot`
+
+To reduce drift, high-value facts are promoted into `world_state.canonical_facts` and `story_history.entries[].facts`, then re-injected into later ticks together with continuity constraints.
 
 ---
 

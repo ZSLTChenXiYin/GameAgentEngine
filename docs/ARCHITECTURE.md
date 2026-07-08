@@ -59,7 +59,8 @@ HTTP 入口。将请求路由到对应的处理函数，验证输入，将错误
 
 - **CRUD 操作** — 节点、组件、记忆、关系的创建/更新/删除，带完整验证
 - **世界导入/导出**（import_export.go）— YAML/JSON 世界配置导入，支持 dry-run
-- **世界 Tick**（world.go）— 时间线刻度推进、自主节点调度、事件影响评估、局部推进
+- **世界 Tick**（world.go）— 时间线刻度推进、自主节点调度、事件影响评估、局部推进，以及连续性状态持久化
+- **连续性状态管理** — 读写结构化 `world_state`、`story_state`、`story_history`、`tick_policy`、`state_snapshot` 组件，用于跨 tick 持续保留世界叙事上下文
 - **快照服务**（snapshot_service.go）— 快照元数据查询、校验、列表与删除
 - **世界复制服务**（world_copy_service.go）— 工作副本分叉、存档快照创建与恢复流程
 - **自主行为管理** — 配置、查询、手动触发自主节点行为周期
@@ -72,7 +73,8 @@ HTTP 入口。将请求路由到对应的处理函数，验证输入，将错误
 - **上下文构建**（context.go）— 从存储加载节点数据、组件、记忆、祖先树
 - **Prompt 生成**（prompt_builders.go）— 构建任务特定的系统 Prompt
 - **多轮轮询**（pipeline.go）— 支持多轮 LLM 对话，每轮可触发 request_data 数据查询
-- **可观测元数据** — Response metadata、Debug traces 与 inference logs 会暴露 configured/effective pipeline mode 及轮次消耗
+- **可观测元数据** — Response metadata、Debug traces 与结构化 `logs` 会暴露 configured/effective pipeline mode 及轮次消耗
+- **world tick 连续性注入** — `world_tick` Prompt 可注入持续状态、最近摘要与 `tick_policy` 约束，减少模型在多轮推进中的既有事实漂移
 - **子任务 DAG**（dag.go）— LLM 声明的子任务有向无环图编排，支持重试、超时、合并模式
 - **任务节点树**（tasktree.go）— 记录完整推理轨迹，用于上下文继承
 - **记忆传播引擎**（propagation_engine.go）— 四种传播模式（沿父链/标签广播/定向/手动）+ 可选状态机
@@ -89,7 +91,8 @@ HTTP 入口。将请求路由到对应的处理函数，验证输入，将错误
 - **组件操作**（components.go）— 按节点获取、按类型获取、按世界获取
 - **记忆操作**（memories.go）— CRUD + 层级过滤、批量创建、手动传播
 - **关系操作**（relations.go）— CRUD + 分页过滤、获取节点相关关系
-- **时间线与日志**（timeline.go）— 时间线刻度、推理日志
+- **时间线与日志**（timeline.go）— 时间线刻度与结构化日志
+- **日志迁移** — 启动时会在需要时把旧 `inference_logs` 行迁移进统一的 `logs` 表
 - **快照元数据**（snapshots.go）— 快照元数据创建、查询与列表
 - **世界设置**（world_settings.go）— 每世界运行时设置，支持 CRUD + 默认值
 - **世界策略**（policy.go）— 每世界 blocked_actions / safe_actions 策略
@@ -240,7 +243,7 @@ sequenceDiagram
 - **memories** — id, node_id, content, level, tags, created_at
 - **relations** — id, world_id, source_id, target_id, relation_type, weight, properties, created_at
 - **timelines** — id, world_id, tick_number, tick_type, game_time, summary, data, future_outline, created_at
-- **inference_logs** — id, world_id, task_type, node_id, request_data, response_data, llm_model, tokens_used, duration_ms, created_at
+- **logs** — id, world_id, task_type, node_id, request_data, response_data, llm_model, tokens_used, duration_ms, category, event_name, execution_mode, request_id, round, detail_data, created_at
 - **idempotency_keys** — id, result, created_at
 - **world_snapshots** — source_world_id, snapshot_world_id, snapshot_name, reason, 引擎/Schema 兼容元数据, payload_hash, 时间戳
 - **world_policies** — world_id, blocked_actions, safe_actions, 时间戳

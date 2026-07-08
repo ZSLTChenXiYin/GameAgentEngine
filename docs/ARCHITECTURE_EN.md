@@ -59,7 +59,8 @@ Contains business rules and transaction boundaries. Prevents duplicated validati
 
 - **CRUD operations** — create/update/delete for nodes, components, memories, and relations with full validation
 - **World import/export** (import_export.go) - YAML/JSON world config import with dry-run support
-- **World Tick** (world.go) - timeline advancement, autonomous node scheduling, event impact evaluation, scope advancement
+- **World Tick** (world.go) - timeline advancement, autonomous node scheduling, event impact evaluation, scope advancement, and continuity state persistence
+- **Continuity state management** - read/write structured `world_state`, `story_state`, `story_history`, `tick_policy`, and `state_snapshot` components that persist world tick continuity across rounds
 - **Snapshot service** (snapshot_service.go) - snapshot metadata lookup, validation, listing, and deletion
 - **World copy service** (world_copy_service.go) - working-copy fork, save snapshot creation, and restore flows
 - **Autonomous behavior management** - configure, query, and manually trigger autonomous node behavior cycles
@@ -72,7 +73,8 @@ The core inference pipeline. Handles the entire inference lifecycle:
 - **Context builder** (context.go) — loads node data, components, memories, and ancestor tree from storage
 - **Prompt generation** (prompt_builders.go) — builds task-specific system prompts
 - **Multi-round polling** (pipeline.go) - supports multiple LLM dialogue rounds, with request_data queries per round
-- **Observability metadata** - response metadata, debug traces, and inference logs expose configured/effective pipeline mode and round usage
+- **Observability metadata** - response metadata, debug traces, and structured logs expose configured/effective pipeline mode and round usage
+- **World tick continuity injection** - `world_tick` prompts can include persistent continuity state, recent summaries, and `tick_policy` constraints so the model keeps established facts across ticks
 - **Sub-task DAG** (dag.go) — orchestrates directed acyclic graphs of sub-tasks declared by the LLM, with retry, timeout, and merge modes
 - **Task node tree** (tasktree.go) — records the complete inference trace for context inheritance
 - **Memory propagation engine** (propagation_engine.go) — four propagation modes (upward/tag_broadcast/targeted/manual) with optional state machine
@@ -89,7 +91,8 @@ GORM-based persistence. Handles database connection, auto-migration, and CRUD op
 - **Component operations** (components.go) — get by node, by type, by world
 - **Memory operations** (memories.go) — CRUD + level filtering, bulk creation, manual propagation
 - **Relation operations** (relations.go) — CRUD + paginated filtering, get node-related relations
-- **Timeline & logs** (timeline.go) - timeline ticks, inference logs
+- **Timeline & logs** (timeline.go) - timeline ticks and structured logs
+- **Log migration** - migrates legacy `inference_logs` rows into the unified `logs` table when needed
 - **Snapshot metadata** (snapshots.go) - snapshot metadata create/list/get operations
 - **World settings** (world_settings.go) — per-world runtime settings with CRUD + defaults
 - **World policy** (policy.go) — per-world blocked_actions / safe_actions policy
@@ -227,7 +230,7 @@ Ten tables managed by GORM AutoMigrate:
 - **memories** — id, node_id, content, level, tags, created_at
 - **relations** — id, world_id, source_id, target_id, relation_type, weight, properties, created_at
 - **timelines** — id, world_id, tick_number, tick_type, game_time, summary, data, future_outline, created_at
-- **inference_logs** — id, world_id, task_type, node_id, request_data, response_data, llm_model, tokens_used, duration_ms, created_at
+- **logs** — id, world_id, task_type, node_id, request_data, response_data, llm_model, tokens_used, duration_ms, category, event_name, execution_mode, request_id, round, detail_data, created_at
 - **idempotency_keys** - id, result, created_at
 - **world_snapshots** - source_world_id, snapshot_world_id, snapshot_name, reason, engine/schema compatibility metadata, payload_hash, timestamps
 - **world_policies** - world_id, blocked_actions, safe_actions, timestamps

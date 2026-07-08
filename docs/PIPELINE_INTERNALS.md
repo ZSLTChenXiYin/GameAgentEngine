@@ -59,6 +59,8 @@
 当达到 max_analysis_rounds 或 LLM 标记 decision=stop 时结束
 ```
 
+在 `debug` 和 `review` 模式下，管线会把更完整的 request / response / detail 载荷持久化到统一的 `logs` 表中；在 `production` 模式下仍会记录执行摘要，但可观测负载更轻。
+
 ---
 
 ## 子任务 DAG 编排
@@ -111,6 +113,8 @@ LLM 在响应中可以发起 `request_data` 查询请求，管线执行以下逻
 5. 调用方通过 POST /api/v1/actions/callback 上报执行结果
 6. ActionRegistry 匹配 callback_id 并存储结果
 
+对于 `world_tick`，同一套执行循环还会写入结构化连续性日志，后续可以通过 `request_id`、`execution_mode` 和 `round` 过滤精确回放。
+
 ---
 
 ## 记忆处理与传播
@@ -126,6 +130,8 @@ LLM 在响应中可以发起 `request_data` 查询请求，管线执行以下逻
    - 每轮传播后检查规则链
    - 满足触发条件时执行 PropagateAction
    - 支持 TransformRule（内容前缀、层级提升、标签追加）
+
+对于 `world_tick`，记忆处理之后还会进入连续性持久化阶段。服务层会同时保存时间线归档以及 `world_state`、`story_state`、`story_history`、`tick_policy`、`state_snapshot`，后续 tick 再把这组连续性工件重新注入 Prompt。
 
 ---
 

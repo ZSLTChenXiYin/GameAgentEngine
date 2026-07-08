@@ -48,8 +48,8 @@ Round 1:
   5. Process request_data → async data request wait
   6. Execute sync actions
   7. Write memory updates → propagate
-  8. Build next TaskNode
-  9. Log inference
+8. Build next TaskNode
+9. Log inference
 
 Round 2+ (when needed):
   - Include previous round analysis in context
@@ -58,6 +58,8 @@ Round 2+ (when needed):
 
 Ends when max_analysis_rounds is reached or LLM marks decision=stop
 ```
+
+In `debug` and `review`, the pipeline persists more complete request / response / detail payloads into the unified `logs` table. In `production`, it still records execution summaries, but with a smaller observability footprint.
 
 ---
 
@@ -111,6 +113,8 @@ The LLM can issue `request_data` queries in its response. The pipeline executes 
 5. The caller reports results via POST /api/v1/actions/callback
 6. ActionRegistry matches the callback_id and stores the result
 
+For `world_tick`, the same execution loop can also write structured continuity-oriented logs that later align with `request_id`, `execution_mode`, and `round` filters.
+
 ---
 
 ## Memory Processing & Propagation
@@ -126,6 +130,8 @@ The LLM can issue `request_data` queries in its response. The pipeline executes 
    - Check rule chain after each propagation round
    - Execute PropagateAction when trigger conditions are met
    - Supports TransformRule (content prefix, level promotion, tag appending)
+
+For `world_tick`, memory processing is followed by continuity persistence. The service layer stores timeline rows together with `world_state`, `story_state`, `story_history`, `tick_policy`, and `state_snapshot`, then later rounds can inject that continuity bundle back into prompts.
 
 ---
 
