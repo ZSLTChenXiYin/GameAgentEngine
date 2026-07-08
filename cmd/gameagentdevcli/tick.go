@@ -12,12 +12,17 @@ var tickCmd = &cobra.Command{
 		client := newClient()
 		tickType, _ := cmd.Flags().GetString("type")
 		gameTime, _ := cmd.Flags().GetString("time")
+		var requestedTicks *int
+		if cmd.Flags().Changed("requested-ticks") {
+			v, _ := cmd.Flags().GetInt("requested-ticks")
+			requestedTicks = &v
+		}
 		var limit *int
 		if cmd.Flags().Changed("autonomous-limit") {
 			v, _ := cmd.Flags().GetInt("autonomous-limit")
 			limit = &v
 		}
-		tr, err := client.AdvanceTickWithAutonomousLimit(args[0], tickType, gameTime, limit)
+		tr, err := client.AdvanceTickWithOptions(args[0], tickType, gameTime, requestedTicks, limit)
 		if err != nil {
 			fail(err)
 		}
@@ -28,5 +33,6 @@ var tickCmd = &cobra.Command{
 func init() {
 	tickCmd.Flags().String("type", "manual", "刻推进类型")
 	tickCmd.Flags().String("time", "dev-cli", "游戏内时间标识")
+	tickCmd.Flags().Int("requested-ticks", 1, "本次 world tick 请求推进的基础 tick 数量")
 	tickCmd.Flags().Int("autonomous-limit", 10, "本次 tick 最多触发的 world_tick_sync 自主节点数；0 为不触发")
 }

@@ -594,6 +594,7 @@ func (c *Client) Invoke(req *InvokeRequest) (*InvokeResponse, error) {
 type TickRequest struct {
 	TickType        string `json:"tick_type"`
 	GameTime        string `json:"game_time"`
+	RequestedTicks  *int   `json:"requested_ticks,omitempty"`
 	AutonomousLimit *int   `json:"autonomous_limit,omitempty"`
 }
 
@@ -616,14 +617,20 @@ type Timeline struct {
 
 // AdvanceTick 推进一次世界时间线。
 func (c *Client) AdvanceTick(worldID, tickType, gameTime string) (*TickResponse, error) {
-	return c.AdvanceTickWithAutonomousLimit(worldID, tickType, gameTime, nil)
+	return c.AdvanceTickWithOptions(worldID, tickType, gameTime, nil, nil)
 }
 
 // AdvanceTickWithAutonomousLimit 推进世界时间线，并可限制本次 Tick 触发的自主节点数量。
 func (c *Client) AdvanceTickWithAutonomousLimit(worldID, tickType, gameTime string, autonomousLimit *int) (*TickResponse, error) {
+	return c.AdvanceTickWithOptions(worldID, tickType, gameTime, nil, autonomousLimit)
+}
+
+// AdvanceTickWithOptions 推进世界时间线，并声明本次推进的基础 tick 数与自主节点限制。
+func (c *Client) AdvanceTickWithOptions(worldID, tickType, gameTime string, requestedTicks *int, autonomousLimit *int) (*TickResponse, error) {
 	data, err := c.do("POST", "/api/v1/worlds/"+worldID+"/ticks/advance", TickRequest{
 		TickType:        tickType,
 		GameTime:        gameTime,
+		RequestedTicks:  requestedTicks,
 		AutonomousLimit: autonomousLimit,
 	})
 	if err != nil {

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -43,6 +44,33 @@ func createWorldRoot(t *testing.T) string {
 	return world.UUID
 }
 
+func putWorldTimeSettings(t *testing.T, worldID string, settings *engine.WorldTimeSettings) {
+	t.Helper()
+	raw, err := engine.EncodeWorldTimeSettings(settings)
+	if err != nil {
+		t.Fatalf("encode world time settings: %v", err)
+	}
+	if _, err := store.UpsertWorldSettingsWithMask(worldID, &store.WorldSettingsModel{WorldTimeSettingsJSON: raw}, &store.WorldSettingsUpdateMask{WorldTimeSettings: true}); err != nil {
+		t.Fatalf("upsert world settings: %v", err)
+	}
+}
+
+func decodeWorldTimeStateComponent(t *testing.T, worldID string) engine.WorldTimeStateComponent {
+	t.Helper()
+	component, err := GetStateComponent(worldID, engine.CompWorldTimeState)
+	if err != nil {
+		t.Fatalf("get world time state: %v", err)
+	}
+	if component == nil {
+		t.Fatal("expected world_time_state component")
+	}
+	var state engine.WorldTimeStateComponent
+	if err := json.Unmarshal([]byte(component.Data), &state); err != nil {
+		t.Fatalf("decode world time state: %v", err)
+	}
+	return state
+}
+
 func TestAdvanceWorldTickWithAutonomousPersistsServiceLogs(t *testing.T) {
 	initWorldServiceTestDB(t)
 	worldID := createWorldRoot(t)
@@ -51,7 +79,7 @@ func TestAdvanceWorldTickWithAutonomousPersistsServiceLogs(t *testing.T) {
 	defer func() { config.Global.Engine.ExecutionMode = previousMode }()
 
 	pipeline := engine.NewPipeline(&stubProvider{response: `{"reply":"地下52米处存在运行近3000年的非人类量子谐振腔。","action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"世界推进","world_events":[],"proposed_actions":[]},"future_outline":"next"}`})
-	tick, resp, autonomousRuns, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", nil)
+	tick, resp, autonomousRuns, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", nil, nil)
 	if err != nil {
 		t.Fatalf("advance world tick: %v", err)
 	}
@@ -107,6 +135,71 @@ func TestAdvanceWorldTickWithAutonomousPersistsServiceLogs(t *testing.T) {
 	}
 	if !foundRequested || !foundPersisted {
 		t.Fatalf("expected world service logs, got %#v", logs)
+	}
+}
+
+func TestAdvanceWorldTickWithAutonomousRejectsRequestedTicksForFixedScale(t *testing.T) {
+	initWorldServiceTestDB(t)
+	worldID := createWorldRoot(t)
+	putWorldTimeSettings(t, worldID, &engine.WorldTimeSettings{
+		TickScaleMode: engine.TickScaleModeFixed,
+		TickMinUnit:   "时辰",
+		TickStep:      1,
+		TickUnits:     []string{"日", "时辰"},
+		TimeScaleCarry: []engine.WorldTimeCarryRule{{
+			From: "时辰",
+			To:   "日",
+			Base: 12,
+		}},
+	})
+	pipeline := engine.NewPipeline(&stubProvider{response: `{"reply":"世界推进","action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"世界推进","world_events":[],"proposed_actions":[]},"future_outline":"next"}`})
+	requestedTicks := 2
+
+	_, _, _, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", &requestedTicks, nil)
+	if err == nil {
+		t.Fatal("expected fixed scale mode to reject requested_ticks=2")
+	}
+	if !IsKind(err, ErrorInvalid) {
+		t.Fatalf("expected invalid error, got %v", err)
+	}
+	if ErrorCode(err) != "invalid_world_tick_request" {
+		t.Fatalf("expected invalid_world_tick_request code, got %q", ErrorCode(err))
+	}
+}
+
+func TestAdvanceWorldTickWithAutonomousPersistsFlexibleRequestedTicks(t *testing.T) {
+	initWorldServiceTestDB(t)
+	worldID := createWorldRoot(t)
+	putWorldTimeSettings(t, worldID, &engine.WorldTimeSettings{
+		TickScaleMode: engine.TickScaleModeFlexible,
+		TickMinUnit:   "时辰",
+		TickStep:      1,
+		TickUnits:     []string{"日", "时辰"},
+		TimeScaleCarry: []engine.WorldTimeCarryRule{{
+			From: "时辰",
+			To:   "日",
+			Base: 12,
+		}},
+	})
+	pipeline := engine.NewPipeline(&stubProvider{response: `{"reply":"世界推进","action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"世界推进","world_events":[],"proposed_actions":[]},"future_outline":"next"}`})
+	requestedTicks := 3
+
+	tick, _, _, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", &requestedTicks, nil)
+	if err != nil {
+		t.Fatalf("advance world tick: %v", err)
+	}
+	if tick == nil {
+		t.Fatal("expected tick")
+	}
+	state := decodeWorldTimeStateComponent(t, worldID)
+	if state.TickScaleMode != engine.TickScaleModeFlexible {
+		t.Fatalf("expected flexible tick scale mode, got %q", state.TickScaleMode)
+	}
+	if state.LastAdvancedTicks != 3 {
+		t.Fatalf("expected last_advanced_ticks=3, got %d", state.LastAdvancedTicks)
+	}
+	if got, _ := state.Metadata["advanced_ticks"].(float64); int(got) != 3 {
+		t.Fatalf("expected metadata advanced_ticks=3, got %#v", state.Metadata)
 	}
 }
 

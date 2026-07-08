@@ -17,6 +17,7 @@ func MakeTickAdvanceHandler(p *engine.Pipeline) http.HandlerFunc {
 		var req struct {
 			TickType        string `json:"tick_type"`
 			GameTime        string `json:"game_time"`
+			RequestedTicks  *int   `json:"requested_ticks,omitempty"`
 			AutonomousLimit *int   `json:"autonomous_limit,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -24,7 +25,7 @@ func MakeTickAdvanceHandler(p *engine.Pipeline) http.HandlerFunc {
 			return
 		}
 
-		tick, resp, autonomousRuns, err := service.AdvanceWorldTickWithAutonomous(p, worldID, req.TickType, req.GameTime, req.AutonomousLimit)
+		tick, resp, autonomousRuns, err := service.AdvanceWorldTickWithAutonomous(p, worldID, req.TickType, req.GameTime, req.RequestedTicks, req.AutonomousLimit)
 		if err != nil {
 			handleServiceError(w, err)
 			return
