@@ -57,8 +57,25 @@ func TestAdvanceWorldTickWithAutonomousPersistsServiceLogs(t *testing.T) {
 	if tick == nil || resp == nil {
 		t.Fatal("expected tick and response")
 	}
+	if tick.Data == "" {
+		t.Fatal("expected timeline data payload")
+	}
 	if len(autonomousRuns) != 0 {
 		t.Fatalf("expected no autonomous runs, got %#v", autonomousRuns)
+	}
+	worldState, err := GetStateComponent(worldID, engine.CompWorldState)
+	if err != nil {
+		t.Fatalf("get world state: %v", err)
+	}
+	if worldState == nil || worldState.Data == "" {
+		t.Fatal("expected persisted world_state component")
+	}
+	storyState, err := GetStateComponent(worldID, engine.CompStoryState)
+	if err != nil {
+		t.Fatalf("get story state: %v", err)
+	}
+	if storyState == nil || storyState.Data == "" {
+		t.Fatal("expected persisted story_state component")
 	}
 
 	logs, err := store.GetInferenceLogs(worldID, 50, 0, string(engine.TaskWorldTick))

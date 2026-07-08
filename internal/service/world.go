@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
@@ -72,27 +73,9 @@ func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameT
 
 	var tick *store.TimelineModel
 	err = store.DB.Transaction(func(tx *gorm.DB) error {
-		latest, err := getLatestTickTx(tx, worldID)
-		tickNum := 1
-		if err == nil {
-			tickNum = latest.TickNumber + 1
-		} else if !IsKind(err, ErrorNotFound) {
-			return err
-		}
-
-		worldInt := txResolveWorldUUID(tx, worldID)
-
-		tick = &store.TimelineModel{
-			UUID:          store.NewUUID(),
-			WorldID:       worldInt,
-			WorldUUID:     worldID,
-			TickNumber:    tickNum,
-			TickType:      tickType,
-			GameTime:      gameTime,
-			Summary:       worldPlanSummary(resp),
-			FutureOutline: resp.FutureOutline,
-		}
-		return tx.Create(tick).Error
+		var err error
+		tick, err = persistWorldTickArtifactsTx(tx, worldID, tickType, gameTime, resp)
+		return err
 	})
 	if err != nil {
 		return nil, nil, nil, err
@@ -102,6 +85,192 @@ func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameT
 	autonomousRuns := RunWorldTickAutonomous(p, worldID, autonomousLimit)
 	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_autonomous_completed", "autonomous runs completed", autonomousRuns)
 	return tick, resp, autonomousRuns, nil
+}
+
+func persistWorldTickArtifactsTx(tx *gorm.DB, worldID, tickType, gameTime string, resp *engine.InvokeResponse) (*store.TimelineModel, error) {
+	latest, err := getLatestTickTx(tx, worldID)
+	tickNum := 1
+	if err == nil {
+		tickNum = latest.TickNumber + 1
+	} else if !IsKind(err, ErrorNotFound) {
+		return nil, err
+	}
+
+	worldInt := txResolveWorldUUID(tx, worldID)
+	timelinePayload, err := buildWorldTickTimelineData(resp)
+	if err != nil {
+		return nil, err
+	}
+	tick := &store.TimelineModel{
+		UUID:          store.NewUUID(),
+		WorldID:       worldInt,
+		WorldUUID:     worldID,
+		TickNumber:    tickNum,
+		TickType:      tickType,
+		GameTime:      gameTime,
+		Summary:       worldPlanSummary(resp),
+		Data:          timelinePayload,
+		FutureOutline: resp.FutureOutline,
+	}
+	if err := tx.Create(tick).Error; err != nil {
+		return nil, err
+	}
+
+	if err := persistWorldTickStateComponentsTx(tx, worldID, tick, resp); err != nil {
+		return nil, err
+	}
+	return tick, nil
+}
+
+func buildWorldTickTimelineData(resp *engine.InvokeResponse) (string, error) {
+	payload := map[string]any{
+		"reply":             resp.Reply,
+		"world_change_plan": resp.WorldChangePlan,
+		"future_outline":    resp.FutureOutline,
+		"memory_updates":    resp.MemoryUpdates,
+		"action_calls":      resp.ActionCalls,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func persistWorldTickStateComponentsTx(tx *gorm.DB, worldID string, tick *store.TimelineModel, resp *engine.InvokeResponse) error {
+	recentFacts := collectWorldTickFacts(resp)
+	if _, err := upsertStateComponentTx(tx, worldID, engine.CompWorldState, engine.WorldStateComponent{
+		Summary:    worldPlanSummary(resp),
+		KeyFacts:   recentFacts,
+		ActiveArcs: collectPlanEventDescriptions(resp),
+		Metadata: map[string]any{
+			"tick_number":    tick.TickNumber,
+			"tick_type":      tick.TickType,
+			"game_time":      tick.GameTime,
+			"future_outline": resp.FutureOutline,
+		},
+	}); err != nil {
+		return err
+	}
+	if _, err := upsertStateComponentTx(tx, worldID, engine.CompStoryState, engine.StoryStateComponent{
+		CurrentSituation: truncateWorldTickText(resp.Reply, 1200),
+		RecentChanges:    recentFacts,
+		PendingThreads:   collectPendingThreads(resp),
+		Metadata: map[string]any{
+			"tick_number": tick.TickNumber,
+			"tick_type":   tick.TickType,
+		},
+	}); err != nil {
+		return err
+	}
+	historyComp, historyErr := getStateComponentTx(tx, worldID, engine.CompStoryHistory)
+	if historyErr != nil {
+		return historyErr
+	}
+	history := engine.StoryHistoryComponent{}
+	if historyComp != nil && strings.TrimSpace(historyComp.Data) != "" {
+		_ = json.Unmarshal([]byte(historyComp.Data), &history)
+	}
+	history.Entries = append([]engine.StoryHistoryEntry{{
+		TickNumber: tick.TickNumber,
+		Summary:    worldPlanSummary(resp),
+		Facts:      recentFacts,
+		GameTime:   tick.GameTime,
+	}}, history.Entries...)
+	if len(history.Entries) > 12 {
+		history.Entries = history.Entries[:12]
+	}
+	if _, err := upsertStateComponentTx(tx, worldID, engine.CompStoryHistory, history); err != nil {
+		return err
+	}
+	if _, err := upsertStateComponentTx(tx, worldID, engine.CompStateSnapshot, engine.StateSnapshotComponent{
+		SnapshotType: "world_tick",
+		Version:      "v1",
+		Payload: map[string]any{
+			"tick_number":       tick.TickNumber,
+			"summary":           tick.Summary,
+			"future_outline":    resp.FutureOutline,
+			"recent_facts":      recentFacts,
+			"world_change_plan": resp.WorldChangePlan,
+		},
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func collectWorldTickFacts(resp *engine.InvokeResponse) []string {
+	set := map[string]bool{}
+	var facts []string
+	add := func(value string) {
+		value = truncateWorldTickText(value, 240)
+		value = strings.TrimSpace(value)
+		if value == "" || set[value] {
+			return
+		}
+		set[value] = true
+		facts = append(facts, value)
+	}
+	for _, mem := range resp.MemoryUpdates {
+		add(mem.Content)
+	}
+	if resp.WorldChangePlan != nil {
+		add(resp.WorldChangePlan.Summary)
+		for _, evt := range resp.WorldChangePlan.WorldEvents {
+			add(evt.Description)
+		}
+	}
+	for _, line := range strings.Split(resp.Reply, "\n") {
+		add(line)
+		if len(facts) >= 8 {
+			break
+		}
+	}
+	return facts
+}
+
+func collectPlanEventDescriptions(resp *engine.InvokeResponse) []string {
+	if resp == nil || resp.WorldChangePlan == nil {
+		return nil
+	}
+	result := make([]string, 0, len(resp.WorldChangePlan.WorldEvents))
+	for _, evt := range resp.WorldChangePlan.WorldEvents {
+		if strings.TrimSpace(evt.Description) != "" {
+			result = append(result, evt.Description)
+		}
+	}
+	return result
+}
+
+func collectPendingThreads(resp *engine.InvokeResponse) []string {
+	if strings.TrimSpace(resp.FutureOutline) == "" {
+		return nil
+	}
+	parts := strings.Split(resp.FutureOutline, "\n")
+	threads := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = truncateWorldTickText(part, 200)
+		part = strings.TrimSpace(part)
+		if part != "" {
+			threads = append(threads, part)
+		}
+		if len(threads) >= 6 {
+			break
+		}
+	}
+	return threads
+}
+
+func truncateWorldTickText(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	if value == "" || limit <= 0 {
+		return value
+	}
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit])
 }
 
 // RunAutonomousNode 手动触发一个节点的自主行为周期。
