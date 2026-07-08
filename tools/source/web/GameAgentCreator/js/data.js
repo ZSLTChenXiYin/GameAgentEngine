@@ -128,6 +128,41 @@ function validateComponentEditorData(componentType, data) {
       }
     }
   }
+  if (mode === 'strong' && componentType === 'world_state') {
+    if (parsed.summary !== undefined && typeof parsed.summary !== 'string') return 'world_state.summary must be a string';
+    if (parsed.key_facts !== undefined && !Array.isArray(parsed.key_facts)) return 'world_state.key_facts must be an array of strings';
+    if (parsed.canonical_facts !== undefined && !Array.isArray(parsed.canonical_facts)) return 'world_state.canonical_facts must be an array of strings';
+    if (parsed.open_questions !== undefined && !Array.isArray(parsed.open_questions)) return 'world_state.open_questions must be an array of strings';
+    if (parsed.active_arcs !== undefined && !Array.isArray(parsed.active_arcs)) return 'world_state.active_arcs must be an array of strings';
+    if (parsed.metadata !== undefined && (!parsed.metadata || Array.isArray(parsed.metadata) || typeof parsed.metadata !== 'object')) return 'world_state.metadata must be an object';
+  }
+  if (mode === 'strong' && componentType === 'story_state') {
+    if (parsed.current_situation !== undefined && typeof parsed.current_situation !== 'string') return 'story_state.current_situation must be a string';
+    if (parsed.recent_changes !== undefined && !Array.isArray(parsed.recent_changes)) return 'story_state.recent_changes must be an array of strings';
+    if (parsed.pending_threads !== undefined && !Array.isArray(parsed.pending_threads)) return 'story_state.pending_threads must be an array of strings';
+    if (parsed.tone !== undefined && typeof parsed.tone !== 'string') return 'story_state.tone must be a string';
+    if (parsed.metadata !== undefined && (!parsed.metadata || Array.isArray(parsed.metadata) || typeof parsed.metadata !== 'object')) return 'story_state.metadata must be an object';
+  }
+  if (mode === 'strong' && componentType === 'story_history') {
+    if (parsed.entries !== undefined) {
+      if (!Array.isArray(parsed.entries)) return 'story_history.entries must be an array of objects';
+      for (var i = 0; i < parsed.entries.length; i++) {
+        var entry = parsed.entries[i];
+        if (!entry || Array.isArray(entry) || typeof entry !== 'object') return 'story_history.entries must be an array of objects';
+        if (entry.tick_number !== undefined && (!Number.isInteger(entry.tick_number) || entry.tick_number < 0)) return 'story_history.entries[].tick_number must be a non-negative integer';
+        if (entry.summary !== undefined && typeof entry.summary !== 'string') return 'story_history.entries[].summary must be a string';
+        if (entry.facts !== undefined && !Array.isArray(entry.facts)) return 'story_history.entries[].facts must be an array of strings';
+        if (entry.game_time !== undefined && typeof entry.game_time !== 'string') return 'story_history.entries[].game_time must be a string';
+      }
+    }
+    if (parsed.metadata !== undefined && (!parsed.metadata || Array.isArray(parsed.metadata) || typeof parsed.metadata !== 'object')) return 'story_history.metadata must be an object';
+  }
+  if (mode === 'strong' && componentType === 'tick_policy') {
+    if (parsed.continuity_rules !== undefined && !Array.isArray(parsed.continuity_rules)) return 'tick_policy.continuity_rules must be an array of strings';
+    if (parsed.focus_scopes !== undefined && !Array.isArray(parsed.focus_scopes)) return 'tick_policy.focus_scopes must be an array of strings';
+    if (parsed.banned_resets !== undefined && !Array.isArray(parsed.banned_resets)) return 'tick_policy.banned_resets must be an array of strings';
+    if (parsed.metadata !== undefined && (!parsed.metadata || Array.isArray(parsed.metadata) || typeof parsed.metadata !== 'object')) return 'tick_policy.metadata must be an object';
+  }
   return '';
 }
 

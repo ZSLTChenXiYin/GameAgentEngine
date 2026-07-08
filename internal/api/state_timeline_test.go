@@ -103,6 +103,23 @@ func TestPutStateComponentHandlerPersistsStructuredPayload(t *testing.T) {
 	}
 }
 
+func TestPutStateComponentHandlerRejectsInvalidStructuredPayload(t *testing.T) {
+	worldID := initStateTimelineTestDB(t)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/worlds/"+worldID+"/state-components/story_history", strings.NewReader(`{"entries":[{"tick_number":-1,"summary":"bad"}]}`))
+	req.SetPathValue("world_id", worldID)
+	req.SetPathValue("component_type", string(engine.CompStoryHistory))
+	w := httptest.NewRecorder()
+
+	PutStateComponentHandler(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "tick_number") {
+		t.Fatalf("expected tick_number validation error, got %s", w.Body.String())
+	}
+}
+
 func TestGetTimelinesHandlerReturnsParsedTimelinePayload(t *testing.T) {
 	worldID := initStateTimelineTestDB(t)
 	worldInt := store.ResolveWorldUUID(worldID)

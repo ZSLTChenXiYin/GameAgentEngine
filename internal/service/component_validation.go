@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
@@ -28,8 +29,17 @@ func ValidateComponentData(componentType, data string) error {
 		}
 		return nil
 	case engine.ComponentValidationStrong:
-		if engine.ComponentType(componentType) == engine.CompAutonomous {
+		switch engine.ComponentType(componentType) {
+		case engine.CompAutonomous:
 			return validateAutonomousComponentData(trimmed)
+		case engine.CompWorldState:
+			return validateWorldStateComponentData(trimmed)
+		case engine.CompStoryState:
+			return validateStoryStateComponentData(trimmed)
+		case engine.CompStoryHistory:
+			return validateStoryHistoryComponentData(trimmed)
+		case engine.CompTickPolicy:
+			return validateTickPolicyComponentData(trimmed)
 		}
 	}
 
@@ -73,6 +83,43 @@ func validateAutonomousComponentData(data string) error {
 	return nil
 }
 
+func validateWorldStateComponentData(data string) error {
+	var payload engine.WorldStateComponent
+	if err := json.Unmarshal([]byte(data), &payload); err != nil {
+		return codedErrorf(ErrorInvalidComponentData, "component_data_invalid_json", "world_state component data must be valid structured JSON: %v", err)
+	}
+	return nil
+}
+
+func validateStoryStateComponentData(data string) error {
+	var payload engine.StoryStateComponent
+	if err := json.Unmarshal([]byte(data), &payload); err != nil {
+		return codedErrorf(ErrorInvalidComponentData, "component_data_invalid_json", "story_state component data must be valid structured JSON: %v", err)
+	}
+	return nil
+}
+
+func validateStoryHistoryComponentData(data string) error {
+	var payload engine.StoryHistoryComponent
+	if err := json.Unmarshal([]byte(data), &payload); err != nil {
+		return codedErrorf(ErrorInvalidComponentData, "component_data_invalid_json", "story_history component data must be valid structured JSON: %v", err)
+	}
+	for i, entry := range payload.Entries {
+		if entry.TickNumber < 0 {
+			return codedErrorf(ErrorInvalidComponentData, "component_data_invalid_fields", "invalid story_history component data: entries[%d].tick_number must be greater than or equal to 0", i)
+		}
+	}
+	return nil
+}
+
+func validateTickPolicyComponentData(data string) error {
+	var payload engine.TickPolicyComponent
+	if err := json.Unmarshal([]byte(data), &payload); err != nil {
+		return codedErrorf(ErrorInvalidComponentData, "component_data_invalid_json", "tick_policy component data must be valid structured JSON: %v", err)
+	}
+	return nil
+}
+
 type componentAutonomousPayload struct {
 	engine.AutonomousConfig
 }
@@ -96,6 +143,8 @@ func humanizeValidationError(err error) string {
 			parts = append(parts, "trigger must be one of: manual, world_tick_sync, scheduled")
 		case "IntervalSeconds":
 			parts = append(parts, "interval_seconds must be greater than 0 when trigger is scheduled")
+		case "TickNumber":
+			parts = append(parts, "tick_number must be greater than or equal to 0")
 		default:
 			parts = append(parts, fmt.Sprintf("%s failed validation %s", ve.Field(), ve.Tag()))
 		}
@@ -119,4 +168,13 @@ func init() {
 			sl.ReportError(cfg.IntervalSeconds, "IntervalSeconds", "interval_seconds", "gt", "0")
 		}
 	}, componentAutonomousPayload{})
+	componentValidator.RegisterStructValidation(func(sl validator.StructLevel) {
+		entry, ok := sl.Current().Interface().(engine.StoryHistoryEntry)
+		if !ok {
+			return
+		}
+		if entry.TickNumber < 0 || math.Signbit(float64(entry.TickNumber)) {
+			sl.ReportError(entry.TickNumber, "TickNumber", "tick_number", "gte", "0")
+		}
+	}, engine.StoryHistoryEntry{})
 }

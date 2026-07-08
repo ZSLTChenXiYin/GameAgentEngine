@@ -65,27 +65,27 @@ window.GAMEAGENT_COMPONENT_META = [
   },
   {
     "type": "world_state",
-    "validation_mode": "weak",
+    "validation_mode": "strong",
     "data_format": "json_object",
-    "help_text": "Structured current world state for tick continuity."
+    "help_text": "Structured current world state for tick continuity. Optional fields must keep their expected string / string-array / object shapes."
   },
   {
     "type": "story_state",
-    "validation_mode": "weak",
+    "validation_mode": "strong",
     "data_format": "json_object",
-    "help_text": "Structured current narrative state and unresolved threads."
+    "help_text": "Structured current narrative state and unresolved threads. Optional fields must keep their expected string / string-array / object shapes."
   },
   {
     "type": "story_history",
-    "validation_mode": "weak",
+    "validation_mode": "strong",
     "data_format": "json_object",
-    "help_text": "Structured rolling history of recent story beats."
+    "help_text": "Structured rolling history of recent story beats. entries must be an array of structured history objects."
   },
   {
     "type": "tick_policy",
-    "validation_mode": "weak",
+    "validation_mode": "strong",
     "data_format": "json_object",
-    "help_text": "Structured tick policy and continuity constraints."
+    "help_text": "Structured tick policy and continuity constraints. Optional fields must keep their expected string-array / object shapes."
   },
   {
     "type": "state_snapshot",

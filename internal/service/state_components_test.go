@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
@@ -65,5 +66,22 @@ func TestUpsertStateComponentCreatesAndUpdatesStructuredComponents(t *testing.T)
 	}
 	if len(engine.ValidComponentTypes()) < 14 {
 		t.Fatalf("expected new component types registered, got %#v", engine.ValidComponentTypes())
+	}
+}
+
+func TestUpsertStateComponentRejectsInvalidStructuredPayload(t *testing.T) {
+	initStateComponentTestDB(t)
+	worldID := createStateComponentWorld(t)
+
+	if _, err := UpsertStateComponent(worldID, engine.CompStoryHistory, map[string]any{
+		"entries": []map[string]any{{"tick_number": -1, "summary": "bad"}},
+	}); err == nil || !strings.Contains(err.Error(), "tick_number") {
+		t.Fatalf("expected tick_number validation error, got %v", err)
+	}
+
+	if _, err := UpsertStateComponent(worldID, engine.CompTickPolicy, map[string]any{
+		"continuity_rules": "not-an-array",
+	}); err == nil || !strings.Contains(err.Error(), "tick_policy component data must be valid structured JSON") {
+		t.Fatalf("expected tick_policy shape validation error, got %v", err)
 	}
 }
