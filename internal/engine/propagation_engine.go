@@ -8,6 +8,26 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
+// ManualPropagateMemory wraps manual propagation requests with the same
+// execution mode and world-setting context used by normal pipeline runs.
+func (p *Pipeline) ManualPropagateMemory(req *InvokeRequest, mem MemoryUpdate, sourceNodeID string) {
+	executionMode := p.getExecutionMode()
+	_, maxRounds, retries, timeout, pipelineMode := p.loadWorldSettings(req.WorldID)
+	configuredMode := PipelineMode(pipelineMode)
+	if configuredMode == "" {
+		configuredMode = PipelineFull
+	}
+	runtime := &executionConfig{
+		maxRounds:              maxRounds,
+		subTaskRetries:         retries,
+		subTaskTimeout:         timeout,
+		configuredPipelineMode: configuredMode,
+		pipelineMode:           configuredMode,
+		policyEngine:           p.loadWorldPolicy(req.WorldID),
+	}
+	p.PropagateMemoryByRule(req, runtime, executionMode, mem, sourceNodeID)
+}
+
 func (p *Pipeline) PropagateMemoryByRule(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, mem MemoryUpdate, sourceNodeID string) {
 	rule := mem.Propagation
 	mode := PropModeUpward

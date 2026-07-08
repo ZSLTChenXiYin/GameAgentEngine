@@ -532,7 +532,17 @@ func MakePropagateMemoryHandler(p *engine.Pipeline) http.HandlerFunc {
 		if targetNode == "" {
 			targetNode = memory.NodeUUID
 		}
-		p.PropagateMemoryByRule(memUpdate, targetNode)
+		memoryNode, err := store.GetNode(memory.NodeUUID)
+		if err != nil {
+			errorJSON(w, 404, "memory node not found: "+err.Error())
+			return
+		}
+		invokeReq := &engine.InvokeRequest{
+			WorldID:  memoryNode.WorldUUID,
+			TaskType: engine.TaskCustom,
+			NodeID:   memory.NodeUUID,
+		}
+		p.ManualPropagateMemory(invokeReq, memUpdate, targetNode)
 		writeJSON(w, 200, map[string]string{"status": "propagated"})
 	}
 }
