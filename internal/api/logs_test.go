@@ -36,7 +36,7 @@ func TestGetLogsHandlerSupportsStructuredFilters(t *testing.T) {
 		NodeUUID:      nodeID,
 		TaskType:      "world_tick",
 		Category:      "pipeline",
-		EventName:     "raw_llm_response_received",
+		EventName:     "llm_response_received",
 		ExecutionMode: "debug",
 		RequestID:     "req-1",
 		Round:         2,
@@ -58,7 +58,7 @@ func TestGetLogsHandlerSupportsStructuredFilters(t *testing.T) {
 		t.Fatalf("create non-matching log: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/logs?world_id="+worldID+"&node_id="+nodeID+"&category=pipeline&event_name=raw_llm_response_received&execution_mode=debug&request_id=req-1&round=2", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/logs?world_id="+worldID+"&node_id="+nodeID+"&category=pipeline&event_name=llm_response_received&execution_mode=debug&request_id=req-1&round=2", nil)
 	w := httptest.NewRecorder()
 
 	GetLogsHandler(w, req)
