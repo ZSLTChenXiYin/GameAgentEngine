@@ -4,7 +4,7 @@
  * =================================================================== */
 
 /* ============= Config ============= */
-const DEMO_VERSION = "v0.4.0";
+const DEMO_VERSION = "v0.4.5";
 const CFG_KEY = "ga_demo_cfg";
 const MSG_KEY = "ga_demo_msgs_"; // + advisorId
 const ADV_KEY = "ga_demo_advisor";

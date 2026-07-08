@@ -1,5 +1,5 @@
 /* ============= Version Check ============= */
-const CREATOR_MIN_COMPATIBLE = "v0.4.3";
+const CREATOR_MIN_COMPATIBLE = "v0.4.5";
 
 let engineVersionInfo = null;
 
