@@ -468,9 +468,9 @@ func (p *Pipeline) executeMultiTurnLoop(
 					Round:      round + 1,
 					DetailData: marshalLogDetail(imus),
 				})
-				writeMemories(imus)
+				p.writeMemories(req, runtime, executionMode, imus)
 				for _, imu := range imus {
-					p.PropagateMemoryByRule(imu, imu.NodeID)
+					p.PropagateMemoryByRule(req, runtime, executionMode, imu, imu.NodeID)
 				}
 			}
 		}
@@ -543,7 +543,7 @@ func (p *Pipeline) executeMultiTurnLoop(
 			TaskType:      req.TaskType,
 			ExecutionMode: executionMode,
 			Reply:         parsed.Reply,
-			ActionCalls:   p.executeActions(runtime.policyEngine, p.parseActionCalls(parsed.RawActionCalls, targetNodeID)),
+			ActionCalls:   p.executeActions(req, runtime, executionMode, runtime.policyEngine, p.parseActionCalls(parsed.RawActionCalls, targetNodeID)),
 			MemoryUpdates: p.parseMemoryUpdates(parsed.RawMemoryUpdates),
 		}
 		if parsed.RawPlan != "" {
@@ -560,19 +560,9 @@ func (p *Pipeline) executeMultiTurnLoop(
 			resp = finalizeFn(resp, parsed, state.Context, req)
 		}
 
+		p.writeMemories(req, runtime, executionMode, resp.MemoryUpdates)
 		for _, mem := range resp.MemoryUpdates {
-			memNodeID := store.ResolveNodeUUID(mem.NodeID)
-			if memNodeID == 0 {
-				log.Printf("[warn] write memory: unknown node UUID %s", mem.NodeID)
-				continue
-			}
-			mm := store.MemoryModel{NodeID: memNodeID, Content: mem.Content, Level: string(mem.Level), Tags: mem.Tags}
-			if err := store.CreateMemory(&mm); err != nil {
-				log.Printf("write memory: %v", err)
-			}
-		}
-		for _, mem := range resp.MemoryUpdates {
-			p.PropagateMemoryByRule(mem, mem.NodeID)
+			p.PropagateMemoryByRule(req, runtime, executionMode, mem, mem.NodeID)
 		}
 
 		resp.Metadata = buildResponseMeta(runtime, p.llmProvider.ModelName(), llmResp.Tokens, start, round+1)
@@ -767,7 +757,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 		TaskType:      req.TaskType,
 		ExecutionMode: executionMode,
 		Reply:         parsed.Reply,
-		ActionCalls:   p.executeActions(runtime.policyEngine, p.parseActionCalls(parsed.RawActionCalls, req.NodeID)),
+		ActionCalls:   p.executeActions(req, runtime, executionMode, runtime.policyEngine, p.parseActionCalls(parsed.RawActionCalls, req.NodeID)),
 		MemoryUpdates: p.parseMemoryUpdates(parsed.RawMemoryUpdates),
 	}
 	if parsed.RawPlan != "" {
@@ -779,19 +769,9 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 	if parsed.RawFutureOutline != "" {
 		resp.FutureOutline = parsed.RawFutureOutline
 	}
+	p.writeMemories(req, runtime, executionMode, resp.MemoryUpdates)
 	for _, mem := range resp.MemoryUpdates {
-		nodeID := store.ResolveNodeUUID(mem.NodeID)
-		if nodeID == 0 {
-			log.Printf("[warn] write memory: unknown node UUID %s", mem.NodeID)
-			continue
-		}
-		mm := store.MemoryModel{NodeID: nodeID, Content: mem.Content, Level: string(mem.Level), Tags: mem.Tags}
-		if err := store.CreateMemory(&mm); err != nil {
-			log.Printf("write memory: %v", err)
-		}
-	}
-	for _, mem := range resp.MemoryUpdates {
-		p.PropagateMemoryByRule(mem, mem.NodeID)
+		p.PropagateMemoryByRule(req, runtime, executionMode, mem, mem.NodeID)
 	}
 	resp.Metadata = buildResponseMeta(runtime, p.llmProvider.ModelName(), llmResp.Tokens, start, 1)
 	appendResponseLog(resp, req)
@@ -928,7 +908,7 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 		for _, call := range rejected {
 			log.Printf("[autonomous:blocked] node=%s action=%s", targetNodeID, call.ActionID)
 		}
-		resp.ActionCalls = p.executeActions(runtime.policyEngine, allowedCalls)
+		resp.ActionCalls = p.executeActions(req, runtime, executionMode, runtime.policyEngine, allowedCalls)
 
 		if len(resp.ActionCalls) == 0 && len(resp.MemoryUpdates) == 0 {
 			memUpdate := MemoryUpdate{NodeID: targetNodeID, Content: "自主行为周期未采取行动。", Level: MemShortTerm, Tags: "autonomous,no_action"}

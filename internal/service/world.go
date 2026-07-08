@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 	"gorm.io/gorm"
@@ -13,11 +14,48 @@ import (
 
 const defaultAutonomousTickLimit = 10
 
+func emitWorldServiceLog(worldID, nodeID string, taskType engine.TaskType, eventName, message string, detail any) {
+	mode := config.ExecutionMode()
+	if mode == "" || mode == "full" {
+		mode = string(engine.ModeProduction)
+	}
+	if err := store.CreateInferenceLog(&store.InferenceLogModel{
+		WorldUUID:              worldID,
+		TaskType:               string(taskType),
+		NodeUUID:               nodeID,
+		Category:               "world_service",
+		EventName:              eventName,
+		LogLevel:               "info",
+		Message:                message,
+		ExecutionMode:          mode,
+		DetailData:             marshalWorldServiceDetail(detail, mode),
+		ConfiguredPipelineMode: "",
+		EffectivePipelineMode:  "",
+	}); err != nil {
+		log.Printf("[world-service-log] %s: %v", eventName, err)
+	}
+}
+
+func marshalWorldServiceDetail(detail any, mode string) string {
+	if detail == nil {
+		return ""
+	}
+	if mode == string(engine.ModeProduction) {
+		return ""
+	}
+	data, err := json.Marshal(detail)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
 // AdvanceWorldTickWithAutonomous 推进世界刻，并按请求级限制触发 world_tick_sync 自主节点。
 func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameTime string, autonomousLimit *int) (*store.TimelineModel, *engine.InvokeResponse, []engine.AutonomousRunResult, error) {
 	if tickType == "" {
 		tickType = "scheduled"
 	}
+	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_requested", tickType, map[string]any{"game_time": gameTime, "autonomous_limit": autonomousLimit})
 	if _, err := ensureWorldNodeTx(store.DB, worldID); err != nil {
 		return nil, nil, nil, err
 	}
@@ -30,6 +68,7 @@ func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameT
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_completed", worldPlanSummary(resp), resp)
 
 	var tick *store.TimelineModel
 	err = store.DB.Transaction(func(tx *gorm.DB) error {
@@ -58,8 +97,10 @@ func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameT
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_persisted", tick.Summary, tick)
 
 	autonomousRuns := RunWorldTickAutonomous(p, worldID, autonomousLimit)
+	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_autonomous_completed", "autonomous runs completed", autonomousRuns)
 	return tick, resp, autonomousRuns, nil
 }
 
@@ -98,8 +139,10 @@ func runAutonomousByTrigger(p *engine.Pipeline, worldID string, trigger string, 
 	components, err := store.GetComponentsByTypeForWorld(worldID, string(engine.CompAutonomous))
 	if err != nil {
 		log.Printf("load autonomous components: %v", err)
+		emitWorldServiceLog(worldID, worldID, engine.TaskAutonomousAct, "autonomous_load_failed", trigger, map[string]any{"error": err.Error()})
 		return []engine.AutonomousRunResult{{Error: err.Error()}}
 	}
+	emitWorldServiceLog(worldID, worldID, engine.TaskAutonomousAct, "autonomous_scan_started", trigger, map[string]any{"component_count": len(components), "limit": maxRuns})
 	_ = worldInt
 
 	results := make([]engine.AutonomousRunResult, 0, maxRuns)
@@ -109,6 +152,7 @@ func runAutonomousByTrigger(p *engine.Pipeline, worldID string, trigger string, 
 		}
 		cfg, err := engine.DecodeAutonomousConfig(comp.Data)
 		if err != nil {
+			emitWorldServiceLog(worldID, comp.NodeUUID, engine.TaskAutonomousAct, "autonomous_decode_failed", trigger, map[string]any{"error": err.Error()})
 			results = append(results, engine.AutonomousRunResult{NodeID: comp.NodeUUID, Error: err.Error()})
 			continue
 		}
@@ -122,15 +166,19 @@ func runAutonomousByTrigger(p *engine.Pipeline, worldID string, trigger string, 
 		// 通过 NodeID 查询节点 UUID
 		var nodeUUID string
 		if err := store.DB.Model(&store.NodeModel{}).Select("uuid").Where("id = ?", comp.NodeID).First(&nodeUUID).Error; err != nil {
+			emitWorldServiceLog(worldID, "", engine.TaskAutonomousAct, "autonomous_node_lookup_failed", trigger, map[string]any{"error": err.Error()})
 			results = append(results, engine.AutonomousRunResult{NodeID: "", Error: err.Error()})
 			continue
 		}
+		emitWorldServiceLog(worldID, nodeUUID, engine.TaskAutonomousAct, "autonomous_node_started", trigger, map[string]any{"node_id": nodeUUID})
 
 		resp, err := RunAutonomousNode(p, worldID, nodeUUID)
 		if err != nil {
+			emitWorldServiceLog(worldID, nodeUUID, engine.TaskAutonomousAct, "autonomous_node_failed", trigger, map[string]any{"node_id": nodeUUID, "error": err.Error()})
 			results = append(results, engine.AutonomousRunResult{NodeID: nodeUUID, Error: err.Error()})
 			continue
 		}
+		emitWorldServiceLog(worldID, nodeUUID, engine.TaskAutonomousAct, "autonomous_node_completed", trigger, resp)
 		results = append(results, engine.AutonomousRunResult{NodeID: nodeUUID, Response: resp})
 	}
 	return results

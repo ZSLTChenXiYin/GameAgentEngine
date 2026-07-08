@@ -8,11 +8,12 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
-func (p *Pipeline) PropagateMemoryByRule(mem MemoryUpdate, sourceNodeID string) {
+func (p *Pipeline) PropagateMemoryByRule(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, mem MemoryUpdate, sourceNodeID string) {
 	rule := mem.Propagation
 	mode := PropModeUpward
 	maxDepth := 0
 	publishUp := false
+	p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_started", mem.Content, map[string]any{"source_node_id": sourceNodeID, "level": mem.Level, "tags": mem.Tags, "rule": rule})
 
 	if rule != nil {
 		mode = rule.Mode
@@ -36,17 +37,19 @@ func (p *Pipeline) PropagateMemoryByRule(mem MemoryUpdate, sourceNodeID string) 
 
 	switch mode {
 	case PropModeUpward:
-		p.PropagateUpward(sourceNodeID, mem.Content, mem.Level, maxDepth, publishUp)
+		p.PropagateUpward(req, runtime, executionMode, sourceNodeID, mem.Content, mem.Level, maxDepth, publishUp)
 	case PropModeTagBroadcast:
-		p.PropagateByTags(sourceNodeID, mem, rule)
+		p.PropagateByTags(req, runtime, executionMode, sourceNodeID, mem, rule)
 	case PropModeTargeted:
-		p.PropagateToTargets(mem, rule)
+		p.PropagateToTargets(req, runtime, executionMode, mem, rule)
 	case PropModeManual:
+		p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_skipped", mem.Content, map[string]any{"source_node_id": sourceNodeID, "reason": "manual_mode"})
 		return
 	}
+	p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_completed", mem.Content, map[string]any{"source_node_id": sourceNodeID, "mode": mode, "max_depth": maxDepth, "publish_up": publishUp})
 }
 
-func (p *Pipeline) PropagateUpward(nodeID, content string, level MemoryLevel, maxDepth int, publishUp bool) {
+func (p *Pipeline) PropagateUpward(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, nodeID, content string, level MemoryLevel, maxDepth int, publishUp bool) {
 	visited := map[string]bool{}
 	var walk func(nid string, depth int)
 	walk = func(nid string, depth int) {
@@ -87,7 +90,10 @@ func (p *Pipeline) PropagateUpward(nodeID, content string, level MemoryLevel, ma
 			Tags:    "propagated",
 		}
 		if err := store.CreateMemory(m); err != nil {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", content, map[string]any{"target_node_id": parentUUID, "mode": "upward", "error": err.Error()})
 			log.Printf("propagate upward: %v", err)
+		} else {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", content, map[string]any{"target_node_id": parentUUID, "mode": "upward", "level": propLevel})
 		}
 
 		if publishUp {
@@ -99,7 +105,10 @@ func (p *Pipeline) PropagateUpward(nodeID, content string, level MemoryLevel, ma
 					Tags:    "propagated,published",
 				}
 				if err := store.CreateMemory(m2); err != nil {
+					p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", content, map[string]any{"target_node_id": parentUUID, "mode": "publish_up", "error": err.Error()})
 					log.Printf("propagate publish: %v", err)
+				} else {
+					p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", content, map[string]any{"target_node_id": parentUUID, "mode": "publish_up", "level": MemWorld})
 				}
 				return
 			}
@@ -114,21 +123,23 @@ func (p *Pipeline) PropagateUpward(nodeID, content string, level MemoryLevel, ma
 	walk(nodeID, 0)
 }
 
-func (p *Pipeline) PropagateByTags(sourceNodeID string, mem MemoryUpdate, rule *PropagationRule) {
+func (p *Pipeline) PropagateByTags(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, sourceNodeID string, mem MemoryUpdate, rule *PropagationRule) {
 	sourceNode, err := store.GetNode(sourceNodeID)
 	if err != nil {
+		p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_failed", mem.Content, map[string]any{"source_node_id": sourceNodeID, "mode": "tag_broadcast", "error": err.Error()})
 		log.Printf("propagate by tags: get source node %s: %v", sourceNodeID, err)
 		return
 	}
 
 	settings, _ := store.GetOrCreateWorldSettings(sourceNode.WorldUUID)
 	if settings != nil && settings.EnablePropagationMachine {
-		p.runPropagationMachine(sourceNode, mem)
+		p.runPropagationMachine(req, runtime, executionMode, sourceNode, mem)
 		return
 	}
 
 	nodes, err := store.FindNodesByTags(sourceNode.WorldUUID, rule.TargetTags)
 	if err != nil {
+		p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_failed", mem.Content, map[string]any{"source_node_id": sourceNodeID, "mode": "tag_broadcast", "error": err.Error()})
 		log.Printf("propagate by tags: %v", err)
 		return
 	}
@@ -147,12 +158,15 @@ func (p *Pipeline) PropagateByTags(sourceNodeID string, mem MemoryUpdate, rule *
 			Tags:    "propagated,broadcast",
 		}
 		if err := store.CreateMemory(m); err != nil {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", mem.Content, map[string]any{"target_node_id": n.UUID, "mode": "tag_broadcast", "error": err.Error()})
 			log.Printf("propagate broadcast to %s: %v", n.UUID, err)
+		} else {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", mem.Content, map[string]any{"target_node_id": n.UUID, "mode": "tag_broadcast", "level": mem.Level})
 		}
 	}
 }
 
-func (p *Pipeline) PropagateToTargets(mem MemoryUpdate, rule *PropagationRule) {
+func (p *Pipeline) PropagateToTargets(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, mem MemoryUpdate, rule *PropagationRule) {
 	for _, targetUUID := range rule.TargetNodeIDs {
 		if hasPropagatedMemory(targetUUID, mem.Content) {
 			continue
@@ -168,7 +182,10 @@ func (p *Pipeline) PropagateToTargets(mem MemoryUpdate, rule *PropagationRule) {
 			Tags:    "propagated,targeted",
 		}
 		if err := store.CreateMemory(m); err != nil {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", mem.Content, map[string]any{"target_node_id": targetUUID, "mode": "targeted", "error": err.Error()})
 			log.Printf("propagate targeted to %s: %v", targetUUID, err)
+		} else {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", mem.Content, map[string]any{"target_node_id": targetUUID, "mode": "targeted", "level": mem.Level})
 		}
 	}
 }
@@ -184,9 +201,10 @@ func hasPropagatedMemory(nodeID, content string) bool {
 	return count > 0
 }
 
-func (p *Pipeline) runPropagationMachine(sourceNode *store.NodeModel, mem MemoryUpdate) {
+func (p *Pipeline) runPropagationMachine(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, sourceNode *store.NodeModel, mem MemoryUpdate) {
 	chains, err := store.GetPropagationChains(sourceNode.WorldUUID)
 	if err != nil {
+		p.emitExecutionEvent(req, runtime, executionMode, "propagation_machine_failed", mem.Content, map[string]any{"source_node_id": sourceNode.UUID, "error": err.Error()})
 		log.Printf("propagation machine: %v", err)
 		return
 	}
@@ -228,6 +246,7 @@ func (p *Pipeline) runPropagationMachine(sourceNode *store.NodeModel, mem Memory
 
 		var actions []PropagateAction
 		if err := json.Unmarshal([]byte(currentChain.Actions), &actions); err != nil {
+			p.emitExecutionEvent(req, runtime, executionMode, "propagation_machine_failed", mem.Content, map[string]any{"chain_id": currentChain.UUID, "error": err.Error()})
 			log.Printf("propagation machine: parse actions for chain %s: %v", currentChain.UUID, err)
 			continue
 		}
@@ -236,11 +255,11 @@ func (p *Pipeline) runPropagationMachine(sourceNode *store.NodeModel, mem Memory
 			actionMem := applyTransform(mem, &action)
 			switch action.Mode {
 			case PropModeTagBroadcast:
-				p.executeMachineBroadcast(sourceNode.WorldUUID, sourceNode.UUID, actionMem, action)
+				p.executeMachineBroadcast(req, runtime, executionMode, sourceNode.WorldUUID, sourceNode.UUID, actionMem, action)
 			case PropModeTargeted:
-				p.executeMachineTargeted(actionMem, action)
+				p.executeMachineTargeted(req, runtime, executionMode, actionMem, action)
 			case PropModeUpward:
-				p.PropagateUpward(sourceNode.UUID, actionMem.Content, actionMem.Level, action.MaxDepth, action.PublishUp)
+				p.PropagateUpward(req, runtime, executionMode, sourceNode.UUID, actionMem.Content, actionMem.Level, action.MaxDepth, action.PublishUp)
 			}
 
 			for _, nextUUID := range action.NextChainIDs {
@@ -253,9 +272,10 @@ func (p *Pipeline) runPropagationMachine(sourceNode *store.NodeModel, mem Memory
 	}
 }
 
-func (p *Pipeline) executeMachineBroadcast(worldUUID, sourceNodeUUID string, mem MemoryUpdate, action PropagateAction) {
+func (p *Pipeline) executeMachineBroadcast(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, worldUUID, sourceNodeUUID string, mem MemoryUpdate, action PropagateAction) {
 	nodes, err := store.FindNodesByTags(worldUUID, action.TargetTags)
 	if err != nil {
+		p.emitExecutionEvent(req, runtime, executionMode, "propagation_machine_failed", mem.Content, map[string]any{"mode": "broadcast", "error": err.Error()})
 		log.Printf("propagation machine broadcast: %v", err)
 		return
 	}
@@ -273,12 +293,15 @@ func (p *Pipeline) executeMachineBroadcast(worldUUID, sourceNodeUUID string, mem
 			Tags:    "propagated,machine",
 		}
 		if err := store.CreateMemory(m); err != nil {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", mem.Content, map[string]any{"target_node_id": n.UUID, "mode": "machine_broadcast", "error": err.Error()})
 			log.Printf("propagation machine broadcast to %s: %v", n.UUID, err)
+		} else {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", mem.Content, map[string]any{"target_node_id": n.UUID, "mode": "machine_broadcast", "level": mem.Level})
 		}
 	}
 }
 
-func (p *Pipeline) executeMachineTargeted(mem MemoryUpdate, action PropagateAction) {
+func (p *Pipeline) executeMachineTargeted(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, mem MemoryUpdate, action PropagateAction) {
 	for _, targetUUID := range action.TargetNodeIDs {
 		if hasPropagatedMemory(targetUUID, mem.Content) {
 			continue
@@ -294,7 +317,10 @@ func (p *Pipeline) executeMachineTargeted(mem MemoryUpdate, action PropagateActi
 			Tags:    "propagated,machine",
 		}
 		if err := store.CreateMemory(m); err != nil {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", mem.Content, map[string]any{"target_node_id": targetUUID, "mode": "machine_targeted", "error": err.Error()})
 			log.Printf("propagation machine targeted to %s: %v", targetUUID, err)
+		} else {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", mem.Content, map[string]any{"target_node_id": targetUUID, "mode": "machine_targeted", "level": mem.Level})
 		}
 	}
 }

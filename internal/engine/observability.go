@@ -234,3 +234,12 @@ func buildResponseOutcomeDetail(resp *InvokeResponse) string {
 	}
 	return marshalLogDetail(resp)
 }
+
+func (p *Pipeline) emitExecutionEvent(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, eventName string, message string, detail any) {
+	p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+		Category:   "engine_execution",
+		EventName:  eventName,
+		Message:    message,
+		DetailData: marshalLogDetail(detail),
+	})
+}

@@ -125,7 +125,7 @@ func (p *Pipeline) parseActionCalls(rawJSON string, defaultNodeID string) []Acti
 	return result
 }
 
-func (p *Pipeline) executeActions(policyEngine *planner.PolicyEngine, calls []ActionCall) []ActionCall {
+func (p *Pipeline) executeActions(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, policyEngine *planner.PolicyEngine, calls []ActionCall) []ActionCall {
 	var result []ActionCall
 
 	for _, call := range calls {
@@ -133,6 +133,7 @@ func (p *Pipeline) executeActions(policyEngine *planner.PolicyEngine, calls []Ac
 		args := call.Args
 
 		if policyEngine != nil && !policyEngine.IsActionAllowed(actionID) {
+			p.emitExecutionEvent(req, runtime, executionMode, "action_blocked", actionID, map[string]any{"action_id": actionID, "args": args, "reason": "policy_blocked"})
 			log.Printf("[policy] action %s blocked", actionID)
 			continue
 		}
@@ -140,8 +141,10 @@ func (p *Pipeline) executeActions(policyEngine *planner.PolicyEngine, calls []Ac
 		if p.actionReg.IsSync(actionID) {
 			out, err := p.actionReg.ExecuteSync(actionID, args)
 			if err != nil {
+				p.emitExecutionEvent(req, runtime, executionMode, "action_sync_failed", actionID, map[string]any{"action_id": actionID, "args": args, "error": err.Error()})
 				log.Printf("[action:sync] %s failed: %v", actionID, err)
 			} else {
+				p.emitExecutionEvent(req, runtime, executionMode, "action_sync_succeeded", actionID, map[string]any{"action_id": actionID, "args": args, "result": out})
 				log.Printf("[action:sync] %s success: %v", actionID, out)
 			}
 		} else if p.actionReg.IsAsync(actionID) {
@@ -149,10 +152,12 @@ func (p *Pipeline) executeActions(policyEngine *planner.PolicyEngine, calls []Ac
 			call.Mode = "async"
 			call.CallbackID = cbID
 			result = append(result, call)
+			p.emitExecutionEvent(req, runtime, executionMode, "action_async_enqueued", actionID, map[string]any{"action_id": actionID, "args": args, "callback_id": cbID})
 			log.Printf("[action:async] %s callback=%s", actionID, cbID)
 		} else {
 			call.Mode = "async"
 			result = append(result, call)
+			p.emitExecutionEvent(req, runtime, executionMode, "action_unknown_passthrough", actionID, map[string]any{"action_id": actionID, "args": args})
 			log.Printf("[action:unknown] %s passed through", actionID)
 		}
 	}
@@ -202,10 +207,11 @@ func (p *Pipeline) parseMemoryUpdates(rawJSON string) []MemoryUpdate {
 	return result
 }
 
-func writeMemories(updates []MemoryUpdate) {
+func (p *Pipeline) writeMemories(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, updates []MemoryUpdate) {
 	for _, mu := range updates {
 		nodeID := store.ResolveNodeUUID(mu.NodeID)
 		if nodeID == 0 {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_write_skipped", mu.Content, map[string]any{"node_id": mu.NodeID, "reason": "unknown_node"})
 			log.Printf("[warn] write memory: unknown node UUID %s", mu.NodeID)
 			continue
 		}
@@ -216,8 +222,11 @@ func writeMemories(updates []MemoryUpdate) {
 			Tags:    mu.Tags,
 		}
 		if err := store.CreateMemory(&mm); err != nil {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_write_failed", mu.Content, map[string]any{"node_id": mu.NodeID, "level": mu.Level, "tags": mu.Tags, "error": err.Error()})
 			log.Printf("write memory: %v", err)
+			continue
 		}
+		p.emitExecutionEvent(req, runtime, executionMode, "memory_written", mu.Content, map[string]any{"node_id": mu.NodeID, "level": mu.Level, "tags": mu.Tags})
 	}
 }
 
