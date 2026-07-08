@@ -154,6 +154,9 @@ resp, err := client.EventImpact(worldID, event)
 | `ScopeAdvance(worldID, scopeID string) (*InvokeResponse, error)` | Advance a specific scope |
 | `TimelineReplan(worldID string) (*InvokeResponse, error)` | Rebuild a world's future outline |
 | `ActionCallback(callbackID, status string, result any) error` | Complete an async action callback |
+| `ListPendingPlans(worldID string) ([]PendingPlan, error)` | List plans waiting for manual review |
+| `ApprovePlan(worldID, planID string) (*PlanDecisionResponse, error)` | Approve one pending plan |
+| `RejectPlan(worldID, planID string) (*PlanDecisionResponse, error)` | Reject one pending plan |
 
 ### Autonomous Behavior
 

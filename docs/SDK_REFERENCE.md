@@ -154,6 +154,9 @@ resp, err := client.EventImpact(worldID, event)
 | `ScopeAdvance(worldID, scopeID string) (*InvokeResponse, error)` | 推进指定局部范围 |
 | `TimelineReplan(worldID string) (*InvokeResponse, error)` | 重建世界未来大纲 |
 | `ActionCallback(callbackID, status string, result any) error` | 完成异步动作回调 |
+| `ListPendingPlans(worldID string) ([]PendingPlan, error)` | 列出待审批计划 |
+| `ApprovePlan(worldID, planID string) (*PlanDecisionResponse, error)` | 批准一条待审批计划 |
+| `RejectPlan(worldID, planID string) (*PlanDecisionResponse, error)` | 拒绝一条待审批计划 |
 
 ### 自主行为
 

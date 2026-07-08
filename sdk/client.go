@@ -719,6 +719,50 @@ func (c *Client) TimelineReplan(worldID string) (*InvokeResponse, error) {
 	return &resp, nil
 }
 
+// ListPendingPlans 列出等待人工审核的世界变更计划。
+func (c *Client) ListPendingPlans(worldID string) ([]PendingPlan, error) {
+	p := "/api/v1/plans/pending"
+	query := buildQuery(map[string]any{"world_id": worldID})
+	if query != "" {
+		p += "?" + query
+	}
+	data, err := c.do("GET", p, nil)
+	if err != nil {
+		return nil, err
+	}
+	var plans []PendingPlan
+	if err := json.Unmarshal(data, &plans); err != nil {
+		return nil, err
+	}
+	return plans, nil
+}
+
+// ApprovePlan 批准一条待审批计划。
+func (c *Client) ApprovePlan(worldID, planID string) (*PlanDecisionResponse, error) {
+	data, err := c.do("POST", "/api/v1/worlds/"+worldID+"/plan/approve", map[string]any{"plan_id": planID})
+	if err != nil {
+		return nil, err
+	}
+	var resp PlanDecisionResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// RejectPlan 拒绝一条待审批计划。
+func (c *Client) RejectPlan(worldID, planID string) (*PlanDecisionResponse, error) {
+	data, err := c.do("POST", "/api/v1/worlds/"+worldID+"/plan/reject", map[string]any{"plan_id": planID})
+	if err != nil {
+		return nil, err
+	}
+	var resp PlanDecisionResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // GetLogs 获取推理日志，支持分页和按类型过滤。
 func (c *Client) GetLogs(worldID string, limit, offset int, taskType string) ([]InferenceLog, error) {
 	p := "/api/v1/logs"

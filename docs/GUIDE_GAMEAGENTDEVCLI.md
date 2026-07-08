@@ -78,6 +78,12 @@ GameAgentDevCli world validate-snapshot <snapshot-world-id>
 GameAgentDevCli world snapshot-info <snapshot-world-id>
 GameAgentDevCli world list-snapshots <world-id>
 GameAgentDevCli world delete-snapshot <snapshot-world-id>
+
+# 审批计划
+GameAgentDevCli world plan pending
+GameAgentDevCli world plan pending <world-id>
+GameAgentDevCli world plan approve <world-id> <plan-id>
+GameAgentDevCli world plan reject <world-id> <plan-id>
 ```
 
 ---
@@ -106,6 +112,17 @@ GameAgentDevCli world policy set <world-id> --blocked spawn_item --safe add_memo
 ```
 
 `world settings set` 是部分更新命令，只有显式传入的字段会被修改。
+
+---
+
+## 记忆传播
+
+```bash
+GameAgentDevCli memory propagate <memory-id>
+GameAgentDevCli memory propagate <memory-id> --mode tag_broadcast --tags rumor,politics
+GameAgentDevCli memory propagate <memory-id> --mode targeted --target node-a,node-b
+GameAgentDevCli memory propagate <memory-id> --max-depth 2 --publish-up
+```
 
 ---
 

@@ -105,8 +105,34 @@ var memoryDeleteCmd = &cobra.Command{
 	},
 }
 
+var memoryPropagateCmd = &cobra.Command{
+	Use:   "propagate <id>",
+	Short: "显式触发一条记忆的传播",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		mode, _ := cmd.Flags().GetString("mode")
+		tags, _ := cmd.Flags().GetStringSlice("tags")
+		targetIDs, _ := cmd.Flags().GetStringSlice("target")
+		maxDepth, _ := cmd.Flags().GetInt("max-depth")
+		publishUp, _ := cmd.Flags().GetBool("publish-up")
+
+		if err := newClient().PropagateMemory(args[0], mode, tags, targetIDs, maxDepth, publishUp); err != nil {
+			fail(err)
+		}
+		printJSON(map[string]any{
+			"status":     "propagated",
+			"memory_id":  args[0],
+			"mode":       mode,
+			"tags":       tags,
+			"target_ids": targetIDs,
+			"max_depth":  maxDepth,
+			"publish_up": publishUp,
+		})
+	},
+}
+
 func init() {
-	memoryCmd.AddCommand(memoryListCmd, memoryGetCmd, memoryCreateCmd, memoryUpdateCmd, memoryDeleteCmd)
+	memoryCmd.AddCommand(memoryListCmd, memoryGetCmd, memoryCreateCmd, memoryUpdateCmd, memoryDeleteCmd, memoryPropagateCmd)
 
 	memoryListCmd.Flags().String("node", "", "节点 ID")
 	memoryCreateCmd.Flags().String("node", "", "节点 ID")
@@ -117,4 +143,9 @@ func init() {
 	memoryUpdateCmd.Flags().String("level", "", "新的记忆层级")
 	memoryUpdateCmd.Flags().String("tags", "", "新的记忆标签")
 	memoryUpdateCmd.Flags().Bool("clear-tags", false, "清空记忆标签")
+	memoryPropagateCmd.Flags().String("mode", "upward", "传播模式：upward/tag_broadcast/targeted/manual")
+	memoryPropagateCmd.Flags().StringSlice("tags", []string{}, "目标标签列表，逗号分隔")
+	memoryPropagateCmd.Flags().StringSlice("target", []string{}, "目标节点 ID 列表，逗号分隔")
+	memoryPropagateCmd.Flags().Int("max-depth", 0, "向上传播时的最大深度；0 为使用服务端默认")
+	memoryPropagateCmd.Flags().Bool("publish-up", false, "是否允许向父链继续发布")
 }

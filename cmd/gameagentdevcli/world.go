@@ -232,6 +232,54 @@ var worldPolicyCmd = &cobra.Command{
 	Short: "管理世界级动作策略",
 }
 
+var worldPlanCmd = &cobra.Command{
+	Use:   "plan",
+	Short: "管理待审批的世界变更计划",
+}
+
+var worldPlanPendingCmd = &cobra.Command{
+	Use:   "pending [world-id]",
+	Short: "列出等待人工审核的计划",
+	Args:  cobra.RangeArgs(0, 1),
+	Run: func(cmd *cobra.Command, args []string) {
+		worldID := ""
+		if len(args) > 0 {
+			worldID = args[0]
+		}
+		plans, err := newClient().ListPendingPlans(worldID)
+		if err != nil {
+			fail(err)
+		}
+		printJSON(plans)
+	},
+}
+
+var worldPlanApproveCmd = &cobra.Command{
+	Use:   "approve <world-id> <plan-id>",
+	Short: "批准一条待审批计划",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		resp, err := newClient().ApprovePlan(args[0], args[1])
+		if err != nil {
+			fail(err)
+		}
+		printJSON(resp)
+	},
+}
+
+var worldPlanRejectCmd = &cobra.Command{
+	Use:   "reject <world-id> <plan-id>",
+	Short: "拒绝一条待审批计划",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		resp, err := newClient().RejectPlan(args[0], args[1])
+		if err != nil {
+			fail(err)
+		}
+		printJSON(resp)
+	},
+}
+
 var worldPolicyGetCmd = &cobra.Command{
 	Use:   "get <world-id>",
 	Short: "查看世界动作策略",
@@ -350,9 +398,10 @@ var worldUpdateCmd = &cobra.Command{
 }
 
 func init() {
-	worldCmd.AddCommand(worldTickCmd, worldEventImpactCmd, worldScopeAdvanceCmd, worldReplanCmd, worldForkCmd, worldSaveCmd, worldRestoreCmd, worldValidateSnapshotCmd, worldSnapshotInfoCmd, worldListSnapshotsCmd, worldDeleteSnapshotCmd, worldSnapshotCmd, worldExportCmd, worldPolicyCmd, worldSettingsCmd, worldUpdateCmd)
+	worldCmd.AddCommand(worldTickCmd, worldEventImpactCmd, worldScopeAdvanceCmd, worldReplanCmd, worldForkCmd, worldSaveCmd, worldRestoreCmd, worldValidateSnapshotCmd, worldSnapshotInfoCmd, worldListSnapshotsCmd, worldDeleteSnapshotCmd, worldSnapshotCmd, worldExportCmd, worldPolicyCmd, worldPlanCmd, worldSettingsCmd, worldUpdateCmd)
 
 	worldPolicyCmd.AddCommand(worldPolicyGetCmd, worldPolicySetCmd)
+	worldPlanCmd.AddCommand(worldPlanPendingCmd, worldPlanApproveCmd, worldPlanRejectCmd)
 	worldPolicySetCmd.Flags().StringSlice("blocked", []string{}, "阻塞的动作列表，逗号分隔")
 	worldPolicySetCmd.Flags().StringSlice("safe", []string{}, "安全的动作列表，逗号分隔")
 

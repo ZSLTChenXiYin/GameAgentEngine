@@ -149,6 +149,26 @@ type WorldChangePlan struct {
 	ProposedActions []ProposedAction `json:"proposed_actions"`
 }
 
+// PendingPlan 表示一条待审批的世界变更计划。
+type PendingPlan struct {
+	PlanID          string           `json:"plan_id"`
+	WorldID         string           `json:"world_id"`
+	TickNumber      int              `json:"tick_number"`
+	TaskType        string           `json:"task_type"`
+	WorldChangePlan *WorldChangePlan `json:"world_change_plan"`
+	ActionCalls     []ActionCall     `json:"action_calls,omitempty"`
+	MemoryUpdates   []MemoryUpdate   `json:"memory_updates,omitempty"`
+	CreatedAt       time.Time        `json:"created_at"`
+	Status          string           `json:"status"`
+}
+
+// PlanDecisionResponse 表示计划审批接口返回结果。
+type PlanDecisionResponse struct {
+	Status string       `json:"status"`
+	PlanID string       `json:"plan_id"`
+	Plan   *PendingPlan `json:"plan,omitempty"`
+}
+
 // PlanEvent 描述计划中的世界事件。
 type PlanEvent struct {
 	EventType   string  `json:"event_type"`
