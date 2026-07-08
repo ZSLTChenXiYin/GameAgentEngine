@@ -177,6 +177,10 @@ func SetWorldSettingsHandler(w http.ResponseWriter, r *http.Request) {
 		mask.EnablePropagationMachine = true
 	}
 	if req.WorldTimeSettings != nil {
+		if err := engine.ValidateWorldTimeSettings(req.WorldTimeSettings); err != nil {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_world_time_settings", err.Error())
+			return
+		}
 		encoded, err := encodeWorldTimeSettings(req.WorldTimeSettings)
 		if err != nil {
 			errorJSONCode(w, http.StatusBadRequest, "invalid_world_time_settings", "world_time_settings must be valid structured JSON: "+err.Error())

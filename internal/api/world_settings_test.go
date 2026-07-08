@@ -221,3 +221,40 @@ func TestSetWorldSettingsHandlerPersistsWorldTimeSettings(t *testing.T) {
 		t.Fatalf("unexpected world_time_settings response: %#v", body.WorldTimeSettings)
 	}
 }
+
+func TestSetWorldSettingsHandlerRejectsInvalidWorldTimeSettings(t *testing.T) {
+	worldID := initWorldSettingsTestDB(t)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/worlds/"+worldID+"/settings", strings.NewReader(`{
+		"world_time_settings": {
+			"tick_scale_mode": "fixed",
+			"tick_min_unit": "时辰",
+			"tick_step": 2,
+			"tick_units": ["年", "月", "日", "时辰"],
+			"time_scale_carry": [
+				{"from": "时辰", "to": "日", "base": 12},
+				{"from": "日", "to": "月", "base": 30},
+				{"from": "月", "to": "年", "base": 12}
+			],
+			"time_calendar": {
+				"enabled": true,
+				"units": [
+					{"unit": "年", "value": "8"},
+					{"unit": "月", "value": "7"},
+					{"unit": "日", "value": "20"},
+					{"unit": "时辰", "value": "卯"}
+				]
+			}
+		}
+	}`))
+	req.SetPathValue("world_id", worldID)
+	w := httptest.NewRecorder()
+
+	SetWorldSettingsHandler(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "invalid_world_time_settings") {
+		t.Fatalf("expected invalid_world_time_settings code, got %s", w.Body.String())
+	}
+}
