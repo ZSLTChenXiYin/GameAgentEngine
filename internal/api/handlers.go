@@ -103,16 +103,23 @@ func UpdateWorldHandler(w http.ResponseWriter, r *http.Request) {
 // GetLogsHandler 返回最近的推理日志列表。
 // 支持通过 world_id 和 limit 做筛选。
 func GetLogsHandler(w http.ResponseWriter, r *http.Request) {
-	wid := r.URL.Query().Get("world_id")
+	query := store.InferenceLogQuery{WorldUUID: r.URL.Query().Get("world_id")}
 	limit := 50
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 200 {
 			limit = n
 		}
 	}
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	taskType := r.URL.Query().Get("task_type")
-	logs, err := store.GetInferenceLogs(wid, limit, offset, taskType)
+	query.Limit = limit
+	query.Offset, _ = strconv.Atoi(r.URL.Query().Get("offset"))
+	query.TaskType = r.URL.Query().Get("task_type")
+	query.NodeUUID = r.URL.Query().Get("node_id")
+	query.Category = r.URL.Query().Get("category")
+	query.EventName = r.URL.Query().Get("event_name")
+	query.ExecutionMode = r.URL.Query().Get("execution_mode")
+	query.RequestID = r.URL.Query().Get("request_id")
+	query.Round, _ = strconv.Atoi(r.URL.Query().Get("round"))
+	logs, err := store.GetInferenceLogsByQuery(query)
 	if err != nil {
 		errorJSON(w, 500, err.Error())
 		return

@@ -765,15 +765,26 @@ func (c *Client) RejectPlan(worldID, planID string) (*PlanDecisionResponse, erro
 
 // GetLogs 获取推理日志，支持分页和按类型过滤。
 func (c *Client) GetLogs(worldID string, limit, offset int, taskType string) ([]InferenceLog, error) {
+	return c.GetLogsByQuery(InferenceLogQuery{WorldID: worldID, Limit: limit, Offset: offset, TaskType: taskType})
+}
+
+// GetLogsByQuery 获取推理日志，支持服务端结构化筛选。
+func (c *Client) GetLogsByQuery(query InferenceLogQuery) ([]InferenceLog, error) {
 	p := "/api/v1/logs"
-	query := buildQuery(map[string]any{
-		"world_id":  worldID,
-		"limit":     limit,
-		"offset":    offset,
-		"task_type": taskType,
+	queryString := buildQuery(map[string]any{
+		"world_id":       query.WorldID,
+		"node_id":        query.NodeID,
+		"task_type":      query.TaskType,
+		"category":       query.Category,
+		"event_name":     query.EventName,
+		"execution_mode": query.ExecutionMode,
+		"request_id":     query.RequestID,
+		"round":          query.Round,
+		"limit":          query.Limit,
+		"offset":         query.Offset,
 	})
-	if query != "" {
-		p += "?" + query
+	if queryString != "" {
+		p += "?" + queryString
 	}
 	data, err := c.do("GET", p, nil)
 	if err != nil {

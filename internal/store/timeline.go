@@ -1,5 +1,18 @@
 package store
 
+type InferenceLogQuery struct {
+	WorldUUID     string
+	NodeUUID      string
+	TaskType      string
+	Category      string
+	EventName     string
+	ExecutionMode string
+	RequestID     string
+	Round         int
+	Limit         int
+	Offset        int
+}
+
 // CreateTimelineTick 写入一条世界时间线刻度记录。
 func CreateTimelineTick(m *TimelineModel) error {
 	if m.UUID == "" {
@@ -56,20 +69,44 @@ func CreateInferenceLog(m *InferenceLogModel) error {
 // worldUUID 非空时按世界过滤；taskType 非空时按任务类型过滤。
 // limit <= 0 表示不限制；offset < 0 时按 0 处理。
 func GetInferenceLogs(worldUUID string, limit, offset int, taskType string) ([]InferenceLogModel, error) {
+	return GetInferenceLogsByQuery(InferenceLogQuery{WorldUUID: worldUUID, Limit: limit, Offset: offset, TaskType: taskType})
+}
+
+// GetInferenceLogsByQuery 获取推理日志列表，支持按结构化字段组合查询。
+func GetInferenceLogsByQuery(query InferenceLogQuery) ([]InferenceLogModel, error) {
 	var list []InferenceLogModel
 	q := DB.Order("created_at DESC")
-	if worldUUID != "" {
-		worldID := ResolveWorldUUID(worldUUID)
+	if query.WorldUUID != "" {
+		worldID := ResolveWorldUUID(query.WorldUUID)
 		q = q.Where("world_id = ?", worldID)
 	}
-	if taskType != "" {
-		q = q.Where("task_type = ?", taskType)
+	if query.NodeUUID != "" {
+		nodeID := ResolveNodeUUID(query.NodeUUID)
+		q = q.Where("node_id = ?", nodeID)
 	}
-	if limit > 0 {
-		q = q.Limit(limit)
+	if query.TaskType != "" {
+		q = q.Where("task_type = ?", query.TaskType)
 	}
-	if offset > 0 {
-		q = q.Offset(offset)
+	if query.Category != "" {
+		q = q.Where("category = ?", query.Category)
+	}
+	if query.EventName != "" {
+		q = q.Where("event_name = ?", query.EventName)
+	}
+	if query.ExecutionMode != "" {
+		q = q.Where("execution_mode = ?", query.ExecutionMode)
+	}
+	if query.RequestID != "" {
+		q = q.Where("request_id = ?", query.RequestID)
+	}
+	if query.Round > 0 {
+		q = q.Where("round = ?", query.Round)
+	}
+	if query.Limit > 0 {
+		q = q.Limit(query.Limit)
+	}
+	if query.Offset > 0 {
+		q = q.Offset(query.Offset)
 	}
 	err := q.Find(&list).Error
 	if err == nil && len(list) > 0 {

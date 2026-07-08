@@ -218,6 +218,20 @@ type InferenceLog struct {
 	CreatedAt              string `json:"created_at"`
 }
 
+// InferenceLogQuery describes server-side log filters.
+type InferenceLogQuery struct {
+	WorldID       string
+	NodeID        string
+	TaskType      string
+	Category      string
+	EventName     string
+	ExecutionMode string
+	RequestID     string
+	Round         int
+	Limit         int
+	Offset        int
+}
+
 // DebugTrace 表示一条引擎调试轨迹。
 type DebugTrace struct {
 	ID                     string `json:"id"`
