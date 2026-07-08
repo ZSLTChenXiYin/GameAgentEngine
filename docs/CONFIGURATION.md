@@ -2,7 +2,7 @@
 
 **中文** | [**English**](./CONFIGURATION_EN.md)
 
-GameAgentEngine v0.2.0 采用双层配置体系：**静态配置**通过 YAML 文件管理，**动态配置**通过数据库 WorldSettings 管理。
+GameAgentEngine v0.4.5 采用双层配置体系：**静态配置**通过 YAML 文件管理，**动态配置**通过数据库 WorldSettings 管理。
 
 ---
 

@@ -2,7 +2,7 @@
 
 [**中文**](./PIPELINE_INTERNALS.md) | **English**
 
-This document details the internal mechanisms of the GameAgentEngine v0.2.0 inference pipeline, including pipeline modes, multi-round polling, sub-task DAG, data request loops, and memory propagation.
+This document details the internal mechanisms of the GameAgentEngine v0.4.5 inference pipeline, including pipeline modes, multi-round polling, sub-task DAG, data request loops, and memory propagation.
 
 ---
 

@@ -2,7 +2,7 @@
 
 **中文** | [**English**](./AUTONOMOUS_BEHAVIOR_EN.md)
 
-GameAgentEngine v0.2.0 的自主行为系统允许 NPC 和节点在没有用户直接输入的情况下，自行决定并执行行为。
+GameAgentEngine v0.4.5 的自主行为系统允许 NPC 和节点在没有用户直接输入的情况下，自行决定并执行行为。
 
 ---
 

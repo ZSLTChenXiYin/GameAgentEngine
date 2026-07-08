@@ -2,7 +2,7 @@
 
 [**中文**](./ARCHITECTURE.md) | **English**
 
-GameAgentEngine v0.2.0 adopts a layered architecture with clear separation of concerns. The system is designed as a backend service with an HTTP API, SDK, CLI tools, and a web-based visual editor.
+GameAgentEngine v0.4.5 adopts a layered architecture with clear separation of concerns. The system is designed as a backend service with an HTTP API, SDK, CLI tools, and a web-based visual editor.
 
 ---
 

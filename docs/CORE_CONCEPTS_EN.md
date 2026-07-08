@@ -2,7 +2,7 @@
 
 [**中文**](./CORE_CONCEPTS.md) | **English**
 
-GameAgentEngine v0.2.0 models game worlds using four fundamental abstractions: **Nodes**, **Components**, **Memories**, and **Relations**. Together they form a directed graph representing each entity, its attributes, history, and connections to other entities. The engine also provides an inference pipeline, a memory propagation system, and sub-task DAG orchestration.
+GameAgentEngine v0.4.5 models game worlds using four fundamental abstractions: **Nodes**, **Components**, **Memories**, and **Relations**. Together they form a directed graph representing each entity, its attributes, history, and connections to other entities. The engine also provides an inference pipeline, a memory propagation system, and sub-task DAG orchestration.
 
 ---
 

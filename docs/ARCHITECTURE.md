@@ -2,7 +2,7 @@
 
 **中文** | [**English**](./ARCHITECTURE_EN.md)
 
-GameAgentEngine v0.2.0 采用分层架构，职责清晰分离。系统设计为后端服务 + HTTP API、SDK、CLI 工具、Web 可视化编辑器。
+GameAgentEngine v0.4.5 采用分层架构，职责清晰分离。系统设计为后端服务 + HTTP API、SDK、CLI 工具、Web 可视化编辑器。
 
 ---
 

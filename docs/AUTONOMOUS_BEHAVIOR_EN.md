@@ -2,7 +2,7 @@
 
 [**中文**](./AUTONOMOUS_BEHAVIOR.md) | **English**
 
-GameAgentEngine v0.2.0's autonomous behavior system allows NPCs and nodes to decide and execute actions on their own, without direct user input.
+GameAgentEngine v0.4.5's autonomous behavior system allows NPCs and nodes to decide and execute actions on their own, without direct user input.
 
 ---
 

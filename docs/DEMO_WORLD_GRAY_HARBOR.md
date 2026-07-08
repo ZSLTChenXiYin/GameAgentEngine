@@ -2,7 +2,7 @@
 
 **中文** | [**English**](./DEMO_WORLD_GRAY_HARBOR_EN.md)
 
-「灰港边境」是一个演示用的边境治理模拟世界，用于展示 GameAgentEngine v0.2.0 的核心功能。
+「灰港边境」是一个演示用的边境治理模拟世界，用于展示 GameAgentEngine v0.4.5 的核心功能。
 
 ---
 

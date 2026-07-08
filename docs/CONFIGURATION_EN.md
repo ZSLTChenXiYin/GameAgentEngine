@@ -2,7 +2,7 @@
 
 [**中文**](./CONFIGURATION.md) | **English**
 
-GameAgentEngine v0.2.0 uses a two-layer configuration system: **static configuration** managed through YAML files, and **dynamic configuration** managed through the database WorldSettings.
+GameAgentEngine v0.4.5 uses a two-layer configuration system: **static configuration** managed through YAML files, and **dynamic configuration** managed through the database WorldSettings.
 
 ---
 

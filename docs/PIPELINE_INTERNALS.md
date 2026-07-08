@@ -2,7 +2,7 @@
 
 **中文** | [**English**](./PIPELINE_INTERNALS_EN.md)
 
-本文档详细说明 GameAgentEngine v0.2.0 推理管线的内部机制，包括管线模式、多轮轮询、子任务 DAG、数据请求循环和记忆传播。
+本文档详细说明 GameAgentEngine v0.4.5 推理管线的内部机制，包括管线模式、多轮轮询、子任务 DAG、数据请求循环和记忆传播。
 
 ---
 

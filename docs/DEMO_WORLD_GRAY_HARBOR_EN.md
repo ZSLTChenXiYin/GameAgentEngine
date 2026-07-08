@@ -2,7 +2,7 @@
 
 [**中文**](./DEMO_WORLD_GRAY_HARBOR.md) | **English**
 
-"Gray Harbor Border" is a demo border-governance simulation world used to showcase the core features of GameAgentEngine v0.2.0.
+"Gray Harbor Border" is a demo border-governance simulation world used to showcase the core features of GameAgentEngine v0.4.5.
 
 ---
 
