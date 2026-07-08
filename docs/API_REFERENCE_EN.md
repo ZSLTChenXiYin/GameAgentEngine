@@ -296,6 +296,46 @@ Get or update world action policy.
 
 ---
 
+## Continuity State and Timelines
+
+### `GET /api/v1/worlds/{world_id}/state-components`
+
+Read all engine-recognized world tick continuity state components for a world.
+
+Current component types:
+
+- `world_state`
+- `story_state`
+- `story_history`
+- `tick_policy`
+- `state_snapshot`
+
+### `GET /api/v1/worlds/{world_id}/state-components/{component_type}`
+
+Read one continuity state component for a world.
+
+If `component_type` is not one of the recognized continuity component types, the API returns `400` with code `invalid_component_type`.
+
+### `PUT /api/v1/worlds/{world_id}/state-components/{component_type}`
+
+Create or replace one continuity state component for a world.
+
+The request body must be valid JSON. Structured component types such as `world_state`, `story_state`, `story_history`, and `tick_policy` are validated against the Engine's current field-shape rules.
+
+### `GET /api/v1/worlds/{world_id}/timelines`
+
+Read recent persisted world tick timeline archives.
+
+Query parameters:
+
+- `limit` - optional, default `20`, maximum `200`
+
+### `GET /api/v1/worlds/{world_id}/timelines/latest`
+
+Read the latest persisted world tick timeline archive.
+
+---
+
 ## Creator Import
 
 ### `POST /api/v1/creator/import`
@@ -319,7 +359,20 @@ Typical request body:
 
 ### `GET /api/v1/logs`
 
-Read inference logs. Supports `world_id`, `task_type`, `limit`, and `offset` query parameters.
+Read inference logs.
+
+Query parameters:
+
+- `world_id`
+- `task_type`
+- `node_id`
+- `category`
+- `event_name`
+- `execution_mode`
+- `request_id`
+- `round`
+- `limit`
+- `offset`
 
 ### `GET /debug/traces`
 
