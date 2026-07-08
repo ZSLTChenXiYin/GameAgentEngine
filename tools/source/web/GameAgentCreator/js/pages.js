@@ -630,6 +630,7 @@ function renderStatePage(container) {
   }
   for (var i = 0; i < (state.stateComponents || []).length; i++) {
     var item = state.stateComponents[i];
+    var editable = item.component_type !== 'state_snapshot';
     var detailCard = createToggleDetailCard([
       ce('span', { style: { fontWeight: 600 } }, [txt(item.component_type || '?')]),
       txt(item.component ? ' present' : ' missing'),
@@ -639,6 +640,17 @@ function renderStatePage(container) {
     body.appendChild(renderPropRow('ID', item.component && item.component.id ? item.component.id.slice(0, 8) : '-', { mono: true }));
     body.appendChild(renderPropRow('Node', item.component && item.component.node_id ? item.component.node_id.slice(0, 8) : '-', { mono: true }));
     body.appendChild(renderPropRow('Summary', tr('Structured world tick continuity state.')));
+    if (editable) {
+      var actionRow = ce('div', { className: 'world-toolbar', style: { padding: '6px 0 2px 0', borderBottom: 'none' } }, [
+        ce('button', { id: 'btnEditState_' + i }, [ttxt('Edit')]),
+      ]);
+      body.appendChild(actionRow);
+      (function(componentType, payload) {
+        actionRow.querySelector('button').addEventListener('click', function() {
+          openEditStateComponentModal(componentType, payload);
+        });
+      })(item.component_type, item.data || {});
+    }
     if (item.data) {
       body.appendChild(renderLogDetailBlock('Data', item.data));
     }

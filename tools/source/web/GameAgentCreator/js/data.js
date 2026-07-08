@@ -1274,6 +1274,38 @@ async function loadTimelines() {
   }
 }
 
+function openEditStateComponentModal(componentType, payload) {
+  var text = payload ? JSON.stringify(payload, null, 2) : '{}';
+  const f = ce('div', { className: 'modal-field' }, [
+    ce('label', { for: 'editStateType' }, [ttxt('State Component')]),
+    el('input', { id: 'editStateType', value: componentType, disabled: 'disabled', style: { width: '100%' } }),
+    ce('label', { for: 'editStateData' }, [ttxt('Component Data')]),
+    el('textarea', { id: 'editStateData', rows: 14, style: { width: '100%', fontFamily: 'var(--font-mono)', fontSize: '11px' }, textContent: text }),
+    ce('div', { id: 'editStateHint', className: 'hint', style: { textAlign: 'left' } }, [txt('')]),
+  ]);
+  openModal(tr('Edit State Component'), f,
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalSaveStateBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
+  );
+  var validationError = validateComponentEditorData(componentType, text);
+  document.getElementById('editStateHint').textContent = validationError || tr('Structured world tick continuity state.');
+  document.getElementById('modalSaveStateBtn').addEventListener('click', function() { saveStateComponent(componentType); });
+  document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+}
+
+async function saveStateComponent(componentType) {
+  const data = document.getElementById('editStateData').value.trim();
+  var validationError = validateComponentEditorData(componentType, data);
+  if (validationError) { toast(validationError, 'error'); return; }
+  try {
+    await api('PUT', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/state-components/' + encodeURIComponent(componentType), JSON.parse(data));
+    closeModal();
+    toast(tr('State component saved'), 'success');
+    loadStateComponents();
+  } catch(e) {
+    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+  }
+}
+
 function openEditRelationModal(relId) {
   const nd = state.nodeDetail;
   if (!nd || !nd.relations) return;
