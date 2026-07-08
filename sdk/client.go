@@ -786,6 +786,27 @@ func (c *Client) GetLogs(worldID string, limit, offset int, taskType string) ([]
 	return logs, nil
 }
 
+// GetDebugTraces 读取最近的调试轨迹。
+func (c *Client) GetDebugTraces(worldID string, limit int) (*DebugTraceList, error) {
+	p := "/debug/traces"
+	query := buildQuery(map[string]any{
+		"world_id": worldID,
+		"limit":    limit,
+	})
+	if query != "" {
+		p += "?" + query
+	}
+	data, err := c.do("GET", p, nil)
+	if err != nil {
+		return nil, err
+	}
+	var payload DebugTraceList
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, err
+	}
+	return &payload, nil
+}
+
 // CreatorImport 调用 creator/import 接口执行导入或纯校验。
 func (c *Client) CreatorImport(format, content string, reset, dryRun bool) (*ImportResult, error) {
 	data, err := c.do("POST", "/api/v1/creator/import", map[string]any{

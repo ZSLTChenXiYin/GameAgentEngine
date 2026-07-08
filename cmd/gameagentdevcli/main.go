@@ -142,6 +142,7 @@ func main() {
 	rootCmd.AddCommand(componentCmd)
 	rootCmd.AddCommand(memoryCmd)
 	rootCmd.AddCommand(relationCmd)
+	rootCmd.AddCommand(actionCmd)
 	rootCmd.AddCommand(worldCmd)
 	rootCmd.AddCommand(tickCmd)
 	rootCmd.AddCommand(statusCmd)
@@ -185,7 +186,3 @@ func buildInvokeContext(cmd *cobra.Command) *sdk.InvokeContext {
 	}
 	return ctx
 }
-
-
-
-

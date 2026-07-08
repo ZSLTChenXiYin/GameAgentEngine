@@ -176,6 +176,7 @@ resp, err := client.EventImpact(worldID, event)
 | `GetWorldPolicy(worldID string) (*WorldPolicy, error)` | 读取世界策略 |
 | `SetWorldPolicy(worldID string, blocked, safe []string) (*WorldPolicy, error)` | 更新世界策略 |
 | `GetLogs(worldID string, limit, offset int, taskType string) ([]InferenceLog, error)` | 读取推理日志 |
+| `GetDebugTraces(worldID string, limit int) (*DebugTraceList, error)` | 读取最近的调试轨迹 |
 | `CreatorImport(format, content string, reset, dryRun bool) (*ImportResult, error)` | 导入世界配置 |
 
 ---

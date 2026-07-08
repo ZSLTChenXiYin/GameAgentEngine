@@ -208,6 +208,28 @@ type InferenceLog struct {
 	CreatedAt    string `json:"created_at"`
 }
 
+// DebugTrace 表示一条引擎调试轨迹。
+type DebugTrace struct {
+	ID                     string `json:"id"`
+	WorldID                string `json:"world_id"`
+	RequestID              string `json:"request_id"`
+	TaskType               string `json:"task_type"`
+	NodeID                 string `json:"node_id"`
+	ConfiguredPipelineMode string `json:"configured_pipeline_mode"`
+	EffectivePipelineMode  string `json:"effective_pipeline_mode"`
+	MaxAnalysisRounds      int    `json:"max_analysis_rounds"`
+	RoundsUsed             int    `json:"rounds_used"`
+	Timestamp              string `json:"timestamp"`
+	DurationMs             int64  `json:"duration_ms"`
+	Error                  string `json:"error"`
+}
+
+// DebugTraceList 表示调试轨迹列表接口返回结果。
+type DebugTraceList struct {
+	Traces []DebugTrace `json:"traces"`
+	Count  int          `json:"count"`
+}
+
 // ImportResult 表示 creator/import 接口返回的导入或纯校验摘要。
 type ImportResult struct {
 	WorldID        string `json:"world_id,omitempty"`

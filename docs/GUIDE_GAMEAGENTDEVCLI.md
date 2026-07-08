@@ -126,6 +126,18 @@ GameAgentDevCli memory propagate <memory-id> --max-depth 2 --publish-up
 
 ---
 
+## 异步动作回调
+
+```bash
+GameAgentDevCli action callback <callback-id>
+GameAgentDevCli action callback <callback-id> --status failed
+GameAgentDevCli action callback <callback-id> --status success --result '{"item_id":"sword-01","quality":"rare"}'
+```
+
+`--result` 优先按 JSON 解析；如果不是合法 JSON，则会按纯文本原样上报。
+
+---
+
 ## 日志与调试轨迹
 
 ```bash

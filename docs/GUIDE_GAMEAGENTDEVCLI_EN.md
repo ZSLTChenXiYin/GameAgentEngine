@@ -126,6 +126,18 @@ GameAgentDevCli memory propagate <memory-id> --max-depth 2 --publish-up
 
 ---
 
+## Async Action Callback
+
+```bash
+GameAgentDevCli action callback <callback-id>
+GameAgentDevCli action callback <callback-id> --status failed
+GameAgentDevCli action callback <callback-id> --status success --result '{"item_id":"sword-01","quality":"rare"}'
+```
+
+`--result` is parsed as JSON first; if parsing fails, it is reported as raw text.
+
+---
+
 ## Logs and Debug Traces
 
 ```bash

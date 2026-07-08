@@ -176,6 +176,7 @@ resp, err := client.EventImpact(worldID, event)
 | `GetWorldPolicy(worldID string) (*WorldPolicy, error)` | Read world policy |
 | `SetWorldPolicy(worldID string, blocked, safe []string) (*WorldPolicy, error)` | Update world policy |
 | `GetLogs(worldID string, limit, offset int, taskType string) ([]InferenceLog, error)` | Read inference logs |
+| `GetDebugTraces(worldID string, limit int) (*DebugTraceList, error)` | Read recent debug traces |
 | `CreatorImport(format, content string, reset, dryRun bool) (*ImportResult, error)` | Import world configuration |
 
 ---
