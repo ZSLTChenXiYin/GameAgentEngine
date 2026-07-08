@@ -143,11 +143,17 @@ GameAgentDevCli action callback <callback-id> --status success --result '{"item_
 ```bash
 GameAgentDevCli logs --world <world-id> --limit 10
 GameAgentDevCli logs --world <world-id> --limit 10 --json
-GameAgentDevCli logs --world <world-id> --task-type world_tick --category pipeline --event raw_llm_response_received --mode debug --details
+GameAgentDevCli logs --world <world-id> --task-type world_tick --category pipeline --event llm_response_received --mode debug --request-id <request-id> --details
 
 GameAgentDevCli debug traces --world <world-id> --limit 10
 GameAgentDevCli debug traces --world <world-id> --limit 10 --json
+GameAgentDevCli debug continuity <world-id>
+GameAgentDevCli debug continuity <world-id> --mode debug --request-id <request-id> --log-limit 20 --trace-limit 10
 ```
+
+`logs` 现在支持 `--node`、`--category`、`--event`、`--mode`、`--request-id`、`--round` 等服务端结构化过滤参数。
+
+`debug continuity` 是目前最快的连续性排查入口，它会一次性汇总最近时间线、连续性状态组件、`world_tick` 日志和调试轨迹。
 
 ---
 
@@ -157,6 +163,8 @@ GameAgentDevCli debug traces --world <world-id> --limit 10 --json
 GameAgentDevCli state list <world-id>
 GameAgentDevCli state get <world-id> world_state
 GameAgentDevCli state get <world-id> story_state
+GameAgentDevCli state get <world-id> story_history
+GameAgentDevCli state get <world-id> tick_policy
 GameAgentDevCli state set <world-id> tick_policy --data '{"continuity_rules":["Do not discard established reactor facts."]}'
 
 GameAgentDevCli timeline latest <world-id>
@@ -168,6 +176,12 @@ GameAgentDevCli timeline list <world-id> --limit 5
 - `state` 查看和修改引擎持续继承的结构化状态组件
 - `timeline` 对照最近几次 tick 的历史归档
 - `logs --details` 检查 request / response / detail_data
+
+当你需要从单次 tick 反查连续性问题时，优先顺序建议是：
+
+1. `timeline latest` 查看最新 tick 的摘要与 `future_outline`
+2. `state get` 检查 `world_state`、`story_history`、`tick_policy`
+3. `logs --details` 或 `debug continuity` 对齐同一个 `request_id` 下的日志与轨迹
 
 ---
 
