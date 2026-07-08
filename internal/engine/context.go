@@ -125,7 +125,7 @@ func (b *ContextBuilder) buildSystemPrompt(node *store.NodeModel, comps []store.
 }
 
 func (b *ContextBuilder) buildStateBlocks(nodeID string) []string {
-	componentTypes := []string{string(CompWorldState), string(CompStoryState), string(CompStoryHistory), string(CompTickPolicy), string(CompStateSnapshot)}
+	componentTypes := []string{string(CompWorldState), string(CompStoryState), string(CompStoryHistory), string(CompTickPolicy), string(CompWorldTimeState), string(CompStateSnapshot)}
 	blocks := make([]string, 0, len(componentTypes))
 	for _, componentType := range componentTypes {
 		components, err := store.GetComponentsByType(nodeID, componentType)

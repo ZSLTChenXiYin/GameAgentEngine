@@ -75,12 +75,19 @@ func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameT
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	effectiveTicks, err := resolveEffectiveWorldTicksTx(store.DB, worldID, resolvedTicks, resp)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if resp != nil {
+		resp.AdvancedTicks = effectiveTicks
+	}
 	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_completed", worldPlanSummary(resp), resp)
 
 	var tick *store.TimelineModel
 	err = store.DB.Transaction(func(tx *gorm.DB) error {
 		var err error
-		tick, err = persistWorldTickArtifactsTx(tx, worldID, tickType, gameTime, resolvedTicks, resp)
+		tick, err = persistWorldTickArtifactsTx(tx, worldID, tickType, gameTime, effectiveTicks, resp)
 		return err
 	})
 	if err != nil {
@@ -125,6 +132,30 @@ func resolveRequestedWorldTicksTx(tx *gorm.DB, worldID string, requestedTicks *i
 		return resolvedTicks, nil
 	}
 	return resolvedTicks, nil
+}
+
+func resolveEffectiveWorldTicksTx(tx *gorm.DB, worldID string, requestedTicks int, resp *engine.InvokeResponse) (int, error) {
+	settings, err := store.GetWorldSettingsTx(tx, worldID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return requestedTicks, nil
+		}
+		return 0, err
+	}
+	if settings == nil {
+		return requestedTicks, nil
+	}
+	worldTimeSettings, err := engine.DecodeWorldTimeSettings(settings.WorldTimeSettingsJSON)
+	if err != nil || worldTimeSettings == nil {
+		return requestedTicks, err
+	}
+	if worldTimeSettings.TickScaleMode == engine.TickScaleModeFixed {
+		return 1, nil
+	}
+	if resp != nil && resp.AdvancedTicks > 0 {
+		return resp.AdvancedTicks, nil
+	}
+	return requestedTicks, nil
 }
 
 func persistWorldTickArtifactsTx(tx *gorm.DB, worldID, tickType, gameTime string, advancedTicks int, resp *engine.InvokeResponse) (*store.TimelineModel, error) {

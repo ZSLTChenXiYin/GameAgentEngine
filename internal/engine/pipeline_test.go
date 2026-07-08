@@ -429,3 +429,44 @@ func TestExecuteFallsBackToDefaultSettingsWhenStoredValuesAreInvalid(t *testing.
 		t.Fatalf("expected max analysis rounds fallback 5, got %d", resp.Metadata.MaxAnalysisRounds)
 	}
 }
+
+func TestExecuteWorldTickIncludesWorldTimeConstraintsAndParsesAdvancedTicks(t *testing.T) {
+	initTestDB(t)
+	worldID, _ := createWorldAndNode(t)
+	raw, err := EncodeWorldTimeSettings(&WorldTimeSettings{
+		TickScaleMode: TickScaleModeFlexible,
+		TickMinUnit:   "时辰",
+		TickStep:      1,
+		TickUnits:     []string{"日", "时辰"},
+		TimeScaleCarry: []WorldTimeCarryRule{{
+			From: "时辰",
+			To:   "日",
+			Base: 12,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("encode world time settings: %v", err)
+	}
+	if _, err := store.UpsertWorldSettingsWithMask(worldID, &store.WorldSettingsModel{WorldTimeSettingsJSON: raw}, &store.WorldSettingsUpdateMask{WorldTimeSettings: true}); err != nil {
+		t.Fatalf("upsert settings: %v", err)
+	}
+	worldInt := store.ResolveNodeUUID(worldID)
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: worldInt, NodeUUID: worldID, ComponentType: string(CompWorldTimeState), Data: `{"tick_scale_mode":"flexible","tick_min_unit":"时辰","tick_step":1,"tick_units":["日","时辰"],"current_units":[{"unit":"日","value":"20"},{"unit":"时辰","value":"卯"}],"current_time_label":"太阴历 8年 7月 20日 卯时辰"}`}); err != nil {
+		t.Fatalf("create world_time_state: %v", err)
+	}
+	provider := &captureProvider{response: `{"reply":"tick","advanced_ticks":3,"action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"推进","world_events":[],"proposed_actions":[]}}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: worldID, TaskType: TaskWorldTick})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp.AdvancedTicks != 3 {
+		t.Fatalf("expected advanced_ticks=3, got %d", resp.AdvancedTicks)
+	}
+	for _, want := range []string{"tick_scale_mode: flexible", "current_time_label: 太阴历 8年 7月 20日 卯时辰", "you must return advanced_ticks"} {
+		if !strings.Contains(provider.lastPrompt, want) {
+			t.Fatalf("expected prompt to contain %q, got %s", want, provider.lastPrompt)
+		}
+	}
+}

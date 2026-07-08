@@ -217,6 +217,7 @@ func buildLLMResponseDetail(raw string, parsed *llmParsedOutput) string {
 		data["cleaned_response"] = parsed.CleanedContent
 		data["parse_error"] = parsed.ParseError
 		data["reply"] = parsed.Reply
+		data["advanced_ticks"] = parsed.AdvancedTicks
 		data["action_calls"] = parsed.RawActionCalls
 		data["memory_updates"] = parsed.RawMemoryUpdates
 		data["world_change_plan"] = parsed.RawPlan

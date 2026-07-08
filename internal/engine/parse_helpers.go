@@ -14,6 +14,7 @@ type llmParsedOutput struct {
 	Reply                   string
 	CleanedContent          string
 	ParseError              string
+	AdvancedTicks           int
 	RawActionCalls          string
 	RawMemoryUpdates        string
 	RawPlan                 string
@@ -41,6 +42,13 @@ func (p *Pipeline) parseLLMJSON(content string) *llmParsedOutput {
 		var s string
 		json.Unmarshal(reply, &s)
 		out.Reply = s
+	}
+
+	if advancedTicks, ok := raw["advanced_ticks"]; ok {
+		var count int
+		if err := json.Unmarshal(advancedTicks, &count); err == nil && count > 0 {
+			out.AdvancedTicks = count
+		}
 	}
 
 	if ac, ok := raw["action_calls"]; ok {

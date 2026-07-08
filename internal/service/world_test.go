@@ -203,6 +203,36 @@ func TestAdvanceWorldTickWithAutonomousPersistsFlexibleRequestedTicks(t *testing
 	}
 }
 
+func TestAdvanceWorldTickWithAutonomousUsesModelAdvancedTicksForFlexibleScale(t *testing.T) {
+	initWorldServiceTestDB(t)
+	worldID := createWorldRoot(t)
+	putWorldTimeSettings(t, worldID, &engine.WorldTimeSettings{
+		TickScaleMode: engine.TickScaleModeFlexible,
+		TickMinUnit:   "时辰",
+		TickStep:      1,
+		TickUnits:     []string{"日", "时辰"},
+		TimeScaleCarry: []engine.WorldTimeCarryRule{{
+			From: "时辰",
+			To:   "日",
+			Base: 12,
+		}},
+	})
+	pipeline := engine.NewPipeline(&stubProvider{response: `{"reply":"世界推进","advanced_ticks":4,"action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"世界推进","world_events":[],"proposed_actions":[]},"future_outline":"next"}`})
+	requestedTicks := 2
+
+	_, resp, _, err := AdvanceWorldTickWithAutonomous(pipeline, worldID, "scheduled", "day-1", &requestedTicks, nil)
+	if err != nil {
+		t.Fatalf("advance world tick: %v", err)
+	}
+	if resp == nil || resp.AdvancedTicks != 4 {
+		t.Fatalf("expected response advanced_ticks=4, got %#v", resp)
+	}
+	state := decodeWorldTimeStateComponent(t, worldID)
+	if state.LastAdvancedTicks != 4 {
+		t.Fatalf("expected persisted last_advanced_ticks=4, got %d", state.LastAdvancedTicks)
+	}
+}
+
 func TestCollectCanonicalWorldFactsPrefersConcreteFacts(t *testing.T) {
 	resp := &engine.InvokeResponse{
 		Reply: strings.Join([]string{

@@ -702,7 +702,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 	case TaskNPCDialogue:
 		systemPrompt = buildDialoguePrompt(ctxDesc, req.NodeID)
 	case TaskWorldTick:
-		systemPrompt = buildWorldTickPrompt(ctxDesc, "", nil, nil)
+		systemPrompt = buildWorldTickPrompt(ctxDesc, "", nil, nil, buildWorldTickTimeBlock(req.WorldID))
 	case TaskWorldEvent:
 		eventDesc := ""
 		if req.Event != nil {
@@ -838,6 +838,7 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 	if latest, err := store.GetLatestTick(req.WorldID); err == nil {
 		currentOutline = latest.FutureOutline
 	}
+	worldTimeBlock := buildWorldTickTimeBlock(req.WorldID)
 	var recentTimeline []string
 	if ticks, err := store.GetTimelineTicks(req.WorldID, 3); err == nil {
 		for _, tick := range ticks {
@@ -854,14 +855,69 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 		if strings.TrimSpace(treeContext) != "" {
 			baseContext = strings.TrimSpace(ctx.SystemPrompt + "\n\n任务树分析：\n" + treeContext)
 		}
-		return buildWorldTickPrompt(baseContext, currentOutline, ctx.StateBlocks, recentTimeline)
+		return buildWorldTickPrompt(baseContext, currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock)
 	}
 
 	var tree *TaskTree
 	if withTaskTree {
 		tree = NewTaskTree(req.TaskType, req.WorldID, req.NodeID)
 	}
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, tickFn, nil, executionMode)
+	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, tickFn, func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
+		_ = ctx
+		_ = req
+		if parsed != nil && parsed.AdvancedTicks > 0 {
+			resp.AdvancedTicks = parsed.AdvancedTicks
+		}
+		return resp
+	}, executionMode)
+}
+
+func buildWorldTickTimeBlock(worldID string) string {
+	settingsModel, err := store.GetWorldSettings(worldID)
+	if err != nil || settingsModel == nil || strings.TrimSpace(settingsModel.WorldTimeSettingsJSON) == "" {
+		return ""
+	}
+	settings, err := DecodeWorldTimeSettings(settingsModel.WorldTimeSettingsJSON)
+	if err != nil || settings == nil {
+		return ""
+	}
+	parts := []string{
+		fmt.Sprintf("- tick_scale_mode: %s", settings.TickScaleMode),
+		fmt.Sprintf("- tick_min_unit: %s", settings.TickMinUnit),
+		fmt.Sprintf("- tick_step: %d", settings.TickStep),
+		fmt.Sprintf("- tick_units(big_to_small): %s", strings.Join(settings.TickUnits, " > ")),
+	}
+	if len(settings.TimeScaleCarry) > 0 {
+		carryRules := make([]string, 0, len(settings.TimeScaleCarry))
+		for _, rule := range settings.TimeScaleCarry {
+			carryRules = append(carryRules, fmt.Sprintf("%s->%s(base=%d)", rule.From, rule.To, rule.Base))
+		}
+		parts = append(parts, fmt.Sprintf("- time_scale_carry(small_to_big): %s", strings.Join(carryRules, ", ")))
+	}
+	if settings.TimeCalendar != nil && settings.TimeCalendar.Enabled {
+		parts = append(parts, fmt.Sprintf("- calendar_name: %s历", settings.TimeCalendar.CalendarName))
+	}
+	if components, err := store.GetComponentsByType(worldID, string(CompWorldTimeState)); err == nil && len(components) > 0 {
+		state := WorldTimeStateComponent{}
+		if json.Unmarshal([]byte(components[0].Data), &state) == nil {
+			if strings.TrimSpace(state.CurrentTimeLabel) != "" {
+				parts = append(parts, fmt.Sprintf("- current_time_label: %s", state.CurrentTimeLabel))
+			}
+			if len(state.CurrentUnits) > 0 {
+				unitParts := make([]string, 0, len(state.CurrentUnits))
+				for _, unit := range state.CurrentUnits {
+					unitParts = append(unitParts, fmt.Sprintf("%s=%s", unit.Unit, unit.Value))
+				}
+				parts = append(parts, fmt.Sprintf("- current_units: %s", strings.Join(unitParts, ", ")))
+			}
+		}
+	}
+	if settings.TickScaleMode == TickScaleModeFixed {
+		parts = append(parts, "- constraint: each world tick must advance exactly 1 configured standard tick")
+	} else {
+		parts = append(parts, "- constraint: each world tick may advance multiple standard ticks, but you must return advanced_ticks")
+	}
+	return strings.Join(parts, "\n")
 }
 
 func (p *Pipeline) executeWorldEvent(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {

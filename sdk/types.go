@@ -85,6 +85,7 @@ type InvokeResponse struct {
 	TaskType        string               `json:"task_type"`
 	ExecutionMode   string               `json:"execution_mode"`
 	Reply           string               `json:"reply,omitempty"`
+	AdvancedTicks   int                  `json:"advanced_ticks,omitempty"`
 	ActionCalls     []ActionCall         `json:"action_calls,omitempty"`
 	WorldChangePlan *WorldChangePlan     `json:"world_change_plan,omitempty"`
 	MemoryUpdates   []MemoryUpdate       `json:"memory_updates,omitempty"`
