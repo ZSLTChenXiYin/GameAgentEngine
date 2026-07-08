@@ -102,3 +102,59 @@ func TestAdvanceWorldTickWithAutonomousPersistsServiceLogs(t *testing.T) {
 		t.Fatalf("expected world service logs, got %#v", logs)
 	}
 }
+
+func TestCollectCanonicalWorldFactsPrefersConcreteFacts(t *testing.T) {
+	resp := &engine.InvokeResponse{
+		Reply: strings.Join([]string{
+			"世界推进，局势持续变化。",
+			"地下52米量子谐振腔仍在运行，并由Dar-shade检修站持续供能。",
+			"设施状态稳定。",
+		}, "\n"),
+		MemoryUpdates: []engine.MemoryUpdate{{Content: "He-3精炼厂的三号冷却井出现间歇性结霜。"}},
+		WorldChangePlan: &engine.WorldChangePlan{
+			Summary:     "剧情继续推进",
+			WorldEvents: []engine.PlanEvent{{Description: "轨道站A-17向地下城投送新的谐振腔备件。"}},
+		},
+	}
+
+	facts := collectCanonicalWorldFacts(resp)
+	joined := strings.Join(facts, "\n")
+	if !strings.Contains(joined, "地下52米量子谐振腔仍在运行") {
+		t.Fatalf("expected concrete underground fact, got %#v", facts)
+	}
+	if !strings.Contains(joined, "Dar-shade检修站持续供能") {
+		t.Fatalf("expected facility detail retained, got %#v", facts)
+	}
+	if !strings.Contains(joined, "He-3精炼厂的三号冷却井出现间歇性结霜") {
+		t.Fatalf("expected memory fact retained, got %#v", facts)
+	}
+	if !strings.Contains(joined, "轨道站A-17向地下城投送新的谐振腔备件") {
+		t.Fatalf("expected event fact retained, got %#v", facts)
+	}
+	if strings.Contains(joined, "世界推进") || strings.Contains(joined, "局势持续变化") || strings.Contains(joined, "剧情继续推进") {
+		t.Fatalf("expected generic continuity phrases filtered, got %#v", facts)
+	}
+}
+
+func TestNormalizeCanonicalFactRejectsGenericPhrases(t *testing.T) {
+	for _, value := range []string{
+		"世界推进",
+		"局势发生变化",
+		"行动正在继续",
+		"设施状态稳定",
+	} {
+		if fact := normalizeCanonicalFact(value); fact != "" {
+			t.Fatalf("expected %q to be rejected, got %q", value, fact)
+		}
+	}
+
+	for _, value := range []string{
+		"地下52米量子谐振腔仍在运行",
+		"Dar-shade检修站接管A-17轨道站的供能回路",
+		"He-3精炼厂的三号冷却井出现结霜",
+	} {
+		if fact := normalizeCanonicalFact(value); fact == "" {
+			t.Fatalf("expected %q to be retained", value)
+		}
+	}
+}

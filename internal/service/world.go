@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
@@ -232,25 +233,46 @@ func collectWorldTickFacts(resp *engine.InvokeResponse) []string {
 }
 
 func collectCanonicalWorldFacts(resp *engine.InvokeResponse) []string {
+	if resp == nil {
+		return nil
+	}
 	set := map[string]bool{}
 	var facts []string
 	add := func(value string) {
-		value = normalizeCanonicalFact(value)
-		if value == "" || set[value] {
-			return
+		for _, candidate := range expandCanonicalFactCandidates(value) {
+			candidate = normalizeCanonicalFact(candidate)
+			if candidate == "" || set[candidate] {
+				continue
+			}
+			set[candidate] = true
+			facts = append(facts, candidate)
+			if len(facts) >= 10 {
+				return
+			}
 		}
-		set[value] = true
-		facts = append(facts, value)
 	}
 	for _, line := range strings.Split(resp.Reply, "\n") {
 		add(line)
+		if len(facts) >= 10 {
+			return facts[:10]
+		}
 	}
 	for _, mem := range resp.MemoryUpdates {
 		add(mem.Content)
+		if len(facts) >= 10 {
+			return facts[:10]
+		}
 	}
 	if resp.WorldChangePlan != nil {
+		add(resp.WorldChangePlan.Summary)
+		if len(facts) >= 10 {
+			return facts[:10]
+		}
 		for _, evt := range resp.WorldChangePlan.WorldEvents {
 			add(evt.Description)
+			if len(facts) >= 10 {
+				return facts[:10]
+			}
 		}
 	}
 	if len(facts) > 10 {
@@ -260,24 +282,196 @@ func collectCanonicalWorldFacts(resp *engine.InvokeResponse) []string {
 }
 
 func normalizeCanonicalFact(value string) string {
-	value = strings.TrimSpace(value)
+	value = normalizeWorldTickWhitespace(value)
 	if value == "" {
 		return ""
 	}
-	value = strings.Trim(value, `"'`)
-	value = strings.ReplaceAll(value, "  ", " ")
-	interesting := []string{"地下", "米", "量子", "谐振", "裂隙", "财团", "叛军", "林博士", "Dar-shade", "达尔谢德", "轨道", "实验室", "He-3", "精炼厂"}
-	keep := false
-	for _, token := range interesting {
-		if strings.Contains(value, token) {
-			keep = true
-			break
-		}
-	}
-	if !keep && len([]rune(value)) < 18 {
+	value = strings.Trim(value, `"'“”‘’「」『』[]()（）`)
+	value = trimCanonicalListPrefix(value)
+	value = strings.TrimSpace(value)
+	if value == "" || !isConcreteCanonicalFact(value) {
 		return ""
 	}
 	return truncateWorldTickText(value, 180)
+}
+
+func expandCanonicalFactCandidates(value string) []string {
+	segments := splitCanonicalFactParts(value, func(r rune) bool {
+		switch r {
+		case '\n', '\r', '。', '！', '？', '!', '?', '；', ';':
+			return true
+		default:
+			return false
+		}
+	})
+	if len(segments) == 0 {
+		return nil
+	}
+	set := map[string]bool{}
+	var candidates []string
+	add := func(item string) {
+		item = normalizeWorldTickWhitespace(item)
+		item = strings.TrimSpace(item)
+		if item == "" || set[item] {
+			return
+		}
+		set[item] = true
+		candidates = append(candidates, item)
+	}
+	for _, segment := range segments {
+		add(segment)
+		if len([]rune(segment)) < 20 {
+			continue
+		}
+		for _, clause := range splitCanonicalFactParts(segment, func(r rune) bool {
+			switch r {
+			case '，', ',', '、', ':', '：':
+				return true
+			default:
+				return false
+			}
+		}) {
+			add(clause)
+		}
+	}
+	return candidates
+}
+
+func splitCanonicalFactParts(value string, separator func(rune) bool) []string {
+	parts := strings.FieldsFunc(value, separator)
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
+}
+
+func normalizeWorldTickWhitespace(value string) string {
+	value = strings.Map(func(r rune) rune {
+		if r == '\t' || r == '\n' || r == '\r' {
+			return ' '
+		}
+		return r
+	}, value)
+	return strings.Join(strings.Fields(value), " ")
+}
+
+func trimCanonicalListPrefix(value string) string {
+	value = strings.TrimLeftFunc(value, unicode.IsSpace)
+	for _, prefix := range []string{"- ", "* ", "• ", "1. ", "1) ", "1、", "2. ", "2) ", "2、", "3. ", "3) ", "3、"} {
+		if strings.HasPrefix(value, prefix) {
+			return strings.TrimSpace(value[len(prefix):])
+		}
+	}
+	return value
+}
+
+func isConcreteCanonicalFact(value string) bool {
+	runeCount := len([]rune(value))
+	if runeCount < 6 {
+		return false
+	}
+	score := 0
+	if runeCount >= 10 {
+		score++
+	}
+	if containsDigit(value) {
+		score += 2
+	}
+	if containsMeasurement(value) {
+		score += 2
+	}
+	if containsStructuredIdentifier(value) {
+		score += 2
+	}
+	if containsSpecificEntitySuffix(value) {
+		score += 2
+	}
+	if strings.ContainsAny(value, "“”‘’\"'()（）[]") {
+		score++
+	}
+	if looksGenericCanonicalFact(value) {
+		score -= 2
+	}
+	return score >= 2
+}
+
+func containsDigit(value string) bool {
+	for _, r := range value {
+		if unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsMeasurement(value string) bool {
+	if !containsDigit(value) {
+		return false
+	}
+	units := []string{"米", "公里", "公尺", "层", "级", "号", "年", "月", "日", "小时", "分钟", "秒", "%", "％", "吨", "人", "座", "次", "度", "m", "km"}
+	for _, unit := range units {
+		if strings.Contains(value, unit) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsStructuredIdentifier(value string) bool {
+	hasLetter := false
+	hasDigit := false
+	hasSymbol := false
+	for _, r := range value {
+		switch {
+		case unicode.IsLetter(r) && r <= unicode.MaxASCII:
+			hasLetter = true
+		case unicode.IsDigit(r):
+			hasDigit = true
+		case r == '-' || r == '_' || r == '/':
+			hasSymbol = true
+		}
+	}
+	return (hasLetter && hasDigit) || (hasLetter && hasSymbol)
+}
+
+func containsSpecificEntitySuffix(value string) bool {
+	suffixes := []string{"谐振腔", "实验室", "观测井", "检修站", "中继站", "反应堆", "发射井", "轨道站", "地下城", "基地", "要塞", "站", "塔", "港", "城", "区", "层", "室", "井", "门", "桥", "线", "轨道", "走廊", "矿场", "舰", "号", "团", "军", "会", "所", "院"}
+	for _, token := range strings.FieldsFunc(value, func(r rune) bool {
+		switch r {
+		case ' ', '，', ',', '。', '；', ';', '：', ':', '、', '(', ')', '（', '）', '[', ']':
+			return true
+		default:
+			return false
+		}
+	}) {
+		token = strings.TrimSpace(token)
+		for _, suffix := range suffixes {
+			if strings.HasSuffix(token, suffix) && len([]rune(token)) >= len([]rune(suffix))+1 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func looksGenericCanonicalFact(value string) bool {
+	genericPhrases := []string{"局势", "情况", "事件", "计划", "推进", "变化", "发展", "影响", "问题", "消息", "线索", "风险", "危机", "秘密", "行动", "设施", "装置"}
+	concreteHints := []string{"地下", "量子", "谐振腔", "反应堆", "实验室", "观测井", "检修站", "轨道", "Dar-shade", "He-3"}
+	for _, hint := range concreteHints {
+		if strings.Contains(value, hint) {
+			return false
+		}
+	}
+	for _, phrase := range genericPhrases {
+		if strings.Contains(value, phrase) {
+			return true
+		}
+	}
+	return false
 }
 
 func collectPlanEventDescriptions(resp *engine.InvokeResponse) []string {
