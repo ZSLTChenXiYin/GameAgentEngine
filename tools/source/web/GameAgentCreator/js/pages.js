@@ -24,6 +24,7 @@ function renderCenter() {
   switch (state.page) {
     case 'worlds': renderWorldsPage(center); break;
     case 'snapshots': renderSnapshotsPage(center); break;
+    case 'plans': renderPlansPage(center); break;
     case 'policy': renderPolicyPage(center); break;
     case 'settings': renderSettingsPage(center); break;
     case 'logs': renderLogsPage(center); break;
@@ -48,6 +49,15 @@ function snapshotReasonLabel(reason) {
 
 function snapshotStatusLabel(status) {
   return tr(status || 'unknown');
+}
+
+function planStatusColor(status) {
+  switch (status) {
+    case 'approved': return 'var(--green)';
+    case 'rejected': return 'var(--red)';
+    case 'pending': return '#f59e0b';
+    default: return 'var(--text-dim)';
+  }
 }
 
 function renderSnapshotsPage(container) {
@@ -168,6 +178,61 @@ function renderSnapshotsPage(container) {
   });
 }
 
+function renderPlansPage(container) {
+  const toolbar = ce('div', { className: 'world-toolbar' }, [
+    ce('button', { id: 'btnRefreshPlans' }, [ttxt('Refresh Plans')]),
+  ]);
+  container.appendChild(toolbar);
+
+  if (!state.selectedWorldId) {
+    container.appendChild(ce('div', { className: 'hint' }, [ttxt('Select a world first.')]));
+    return;
+  }
+
+  const plans = state.plans || [];
+  if (plans.length === 0) {
+    container.appendChild(ce('div', { className: 'hint' }, [ttxt('No pending plans for this world.')]));
+  } else {
+    for (var i = 0; i < plans.length; i++) {
+      (function() {
+        var plan = plans[i];
+        var impact = plan.world_change_plan ? plan.world_change_plan.impact_level : '-';
+        var summary = plan.world_change_plan ? plan.world_change_plan.summary : '-';
+        var actionCount = plan.action_calls ? plan.action_calls.length : 0;
+        var memoryCount = plan.memory_updates ? plan.memory_updates.length : 0;
+        var row = ce('div', { className: 'detail-card' }, [
+          ce('div', { className: 'card-hd' }, [
+            ce('span', { className: 'item-tag', style: { background: 'rgba(59,130,246,.12)', color: planStatusColor(plan.status) } }, [txt(tr(plan.status || 'pending'))]),
+            ce('span', { style: { fontWeight: 600, marginLeft: '8px' } }, [txt(summary || '-')]),
+          ]),
+          ce('div', { className: 'card-bd' }, [
+            renderPropRow('Plan ID', plan.plan_id || '-', { mono: true }),
+            renderPropRow('Task Type', plan.task_type || '-'),
+            renderPropRow('Impact', impact || '-'),
+            renderPropRow('Created At', plan.created_at ? new Date(plan.created_at).toLocaleString() : '-'),
+            renderPropRow('Actions', String(actionCount)),
+            renderPropRow('Memory Updates', String(memoryCount)),
+            renderPropRow('Summary', summary || '-'),
+            ce('div', { className: 'policy-actions' }, [
+              ce('button', { className: 'primary plan-approve-btn', dataset: { planId: plan.plan_id, worldId: plan.world_id } }, [ttxt('Approve')]),
+              ce('button', { className: 'danger plan-reject-btn', dataset: { planId: plan.plan_id, worldId: plan.world_id } }, [ttxt('Reject')]),
+            ]),
+          ]),
+        ]);
+        container.appendChild(row);
+      })();
+    }
+  }
+
+  document.getElementById('btnRefreshPlans').addEventListener('click', loadPlans);
+  document.querySelectorAll('.plan-approve-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { approvePlan(btn.dataset.worldId, btn.dataset.planId); });
+  });
+  document.querySelectorAll('.plan-reject-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { rejectPlan(btn.dataset.worldId, btn.dataset.planId); });
+  });
+}
+
 /* ============= Worlds Page ============= */
 function renderWorldsPage(container) {
   const toolbar = ce('div', { className: 'world-toolbar' }, [
@@ -277,6 +342,7 @@ function renderNodeDetail(container) {
         ce('div', { className: 'item-hd' }, [
           ce('span', { className: 'item-tag', style: {background: 'rgba(59,130,246,.12)', color: levelColors[m.level] || '#3b82f6'} }, [txt(m.level || 'long_term')]),
           ce('span', { style: {fontSize: '10px', color: 'var(--text-dim)'} }, [txt(m.tags ? ' ' + m.tags : '')]),
+          ce('button', { className: 'item-propagate', dataset: { id: m.id } }, [ttxt('Propagate')]),
           ce('button', { className: 'item-edit', dataset: { id: m.id } }, [ttxt('\u270e')]),
           ce('button', { className: 'item-del', dataset: { id: m.id } }, [ttxt('\u2715')]),
         ]),
@@ -318,6 +384,7 @@ function renderNodeDetail(container) {
   compList.querySelectorAll('.item-del').forEach(function(btn) { btn.addEventListener('click', function(e) { e.stopPropagation(); deleteComponent(btn.dataset.id); }); });
   memList.querySelectorAll('.item-edit').forEach(function(btn) { btn.addEventListener('click', function(e) { e.stopPropagation(); openEditMemoryModal(btn.dataset.id); }); });
   memList.querySelectorAll('.item-del').forEach(function(btn) { btn.addEventListener('click', function(e) { e.stopPropagation(); deleteMemory(btn.dataset.id); }); });
+  memList.querySelectorAll('.item-propagate').forEach(function(btn) { btn.addEventListener('click', function(e) { e.stopPropagation(); openPropagateMemoryModal(btn.dataset.id); }); });
   relList.querySelectorAll('.item-edit').forEach(function(btn) { btn.addEventListener('click', function(e) { e.stopPropagation(); openEditRelationModal(btn.dataset.id); }); });
   relList.querySelectorAll('.item-del').forEach(function(btn) { btn.addEventListener('click', function(e) { e.stopPropagation(); deleteRelation(btn.dataset.id); }); });
   

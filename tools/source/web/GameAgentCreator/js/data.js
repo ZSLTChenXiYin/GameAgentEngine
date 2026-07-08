@@ -55,11 +55,11 @@ async function selectWorld(worldId) {
     state.selectedTreePathKey = null;
     state.nodeDetail = null;
     state.logs = [];
-    loadPolicy(); loadSettings(); loadSnapshots();
+    loadPolicy(); loadSettings(); loadPlans(true); loadSnapshots();
     if (state.page === 'logs') loadLogs();
   } else {
     state.nodes = []; state.relations = []; state.selectedNodeId = null; state.selectedNodeIds = []; state.selectionAnchorId = null; state.selectedTreePathKey = null; state.nodeDetail = null; state.snapshots = []; state.snapshotMeta = null;
-    state.snapshotListWorldId = null; state.logs = []; state.settings = null; state.policy = null;
+    state.snapshotListWorldId = null; state.logs = []; state.settings = null; state.policy = null; state.plans = [];
   }
   renderTree(); renderCurrent();
 }
@@ -324,6 +324,46 @@ async function loadSettings() {
   try { state.settings = await api('GET', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/settings'); }
   catch(e) { state.settings = null; }
   if (state.page === 'settings') renderCurrent();
+}
+
+async function loadPlans(silent) {
+  try {
+    var q = '/api/v1/plans/pending';
+    if (state.selectedWorldId) q += '?world_id=' + encodeURIComponent(state.selectedWorldId);
+    state.plans = await api('GET', q);
+    if (state.page === 'plans') renderCurrent();
+    if (!silent) toast(tr('Plans refreshed'), 'success');
+  } catch(e) {
+    state.plans = [];
+    if (state.page === 'plans') renderCurrent();
+    if (!silent) toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+  }
+}
+
+async function approvePlan(worldId, planId) {
+  showLoading(tr('Processing...'));
+  try {
+    await api('POST', '/api/v1/worlds/' + encodeURIComponent(worldId) + '/plan/approve', { plan_id: planId });
+    hideLoading();
+    toast(tr('Plan approved'), 'success');
+    loadPlans();
+  } catch(e) {
+    hideLoading();
+    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+  }
+}
+
+async function rejectPlan(worldId, planId) {
+  showLoading(tr('Processing...'));
+  try {
+    await api('POST', '/api/v1/worlds/' + encodeURIComponent(worldId) + '/plan/reject', { plan_id: planId });
+    hideLoading();
+    toast(tr('Plan rejected'), 'success');
+    loadPlans();
+  } catch(e) {
+    hideLoading();
+    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+  }
 }
 
 async function loadLogs() {
@@ -1150,6 +1190,52 @@ async function editMemory(memId) {
     await api('PUT', '/api/v1/memories/' + encodeURIComponent(memId), { content: content, level: level, tags: tags });
     closeModal(); toast(tr('Memory updated'), 'success'); selectNode(state.selectedNodeId);
   } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+}
+
+function openPropagateMemoryModal(memId) {
+  const nd = state.nodeDetail;
+  if (!nd || !nd.memories) return;
+  const mem = nd.memories.find(function(x) { return x.id === memId; });
+  if (!mem) return;
+  const f = ce('div', { className: 'modal-field' }, [
+    ce('div', { className: 'hint', style: { textAlign: 'left' } }, [txt((mem.content || '').slice(0, 120) + ((mem.content || '').length > 120 ? '...' : ''))]),
+    ce('label', { for: 'propMemMode' }, [ttxt('Propagation Mode')]),
+    el('select', { id: 'propMemMode', innerHTML: '<option value="upward">upward</option><option value="tag_broadcast">tag_broadcast</option><option value="targeted">targeted</option><option value="manual">manual</option>' }),
+    ce('label', { for: 'propMemTags' }, [ttxt('Propagation Tags')]),
+    el('input', { id: 'propMemTags', placeholder: tr('Tags, comma separated'), style: {width: '100%'} }),
+    ce('label', { for: 'propMemTargets' }, [ttxt('Propagation Targets (node IDs)')]),
+    el('input', { id: 'propMemTargets', placeholder: tr('Target node IDs, comma separated'), style: {width: '100%'} }),
+    ce('label', { for: 'propMemDepth' }, [ttxt('Propagation Max Depth')]),
+    el('input', { id: 'propMemDepth', type: 'number', value: '0', min: '0', style: {width: '100px'} }),
+    ce('label', { className: 'checkbox-row' }, [el('input', { id: 'propMemPublishUp', type: 'checkbox' }), ttxt('Publish Up')]),
+  ]);
+  openModal(tr('Propagate Memory'), f,
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalPropMemBtn' }, [ttxt('Propagate')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
+  );
+  document.getElementById('modalPropMemBtn').addEventListener('click', function() { propagateMemory(memId); });
+  document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+}
+
+async function propagateMemory(memId) {
+  const mode = document.getElementById('propMemMode').value;
+  const tags = document.getElementById('propMemTags').value.trim().split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  const targets = document.getElementById('propMemTargets').value.trim().split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  const maxDepth = parseInt(document.getElementById('propMemDepth').value, 10) || 0;
+  const publishUp = document.getElementById('propMemPublishUp').checked;
+  try {
+    await api('POST', '/api/v1/memories/propagate', {
+      memory_id: memId,
+      mode: mode,
+      tags: tags,
+      target_ids: targets,
+      max_depth: maxDepth,
+      publish_up: publishUp,
+    });
+    closeModal();
+    toast(tr('Propagation request submitted'), 'success');
+  } catch(e) {
+    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+  }
 }
 
 function openEditRelationModal(relId) {

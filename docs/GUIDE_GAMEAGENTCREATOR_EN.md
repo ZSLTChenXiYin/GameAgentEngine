@@ -20,7 +20,7 @@ You can also use the CLI `inspect` flow when available in your environment.
 
 - top bar: world selection, language switch, theme switch, config entry
 - left tree: hierarchical node outline
-- center area: world page, snapshots, settings, policy, logs, traces
+- center area: world page, snapshots, plans, settings, policy, logs, traces
 - right side: node detail summary and attached data
 
 ---
@@ -34,6 +34,7 @@ You can also use the CLI `inspect` flow when available in your environment.
 - create a working copy via `fork`
 - save a snapshot
 - validate, restore, and delete snapshots
+- inspect and review pending world change plans
 - edit world settings
 - edit world policy
 
@@ -71,6 +72,12 @@ The outgoing-relation action opens the same relation editor used for relation cr
 - evaluate event impact
 - scope advance
 - timeline replan
+
+### Memory propagation
+
+- explicitly trigger propagation from the memory list in node detail
+- choose among `upward`, `tag_broadcast`, `targeted`, and `manual` modes
+- fill tags, target node IDs, max depth, and `publish_up`
 
 ### Observability
 

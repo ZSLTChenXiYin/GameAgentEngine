@@ -39,6 +39,7 @@ function renderRightPanel() {
       memBody.appendChild(ce('div', { className: 'dock-cnt mem-row' }, [
         ce('div', { className: 'rp-item-hd' }, [
           ce('span', { style: {color: 'var(--yellow)', fontWeight: 600} }, [txt(m.level || 'long_term')]),
+          ce('button', { className: 'dock-propagate', dataset: { id: m.id }, style: {fontSize: '10px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer'} }, [ttxt('Propagate')]),
           ce('button', { className: 'dock-del', dataset: { id: m.id }, style: {fontSize: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer'} }, [ttxt('\u2715')]),
         ]),
       ]));
@@ -87,6 +88,12 @@ function renderRightPanel() {
       if (hdText.startsWith('Components') || hdText.indexOf(tr('Components')) === 0) deleteComponent(btn.dataset.id);
       else if (hdText.startsWith('Memories') || hdText.indexOf(tr('Memories')) === 0) deleteMemory(btn.dataset.id);
       else if (hdText.startsWith('Relations') || hdText.indexOf(tr('Relations')) === 0) deleteRelation(btn.dataset.id);
+    });
+  });
+  rp.querySelectorAll('.dock-propagate').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      openPropagateMemoryModal(btn.dataset.id);
     });
   });
 }

@@ -23,6 +23,7 @@ function renderTopbar() {
   }
   center.appendChild(pageBtn('worlds', tr('Worlds')));
   center.appendChild(pageBtn('snapshots', tr('Snapshots')));
+  center.appendChild(pageBtn('plans', tr('Plans')));
   center.appendChild(pageBtn('policy', tr('Policy')));
   center.appendChild(pageBtn('settings', tr('Settings')));
   center.appendChild(pageBtn('logs', tr('Logs')));
