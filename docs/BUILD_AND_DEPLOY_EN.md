@@ -2,7 +2,7 @@
 
 [**中文**](./BUILD_AND_DEPLOY.md) | **English**
 
-GameAgentEngine v0.2.0 can be obtained either as a pre-compiled package for multiple platforms or built from source.
+GameAgentEngine v0.4.5 can be obtained either as a pre-compiled package for multiple platforms or built from source.
 
 ---
 
@@ -12,17 +12,17 @@ Each release provides compressed packages in `dist/` for the following platforms
 
 | Platform | File |
 |---|---|
-| Windows amd64 | `GameAgentEngine-windows-amd64-v0.2.0.zip` |
-| Windows arm64 | `GameAgentEngine-windows-arm64-v0.2.0.zip` |
-| Linux amd64 | `GameAgentEngine-linux-amd64-v0.2.0.zip` |
-| Linux arm64 | `GameAgentEngine-linux-arm64-v0.2.0.zip` |
-| macOS amd64 (Intel) | `GameAgentEngine-darwin-amd64-v0.2.0.zip` |
-| macOS arm64 (Apple Silicon) | `GameAgentEngine-darwin-arm64-v0.2.0.zip` |
+| Windows amd64 | `GameAgentEngine-windows-amd64-v0.4.5.zip` |
+| Windows arm64 | `GameAgentEngine-windows-arm64-v0.4.5.zip` |
+| Linux amd64 | `GameAgentEngine-linux-amd64-v0.4.5.zip` |
+| Linux arm64 | `GameAgentEngine-linux-arm64-v0.4.5.zip` |
+| macOS amd64 (Intel) | `GameAgentEngine-darwin-amd64-v0.4.5.zip` |
+| macOS arm64 (Apple Silicon) | `GameAgentEngine-darwin-arm64-v0.4.5.zip` |
 
 Each package contains:
 
 ```
-GameAgentEngine-{os}-{arch}-v0.2.0/
+GameAgentEngine-{os}-{arch}-v0.4.5/
 ├── GameAgentEngine.exe     # Backend engine service
 ├── GameAgentDevCli.exe     # CLI management tool
 ├── gameagentengine.conf.yaml  # Default configuration file
@@ -36,8 +36,8 @@ GameAgentEngine-{os}-{arch}-v0.2.0/
 
 ```bash
 # Extract
-unzip GameAgentEngine-windows-amd64-v0.2.0.zip
-cd GameAgentEngine-windows-amd64-v0.2.0
+unzip GameAgentEngine-windows-amd64-v0.4.5.zip
+cd GameAgentEngine-windows-amd64-v0.4.5
 
 # Edit the configuration file, fill in LLM API Key
 # Edit gameagentengine.conf.yaml

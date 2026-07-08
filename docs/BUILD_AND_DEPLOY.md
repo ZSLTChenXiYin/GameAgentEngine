@@ -2,7 +2,7 @@
 
 **中文** | [**English**](./BUILD_AND_DEPLOY_EN.md)
 
-GameAgentEngine v0.2.0 提供跨平台预编译包和源码构建两种获取方式。
+GameAgentEngine v0.4.5 提供跨平台预编译包和源码构建两种获取方式。
 
 ---
 
@@ -12,17 +12,17 @@ GameAgentEngine v0.2.0 提供跨平台预编译包和源码构建两种获取方
 
 | 平台 | 文件 |
 |---|---|
-| Windows amd64 | `GameAgentEngine-windows-amd64-v0.2.0.zip` |
-| Windows arm64 | `GameAgentEngine-windows-arm64-v0.2.0.zip` |
-| Linux amd64 | `GameAgentEngine-linux-amd64-v0.2.0.zip` |
-| Linux arm64 | `GameAgentEngine-linux-arm64-v0.2.0.zip` |
-| macOS amd64 (Intel) | `GameAgentEngine-darwin-amd64-v0.2.0.zip` |
-| macOS arm64 (Apple Silicon) | `GameAgentEngine-darwin-arm64-v0.2.0.zip` |
+| Windows amd64 | `GameAgentEngine-windows-amd64-v0.4.5.zip` |
+| Windows arm64 | `GameAgentEngine-windows-arm64-v0.4.5.zip` |
+| Linux amd64 | `GameAgentEngine-linux-amd64-v0.4.5.zip` |
+| Linux arm64 | `GameAgentEngine-linux-arm64-v0.4.5.zip` |
+| macOS amd64 (Intel) | `GameAgentEngine-darwin-amd64-v0.4.5.zip` |
+| macOS arm64 (Apple Silicon) | `GameAgentEngine-darwin-arm64-v0.4.5.zip` |
 
 每个包包含：
 
 ```
-GameAgentEngine-{os}-{arch}-v0.2.0/
+GameAgentEngine-{os}-{arch}-v0.4.5/
 ├── GameAgentEngine.exe     # 后端引擎服务
 ├── GameAgentDevCli.exe     # 命令行管理工具
 ├── gameagentengine.conf.yaml  # 默认配置文件
@@ -36,8 +36,8 @@ GameAgentEngine-{os}-{arch}-v0.2.0/
 
 ```bash
 # 解压
-unzip GameAgentEngine-windows-amd64-v0.2.0.zip
-cd GameAgentEngine-windows-amd64-v0.2.0
+unzip GameAgentEngine-windows-amd64-v0.4.5.zip
+cd GameAgentEngine-windows-amd64-v0.4.5
 
 # 编辑配置文件，填入 LLM API Key
 # 编辑 gameagentengine.conf.yaml
