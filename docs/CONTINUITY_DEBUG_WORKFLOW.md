@@ -44,7 +44,7 @@ Use DevCli:
 
 ```bash
 GameAgentDevCli logs --world <world-id> --task-type world_tick --mode debug --details
-GameAgentDevCli logs --world <world-id> --category pipeline --event raw_llm_response_received --details
+GameAgentDevCli logs --world <world-id> --category pipeline --event llm_response_received --details
 GameAgentDevCli logs --world <world-id> --request-id <request-id> --round 1 --details
 GameAgentDevCli debug traces --world <world-id> --limit 10
 ```
