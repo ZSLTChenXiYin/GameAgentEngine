@@ -948,6 +948,63 @@ func (c *Client) GetLatestTimeline(worldID string) (*LatestTimelineResponse, err
 	return &result, nil
 }
 
+// GetContinuityBundle loads the main artifacts used to inspect world_tick continuity.
+func (c *Client) GetContinuityBundle(worldID string, options *ContinuityBundleOptions) (*ContinuityBundle, error) {
+	bundle := &ContinuityBundle{WorldID: worldID}
+	latest, err := c.GetLatestTimeline(worldID)
+	if err == nil {
+		bundle.LatestTimeline = &latest.Timeline
+	}
+	stateComponents, err := c.GetStateComponents(worldID)
+	if err != nil {
+		return nil, err
+	}
+	bundle.StateComponents = stateComponents.Components
+
+	logQuery := InferenceLogQuery{WorldID: worldID, TaskType: "world_tick", Limit: 20}
+	traceLimit := 10
+	includeLogs := true
+	includeTraces := true
+	if options != nil {
+		if options.LogQuery != nil {
+			logQuery = *options.LogQuery
+			if logQuery.WorldID == "" {
+				logQuery.WorldID = worldID
+			}
+			if logQuery.TaskType == "" {
+				logQuery.TaskType = "world_tick"
+			}
+		} else {
+			logQuery.WorldID = worldID
+		}
+		if options.LogLimit > 0 {
+			logQuery.Limit = options.LogLimit
+		}
+		if options.TraceLimit > 0 {
+			traceLimit = options.TraceLimit
+		}
+		includeLogs = !options.SkipLogs
+		includeTraces = !options.SkipTraces
+	}
+	if includeLogs {
+		logs, err := c.GetLogsByQuery(logQuery)
+		if err != nil {
+			return nil, err
+		}
+		bundle.Logs = logs
+	}
+	if includeTraces {
+		traces, err := c.GetDebugTraces(worldID, traceLimit)
+		if err != nil {
+			return nil, err
+		}
+		if traces != nil {
+			bundle.Traces = traces.Traces
+		}
+	}
+	return bundle, nil
+}
+
 // SetWorldSettings 更新世界的运行设置。
 func buildWorldSettingsUpdateBody(settings *WorldSettingsUpdate) map[string]any {
 	if settings == nil {

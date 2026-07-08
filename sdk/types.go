@@ -418,6 +418,24 @@ type LatestTimelineResponse struct {
 	Timeline TimelineEnvelope `json:"timeline"`
 }
 
+// ContinuityBundleOptions controls how much continuity debugging context to load.
+type ContinuityBundleOptions struct {
+	LogLimit      int
+	TraceLimit    int
+	SkipLogs      bool
+	SkipTraces    bool
+	LogQuery      *InferenceLogQuery
+}
+
+// ContinuityBundle aggregates the core artifacts used to inspect world tick continuity.
+type ContinuityBundle struct {
+	WorldID         string                   `json:"world_id"`
+	LatestTimeline  *TimelineEnvelope        `json:"latest_timeline,omitempty"`
+	StateComponents []StateComponentEnvelope `json:"state_components,omitempty"`
+	Logs            []InferenceLog           `json:"logs,omitempty"`
+	Traces          []DebugTrace             `json:"traces,omitempty"`
+}
+
 // NodeDetail 表示节点详情接口返回的聚合结构。
 type NodeDetail struct {
 	Node       Node        `json:"node"`
