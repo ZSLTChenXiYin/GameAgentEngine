@@ -62,5 +62,35 @@ window.GAMEAGENT_COMPONENT_META = [
         "trigger": "scheduled"
       }
     }
+  },
+  {
+    "type": "world_state",
+    "validation_mode": "weak",
+    "data_format": "json_object",
+    "help_text": "Structured current world state for tick continuity."
+  },
+  {
+    "type": "story_state",
+    "validation_mode": "weak",
+    "data_format": "json_object",
+    "help_text": "Structured current narrative state and unresolved threads."
+  },
+  {
+    "type": "story_history",
+    "validation_mode": "weak",
+    "data_format": "json_object",
+    "help_text": "Structured rolling history of recent story beats."
+  },
+  {
+    "type": "tick_policy",
+    "validation_mode": "weak",
+    "data_format": "json_object",
+    "help_text": "Structured tick policy and continuity constraints."
+  },
+  {
+    "type": "state_snapshot",
+    "validation_mode": "weak",
+    "data_format": "json_object",
+    "help_text": "Structured snapshot payload for state rollups and checkpoints."
   }
 ];

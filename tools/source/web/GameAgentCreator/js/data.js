@@ -833,7 +833,7 @@ function openAddComponentModal() {
   if (!state.selectedNodeId) return;
   const f = ce('div', { className: 'modal-field' }, [
     ce('label', { for: 'addCompType' }, [ttxt('Component Type')]),
-    el('select', { id: 'addCompType', innerHTML: '<option value="profile">profile</option><option value="rule">rule</option><option value="timeline">timeline</option><option value="action_policy">action_policy</option><option value="prompt_profile">prompt_profile</option><option value="lore">lore</option><option value="autonomous">autonomous</option>' }),
+    el('select', { id: 'addCompType', innerHTML: componentTypeOptionsHTML() }),
     ce('label', { for: 'addCompData' }, [ttxt('Component Data (JSON/Markdown)')]),
     el('textarea', { id: 'addCompData', placeholder: tr('Enter component data...'), rows: 8, style: {width: '100%', fontFamily: 'var(--font-mono)'} }),
     ce('div', { id: 'addCompHint', className: 'hint', style: {textAlign: 'left'} }, [txt('')]),
@@ -1134,7 +1134,7 @@ function openEditComponentModal(compId) {
   if (!comp) return;
   const f = ce('div', { className: 'modal-field' }, [
     ce('label', { for: 'editCompType' }, [ttxt('Component Type')]),
-    el('select', { id: 'editCompType', innerHTML: '<option value="profile">profile</option><option value="rule">rule</option><option value="timeline">timeline</option><option value="action_policy">action_policy</option><option value="prompt_profile">prompt_profile</option><option value="lore">lore</option><option value="autonomous">autonomous</option>' }),
+    el('select', { id: 'editCompType', innerHTML: componentTypeOptionsHTML() }),
     ce('label', { for: 'editCompData' }, [ttxt('Component Data')]),
     el('textarea', { id: 'editCompData', rows: 10, style: {width: '100%', fontFamily: 'var(--font-mono)', fontSize: '11px'}, textContent: comp.data || '' }),
     ce('div', { id: 'editCompHint', className: 'hint', style: {textAlign: 'left'} }, [txt('')]),

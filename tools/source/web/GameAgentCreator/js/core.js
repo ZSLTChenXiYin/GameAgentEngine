@@ -44,6 +44,24 @@ componentMetaList.forEach(function(item) {
   if (item && item.type) componentMetaMap[item.type] = item;
 });
 
+function componentTypeOptionsHTML() {
+  var items = componentMetaList.length > 0 ? componentMetaList.slice() : [];
+  if (items.length === 0) {
+    items = [
+      { type: 'profile' },
+      { type: 'rule' },
+      { type: 'timeline' },
+      { type: 'action_policy' },
+      { type: 'prompt_profile' },
+      { type: 'lore' },
+      { type: 'autonomous' },
+    ];
+  }
+  return items.map(function(item) {
+    return '<option value="' + item.type + '">' + item.type + '</option>';
+  }).join('');
+}
+
 /* ============= DOM ============= */
 function el(tag, attrs) {
   const e = document.createElement(tag);
