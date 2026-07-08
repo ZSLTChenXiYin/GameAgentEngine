@@ -54,14 +54,15 @@ async function selectWorld(worldId) {
     state.selectedNodeId = null;
     state.selectedTreePathKey = null;
     state.nodeDetail = null;
-    state.logs = []; state.stateComponents = []; state.timelines = [];
-    loadPolicy(); loadSettings(); loadPlans(true); loadSnapshots(); loadStateComponents(); loadTimelines();
+    state.logs = []; state.stateComponents = []; state.timelines = []; state.continuityBundle = null; state.continuityRequestId = ''; state.continuityMode = '';
+    loadPolicy(); loadSettings(); loadPlans(true); loadSnapshots(); loadStateComponents(); loadTimelines(); loadContinuityOverview();
+    if (state.page === 'continuity') loadContinuityOverview();
     if (state.page === 'logs') loadLogs();
     if (state.page === 'state') loadStateComponents();
     if (state.page === 'timelines') loadTimelines();
   } else {
     state.nodes = []; state.relations = []; state.selectedNodeId = null; state.selectedNodeIds = []; state.selectionAnchorId = null; state.selectedTreePathKey = null; state.nodeDetail = null; state.snapshots = []; state.snapshotMeta = null;
-    state.snapshotListWorldId = null; state.logs = []; state.stateComponents = []; state.timelines = []; state.settings = null; state.policy = null; state.plans = [];
+    state.snapshotListWorldId = null; state.logs = []; state.stateComponents = []; state.timelines = []; state.continuityBundle = null; state.continuityRequestId = ''; state.continuityMode = ''; state.settings = null; state.policy = null; state.plans = [];
   }
   renderTree(); renderCurrent();
 }
@@ -378,6 +379,103 @@ async function loadLogs() {
     state.logs = [];
     if (state.page === 'logs') renderCurrent();
     toast(tr('Failed to load logs') + ': ' + apiErrorMessage(e), 'error');
+  }
+}
+
+function getContinuityRequestIds(bundle) {
+  var seen = {};
+  var result = [];
+  var logs = bundle && bundle.logs ? bundle.logs : [];
+  var traces = bundle && bundle.traces ? bundle.traces : [];
+  logs.forEach(function(log) {
+    if (!log || !log.request_id || seen[log.request_id]) return;
+    seen[log.request_id] = true;
+    result.push(log.request_id);
+  });
+  traces.forEach(function(trace) {
+    if (!trace || !trace.request_id || seen[trace.request_id]) return;
+    seen[trace.request_id] = true;
+    result.push(trace.request_id);
+  });
+  return result;
+}
+
+function getContinuityModes(bundle) {
+  var seen = {};
+  var result = [];
+  var logs = bundle && bundle.logs ? bundle.logs : [];
+  logs.forEach(function(log) {
+    if (!log || !log.execution_mode || seen[log.execution_mode]) return;
+    seen[log.execution_mode] = true;
+    result.push(log.execution_mode);
+  });
+  return result;
+}
+
+function getFilteredContinuityLogs(bundle) {
+  var logs = bundle && bundle.logs ? bundle.logs.slice() : [];
+  if (state.continuityRequestId) {
+    logs = logs.filter(function(log) { return log.request_id === state.continuityRequestId; });
+  }
+  if (state.continuityMode) {
+    logs = logs.filter(function(log) { return log.execution_mode === state.continuityMode; });
+  }
+  return logs;
+}
+
+function getFilteredContinuityTraces(bundle) {
+  var traces = bundle && bundle.traces ? bundle.traces.slice() : [];
+  if (state.continuityRequestId) {
+    traces = traces.filter(function(trace) { return trace.request_id === state.continuityRequestId; });
+  }
+  if (state.continuityMode) {
+    var allowed = {};
+    (bundle && bundle.logs ? bundle.logs : []).forEach(function(log) {
+      if (log.execution_mode === state.continuityMode && log.request_id) allowed[log.request_id] = true;
+    });
+    if (Object.keys(allowed).length > 0) {
+      traces = traces.filter(function(trace) { return !!allowed[trace.request_id]; });
+    }
+  }
+  return traces;
+}
+
+async function loadContinuityOverview() {
+  if (!state.selectedWorldId) {
+    state.continuityBundle = null;
+    if (state.page === 'continuity') renderCurrent();
+    return;
+  }
+  var worldID = encodeURIComponent(state.selectedWorldId);
+  try {
+    var results = await Promise.allSettled([
+      api('GET', '/api/v1/worlds/' + worldID + '/timelines/latest'),
+      api('GET', '/api/v1/worlds/' + worldID + '/timelines?limit=6'),
+      api('GET', '/api/v1/worlds/' + worldID + '/state-components'),
+      api('GET', '/api/v1/logs?world_id=' + worldID + '&task_type=world_tick&limit=60'),
+      api('GET', '/debug/traces?world_id=' + worldID + '&limit=30'),
+    ]);
+    var bundle = {
+      world_id: state.selectedWorldId,
+      latest_timeline: null,
+      timelines: [],
+      state_components: [],
+      logs: [],
+      traces: [],
+    };
+    if (results[0].status === 'fulfilled' && results[0].value) bundle.latest_timeline = results[0].value.timeline || null;
+    if (results[1].status === 'fulfilled' && results[1].value) bundle.timelines = results[1].value.timelines || [];
+    if (results[2].status === 'fulfilled' && results[2].value) bundle.state_components = results[2].value.components || [];
+    if (results[3].status === 'fulfilled' && results[3].value) bundle.logs = results[3].value || [];
+    if (results[4].status === 'fulfilled' && results[4].value) bundle.traces = results[4].value.traces || [];
+    state.continuityBundle = bundle;
+    if (state.continuityRequestId && getContinuityRequestIds(bundle).indexOf(state.continuityRequestId) < 0) state.continuityRequestId = '';
+    if (state.continuityMode && getContinuityModes(bundle).indexOf(state.continuityMode) < 0) state.continuityMode = '';
+    if (state.page === 'continuity') renderCurrent();
+  } catch (e) {
+    state.continuityBundle = null;
+    if (state.page === 'continuity') renderCurrent();
+    toast(tr('Failed to load continuity bundle') + ': ' + apiErrorMessage(e), 'error');
   }
 }
 

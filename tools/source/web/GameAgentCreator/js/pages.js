@@ -27,6 +27,7 @@ function renderCenter() {
     case 'plans': renderPlansPage(center); break;
     case 'policy': renderPolicyPage(center); break;
     case 'settings': renderSettingsPage(center); break;
+    case 'continuity': renderContinuityPage(center); break;
     case 'state': renderStatePage(center); break;
     case 'timelines': renderTimelinesPage(center); break;
     case 'logs': renderLogsPage(center); break;
@@ -493,6 +494,20 @@ function parseLogJSON(raw) {
   try { return JSON.parse(raw); } catch (e) { return null; }
 }
 
+function shortID(value) {
+  value = value || '';
+  return value.length <= 8 ? value : value.slice(0, 8);
+}
+
+function formatInferenceLogTime(value) {
+  if (!value) return '-';
+  try {
+    return new Date(value).toLocaleString();
+  } catch (e) {
+    return value;
+  }
+}
+
 function renderPropRow(label, value, opts) {
   if (value === null || value === undefined || value === '') return null;
   var options = opts || {};
@@ -658,6 +673,187 @@ function renderStatePage(container) {
   }
   container.appendChild(list);
   document.getElementById('btnRefreshState').addEventListener('click', loadStateComponents);
+}
+
+function renderContinuityPage(container) {
+  const toolbar = ce('div', { className: 'world-toolbar continuity-toolbar' }, [
+    ce('button', { id: 'btnRefreshContinuity' }, [ttxt('Refresh Continuity')]),
+    ce('select', { id: 'continuityRequestFilter' }, []),
+    ce('select', { id: 'continuityModeFilter' }, []),
+    ce('button', { id: 'btnClearContinuityFilter' }, [ttxt('Clear Filter')]),
+  ]);
+  container.appendChild(toolbar);
+
+  if (!state.selectedWorldId) {
+    container.appendChild(ce('div', { className: 'hint' }, [ttxt('Select a world first.')]));
+    return;
+  }
+
+  var bundle = state.continuityBundle;
+  var requestSelect = document.getElementById('continuityRequestFilter');
+  requestSelect.appendChild(el('option', { value: '', textContent: tr('All Requests') }));
+  var modeSelect = document.getElementById('continuityModeFilter');
+  modeSelect.appendChild(el('option', { value: '', textContent: tr('All Modes') }));
+
+  if (!bundle) {
+    container.appendChild(ce('div', { className: 'hint' }, [ttxt('No continuity artifacts yet.')]));
+  } else {
+    var requestOptions = getContinuityRequestIds(bundle);
+    requestOptions.forEach(function(requestId) {
+      requestSelect.appendChild(el('option', { value: requestId, textContent: shortID(requestId) }));
+    });
+    requestSelect.value = state.continuityRequestId || '';
+
+    var modeOptions = getContinuityModes(bundle);
+    modeOptions.forEach(function(mode) {
+      modeSelect.appendChild(el('option', { value: mode, textContent: mode }));
+    });
+    modeSelect.value = state.continuityMode || '';
+
+    var logs = getFilteredContinuityLogs(bundle);
+    var traces = getFilteredContinuityTraces(bundle);
+    var latest = bundle.latest_timeline || ((bundle.timelines || []).length > 0 ? bundle.timelines[0] : null);
+
+    var summaryGrid = ce('div', { className: 'continuity-grid' }, []);
+    summaryGrid.appendChild(ce('div', { className: 'detail-card' }, [
+      ce('div', { className: 'card-hd' }, [ttxt('Continuity Summary')]),
+      ce('div', { className: 'card-bd' }, [
+        renderPropRow('World', state.selectedWorldId, { mono: true }),
+        renderPropRow('Latest Tick', latest ? String(latest.tick_number || 0) : '-'),
+        renderPropRow('Execution Mode', state.continuityMode || tr('All Modes')),
+        renderPropRow('Tracked Request', state.continuityRequestId ? shortID(state.continuityRequestId) : tr('No request filter applied.')),
+        renderPropRow('Linked Logs', String(logs.length)),
+        renderPropRow('Linked Traces', String(traces.length)),
+      ]),
+    ]));
+
+    var stateCard = ce('div', { className: 'detail-card' }, [
+      ce('div', { className: 'card-hd' }, [ttxt('Continuity State')]),
+      ce('div', { className: 'card-bd' }, []),
+    ]);
+    var stateCardBody = stateCard.querySelector('.card-bd');
+    if (!bundle.state_components || bundle.state_components.length === 0) {
+      stateCardBody.appendChild(ce('div', { className: 'hint' }, [ttxt('No state components yet.')]));
+    } else {
+      bundle.state_components.forEach(function(item) {
+        var status = item.component ? 'present' : 'missing';
+        stateCardBody.appendChild(renderPropRow(item.component_type || '-', status, { rawLabel: true }));
+      });
+      stateCardBody.appendChild(ce('div', { className: 'hint', style: { textAlign: 'left', marginTop: '8px' } }, [ttxt('Select a request to focus linked logs and traces.')]));
+    }
+    summaryGrid.appendChild(stateCard);
+    container.appendChild(summaryGrid);
+
+    var timelinesCard = ce('div', { className: 'detail-card' }, [
+      ce('div', { className: 'card-hd' }, [ttxt('Recent World Tick Bundle')]),
+      ce('div', { className: 'card-bd' }, []),
+    ]);
+    var timelinesBody = timelinesCard.querySelector('.card-bd');
+    if (!bundle.timelines || bundle.timelines.length === 0) {
+      timelinesBody.appendChild(ce('div', { className: 'hint' }, [ttxt('No timelines yet.')]));
+    } else {
+      bundle.timelines.forEach(function(item) {
+        var row = createToggleDetailCard([
+          ce('span', { style: { fontWeight: 600 } }, [txt('#' + String(item.tick_number || 0))]),
+          txt(' ' + (item.tick_type || '-')),
+          txt(item.game_time ? ' ' + item.game_time : ''),
+        ], false);
+        row.body.appendChild(renderPropRow('Summary', item.summary || '-'));
+        row.body.appendChild(renderPropRow('Future Outline', item.future_outline || '-'));
+        if (item.data) row.body.appendChild(renderLogDetailBlock('Timeline Payload', item.data));
+        timelinesBody.appendChild(row.card);
+      });
+    }
+    container.appendChild(timelinesCard);
+
+    var logsCard = ce('div', { className: 'detail-card' }, [
+      ce('div', { className: 'card-hd' }, [ttxt('Recent World Tick Logs')]),
+      ce('div', { className: 'card-bd' }, []),
+    ]);
+    var logsBody = logsCard.querySelector('.card-bd');
+    if (logs.length === 0) {
+      logsBody.appendChild(ce('div', { className: 'hint' }, [ttxt('No logs yet.')]));
+    } else {
+      logs.slice(0, 12).forEach(function(log, index) {
+        var card = createToggleDetailCard([
+          ce('span', { style: { fontWeight: 600 } }, [txt(log.task_type || '-')]),
+          txt(' ' + (log.duration_ms || 0) + 'ms'),
+          txt(' ' + (log.execution_mode || '-')),
+        ], index === 0);
+        card.body.appendChild(renderPropRow('Time', formatInferenceLogTime(log.created_at || '')));
+        card.body.appendChild(renderPropRow('Request ID', log.request_id ? shortID(log.request_id) : '-', { mono: true }));
+        card.body.appendChild(renderPropRow('Node', log.node_id ? shortID(log.node_id) : '-', { mono: true }));
+        if (log.message) card.body.appendChild(renderPropRow('Summary', log.message));
+        var requestData = parseLogJSON(log.request_data || '');
+        var responseData = parseLogJSON(log.response_data || '');
+        if (requestData) card.body.appendChild(renderLogDetailBlock('Request', requestData));
+        if (responseData) card.body.appendChild(renderLogDetailBlock('Response', responseData));
+        if (log.detail_data) card.body.appendChild(renderLogDetailBlock('Detail', parseLogJSON(log.detail_data || '') || log.detail_data));
+        if (log.request_id) {
+          card.body.appendChild(ce('div', { className: 'policy-actions continuity-actions' }, [
+            ce('button', { className: 'continuity-request-btn', dataset: { requestId: log.request_id } }, [ttxt('Tracked Request')]),
+          ]));
+        }
+        logsBody.appendChild(card.card);
+      });
+    }
+    container.appendChild(logsCard);
+
+    var tracesCard = ce('div', { className: 'detail-card' }, [
+      ce('div', { className: 'card-hd' }, [ttxt('Recent Debug Traces')]),
+      ce('div', { className: 'card-bd' }, []),
+    ]);
+    var tracesBody = tracesCard.querySelector('.card-bd');
+    if (traces.length === 0) {
+      tracesBody.appendChild(ce('div', { className: 'hint' }, [ttxt('No traces yet. Run a task in Debug mode to see traces.')]));
+    } else {
+      traces.slice(0, 10).forEach(function(trace, index) {
+        var card = createToggleDetailCard([
+          ce('span', { style: { fontWeight: 600 } }, [txt(trace.task_type || '-')]),
+          txt(' ' + (trace.duration_ms || 0) + 'ms'),
+          txt(' ' + shortID(trace.request_id || '')),
+        ], index === 0);
+        card.body.appendChild(renderPropRow('Request ID', trace.request_id ? shortID(trace.request_id) : '-', { mono: true }));
+        card.body.appendChild(renderPropRow('Time', trace.timestamp ? new Date(trace.timestamp).toLocaleString() : '-'));
+        card.body.appendChild(renderPropRow('Pipeline', (trace.configured_pipeline_mode || '-') + ' -> ' + (trace.effective_pipeline_mode || '-')));
+        card.body.appendChild(renderPropRow('Rounds', String(trace.rounds_used || 0) + ' / ' + String(trace.max_analysis_rounds || 0)));
+        if (trace.error) card.body.appendChild(renderPropRow('Error', trace.error));
+        if (trace.system_prompt) card.body.appendChild(renderLogDetailBlock('System Prompt', trace.system_prompt));
+        if (trace.raw_llm_response) card.body.appendChild(renderLogDetailBlock('LLM Response', trace.raw_llm_response));
+        if (trace.request_id) {
+          card.body.appendChild(ce('div', { className: 'policy-actions continuity-actions' }, [
+            ce('button', { className: 'continuity-request-btn', dataset: { requestId: trace.request_id } }, [ttxt('Tracked Request')]),
+          ]));
+        }
+        tracesBody.appendChild(card.card);
+      });
+    }
+    container.appendChild(tracesCard);
+  }
+
+  document.getElementById('btnRefreshContinuity').addEventListener('click', async function() {
+    await loadContinuityOverview();
+    toast(tr('Continuity refreshed'), 'success');
+  });
+  document.getElementById('continuityRequestFilter').addEventListener('change', function() {
+    state.continuityRequestId = this.value || '';
+    renderCurrent();
+  });
+  document.getElementById('continuityModeFilter').addEventListener('change', function() {
+    state.continuityMode = this.value || '';
+    renderCurrent();
+  });
+  document.getElementById('btnClearContinuityFilter').addEventListener('click', function() {
+    state.continuityRequestId = '';
+    state.continuityMode = '';
+    renderCurrent();
+  });
+  document.querySelectorAll('.continuity-request-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      state.continuityRequestId = btn.dataset.requestId || '';
+      renderCurrent();
+    });
+  });
 }
 
 function renderTimelinesPage(container) {

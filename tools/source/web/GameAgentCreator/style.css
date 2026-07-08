@@ -182,6 +182,11 @@ input { padding:0 7px; height:26px; }
 .log-card .lp { color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .log-det { flex:1; overflow-y:auto; padding:8px 10px; font-size:11px; }
 
+.continuity-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-bottom:12px; }
+.continuity-toolbar { flex-wrap:wrap; gap:8px; }
+.continuity-toolbar select { min-width:140px; }
+.continuity-actions { margin-top:8px; }
+
 /* ====== Modal ====== */
 .hidden { display:none!important; }
 #modalOverlay { position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.5); backdrop-filter:blur(1px); }
