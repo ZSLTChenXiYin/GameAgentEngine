@@ -230,7 +230,7 @@ In `full` mode, the LLM can declare a `sub_tasks` array in its JSON response, an
 
 Actions are operations proposed by the LLM in its response. They can be executed synchronously (within the pipeline) or asynchronously (returning a callback to the game client).
 
-### Built-in Actions
+### Current Built-in Action Examples
 
 | Action | Mode | Description |
 |---|---|---|
@@ -239,6 +239,8 @@ Actions are operations proposed by the LLM in its response. They can be executed
 | `send_dialogue` | Sync | Record dialogue content |
 | `adjust_relation` | Async | Request relation weight adjustment |
 | `spawn_item` | Async | Request item creation |
+
+These are representative examples of the engine's current built-in actions. The available action set can expand as the engine evolves.
 
 ### Action Policy
 
