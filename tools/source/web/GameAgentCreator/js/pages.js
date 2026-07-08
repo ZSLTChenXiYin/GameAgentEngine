@@ -508,6 +508,47 @@ function formatInferenceLogTime(value) {
   }
 }
 
+function getContinuityComponentData(bundle, componentType) {
+  var items = bundle && bundle.state_components ? bundle.state_components : [];
+  for (var i = 0; i < items.length; i++) {
+    if (items[i] && items[i].component_type === componentType) return items[i].data || null;
+  }
+  return null;
+}
+
+function normalizeStringList(values) {
+  if (!Array.isArray(values)) return [];
+  var seen = {};
+  var result = [];
+  values.forEach(function(value) {
+    if (typeof value !== 'string') return;
+    var trimmed = value.trim();
+    if (!trimmed || seen[trimmed]) return;
+    seen[trimmed] = true;
+    result.push(trimmed);
+  });
+  return result;
+}
+
+function diffStringLists(currentList, previousList) {
+  var current = normalizeStringList(currentList);
+  var previous = normalizeStringList(previousList);
+  var previousSet = {};
+  var currentSet = {};
+  previous.forEach(function(item) { previousSet[item] = true; });
+  current.forEach(function(item) { currentSet[item] = true; });
+  return {
+    added: current.filter(function(item) { return !previousSet[item]; }),
+    removed: previous.filter(function(item) { return !currentSet[item]; }),
+    stable: current.filter(function(item) { return !!previousSet[item]; }),
+  };
+}
+
+function joinListPreview(values) {
+  var items = normalizeStringList(values);
+  return items.length > 0 ? items.join(' | ') : '-';
+}
+
 function renderPropRow(label, value, opts) {
   if (value === null || value === undefined || value === '') return null;
   var options = opts || {};
@@ -713,6 +754,13 @@ function renderContinuityPage(container) {
     var logs = getFilteredContinuityLogs(bundle);
     var traces = getFilteredContinuityTraces(bundle);
     var latest = bundle.latest_timeline || ((bundle.timelines || []).length > 0 ? bundle.timelines[0] : null);
+    var previousTimeline = bundle.timelines && bundle.timelines.length > 1 ? bundle.timelines[1] : null;
+    var worldState = getContinuityComponentData(bundle, 'world_state') || {};
+    var storyHistory = getContinuityComponentData(bundle, 'story_history') || {};
+    var historyEntries = Array.isArray(storyHistory.entries) ? storyHistory.entries : [];
+    var latestHistory = historyEntries.length > 0 ? historyEntries[0] : null;
+    var previousHistory = historyEntries.length > 1 ? historyEntries[1] : null;
+    var factDiff = diffStringLists(worldState.canonical_facts || [], previousHistory ? previousHistory.facts || [] : []);
 
     var summaryGrid = ce('div', { className: 'continuity-grid' }, []);
     summaryGrid.appendChild(ce('div', { className: 'detail-card' }, [
@@ -743,6 +791,28 @@ function renderContinuityPage(container) {
     }
     summaryGrid.appendChild(stateCard);
     container.appendChild(summaryGrid);
+
+    var diffCard = ce('div', { className: 'detail-card' }, [
+      ce('div', { className: 'card-hd' }, [ttxt('Continuity Diff')]),
+      ce('div', { className: 'card-bd' }, []),
+    ]);
+    var diffBody = diffCard.querySelector('.card-bd');
+    if (!previousTimeline && !previousHistory) {
+      diffBody.appendChild(ce('div', { className: 'hint' }, [ttxt('No previous tick to compare.')]));
+    } else {
+      diffBody.appendChild(renderPropRow('Latest Tick Summary', latest ? latest.summary || '-' : '-'));
+      diffBody.appendChild(renderPropRow('Previous Tick Summary', previousTimeline ? previousTimeline.summary || '-' : '-'));
+      diffBody.appendChild(renderPropRow('Latest Future Outline', latest ? latest.future_outline || '-' : '-'));
+      diffBody.appendChild(renderPropRow('Previous Future Outline', previousTimeline ? previousTimeline.future_outline || '-' : '-'));
+      diffBody.appendChild(renderPropRow('Latest History Summary', latestHistory ? latestHistory.summary || '-' : '-'));
+      diffBody.appendChild(renderPropRow('Previous History Summary', previousHistory ? previousHistory.summary || '-' : '-'));
+      diffBody.appendChild(renderPropRow('Current Canonical Facts', joinListPreview(worldState.canonical_facts || [])));
+      diffBody.appendChild(renderPropRow('Previous Story Facts', joinListPreview(previousHistory ? previousHistory.facts || [] : [])));
+      diffBody.appendChild(renderPropRow('Added Facts', joinListPreview(factDiff.added)));
+      diffBody.appendChild(renderPropRow('Removed Facts', joinListPreview(factDiff.removed)));
+      diffBody.appendChild(renderPropRow('Stable Facts', joinListPreview(factDiff.stable)));
+    }
+    container.appendChild(diffCard);
 
     var timelinesCard = ce('div', { className: 'detail-card' }, [
       ce('div', { className: 'card-hd' }, [ttxt('Recent World Tick Bundle')]),
