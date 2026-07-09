@@ -710,19 +710,88 @@ function getNodeNameById(nodeId) {
 
 function relationTypeDescription(relType) {
   switch (relType) {
-    case 'belongs_to': return '成员或归属关系，写入 relations 表，不会自动改变树中的 Primary Parent';
-    case 'located_at': return '位置关系，写入 relations 表，不会自动改变树中的 Primary Parent';
-    case 'subordinate': return '层级隶属关系，适合补充组织关系，但不会自动改变树中的 Primary Parent';
-    case 'external_parent': return '额外父节点关系，用于 DAG 场景补充第二父链路，但不会自动投影到树';
-    case 'ally': return '联盟或合作关系，独立存储在 relations 表中';
-    case 'enemy': return '敌对关系，独立存储在 relations 表中';
-    case 'kinship': return '亲属或血缘关系，独立存储在 relations 表中';
+    case 'belongs_to': return '稳定归属或组织成员关系。用于表达某节点属于某组织、阵营、资产体系或拥有者，不表示当前所处位置，也不会自动改变树中的 Primary Parent。';
+    case 'located_at': return '当前环境位置关系。用于表达节点此刻位于哪个地点、房间或场景中，不表示稳定归属，不会自动改变树中的 Primary Parent。';
+    case 'subordinate': return '指挥或汇报链关系。用于表达谁向谁负责、受谁管理，属于组织/控制链，不表示位置，也不会自动改变树中的 Primary Parent。';
+    case 'external_parent': return '辅助 DAG 父链关系。仅用于补充第二条父向语义链，默认不会进入树形大纲、不会进入默认上下文，也不会参与默认传播。';
+    case 'ally': return '社会协作关系。用于表达盟友、合作或友方网络，默认不参与节点身份树、环境树和默认上下文扩展。';
+    case 'enemy': return '社会对抗关系。用于表达敌对或竞争网络，默认不参与节点身份树、环境树和默认上下文扩展。';
+    case 'kinship': return '社会背景关系。用于表达亲属、血缘或家族关系，默认不参与节点身份树、环境树和默认上下文扩展。';
     default: return '';
   }
 }
 
 function relationSemanticsHint() {
-  return tr('Relations are stored separately from the outline tree. To change hierarchy, edit Primary Parent or drag in the outline.');
+  return tr('Relations are stored separately from the outline tree. Primary Parent remains the only stable hierarchy field. Use located_at for current environment, belongs_to/subordinate for organization or control, and external_parent only for auxiliary DAG scope.');
+}
+
+function validPropagationModes() {
+  return ['upward', 'environment_scope', 'organization_scope', 'tag_broadcast', 'targeted', 'manual'];
+}
+
+function getNodeById(nodeId) {
+  return (state.nodes || []).find(function(node) { return node.id === nodeId; }) || null;
+}
+
+function relationFormWarnings(sourceId, targetId, relType) {
+  var warnings = [];
+  var source = getNodeById(sourceId);
+  var target = getNodeById(targetId);
+  if (!source || !target || !relType) return warnings;
+  if (relType === 'located_at') {
+    if (source.parent_id === targetId) {
+      warnings.push(tr('This target is already the Primary Parent. If the node is only temporarily here, prefer keeping Primary Parent stable and using located_at for movement.'));
+    }
+    var otherLocatedAt = (state.relations || []).some(function(rel) {
+      return rel.source_id === sourceId && rel.target_id !== targetId && rel.relation_type === 'located_at';
+    });
+    if (otherLocatedAt) {
+      warnings.push(tr('This node already has another located_at relation. Keep only one active current environment unless you intentionally model multiple simultaneous positions.'));
+    }
+  }
+  if (relType === 'belongs_to' || relType === 'subordinate') {
+    if (source.parent_id === targetId) {
+      warnings.push(tr('This target is already the Primary Parent. If you want to change stable hierarchy, edit Primary Parent directly. Use this relation only to add organization/control semantics.'));
+    }
+  }
+  if (relType === 'external_parent') {
+    warnings.push(tr('external_parent is auxiliary DAG scope only. It is excluded from default context assembly and default propagation, so do not rely on it for current location or primary organization modeling.'));
+    if ((state.relations || []).some(function(rel) {
+      return rel.source_id === sourceId && rel.target_id !== targetId && rel.relation_type === 'external_parent';
+    })) {
+      warnings.push(tr('This node already has another external_parent relation. Keep this relation rare and use it only when a second parent-like scope is truly required.'));
+    }
+  }
+  if (relType === 'ally' || relType === 'enemy' || relType === 'kinship') {
+    warnings.push(tr('Social relations are background graph edges. They are not part of the default hierarchy walk or default environment context expansion.'));
+  }
+  return warnings;
+}
+
+function propagationModeDescription(mode) {
+  switch (mode) {
+    case 'upward':
+      return tr('Follow the stable Primary Parent chain upward. This is the default mode for promoting local memory into broader identity context.');
+    case 'environment_scope':
+      return tr('Publish through the current environment chain rooted by located_at, then optionally continue upward when Publish Up is enabled.');
+    case 'organization_scope':
+      return tr('Publish through organization/control links such as belongs_to and subordinate, then optionally continue upward when Publish Up is enabled.');
+    case 'tag_broadcast':
+      return tr('Publish to nodes matched by propagation tags. Use this for cross-cutting subscriptions rather than structural graph flow.');
+    case 'targeted':
+      return tr('Publish only to the explicit target node IDs. Use this when the recipients are known ahead of time.');
+    case 'manual':
+      return tr('Record a manual propagation request without relying on graph traversal defaults.');
+    default:
+      return '';
+  }
+}
+
+function updatePropagationModePreview() {
+  var modeEl = document.getElementById('propMemMode');
+  var descEl = document.getElementById('propMemModeMeaning');
+  if (!modeEl || !descEl) return;
+  descEl.textContent = propagationModeDescription(modeEl.value);
 }
 
 function parseMultilineList(value) {
@@ -937,9 +1006,15 @@ function updateRelationFormPreview(prefix) {
   var typeEl = document.getElementById(prefix + 'RelType');
   var previewEl = document.getElementById(prefix + 'RelPreview');
   var descEl = document.getElementById(prefix + 'RelMeaning');
+  var warnEl = document.getElementById(prefix + 'RelWarnings');
   if (!sourceEl || !targetEl || !typeEl || !previewEl || !descEl) return;
   previewEl.textContent = renderRelationPreview(sourceEl.value, typeEl.value, targetEl.value);
   descEl.textContent = relationTypeDescription(typeEl.value);
+  if (warnEl) {
+    var warnings = relationFormWarnings(sourceEl.value, targetEl.value, typeEl.value);
+    warnEl.textContent = warnings.join(' ');
+    warnEl.style.display = warnings.length > 0 ? 'block' : 'none';
+  }
 }
 
 async function selectNode(nodeId, nodeType, options) {
@@ -1530,6 +1605,8 @@ function openAddOutgoingRelationModal(nodeId) {
     el('textarea', { id: 'addOutgoingRelProps', rows: 5, placeholder: tr('Optional notes, tags, role metadata...'), style: {width: '100%', fontFamily: 'var(--font-mono)', fontSize: '11px'} }),
     ce('label', {}, [ttxt('Relation Meaning')]),
     ce('div', { id: 'addOutgoingRelMeaning', className: 'hint', style: {padding: '8px', textAlign: 'left'} }, [txt('')]),
+    ce('label', {}, [ttxt('Modeling Warnings')]),
+    ce('div', { id: 'addOutgoingRelWarnings', className: 'hint', style: {padding: '8px', textAlign: 'left', display: 'none', color: 'var(--yellow)'} }, [txt('')]),
     ce('label', {}, [ttxt('Relation Preview')]),
     ce('div', { id: 'addOutgoingRelPreview', className: 'status-box' }, [txt('')]),
   ]);
@@ -1560,6 +1637,12 @@ async function addOutgoingRelation(nodeId) {
   if (sourceId === targetId) { toast(tr('Cannot link a node to itself'), 'error'); return; }
   if (!relType) { toast(tr('Select a relation type'), 'error'); return; }
   if (relType === 'external_parent' && node && node.parent_id === targetId) { toast(tr('Target node is already the primary parent'), 'error'); return; }
+  if (relType === 'located_at') {
+    var otherLocatedAt = (state.relations || []).some(function(rel) {
+      return rel.source_id === sourceId && rel.relation_type === 'located_at' && rel.target_id !== targetId;
+    });
+    if (otherLocatedAt) { toast(tr('This node already has another located_at relation. Update the existing environment edge instead of stacking multiple active locations.'), 'error'); return; }
+  }
   var exists = (state.relations || []).some(function(rel) {
     return rel.source_id === sourceId && rel.target_id === targetId && rel.relation_type === relType;
   });
@@ -1710,6 +1793,8 @@ function openAddRelationModal() {
     el('textarea', { id: 'addRelProps', rows: 5, placeholder: tr('Optional notes, tags, role metadata...'), style: {width: '100%', fontFamily: 'var(--font-mono)', fontSize: '11px'} }),
     ce('label', {}, [ttxt('Relation Meaning')]),
     ce('div', { id: 'addRelMeaning', className: 'hint', style: {padding: '8px', textAlign: 'left'} }, [txt('')]),
+    ce('label', {}, [ttxt('Modeling Warnings')]),
+    ce('div', { id: 'addRelWarnings', className: 'hint', style: {padding: '8px', textAlign: 'left', display: 'none', color: 'var(--yellow)'} }, [txt('')]),
     ce('label', {}, [ttxt('Relation Preview')]),
     ce('div', { id: 'addRelPreview', className: 'status-box' }, [txt('')]),
   ]);
@@ -1739,6 +1824,15 @@ async function addRelation() {
   if (!sourceId) { toast(tr('Select a source node'), 'error'); return; }
   if (!targetId) { toast(tr('Select a target node'), 'error'); return; }
   if (sourceId === targetId) { toast(tr('Cannot link a node to itself'), 'error'); return; }
+  if (!relType) { toast(tr('Select a relation type'), 'error'); return; }
+  var sourceNode = getNodeById(sourceId);
+  if (relType === 'external_parent' && sourceNode && sourceNode.parent_id === targetId) { toast(tr('Target node is already the primary parent'), 'error'); return; }
+  if (relType === 'located_at') {
+    var existingLocatedAt = (state.relations || []).some(function(rel) {
+      return rel.source_id === sourceId && rel.relation_type === 'located_at' && rel.target_id !== targetId;
+    });
+    if (existingLocatedAt) { toast(tr('This node already has another located_at relation. Update the existing environment edge instead of stacking multiple active locations.'), 'error'); return; }
+  }
   var duplicate = (state.relations || []).some(function(rel) {
     return rel.source_id === sourceId && rel.target_id === targetId && rel.relation_type === relType;
   });
@@ -2073,7 +2167,8 @@ function openPropagateMemoryModal(memId) {
   const f = ce('div', { className: 'modal-field' }, [
     ce('div', { className: 'hint', style: { textAlign: 'left' } }, [txt((mem.content || '').slice(0, 120) + ((mem.content || '').length > 120 ? '...' : ''))]),
     ce('label', { for: 'propMemMode' }, [ttxt('Propagation Mode')]),
-    el('select', { id: 'propMemMode', innerHTML: '<option value="upward">upward</option><option value="tag_broadcast">tag_broadcast</option><option value="targeted">targeted</option><option value="manual">manual</option>' }),
+    el('select', { id: 'propMemMode', innerHTML: '<option value="upward">upward</option><option value="environment_scope">environment_scope</option><option value="organization_scope">organization_scope</option><option value="tag_broadcast">tag_broadcast</option><option value="targeted">targeted</option><option value="manual">manual</option>' }),
+    ce('div', { id: 'propMemModeMeaning', className: 'hint', style: { padding: '8px', textAlign: 'left' } }, [txt('')]),
     ce('label', { for: 'propMemTags' }, [ttxt('Propagation Tags')]),
     el('input', { id: 'propMemTags', placeholder: tr('Tags, comma separated'), style: {width: '100%'} }),
     ce('label', { for: 'propMemTargets' }, [ttxt('Propagation Targets (node IDs)')]),
@@ -2081,10 +2176,14 @@ function openPropagateMemoryModal(memId) {
     ce('label', { for: 'propMemDepth' }, [ttxt('Propagation Max Depth')]),
     el('input', { id: 'propMemDepth', type: 'number', value: '0', min: '0', style: {width: '100px'} }),
     ce('label', { className: 'checkbox-row' }, [el('input', { id: 'propMemPublishUp', type: 'checkbox' }), ttxt('Publish Up')]),
+    ce('div', { className: 'hint', style: { textAlign: 'left' } }, [txt(tr('Publish Up only extends environment_scope or organization_scope beyond their scoped graph. It has no effect on targeted or manual propagation.'))]),
   ]);
   openModal(tr('Propagate Memory'), f,
     ce('div', {}, [ce('button', { className: 'primary', id: 'modalPropMemBtn' }, [ttxt('Propagate')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
+  var modeEl = document.getElementById('propMemMode');
+  if (modeEl) modeEl.addEventListener('change', updatePropagationModePreview);
+  updatePropagationModePreview();
   document.getElementById('modalPropMemBtn').addEventListener('click', function() { propagateMemory(memId); });
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 }
@@ -2095,6 +2194,9 @@ async function propagateMemory(memId) {
   const targets = document.getElementById('propMemTargets').value.trim().split(',').map(function(s) { return s.trim(); }).filter(Boolean);
   const maxDepth = parseInt(document.getElementById('propMemDepth').value, 10) || 0;
   const publishUp = document.getElementById('propMemPublishUp').checked;
+  if (validPropagationModes().indexOf(mode) < 0) { toast(tr('Unsupported propagation mode'), 'error'); return; }
+  if (mode === 'targeted' && targets.length === 0) { toast(tr('Targeted propagation requires at least one target node ID'), 'error'); return; }
+  if (mode === 'tag_broadcast' && tags.length === 0) { toast(tr('Tag broadcast propagation requires at least one tag'), 'error'); return; }
   try {
     await api('POST', '/api/v1/memories/propagate', {
       memory_id: memId,
@@ -2204,6 +2306,8 @@ function openEditRelationModal(relId) {
     el('textarea', { id: 'editRelProps', rows: 5, placeholder: tr('Optional notes, tags, role metadata...'), style: {width: '100%', fontFamily: 'var(--font-mono)', fontSize: '11px'}, textContent: rel.properties || '' }),
     ce('label', {}, [ttxt('Relation Meaning')]),
     ce('div', { id: 'editRelMeaning', className: 'hint', style: {padding: '8px', textAlign: 'left'} }, [txt('')]),
+    ce('label', {}, [ttxt('Modeling Warnings')]),
+    ce('div', { id: 'editRelWarnings', className: 'hint', style: {padding: '8px', textAlign: 'left', display: 'none', color: 'var(--yellow)'} }, [txt('')]),
     ce('label', {}, [ttxt('Relation Preview')]),
     ce('div', { id: 'editRelPreview', className: 'status-box' }, [txt('')]),
   ]);
@@ -2231,6 +2335,15 @@ async function editRelation(relId) {
   const properties = document.getElementById('editRelProps').value.trim();
   if (!sourceId || !targetId) { toast(tr('Select source and target'), 'error'); return; }
   if (sourceId === targetId) { toast(tr('Cannot link a node to itself'), 'error'); return; }
+  if (!relType) { toast(tr('Select a relation type'), 'error'); return; }
+  var sourceNode = getNodeById(sourceId);
+  if (relType === 'external_parent' && sourceNode && sourceNode.parent_id === targetId) { toast(tr('Target node is already the primary parent'), 'error'); return; }
+  if (relType === 'located_at') {
+    var existingLocatedAt = (state.relations || []).some(function(rel) {
+      return rel.id !== relId && rel.source_id === sourceId && rel.relation_type === 'located_at' && rel.target_id !== targetId;
+    });
+    if (existingLocatedAt) { toast(tr('This node already has another located_at relation. Update the existing environment edge instead of stacking multiple active locations.'), 'error'); return; }
+  }
   var duplicate = (state.relations || []).some(function(rel) {
     return rel.id !== relId && rel.source_id === sourceId && rel.target_id === targetId && rel.relation_type === relType;
   });

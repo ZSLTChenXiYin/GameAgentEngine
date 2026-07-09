@@ -148,8 +148,19 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 
 - 左侧 World Outline 只表示节点的 Primary Parent，也就是 node.parent_id。
 - 拖拽节点、拖到根级、Add New Parent 都只会修改 parent_id。
-- belongs_to、located_at、subordinate、external_parent 等关系会单独写入 relations 表，不会自动改写树层级。
+- `located_at` 表示当前环境位置，适合 NPC、物品、队伍等随时间移动的场景，不应拿来替代稳定层级。
+- `belongs_to` 表示稳定归属或组织成员关系，`subordinate` 表示指挥/汇报链，两者都属于组织语义，不表示当前位置。
+- `external_parent` 只用于辅助 DAG 范围，它不会进入默认上下文组装，也不会参与默认传播，不应用来替代主层级、当前位置或主要组织归属。
+- `ally`、`enemy`、`kinship` 属于社会关系边，默认不参与身份树和环境树的上下文扩展。
 - 如果你要表达 DAG、位置、归属或组织关系，请使用 Relations，而不是依赖树投影。
+
+### 记忆传播语义
+
+- `upward` 沿 Primary Parent 稳定层级向上传播，是默认模式。
+- `environment_scope` 沿 `located_at` 指向的当前环境链传播；启用 Publish Up 后，才会继续向上进入更高层级。
+- `organization_scope` 沿 `belongs_to` / `subordinate` 组织或控制链传播；启用 Publish Up 后，才会继续向上进入更高层级。
+- `tag_broadcast` 和 `targeted` 不依赖默认结构遍历，分别依赖标签匹配和显式目标节点。
+- `manual` 仅记录手动传播请求，不依赖默认图遍历规则。
 
 ### 世界时间配置与 Tick 调试
 

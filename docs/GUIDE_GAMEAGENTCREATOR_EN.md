@@ -146,3 +146,22 @@ The Snapshots page is used for two related views:
 - world rename and node copy require the newer API routes now exposed by the engine
 - Creator's component validation hints come from the generated `js/component-meta.js` bundle artifact
 - the packaged `tools/source/web/GameAgentCreator` copy is the one intended for distribution and direct browser use
+
+## Current Semantic Guidance
+
+### Tree hierarchy and explicit relations
+
+- The World Outline only shows `Primary Parent`, which maps to `node.parent_id`.
+- Dragging nodes, moving them to root, and `Add New Parent` only rewrite `parent_id`.
+- `located_at` models the current environment position. Use it for NPCs, props, or groups that move over time instead of rewriting the stable hierarchy every time they relocate.
+- `belongs_to` models stable affiliation or ownership, while `subordinate` models command/reporting chains. Neither relation means current location.
+- `external_parent` is auxiliary DAG scope only. It is excluded from default context assembly and default propagation, so it should not replace the main hierarchy, current location, or primary organization modeling.
+- `ally`, `enemy`, and `kinship` are social graph edges and stay out of the default identity/environment expansion path.
+
+### Memory propagation modes
+
+- `upward` walks the stable `Primary Parent` chain and remains the default mode.
+- `environment_scope` walks the environment chain rooted by `located_at`. `Publish Up` extends beyond that scoped graph only when explicitly enabled.
+- `organization_scope` walks organization/control edges such as `belongs_to` and `subordinate`. `Publish Up` extends beyond that scoped graph only when explicitly enabled.
+- `tag_broadcast` and `targeted` bypass the default structural walk and instead rely on tags or explicit target node IDs.
+- `manual` records an operator-directed propagation request without relying on default graph traversal.

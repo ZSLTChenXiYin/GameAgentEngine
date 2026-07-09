@@ -385,10 +385,21 @@ function renderNodeDetail(container) {
   if (!nd || !nd.node) return;
   const n = nd.node;
   const detail = ce('div', { className: 'node-detail' }, []);
+  var outgoingRelations = (nd.relations || []).filter(function(rel) { return rel.source_id === n.id; });
   var externalParents = (nd.relations || []).filter(function(rel) {
     return rel.relation_type === 'external_parent' && rel.source_id === n.id;
   }).map(function(rel) {
     return getNodeNameById(rel.target_id) + ' (' + rel.target_id.slice(0, 8) + ')';
+  });
+  var locationTargets = outgoingRelations.filter(function(rel) {
+    return rel.relation_type === 'located_at';
+  }).map(function(rel) {
+    return getNodeNameById(rel.target_id) + ' (' + rel.target_id.slice(0, 8) + ')';
+  });
+  var organizationTargets = outgoingRelations.filter(function(rel) {
+    return rel.relation_type === 'belongs_to' || rel.relation_type === 'subordinate';
+  }).map(function(rel) {
+    return rel.relation_type + ': ' + getNodeNameById(rel.target_id) + ' (' + rel.target_id.slice(0, 8) + ')';
   });
   
   // Overview card
@@ -399,8 +410,10 @@ function renderNodeDetail(container) {
       ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Name')]), ce('span', { className: 'val' }, [txt(n.name)])]),
       ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Type')]), ce('span', { className: 'val' }, [txt(n.node_type)])]),
       n.parent_id ? ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Primary Parent')]), ce('span', { className: 'val' }, [txt(getNodeNameById(n.parent_id) + ' (' + n.parent_id.slice(0,8) + ')')])]) : null,
+      locationTargets.length > 0 ? ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Current Location')]), ce('span', { className: 'val' }, [txt(locationTargets.join(', '))])]) : null,
+      organizationTargets.length > 0 ? ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Organization Links')]), ce('span', { className: 'val' }, [txt(organizationTargets.join(', '))])]) : null,
       externalParents.length > 0 ? ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('External Parents')]), ce('span', { className: 'val' }, [txt(externalParents.join(', '))])]) : null,
-      ce('div', { className: 'hint', style: { textAlign: 'left', marginTop: '8px' } }, [ttxt('Primary Parent is the only hierarchy field shown in the outline. External Parents and other relations stay in the relations table.')]),
+      ce('div', { className: 'hint', style: { textAlign: 'left', marginTop: '8px' } }, [ttxt('Primary Parent is the only hierarchy field shown in the outline. Use located_at for the current environment, belongs_to/subordinate for organization or control, and external_parent only for auxiliary DAG scope.')]),
     ]),
   ]);
   detail.appendChild(overview);
