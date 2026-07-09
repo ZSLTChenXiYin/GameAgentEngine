@@ -374,7 +374,10 @@ function renderNodeDetail(container) {
           ce('button', { className: 'item-edit', dataset: { id: r.id } }, [ttxt('\u270e')]),
           ce('button', { className: 'item-del', dataset: { id: r.id } }, [ttxt('\u2715')]),
         ]),
-        ce('div', { className: 'item-body' }, [function(){if(r.properties&&isJSON(r.properties)){var p=tryParseJSON(r.properties);return p?renderObjectKV(p,false):txt(r.properties)}return txt('Weight: '+r.weight)}()]),
+        ce('div', { className: 'item-body' }, [
+          ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '6px' } }, [txt((srcName || r.source_id) + ' -> ' + (tgtName || r.target_id) + ' | ' + relationTypeDescription(r.relation_type))]),
+          function(){if(r.properties&&isJSON(r.properties)){var p=tryParseJSON(r.properties);return p?renderObjectKV(p,false):txt(r.properties)}return txt('Weight: '+r.weight)}(),
+        ]),
       ]);
       relList.appendChild(row);
     }

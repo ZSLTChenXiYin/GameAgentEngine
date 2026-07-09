@@ -214,15 +214,19 @@ function getNodeNameById(nodeId) {
 
 function relationTypeDescription(relType) {
   switch (relType) {
-    case 'belongs_to': return '成员或归属关系，适合 NPC、物品、机构等挂到所属对象下';
-    case 'located_at': return '位置关系，适合角色、物件、事件挂到地点下';
-    case 'subordinate': return '层级隶属关系，适合分支机构、下级组织挂到上级下';
-    case 'external_parent': return '额外父节点关系，用于 DAG 场景下补充第二父链路';
-    case 'ally': return '联盟或合作关系，通常不投影到节点树';
-    case 'enemy': return '敌对关系，通常不投影到节点树';
-    case 'kinship': return '亲属或血缘关系，通常不投影到节点树';
+    case 'belongs_to': return '成员或归属关系，写入 relations 表，不会自动改变树中的 Primary Parent';
+    case 'located_at': return '位置关系，写入 relations 表，不会自动改变树中的 Primary Parent';
+    case 'subordinate': return '层级隶属关系，适合补充组织关系，但不会自动改变树中的 Primary Parent';
+    case 'external_parent': return '额外父节点关系，用于 DAG 场景补充第二父链路，但不会自动投影到树';
+    case 'ally': return '联盟或合作关系，独立存储在 relations 表中';
+    case 'enemy': return '敌对关系，独立存储在 relations 表中';
+    case 'kinship': return '亲属或血缘关系，独立存储在 relations 表中';
     default: return '';
   }
+}
+
+function relationSemanticsHint() {
+  return tr('Relations are stored separately from the outline tree. To change hierarchy, edit Primary Parent or drag in the outline.');
 }
 
 function filterNodeOptions(searchText, excludeNodeIds) {
@@ -840,6 +844,7 @@ function openAddOutgoingRelationModal(nodeId) {
   var node = state.nodes.find(function(x) { return x.id === nodeId; });
   if (!node) return;
   const f = ce('div', { className: 'modal-field' }, [
+    ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '8px' } }, [txt(relationSemanticsHint())]),
     ce('label', { for: 'addOutgoingRelSourceSearch' }, [ttxt('Search Nodes')]),
     el('input', { id: 'addOutgoingRelSourceSearch', value: node.name || '', style: {width: '100%'}, disabled: true }),
     ce('label', { for: 'addOutgoingRelSource' }, [ttxt('Source Node')]),
@@ -1016,6 +1021,7 @@ function openAddRelationModal() {
   if (!state.selectedNodeId) return;
   var sourceNode = state.nodes.find(function(n) { return n.id === state.selectedNodeId; });
   const f = ce('div', { className: 'modal-field' }, [
+    ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '8px' } }, [txt(relationSemanticsHint())]),
     ce('label', { for: 'addRelSourceSearch' }, [ttxt('Search Nodes')]),
     el('input', { id: 'addRelSourceSearch', placeholder: tr('Source node search...'), value: sourceNode ? sourceNode.name : '', style: {width: '100%'} }),
     ce('label', { for: 'addRelSource' }, [ttxt('Source Node')]),
@@ -1436,6 +1442,7 @@ function openEditRelationModal(relId) {
   const rel = nd.relations.find(function(x) { return x.id === relId; });
   if (!rel) return;
   const f = ce('div', { className: 'modal-field' }, [
+    ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '8px' } }, [txt(relationSemanticsHint())]),
     ce('label', { for: 'editRelSourceSearch' }, [ttxt('Search Nodes')]),
     el('input', { id: 'editRelSourceSearch', placeholder: tr('Source node search...'), value: getNodeNameById(rel.source_id), style: {width: '100%'} }),
     ce('label', { for: 'editRelSource' }, [ttxt('Source Node')]),
