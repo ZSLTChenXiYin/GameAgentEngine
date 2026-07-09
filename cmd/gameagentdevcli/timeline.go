@@ -26,9 +26,15 @@ func printTimelineSummary(items []sdk.TimelineEnvelope) {
 		if item.FutureOutline != "" {
 			fmt.Printf("  future=%s\n", item.FutureOutline)
 		}
+		if advancedTicks := item.EffectiveAdvancedTicks(); advancedTicks > 0 {
+			fmt.Printf("  advanced_ticks=%d\n", advancedTicks)
+		}
+		if worldTimeState := item.WorldTimeState(); worldTimeState != nil && worldTimeState.CurrentTimeLabel != "" {
+			fmt.Printf("  world_time=%s\n", worldTimeState.CurrentTimeLabel)
+		}
 		fmt.Printf("  created=%s\n\n", item.Timeline.CreatedAt)
 	}
-	}
+}
 
 var timelineListCmd = &cobra.Command{
 	Use:   "list <world-id>",

@@ -29,8 +29,12 @@ func TestPrintTimelineSummaryShowsFutureOutline(t *testing.T) {
 		TickNumber:    9,
 		TickType:      "daily",
 		GameTime:      "Day 9",
+		AdvancedTicks: 3,
 		Summary:       "ridge secured",
 		FutureOutline: "prepare the lower vault",
+		Data: map[string]any{
+			"world_time_state": map[string]any{"current_time_label": "Day 9 dusk", "last_advanced_ticks": 3},
+		},
 		Timeline:      sdk.TimelineTick{CreatedAt: "2026-01-01T00:00:00Z"},
 	}}
 	originalStdout := os.Stdout
@@ -47,7 +51,7 @@ func TestPrintTimelineSummaryShowsFutureOutline(t *testing.T) {
 		t.Fatalf("read output: %v", err)
 	}
 	output := string(bytes.TrimSpace(data))
-	for _, want := range []string{"#9", "ridge secured", "prepare the lower vault"} {
+	for _, want := range []string{"#9", "ridge secured", "prepare the lower vault", "advanced_ticks=3", "world_time=Day 9 dusk"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("missing %q in %q", want, output)
 		}
