@@ -264,6 +264,38 @@ function parseWorldTimeSequenceLines(value) {
   }).filter(Boolean);
 }
 
+function validateWorldTimeSettingsInput(settings) {
+  if (!settings) return '';
+  if (settings.tick_scale_mode !== 'fixed' && settings.tick_scale_mode !== 'flexible') return 'tick_scale_mode must be fixed or flexible';
+  if (!settings.tick_min_unit) return 'tick_min_unit must not be empty';
+  if (!Number.isInteger(settings.tick_step) || settings.tick_step <= 0) return 'tick_step must be greater than 0';
+  if (!Array.isArray(settings.tick_units) || settings.tick_units.length === 0) return 'tick_units must contain at least one unit';
+  var seen = {};
+  for (var i = 0; i < settings.tick_units.length; i++) {
+    var unit = settings.tick_units[i];
+    if (!unit) return 'tick_units must not contain empty values';
+    if (seen[unit]) return 'tick_units must not contain duplicate values';
+    seen[unit] = true;
+  }
+  if (settings.tick_units[settings.tick_units.length - 1] !== settings.tick_min_unit) return 'tick_min_unit must match the smallest configured tick unit';
+  if (settings.tick_units.length > 1 && settings.time_scale_carry.length !== settings.tick_units.length - 1) {
+    return 'time_scale_carry must define exactly one adjacent rule per unit gap';
+  }
+  for (var j = 0; j < settings.time_scale_carry.length; j++) {
+    var rule = settings.time_scale_carry[j];
+    if (!rule.from || !rule.to || !Number.isInteger(rule.base) || rule.base <= 0) {
+      return 'time_scale_carry entries must define from, to, and base > 0';
+    }
+  }
+  if (settings.time_calendar && settings.time_calendar.enabled) {
+    if (!settings.time_calendar.calendar_name) return 'time_calendar.calendar_name must not be empty when calendar mode is enabled';
+    if (!Array.isArray(settings.time_calendar.units) || settings.time_calendar.units.length !== settings.tick_units.length) {
+      return 'time_calendar.units must match tick_units exactly when calendar mode is enabled';
+    }
+  }
+  return '';
+}
+
 function filterNodeOptions(searchText, excludeNodeIds) {
   var keyword = (searchText || '').trim().toLowerCase();
   var excluded = excludeNodeIds || [];
@@ -1199,6 +1231,11 @@ async function submitTickAdvance() {
     toast(tr('Requested ticks must be greater than 0'), 'error');
     return;
   }
+  var worldTimeSettings = state.settings && state.settings.world_time_settings ? state.settings.world_time_settings : null;
+  if (worldTimeSettings && worldTimeSettings.tick_scale_mode === 'fixed' && requestedTicks !== 1) {
+    toast(tr('Fixed tick scale mode only allows requested_ticks = 1'), 'error');
+    return;
+  }
   showLoading(tr('Advancing tick...'));
   try {
     const body = { tick_type: tickType, game_time: gameTime, requested_ticks: requestedTicks };
@@ -1297,6 +1334,11 @@ async function saveSettings() {
       };
       if (!worldTimeSettings.time_calendar.enabled) {
         worldTimeSettings.time_calendar = { enabled: false, calendar_name: '', units: [] };
+      }
+      var worldTimeValidationError = validateWorldTimeSettingsInput(worldTimeSettings);
+      if (worldTimeValidationError) {
+        toast(worldTimeValidationError, 'error');
+        return;
       }
       if (JSON.stringify(current.world_time_settings || null) !== JSON.stringify(worldTimeSettings)) {
         payload.world_time_settings = worldTimeSettings;
