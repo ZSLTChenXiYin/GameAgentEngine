@@ -229,6 +229,41 @@ function relationSemanticsHint() {
   return tr('Relations are stored separately from the outline tree. To change hierarchy, edit Primary Parent or drag in the outline.');
 }
 
+function parseMultilineList(value) {
+  return String(value || '').split('\n').map(function(item) { return item.trim(); }).filter(Boolean);
+}
+
+function parseWorldTimeCarryLines(value) {
+  return parseMultilineList(value).map(function(line) {
+    var parts = line.split('=');
+    if (parts.length !== 2) return null;
+    var edge = parts[0].split('->');
+    if (edge.length !== 2) return null;
+    var base = parseInt(parts[1].trim(), 10);
+    if (!Number.isFinite(base)) return null;
+    return { from: edge[0].trim(), to: edge[1].trim(), base: base };
+  }).filter(Boolean);
+}
+
+function parseWorldTimeCalendarLines(value) {
+  return parseMultilineList(value).map(function(line) {
+    var parts = line.split('=');
+    if (parts.length < 2) return null;
+    return { unit: parts[0].trim(), value: parts.slice(1).join('=').trim() };
+  }).filter(Boolean);
+}
+
+function parseWorldTimeSequenceLines(value) {
+  return parseMultilineList(value).map(function(line) {
+    var parts = line.split('=');
+    if (parts.length < 2) return null;
+    return {
+      unit: parts[0].trim(),
+      values: parts.slice(1).join('=').split('|').map(function(item) { return item.trim(); }).filter(Boolean),
+    };
+  }).filter(Boolean);
+}
+
 function filterNodeOptions(searchText, excludeNodeIds) {
   var keyword = (searchText || '').trim().toLowerCase();
   var excluded = excludeNodeIds || [];
@@ -1196,6 +1231,29 @@ async function saveSettings() {
     maybeSetInt('sub_task_max_retries', 'setSubTaskRetries');
     maybeSetInt('sub_task_timeout_secs', 'setSubTaskTimeout');
     maybeSetBool('enable_propagation_machine', 'setEnablePropMachine');
+
+    var tickScaleModeEl = document.getElementById('setTickScaleMode');
+    if (tickScaleModeEl) {
+      var worldTimeSettings = {
+        tick_scale_mode: tickScaleModeEl.value || 'fixed',
+        tick_min_unit: document.getElementById('setTickMinUnit').value.trim(),
+        tick_step: parseInt(document.getElementById('setTickStep').value.trim(), 10) || 0,
+        tick_units: parseMultilineList(document.getElementById('setTickUnits').value),
+        time_scale_carry: parseWorldTimeCarryLines(document.getElementById('setTimeScaleCarry').value),
+        time_calendar: {
+          enabled: !!document.getElementById('setCalendarEnabled').checked,
+          calendar_name: document.getElementById('setCalendarName').value.trim(),
+          units: parseWorldTimeCalendarLines(document.getElementById('setCalendarUnits').value),
+        },
+        unit_value_sequences: parseWorldTimeSequenceLines(document.getElementById('setUnitValueSequences').value),
+      };
+      if (!worldTimeSettings.time_calendar.enabled) {
+        worldTimeSettings.time_calendar = { enabled: false, calendar_name: '', units: [] };
+      }
+      if (JSON.stringify(current.world_time_settings || null) !== JSON.stringify(worldTimeSettings)) {
+        payload.world_time_settings = worldTimeSettings;
+      }
+    }
 
     if (Object.keys(payload).length === 0) {
       toast(tr('Settings saved'), 'success');

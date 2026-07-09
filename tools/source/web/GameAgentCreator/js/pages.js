@@ -451,6 +451,7 @@ function renderSettingsPage(container) {
     return;
   }
   const s = state.settings || { memory_limit: 50, max_analysis_rounds: 5, max_context_depth: 3, auto_apply: true, require_review_above: 'critical' };
+  const wt = s.world_time_settings || {};
   const form = ce('div', { className: 'settings-form' }, []);
   function settingRow(label, id, type, val) {
     const row = ce('div', { className: 'setting-row' }, [ce('label', { for: id }, [ttxt(label)])]);
@@ -486,6 +487,23 @@ function renderSettingsPage(container) {
   form.appendChild(ce('div', { className: 'detail-card' }, [ce('div', { className: 'card-hd' }, [ttxt('Sub-Task DAG')])]));
   settingRow('Sub-Task Max Retries', 'setSubTaskRetries', 'number_zero', s.sub_task_max_retries != null ? s.sub_task_max_retries : 2);
   settingRow('Sub-Task Timeout (sec)', 'setSubTaskTimeout', 'number_zero', s.sub_task_timeout_secs != null ? s.sub_task_timeout_secs : 60);
+  form.appendChild(ce('div', { className: 'detail-card' }, [
+    ce('div', { className: 'card-hd' }, [ttxt('World Time Settings')]),
+    ce('div', { className: 'card-bd' }, [
+      ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '10px' } }, [ttxt('Tick units must be ordered from largest to smallest. When calendar mode is enabled, calendar units and tick units must match exactly.')]),
+      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setTickScaleMode' }, [ttxt('Tick Scale Mode')]), el('select', { id: 'setTickScaleMode', innerHTML: '<option value="fixed">fixed</option><option value="flexible">flexible</option>' })]),
+      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setTickMinUnit' }, [ttxt('Tick Min Unit')]), el('input', { id: 'setTickMinUnit', value: wt.tick_min_unit || '', placeholder: tr('Example: 时辰'), style: { width: '100%' } })]),
+      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setTickStep' }, [ttxt('Tick Step')]), el('input', { id: 'setTickStep', type: 'number', min: '1', max: '999999', value: String(wt.tick_step || 1) })]),
+      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setTickUnits' }, [ttxt('Tick Units')]), el('textarea', { id: 'setTickUnits', rows: 3, placeholder: tr('One unit per line, largest to smallest'), style: { width: '100%', fontFamily: 'var(--font-mono)' }, textContent: (wt.tick_units || []).join('\n') })]),
+      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setTimeScaleCarry' }, [ttxt('Time Scale Carry')]), el('textarea', { id: 'setTimeScaleCarry', rows: 4, placeholder: tr('Format: smaller_unit -> larger_unit = base'), style: { width: '100%', fontFamily: 'var(--font-mono)' }, textContent: ((wt.time_scale_carry || []).map(function(rule) { return (rule.from || '') + ' -> ' + (rule.to || '') + ' = ' + String(rule.base || ''); })).join('\n') })]),
+      ce('div', { className: 'setting-row' }, [ce('label', { className: 'checkbox-row' }, [el('input', { id: 'setCalendarEnabled', type: 'checkbox', checked: !!(wt.time_calendar && wt.time_calendar.enabled) }), ttxt('Enable Calendar Mode')])]),
+      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setCalendarName' }, [ttxt('Calendar Name')]), el('input', { id: 'setCalendarName', value: wt.time_calendar && wt.time_calendar.calendar_name ? wt.time_calendar.calendar_name : '', placeholder: tr('Example: 太阴'), style: { width: '100%' } })]),
+      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setCalendarUnits' }, [ttxt('Calendar Units')]), el('textarea', { id: 'setCalendarUnits', rows: 5, placeholder: tr('Format: unit = initial value'), style: { width: '100%', fontFamily: 'var(--font-mono)' }, textContent: (((wt.time_calendar && wt.time_calendar.units) || []).map(function(unit) { return (unit.unit || '') + ' = ' + (unit.value || ''); })).join('\n') })]),
+      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setUnitValueSequences' }, [ttxt('Unit Value Sequences')]), el('textarea', { id: 'setUnitValueSequences', rows: 6, placeholder: tr('Format: unit = value1 | value2 | value3'), style: { width: '100%', fontFamily: 'var(--font-mono)' }, textContent: ((wt.unit_value_sequences || []).map(function(seq) { return (seq.unit || '') + ' = ' + ((seq.values || []).join(' | ')); })).join('\n') })]),
+    ]),
+  ]));
+  var tickScaleModeSelect = form.querySelector('#setTickScaleMode');
+  if (tickScaleModeSelect) tickScaleModeSelect.value = wt.tick_scale_mode || 'fixed';
   const btnRow = ce('div', { className: 'policy-actions' }, [
     ce('button', { className: 'primary', id: 'btnSaveSettings' }, [ttxt('Save Settings')]),
   ]);
