@@ -79,13 +79,18 @@ function el(tag, attrs) {
   const e = document.createElement(tag);
   if (attrs) {
     for (const k in attrs) {
-      if (k === 'className') e.className = attrs[k];
-      else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
-      else if (k === 'style' && typeof attrs[k] === 'object') Object.assign(e.style, attrs[k]);
-      else if (k === 'innerHTML') e.innerHTML = attrs[k];
-      else if (k === 'textContent') e.textContent = attrs[k];
-      else if (k === 'dataset') { for (const d in attrs[k]) e.dataset[d] = attrs[k][d]; }
-      else e.setAttribute(k, attrs[k]);
+      const value = attrs[k];
+      if (k === 'className') e.className = value;
+      else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), value);
+      else if (k === 'style' && typeof value === 'object') Object.assign(e.style, value);
+      else if (k === 'innerHTML') e.innerHTML = value;
+      else if (k === 'textContent') e.textContent = value;
+      else if (k === 'dataset') { for (const d in value) e.dataset[d] = value[d]; }
+      else if (typeof value === 'boolean') {
+        e[k] = value;
+        if (!value) e.removeAttribute(k);
+      }
+      else e.setAttribute(k, value);
     }
   }
   return e;

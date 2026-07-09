@@ -289,6 +289,17 @@ function switchPage(name) {
   var found = Array.from(tabs).find(function(b) { return b.dataset.page === name; });
   if (found) found.classList.add('active');
   renderCurrent();
+
+  switch (name) {
+    case 'snapshots': loadSnapshots(); break;
+    case 'plans': loadPlans(true); break;
+    case 'policy': loadPolicy(); break;
+    case 'settings': loadSettings(); break;
+    case 'continuity': loadContinuityOverview(); break;
+    case 'state': loadStateComponents(); break;
+    case 'timelines': loadTimelines(); break;
+    case 'logs': loadLogs(); break;
+  }
 }
 
 function renderCurrent() {
