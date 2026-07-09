@@ -711,6 +711,7 @@ function renderStatePage(container) {
   for (var i = 0; i < (state.stateComponents || []).length; i++) {
     var item = state.stateComponents[i];
     var editable = item.component_type !== 'state_snapshot';
+    var isWorldTimeState = item.component_type === 'world_time_state';
     var detailCard = createToggleDetailCard([
       ce('span', { style: { fontWeight: 600 } }, [txt(item.component_type || '?')]),
       txt(item.component ? ' present' : ' missing'),
@@ -720,6 +721,11 @@ function renderStatePage(container) {
     body.appendChild(renderPropRow('ID', item.component && item.component.id ? item.component.id.slice(0, 8) : '-', { mono: true }));
     body.appendChild(renderPropRow('Node', item.component && item.component.node_id ? item.component.node_id.slice(0, 8) : '-', { mono: true }));
     body.appendChild(renderPropRow('Summary', tr('Structured world tick continuity state.')));
+    if (isWorldTimeState && item.data) {
+      body.appendChild(renderPropRow('World Time Label', item.data.current_time_label || '-'));
+      body.appendChild(renderPropRow('Advanced Ticks', String(item.data.last_advanced_ticks || 0)));
+      body.appendChild(renderPropRow('Tick Scale Mode', item.data.tick_scale_mode || '-'));
+    }
     if (editable) {
       var actionRow = ce('div', { className: 'world-toolbar', style: { padding: '6px 0 2px 0', borderBottom: 'none' } }, [
         ce('button', { id: 'btnEditState_' + i }, [ttxt('Edit')]),
@@ -780,6 +786,7 @@ function renderContinuityPage(container) {
     var latest = bundle.latest_timeline || ((bundle.timelines || []).length > 0 ? bundle.timelines[0] : null);
     var previousTimeline = bundle.timelines && bundle.timelines.length > 1 ? bundle.timelines[1] : null;
     var worldState = getContinuityComponentData(bundle, 'world_state') || {};
+    var worldTimeState = getContinuityComponentData(bundle, 'world_time_state') || {};
     var storyHistory = getContinuityComponentData(bundle, 'story_history') || {};
     var historyEntries = Array.isArray(storyHistory.entries) ? storyHistory.entries : [];
     var latestHistory = historyEntries.length > 0 ? historyEntries[0] : null;
@@ -796,6 +803,8 @@ function renderContinuityPage(container) {
         renderPropRow('Tracked Request', state.continuityRequestId ? shortID(state.continuityRequestId) : tr('No request filter applied.')),
         renderPropRow('Linked Logs', String(logs.length)),
         renderPropRow('Linked Traces', String(traces.length)),
+        renderPropRow('World Time Label', worldTimeState.current_time_label || '-'),
+        renderPropRow('Advanced Ticks', latest ? String(latest.advanced_ticks || 0) : '-'),
       ]),
     ]));
 
@@ -825,6 +834,8 @@ function renderContinuityPage(container) {
       diffBody.appendChild(ce('div', { className: 'hint' }, [ttxt('No previous tick to compare.')]));
     } else {
       diffBody.appendChild(renderPropRow('Latest Tick Summary', latest ? latest.summary || '-' : '-'));
+      diffBody.appendChild(renderPropRow('Latest Advanced Ticks', latest ? String(latest.advanced_ticks || 0) : '-'));
+      diffBody.appendChild(renderPropRow('Previous Advanced Ticks', previousTimeline ? String(previousTimeline.advanced_ticks || 0) : '-'));
       diffBody.appendChild(renderPropRow('Previous Tick Summary', previousTimeline ? previousTimeline.summary || '-' : '-'));
       diffBody.appendChild(renderPropRow('Latest Future Outline', latest ? latest.future_outline || '-' : '-'));
       diffBody.appendChild(renderPropRow('Previous Future Outline', previousTimeline ? previousTimeline.future_outline || '-' : '-'));
@@ -852,8 +863,12 @@ function renderContinuityPage(container) {
           txt(' ' + (item.tick_type || '-')),
           txt(item.game_time ? ' ' + item.game_time : ''),
         ], false);
+        row.body.appendChild(renderPropRow('Advanced Ticks', String(item.advanced_ticks || 0)));
         row.body.appendChild(renderPropRow('Summary', item.summary || '-'));
         row.body.appendChild(renderPropRow('Future Outline', item.future_outline || '-'));
+        if (item.data && item.data.world_time_state) {
+          row.body.appendChild(renderPropRow('World Time Label', item.data.world_time_state.current_time_label || '-'));
+        }
         if (item.data) row.body.appendChild(renderLogDetailBlock('Timeline Payload', item.data));
         timelinesBody.appendChild(row.card);
       });
@@ -970,8 +985,12 @@ function renderTimelinesPage(container) {
     body.appendChild(renderPropRow('Tick', String(item.tick_number || 0)));
     body.appendChild(renderPropRow('Type', item.tick_type || '-'));
     body.appendChild(renderPropRow('Time', item.game_time || '-'));
+    body.appendChild(renderPropRow('Advanced Ticks', String(item.advanced_ticks || 0)));
     body.appendChild(renderPropRow('Summary', item.summary || '-'));
     body.appendChild(renderPropRow('Future Outline', item.future_outline || '-'));
+    if (item.data && item.data.world_time_state) {
+      body.appendChild(renderPropRow('World Time Label', item.data.world_time_state.current_time_label || '-'));
+    }
     if (item.data) {
       body.appendChild(renderLogDetailBlock('Timeline Payload', item.data));
     }
