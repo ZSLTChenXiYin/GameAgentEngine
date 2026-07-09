@@ -602,6 +602,7 @@ function renderWorldTimeSettingsEditor(initialSettings) {
     ce('label', { for: 'setTickScaleMode' }, [ttxt('Tick Scale Mode')]),
     el('select', { id: 'setTickScaleMode', innerHTML: '<option value="fixed">fixed</option><option value="flexible">flexible</option>' }),
   ]);
+  var tickScaleModeSelect = modeRow.querySelector('#setTickScaleMode');
   root.appendChild(modeRow);
 
   var stepRow = ce('div', { className: 'setting-row' }, [
@@ -628,6 +629,7 @@ function renderWorldTimeSettingsEditor(initialSettings) {
     el('select', { id: 'setTickMinUnit' }),
     ce('div', { className: 'hint setting-inline-hint' }, [ttxt('Derived from the smallest configured tick unit to match Engine constraints.')]),
   ]);
+  var tickMinUnitSelect = minUnitRow.querySelector('#setTickMinUnit');
   root.appendChild(minUnitRow);
 
   var carryRow = ce('div', { className: 'setting-row setting-row-block' }, [
@@ -644,6 +646,7 @@ function renderWorldTimeSettingsEditor(initialSettings) {
     ]),
     ce('div', { className: 'hint setting-inline-hint' }, [ttxt('When enabled, calendar units, carry rules, and sequences must stay consistent.')]),
   ]);
+  var calendarEnabledToggle = calendarToggleRow.querySelector('#setCalendarEnabled');
   root.appendChild(calendarToggleRow);
 
   var calendarSection = ce('div', { id: 'worldTimeCalendarSection', className: 'world-time-calendar-section' }, []);
@@ -665,6 +668,8 @@ function renderWorldTimeSettingsEditor(initialSettings) {
   var sequenceBody = ce('div', { id: 'worldTimeSequenceList', className: 'world-time-block' }, []);
   sequenceRow.appendChild(sequenceBody);
   root.appendChild(sequenceRow);
+
+  var addTickUnitButton = unitsBody.querySelector('#btnAddTickUnit');
 
   function arrayFrom(nodeList) {
     return Array.prototype.slice.call(nodeList || []);
@@ -701,7 +706,7 @@ function renderWorldTimeSettingsEditor(initialSettings) {
       carry_by_from: nextCarryByFrom,
       sequence_by_unit: nextSequenceByUnit,
       calendar_values_by_unit: nextCalendarValuesByUnit,
-      calendar_enabled: !!document.getElementById('setCalendarEnabled').checked,
+      calendar_enabled: !!calendarEnabledToggle.checked,
     };
   }
 
@@ -762,16 +767,15 @@ function renderWorldTimeSettingsEditor(initialSettings) {
     if (hasBlank) unitsStatus.textContent = tr('Tick units contain blank values. Fill them before saving.');
     if (!hasBlank && hasDuplicate) unitsStatus.textContent = tr('Tick units contain duplicates. Keep each unit unique before saving.');
 
-    var minUnitSelect = document.getElementById('setTickMinUnit');
-    minUnitSelect.innerHTML = '';
+    tickMinUnitSelect.innerHTML = '';
     if (normalizedUnits.length === 0) {
-      minUnitSelect.appendChild(el('option', { value: '', textContent: '' }));
-      minUnitSelect.value = '';
+      tickMinUnitSelect.appendChild(el('option', { value: '', textContent: '' }));
+      tickMinUnitSelect.value = '';
     } else {
       normalizedUnits.forEach(function(unit) {
-        minUnitSelect.appendChild(el('option', { value: unit, textContent: unit }));
+        tickMinUnitSelect.appendChild(el('option', { value: unit, textContent: unit }));
       });
-      minUnitSelect.value = normalizedUnits[normalizedUnits.length - 1];
+      tickMinUnitSelect.value = normalizedUnits[normalizedUnits.length - 1];
     }
 
     carryBody.innerHTML = '';
@@ -851,14 +855,14 @@ function renderWorldTimeSettingsEditor(initialSettings) {
   }
 
   renderTickUnits(initialTickUnits);
-  document.getElementById('setTickScaleMode').value = existing.tick_scale_mode || 'fixed';
-  document.getElementById('btnAddTickUnit').addEventListener('click', function() {
+  tickScaleModeSelect.value = existing.tick_scale_mode || 'fixed';
+  addTickUnitButton.addEventListener('click', function() {
     var draft = collectDraft();
     draft.tick_units.push('');
     renderTickUnits(draft.tick_units);
     syncLinkedSections();
   });
-  document.getElementById('setCalendarEnabled').addEventListener('change', syncLinkedSections);
+  calendarEnabledToggle.addEventListener('change', syncLinkedSections);
   syncLinkedSections();
   return root;
 }

@@ -70,6 +70,8 @@ async function loadWorlds() {
 
 async function selectWorld(worldId) {
   state.selectedWorldId = worldId;
+  var worldSelector = document.getElementById('worldSelector');
+  if (worldSelector) worldSelector.value = worldId || '';
   if (worldId) {
     try { state.nodes = await api('GET', '/api/v1/nodes?world_id=' + encodeURIComponent(worldId)); }
     catch(e) { state.nodes = []; toast(tr('Failed to load nodes') + ': ' + apiErrorMessage(e), 'error'); }
