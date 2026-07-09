@@ -252,6 +252,29 @@ type TickResponse struct {
 }
 ```
 
+### Continuity helpers
+
+The SDK continuity bundle now includes recent timeline history in addition to `LatestTimeline`:
+
+```go
+type ContinuityBundle struct {
+    WorldID         string
+    LatestTimeline  *TimelineEnvelope
+    Timelines       []TimelineEnvelope
+    StateComponents []StateComponentEnvelope
+    Logs            []InferenceLog
+    Traces          []DebugTrace
+}
+```
+
+Use these helpers to avoid re-parsing timeline and state payloads by hand:
+
+- `bundle.FindStateComponent("world_time_state")`
+- `bundle.LatestWorldTimeState()`
+- `timeline.WorldTimeState()`
+- `timeline.PreviousWorldTimeState()`
+- `timeline.EffectiveAdvancedTicks()`
+
 ### `InvokeResponse`
 
 ```go

@@ -99,3 +99,4 @@ DevCli：
 - Creator 的 Advance Tick 弹窗支持填写 requested_ticks、game_time 和 autonomous_limit。
 - Tick 执行完成后，Creator 会显示 advanced_ticks、world_time_state，以及完整返回 JSON。
 - State、Timelines、Continuity 页面都会显示 world_time_state 与 advanced_ticks，方便追踪世界时间推进链路。
+- DevCli 的 `timeline latest`、`timeline list` 与 `debug continuity` 摘要也会直接显示 `advanced_ticks` 和世界时间标签；`debug continuity` 还会显示上一刻的世界时间标签，便于排查推进失真。

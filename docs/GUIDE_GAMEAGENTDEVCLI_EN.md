@@ -181,7 +181,8 @@ GameAgentDevCli debug continuity <world-id> --mode debug --request-id <request-i
 
 `logs` now supports server-side filters such as `--node`, `--category`, `--event`, `--mode`, `--request-id`, and `--round`.
 
-`debug continuity` is the fastest way to load the latest timeline, continuity state components, recent `world_tick` logs, and debug traces in one summary view.
+`debug continuity` is the fastest way to load the latest timeline, recent timeline history, continuity state components, recent `world_tick` logs, and debug traces in one summary view.
+The summary now expands `advanced_ticks`, the current `world_time` label, and the `previous_world_time` label when the timeline payload carries world time state.
 
 ---
 
