@@ -170,6 +170,13 @@ func buildInferenceLogResponseData(resp *InvokeResponse) string {
 }
 
 // Pipeline is the shared execution shell. Request-specific state is created per Execute call.
+//
+// 任务级关系装配策略约束：
+// 1. npc_dialogue: 默认优先装配环境关系（located_at 及其场景祖先），再装配稳定身份/归属链，最后按需补社会关系。
+// 2. autonomous_act: 默认优先装配环境关系和行动约束关系（belongs_to/subordinate 等），再按需补目标相关社会关系。
+// 3. world_tick: 默认应围绕 world 或 scope 节点装配摘要性高价值关系图谱，禁止无差别展开所有 NPC 社交边。
+// 4. world_event_impact: 默认应围绕事件 scope 装配局部关系子图，而不是直接使用全世界关系集合。
+// 5. vertical/polling/full 的差异不仅是轮次，还包括关系子图装配强度；任何后续实现都不能忽略这一点。
 type Pipeline struct {
 	ctxBuilder  *ContextBuilder
 	llmProvider LLMProvider
@@ -296,6 +303,8 @@ func (p *Pipeline) getExecutionMode() ExecutionMode {
 }
 
 func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
+	// Execute 统一负责：读取世界设置、构建基础上下文、再按 PipelineMode 分发到不同执行路径。
+	// 这里构建出的 BuiltContext 只是任务起点；更细的关系图谱扩展必须遵守上面的任务级策略，而不是默认拿全量关系。
 	start := time.Now()
 	requestID := uuid.NewString()
 	executionMode := p.getExecutionMode()

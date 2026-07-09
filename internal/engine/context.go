@@ -25,6 +25,15 @@ type BuiltContext struct {
 	SystemPrompt string                 `json:"system_prompt"`
 }
 
+// Build 根据任务焦点节点装配本轮推理的基础上下文。
+//
+// 设计约束：
+// 1. 默认上下文应区分“稳定身份/归属链”和“动态环境链”。
+// 2. 稳定身份/归属链默认由 parent 承担；组织/控制关系可作为补充，但不能替代主父链。
+// 3. 动态环境链默认应由 located_at -> location -> location ancestors 装配；禁止再把当前位置硬塞回 parent。
+// 4. includeRelatedNodes 只是受控的关系补充开关，不是“把所有关系边另一端数据全部塞进 prompt”的许可。
+// 5. BuiltContext.Relations 保留结构化关系数据，供后续按任务类型进一步筛选和扩图；SystemPrompt 不应依赖无差别
+//    关系拼接来模拟图谱。
 func (b *ContextBuilder) Build(nodeID string, depth int, memoryLimit int, includeRelated bool) (*BuiltContext, error) {
 	node, err := store.GetNode(nodeID)
 	if err != nil {
@@ -95,6 +104,12 @@ func (b *ContextBuilder) collectAncestors(node *store.NodeModel, maxDepth int) [
 	return ancestors
 }
 
+// buildSystemPrompt 将已装配的上下文压平成当前 prompt 文本。
+//
+// 当前实现仍以文本 prompt 为主，但后续扩展必须保持以下边界：
+// 1. parent 祖先链表达稳定归属，而不是当前环境。
+// 2. location 语义应来自 located_at 装配出的环境链，而不是靠上层调用方通过改 parent 模拟。
+// 3. 社会语义关系不应在这里被无差别展开；它们应由任务特定的关系子图选择器控制是否进入 prompt。
 func (b *ContextBuilder) buildSystemPrompt(node *store.NodeModel, comps []store.ComponentModel, mems []store.MemoryModel, ancestors []store.NodeModel, stateBlocks []string) string {
 	var parts []string
 	parts = append(parts, fmt.Sprintf("你是 %s（%s）。", node.Name, node.NodeType))

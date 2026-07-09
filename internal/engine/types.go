@@ -32,6 +32,8 @@ const (
 	CompMemory         ComponentType = "memory"
 	CompRule           ComponentType = "rule"
 	CompTimeline       ComponentType = "timeline"
+	// CompRelations 仅表示与关系相关的辅助组件负载；权威关系数据仍以 relations 表中的结构化边为准。
+	// 后续开发不得把它当成与 RelationModel 并列的第二套真相来源。
 	CompActionPolicy   ComponentType = "action_policy"
 	CompRelations      ComponentType = "relations"
 	CompPromptProfile  ComponentType = "prompt_profile"
@@ -66,15 +68,38 @@ func IsStateComponentType(componentType string) bool {
 }
 
 // RelationType 表示两个节点之间的有向关系类型。
+//
+// 语义总约束：
+// 1. 所有关系边统一按 source -> target 解读，禁止在调用方再反向猜测语义。
+// 2. parent 不是普通关系边；parent 是唯一主层级结构，负责稳定归属、默认祖先链和默认上行传播。
+// 3. 显式关系边负责补充动态语义，不得随意替代 parent 的职责；尤其不能把当前位置、命令链和额外作用域
+//    混写成同一种关系。
+// 4. 各关系类型在默认上下文中的职责必须严格区分：稳定归属走 parent，动态环境走 located_at，组织/控制
+//    关系走 belongs_to/subordinate，社会语义走 ally/enemy/kinship。
 type RelationType string
 
 const (
+	// RelBelongsTo 表示 source 在归属、拥有、编制或资产依附意义上属于 target。
+	// 它用于表达稳定的归属语义，但不替代 parent，不表示当前位置，也不自动构成默认祖先链。
 	RelBelongsTo      RelationType = "belongs_to"
+	// RelAlly 表示 source 与 target 处于友好、合作或联盟关系。
+	// 它属于社会语义边，不参与默认层级继承；如果业务上要求双向盟友，应由上层显式写双向边或做对称解释。
 	RelAlly           RelationType = "ally"
+	// RelEnemy 表示 source 与 target 处于敌对、冲突或对抗关系。
+	// 它属于社会语义边，不参与默认层级继承；如果业务上要求双向敌对，应由上层显式写双向边或做对称解释。
 	RelEnemy          RelationType = "enemy"
+	// RelSubordinate 表示 source 受 target 指挥、汇报或控制。
+	// 它强调命令链/汇报链，不等同于一般归属，不表示当前位置，也不替代主父节点。
 	RelSubordinate    RelationType = "subordinate"
+	// RelKinship 表示 source 与 target 存在亲属、家族或婚姻关系。
+	// 它属于人物背景/社会纽带关系，不参与默认层级继承；更细的亲属类型应写入 properties，而不是继续扩枚举。
 	RelKinship        RelationType = "kinship"
+	// RelLocatedAt 表示 source 当前位于 target 所代表的地点/场景节点。
+	// 它只表达动态环境位置，不表示稳定归属，不替代 parent；后续环境上下文必须优先沿这条关系装配。
 	RelLocatedAt      RelationType = "located_at"
+	// RelExternalParent 表示 source 在主 parent 之外额外挂接到 target 作用域。
+	// 它只用于额外作用域建模，禁止拿来表达当前位置、普通组织归属或社会关系；是否参与默认上下文/传播必须
+	// 由引擎显式实现，不能靠调用方臆测。
 	RelExternalParent RelationType = "external_parent"
 )
 
@@ -141,6 +166,12 @@ type AutonomousConfig struct {
 
 // DataQuery 表示 LLM 在分析过程中对额外数据的查询需求。
 // LLM 可在对话推理中通过 request_data 告知管线需要哪些额外数据。
+//
+// Filter 的语义依赖于 Type：
+// 1. node_components 使用 component_type。
+// 2. node_relations 使用 relation_type。
+// 3. node_memories 使用 memory_level。
+// 任何实现都必须让这里的注释与实际行为保持一致，避免调用方以为支持过滤但实际返回全量数据。
 type DataQuery struct {
 	Type   string `json:"type"`              // 查询类型: "node_components" / "node_memories" / "node_relations" 等
 	NodeID string `json:"node_id,omitempty"` // 要查询的游戏节点 ID
@@ -166,12 +197,17 @@ const (
 )
 
 // PipelineMode 表示推理管线的运行模式。
+//
+// 运行模式不仅决定轮次数量，也决定关系图谱的装配强度：
+// 1. vertical: 使用最小闭环关系子图。只装配当前任务必需的身份/环境关系，缺数据时优先让模型发 request_data。
+// 2. polling: 使用中等关系子图。允许在多轮推理中按需查询更多关系或节点数据，但默认仍应限制扩图范围。
+// 3. full: 使用结构化关系子图。允许 task tree / sub-task 在显式约束下继续扩图，但不能退回无差别全图拼接。
 type PipelineMode string
 
 const (
-	PipelineVertical PipelineMode = "vertical" // 垂直管线：一次 LLM 调用，无轮询无任务树
-	PipelinePolling  PipelineMode = "polling"  // 轮询管线：多轮 LLM 轮询，无任务树
-	PipelineFull     PipelineMode = "full"     // 全功能管线：当前完整实现
+	PipelineVertical PipelineMode = "vertical" // 垂直管线：一次 LLM 调用，最小关系子图，无轮询无任务树。
+	PipelinePolling  PipelineMode = "polling"  // 轮询管线：多轮 LLM 轮询，中等关系子图，无任务树。
+	PipelineFull     PipelineMode = "full"     // 全功能管线：多轮/任务树/子任务协作下的结构化关系子图。
 )
 
 func IsValidPipelineMode(mode string) bool {
@@ -245,6 +281,8 @@ type ChatMessage struct {
 
 // InvokeContext 表示调用方希望追加的上下文约束。
 type InvokeContext struct {
+	// IncludeRelatedNodes 是受控的关系补充开关，不是“把所有关系边另一端节点全部展开”的许可。
+	// 后续实现应允许它按任务/关系类型/方向/hop 数受限扩图，避免关系噪音淹没主上下文。
 	IncludeRelatedNodes bool         `json:"include_related_nodes,omitempty"`
 	MemoryLimit         int          `json:"memory_limit,omitempty"`
 	MaxDepth            int          `json:"max_depth,omitempty"`
