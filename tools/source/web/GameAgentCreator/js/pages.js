@@ -270,6 +270,116 @@ function renderWorldsPage(container) {
 }
 
 /* ============= Node Detail ============= */
+function relationDirectionLabel(nodeId, relation) {
+  if (!relation) return '';
+  if (relation.source_id === nodeId && relation.target_id === nodeId) return tr('Self');
+  if (relation.source_id === nodeId) return tr('Outgoing');
+  if (relation.target_id === nodeId) return tr('Incoming');
+  return tr('Linked');
+}
+
+function relationDirectionArrow(nodeId, relation) {
+  if (!relation) return '->';
+  if (relation.source_id === nodeId && relation.target_id === nodeId) return '<>'; 
+  if (relation.source_id === nodeId) return '->';
+  if (relation.target_id === nodeId) return '<-';
+  return '--';
+}
+
+function relationPeerId(nodeId, relation) {
+  if (!relation) return '';
+  if (relation.source_id === nodeId && relation.target_id === nodeId) return nodeId;
+  if (relation.source_id === nodeId) return relation.target_id;
+  return relation.source_id;
+}
+
+function relationPeerName(nodeId, relation) {
+  var peerId = relationPeerId(nodeId, relation);
+  return getNodeNameById(peerId);
+}
+
+function relationBlueprintTone(relationType) {
+  switch (relationType) {
+    case 'external_parent': return { bg: 'rgba(59,130,246,.12)', color: '#60a5fa' };
+    case 'subordinate': return { bg: 'rgba(14,165,233,.12)', color: '#38bdf8' };
+    case 'belongs_to': return { bg: 'rgba(16,185,129,.12)', color: '#34d399' };
+    case 'located_at': return { bg: 'rgba(245,158,11,.12)', color: '#fbbf24' };
+    case 'ally': return { bg: 'rgba(34,197,94,.12)', color: '#4ade80' };
+    case 'enemy': return { bg: 'rgba(239,68,68,.12)', color: '#f87171' };
+    case 'kinship': return { bg: 'rgba(168,85,247,.12)', color: '#c084fc' };
+    default: return { bg: 'rgba(148,163,184,.12)', color: 'var(--text-dim)' };
+  }
+}
+
+function buildRelationBlueprintCard(node, relations) {
+  var wrapper = ce('div', { className: 'relation-blueprint' }, []);
+  var inbound = [];
+  var outbound = [];
+  var selfLoop = [];
+  (relations || []).forEach(function(rel) {
+    if (!rel) return;
+    if (rel.source_id === node.id && rel.target_id === node.id) {
+      selfLoop.push(rel);
+      return;
+    }
+    if (rel.target_id === node.id) inbound.push(rel);
+    if (rel.source_id === node.id) outbound.push(rel);
+  });
+
+  function buildLane(title, items, emptyLabel) {
+    var lane = ce('div', { className: 'relation-lane' }, [
+      ce('div', { className: 'relation-lane-title' }, [txt(title + ' (' + items.length + ')')]),
+    ]);
+    if (!items.length) {
+      lane.appendChild(ce('div', { className: 'relation-empty' }, [txt(emptyLabel)]));
+      return lane;
+    }
+    items.forEach(function(rel) {
+      var tone = relationBlueprintTone(rel.relation_type);
+      var peerId = relationPeerId(node.id, rel);
+      var peerName = relationPeerName(node.id, rel);
+      lane.appendChild(ce('div', { className: 'relation-chip', style: { background: tone.bg, color: tone.color } }, [
+        ce('div', { className: 'relation-chip-top' }, [
+          ce('span', { className: 'relation-chip-name' }, [txt(peerName)]),
+          ce('span', { className: 'relation-chip-arrow' }, [txt(relationDirectionArrow(node.id, rel))]),
+        ]),
+        ce('div', { className: 'relation-chip-meta' }, [
+          ce('span', {}, [txt(rel.relation_type)]),
+          ce('span', {}, [txt(peerId ? peerId.slice(0, 8) : '-')]),
+        ]),
+      ]));
+    });
+    return lane;
+  }
+
+  wrapper.appendChild(buildLane(tr('Incoming Relations'), inbound, tr('No incoming relations')));
+
+  var center = ce('div', { className: 'relation-center' }, [
+    ce('div', { className: 'relation-center-node' }, [
+      ce('div', { className: 'relation-center-type' }, [txt(node.node_type)]),
+      ce('div', { className: 'relation-center-name' }, [txt(node.name)]),
+      ce('div', { className: 'relation-center-id' }, [txt(node.id.slice(0, 8))]),
+    ]),
+  ]);
+  if (selfLoop.length > 0) {
+    var loopBox = ce('div', { className: 'relation-self-loop' }, [
+      ce('div', { className: 'relation-lane-title' }, [txt(tr('Self Relations') + ' (' + selfLoop.length + ')')]),
+    ]);
+    selfLoop.forEach(function(rel) {
+      var tone = relationBlueprintTone(rel.relation_type);
+      loopBox.appendChild(ce('div', { className: 'relation-chip relation-chip-compact', style: { background: tone.bg, color: tone.color } }, [
+        ce('div', { className: 'relation-chip-top' }, [ce('span', { className: 'relation-chip-name' }, [txt(rel.relation_type)])]),
+        ce('div', { className: 'relation-chip-meta' }, [ce('span', {}, [txt(relationTypeDescription(rel.relation_type) || '-')])]),
+      ]));
+    });
+    center.appendChild(loopBox);
+  }
+  wrapper.appendChild(center);
+
+  wrapper.appendChild(buildLane(tr('Outgoing Relations'), outbound, tr('No outgoing relations')));
+  return wrapper;
+}
+
 function renderNodeDetail(container) {
   const nd = state.nodeDetail;
   if (!nd || !nd.node) return;
@@ -316,6 +426,7 @@ function renderNodeDetail(container) {
     ce('div', { className: 'card-hd toggle-hd', 'aria-expanded': 'true' }, [function(){var c=nd.relations?nd.relations.length:0;return ce('span',{},[ttxt('Relations'),txt(' ('+c+')')])}(), ce('button', { id: 'btnAddRelationCenter', className: 'sm' }, [ttxt('+')])]),
     ce('div', { className: 'card-bd', id: 'relDetailList' }, [
       ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '8px' } }, [ttxt('Relations do not change the outline hierarchy unless you separately edit Primary Parent.')]),
+      buildRelationBlueprintCard(n, nd.relations || []),
     ]),
   ]);
   detail.appendChild(relSection);

@@ -252,6 +252,7 @@ input { padding:0 7px; height:26px; }
   .log-split{flex-direction:column}
   .log-list{width:100%;border-right:none;border-bottom:1px solid var(--border);max-height:30vh}
   .component-kv-row,.component-inline-row{grid-template-columns:1fr}
+  .relation-blueprint{grid-template-columns:1fr}
 }
 /* ====== Detail Cards ====== */
 .node-detail { display:flex; flex-direction:column; gap:6px; padding:8px; }
@@ -381,6 +382,22 @@ input { padding:0 7px; height:26px; }
 .item-hd { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
 .item-tag { font-size:10px; font-weight:600; padding:1px 6px; border-radius:4px; flex-shrink:0; }
 .item-body { padding-left:16px; font-size:10px; }
+.relation-blueprint { display:grid; grid-template-columns:minmax(0,1fr) 220px minmax(0,1fr); gap:10px; margin:4px 0 10px; align-items:start; }
+.relation-lane, .relation-center, .relation-self-loop { border:1px solid var(--border); background:var(--bg2); }
+.relation-lane-title { padding:6px 8px; border-bottom:1px solid var(--border); font-size:10px; color:var(--text-dim); text-transform:uppercase; }
+.relation-empty { padding:10px 8px; font-size:10px; color:var(--text-muted); }
+.relation-center { display:flex; flex-direction:column; gap:8px; align-self:stretch; }
+.relation-center-node { display:flex; flex-direction:column; gap:4px; padding:12px 10px; min-height:110px; justify-content:center; text-align:center; background:var(--bg-input); }
+.relation-center-type { font-size:10px; color:var(--text-dim); text-transform:uppercase; }
+.relation-center-name { font-size:14px; font-weight:600; color:var(--text); }
+.relation-center-id { font-size:10px; color:var(--text-muted); font-family:var(--font-mono); }
+.relation-chip { display:flex; flex-direction:column; gap:4px; margin:8px; padding:8px; border:1px solid rgba(255,255,255,.08); }
+.relation-chip-compact { margin-top:0; }
+.relation-chip-top, .relation-chip-meta { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.relation-chip-name { font-size:11px; font-weight:600; color:var(--text); }
+.relation-chip-arrow { font-size:10px; color:var(--text-dim); font-family:var(--font-mono); }
+.relation-chip-meta { font-size:10px; color:var(--text-dim); }
+.relation-self-loop { margin:0 10px 10px; }
 
 /* ============= Right Panel Item Header+Body ============= */
 .rp-item-hd { display:flex; align-items:center; gap:6px; padding:2px 0; margin-bottom:2px; }
