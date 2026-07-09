@@ -65,6 +65,10 @@ func (p *Pipeline) PropagateMemoryByRule(req *InvokeRequest, runtime *executionC
 	switch mode {
 	case PropModeUpward:
 		p.PropagateUpward(req, runtime, executionMode, sourceNodeID, mem.Content, mem.Level, maxDepth, publishUp)
+	case PropModeEnvironment:
+		p.PropagateEnvironmentScope(req, runtime, executionMode, sourceNodeID, mem.Content, mem.Level, maxDepth)
+	case PropModeOrganization:
+		p.PropagateOrganizationScope(req, runtime, executionMode, sourceNodeID, mem.Content, mem.Level, maxDepth)
 	case PropModeTagBroadcast:
 		p.PropagateByTags(req, runtime, executionMode, sourceNodeID, mem, rule)
 	case PropModeTargeted:
@@ -153,6 +157,30 @@ func (p *Pipeline) PropagateUpward(req *InvokeRequest, runtime *executionConfig,
 	walk(nodeID, 0)
 }
 
+// PropagateEnvironmentScope 沿当前 located_at 环境节点及其主 parent 场景祖先传播。
+// 这条路径只服务动态环境作用域，不读取 belongs_to/subordinate/external_parent。
+func (p *Pipeline) PropagateEnvironmentScope(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, sourceNodeID, content string, level MemoryLevel, maxDepth int) {
+	targets, err := resolveEnvironmentPropagationTargets(sourceNodeID, maxDepth)
+	if err != nil {
+		p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_failed", content, map[string]any{"source_node_id": sourceNodeID, "mode": "environment_scope", "error": err.Error()})
+		log.Printf("propagate environment scope: %v", err)
+		return
+	}
+	p.propagateToResolvedTargets(req, runtime, executionMode, targets, content, level, "environment_scope")
+}
+
+// PropagateOrganizationScope 沿 belongs_to/subordinate 指向的组织/控制节点及其主 parent 链传播。
+// 这条路径只服务组织与控制作用域，不读取 located_at 或 external_parent。
+func (p *Pipeline) PropagateOrganizationScope(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, sourceNodeID, content string, level MemoryLevel, maxDepth int) {
+	targets, err := resolveOrganizationPropagationTargets(sourceNodeID, maxDepth)
+	if err != nil {
+		p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_failed", content, map[string]any{"source_node_id": sourceNodeID, "mode": "organization_scope", "error": err.Error()})
+		log.Printf("propagate organization scope: %v", err)
+		return
+	}
+	p.propagateToResolvedTargets(req, runtime, executionMode, targets, content, level, "organization_scope")
+}
+
 func (p *Pipeline) PropagateByTags(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, sourceNodeID string, mem MemoryUpdate, rule *PropagationRule) {
 	sourceNode, err := store.GetNode(sourceNodeID)
 	if err != nil {
@@ -216,6 +244,118 @@ func (p *Pipeline) PropagateToTargets(req *InvokeRequest, runtime *executionConf
 			log.Printf("propagate targeted to %s: %v", targetUUID, err)
 		} else {
 			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", mem.Content, map[string]any{"target_node_id": targetUUID, "mode": "targeted", "level": mem.Level})
+		}
+	}
+}
+
+type propagationTarget struct {
+	NodeUUID string
+	NodeID   int64
+	Level    MemoryLevel
+}
+
+func resolveEnvironmentPropagationTargets(sourceNodeID string, maxDepth int) ([]propagationTarget, error) {
+	rels, err := store.GetNodeRelations(sourceNodeID)
+	if err != nil {
+		return nil, err
+	}
+	var targets []propagationTarget
+	seen := map[string]bool{}
+	for _, rel := range rels {
+		if rel.SourceUUID != sourceNodeID || rel.RelationType != string(RelLocatedAt) {
+			continue
+		}
+		appendPropagationTarget(&targets, seen, rel.TargetUUID, MemShared)
+		ancestors, err := collectParentChainTargets(rel.TargetUUID, maxDepth, MemWorld)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range ancestors {
+			appendResolvedTarget(&targets, seen, item)
+		}
+	}
+	return targets, nil
+}
+
+func resolveOrganizationPropagationTargets(sourceNodeID string, maxDepth int) ([]propagationTarget, error) {
+	rels, err := store.GetNodeRelations(sourceNodeID)
+	if err != nil {
+		return nil, err
+	}
+	var targets []propagationTarget
+	seen := map[string]bool{}
+	for _, rel := range rels {
+		if rel.SourceUUID != sourceNodeID {
+			continue
+		}
+		if rel.RelationType != string(RelBelongsTo) && rel.RelationType != string(RelSubordinate) {
+			continue
+		}
+		appendPropagationTarget(&targets, seen, rel.TargetUUID, MemShared)
+		ancestors, err := collectParentChainTargets(rel.TargetUUID, maxDepth, MemWorld)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range ancestors {
+			appendResolvedTarget(&targets, seen, item)
+		}
+	}
+	return targets, nil
+}
+
+func collectParentChainTargets(startUUID string, maxDepth int, level MemoryLevel) ([]propagationTarget, error) {
+	var targets []propagationTarget
+	seen := map[string]bool{}
+	currentUUID := startUUID
+	for depth := 0; ; depth++ {
+		node, err := store.GetNode(currentUUID)
+		if err != nil {
+			return nil, err
+		}
+		if node.ParentUUID == nil {
+			return targets, nil
+		}
+		if maxDepth > 0 && depth >= maxDepth {
+			return targets, nil
+		}
+		parentUUID := *node.ParentUUID
+		if seen[parentUUID] {
+			return targets, nil
+		}
+		seen[parentUUID] = true
+		targets = append(targets, propagationTarget{NodeUUID: parentUUID, NodeID: store.ResolveNodeUUID(parentUUID), Level: level})
+		currentUUID = parentUUID
+	}
+}
+
+func appendPropagationTarget(targets *[]propagationTarget, seen map[string]bool, nodeUUID string, level MemoryLevel) {
+	appendResolvedTarget(targets, seen, propagationTarget{NodeUUID: nodeUUID, NodeID: store.ResolveNodeUUID(nodeUUID), Level: level})
+}
+
+func appendResolvedTarget(targets *[]propagationTarget, seen map[string]bool, target propagationTarget) {
+	if target.NodeUUID == "" || target.NodeID == 0 || seen[target.NodeUUID] {
+		return
+	}
+	seen[target.NodeUUID] = true
+	*targets = append(*targets, target)
+}
+
+func (p *Pipeline) propagateToResolvedTargets(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, targets []propagationTarget, content string, level MemoryLevel, mode string) {
+	for _, target := range targets {
+		if hasPropagatedMemory(target.NodeUUID, content) {
+			continue
+		}
+		m := &store.MemoryModel{
+			NodeID:  target.NodeID,
+			Content: content,
+			Level:   string(target.Level),
+			Tags:    "propagated," + mode,
+		}
+		if err := store.CreateMemory(m); err != nil {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", content, map[string]any{"target_node_id": target.NodeUUID, "mode": mode, "error": err.Error()})
+			log.Printf("propagate %s to %s: %v", mode, target.NodeUUID, err)
+		} else {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", content, map[string]any{"target_node_id": target.NodeUUID, "mode": mode, "level": target.Level})
 		}
 	}
 }
@@ -290,6 +430,10 @@ func (p *Pipeline) runPropagationMachine(req *InvokeRequest, runtime *executionC
 				p.executeMachineTargeted(req, runtime, executionMode, actionMem, action)
 			case PropModeUpward:
 				p.PropagateUpward(req, runtime, executionMode, sourceNode.UUID, actionMem.Content, actionMem.Level, action.MaxDepth, action.PublishUp)
+			case PropModeEnvironment:
+				p.PropagateEnvironmentScope(req, runtime, executionMode, sourceNode.UUID, actionMem.Content, actionMem.Level, action.MaxDepth)
+			case PropModeOrganization:
+				p.PropagateOrganizationScope(req, runtime, executionMode, sourceNode.UUID, actionMem.Content, actionMem.Level, action.MaxDepth)
 			}
 
 			for _, nextUUID := range action.NextChainIDs {

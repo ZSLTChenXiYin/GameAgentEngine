@@ -186,10 +186,11 @@ func (p *Pipeline) parseMemoryUpdates(rawJSON string) []MemoryUpdate {
 	}
 
 	var rawMems []struct {
-		NodeID  string `json:"node_id"`
-		Content string `json:"content"`
-		Level   string `json:"level"`
-		Tags    string `json:"tags,omitempty"`
+		NodeID      string           `json:"node_id"`
+		Content     string           `json:"content"`
+		Level       string           `json:"level"`
+		Tags        string           `json:"tags,omitempty"`
+		Propagation *PropagationRule `json:"propagation,omitempty"`
 	}
 	if err := json.Unmarshal([]byte(rawJSON), &rawMems); err != nil {
 		log.Printf("[warn] parse memory_updates: %v", err)
@@ -206,10 +207,11 @@ func (p *Pipeline) parseMemoryUpdates(rawJSON string) []MemoryUpdate {
 			level = MemShortTerm
 		}
 		result = append(result, MemoryUpdate{
-			NodeID:  rm.NodeID,
-			Content: rm.Content,
-			Level:   level,
-			Tags:    rm.Tags,
+			NodeID:      rm.NodeID,
+			Content:     rm.Content,
+			Level:       level,
+			Tags:        rm.Tags,
+			Propagation: rm.Propagation,
 		})
 	}
 	return result

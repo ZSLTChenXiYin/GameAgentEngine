@@ -326,6 +326,8 @@ type PropagationMode string
 
 const (
 	PropModeUpward       PropagationMode = "upward"        // 只沿主 parent 链向上传播，不包含 located_at、belongs_to、subordinate 或 external_parent。
+	PropModeEnvironment  PropagationMode = "environment_scope" // 沿 located_at 指向的当前环境节点及其 parent 场景祖先传播，用于环境作用域，不替代主父链。
+	PropModeOrganization PropagationMode = "organization_scope" // 沿 belongs_to/subordinate 指向的组织或控制节点及其主 parent 链传播，用于组织/控制作用域。
 	PropModeTagBroadcast PropagationMode = "tag_broadcast" // 按 tags 匹配节点扩散，适合显式广播，不表达层级、环境或控制链语义。
 	PropModeTargeted     PropagationMode = "targeted"      // 定向传播到指定节点，适合业务显式点名，不表达默认结构语义。
 	PropModeManual       PropagationMode = "manual"        // 不自动传播，交由外部显式触发。
@@ -333,11 +335,11 @@ const (
 
 // PropagationRule 描述一条记忆的传播规则。
 type PropagationRule struct {
-	Mode          PropagationMode `json:"mode,omitempty"`            // 传播模式，默认 upward
+	Mode          PropagationMode `json:"mode,omitempty"`            // 传播模式；空值默认 upward。environment_scope 与 organization_scope 必须走显式关系语义，不能偷用 upward。
 	TargetTags    []string        `json:"target_tags,omitempty"`     // tag_broadcast 模式：匹配这些 tag 的节点
 	TargetNodeIDs []string        `json:"target_node_ids,omitempty"` // targeted 模式：目标节点 ID 列表
-	MaxDepth      int             `json:"max_depth,omitempty"`       // 0 = 全路径
-	PublishUp     bool            `json:"publish_up,omitempty"`      // 是否上升到上层节点
+	MaxDepth      int             `json:"max_depth,omitempty"`       // 0 = 全路径；对 environment_scope / organization_scope 表示目标节点起始后的祖先展开深度
+	PublishUp     bool            `json:"publish_up,omitempty"`      // 是否在沿主 parent 链继续传播时发布到更高层公共节点；不改变模式语义归属
 }
 
 // PropagateAction 描述规则链中触发后的一个传播动作。
@@ -364,7 +366,7 @@ type MemoryUpdate struct {
 	Content     string           `json:"content"`
 	Level       MemoryLevel      `json:"level"`
 	Tags        string           `json:"tags,omitempty"`
-	Propagation *PropagationRule `json:"propagation,omitempty"` // 传播规则，nil 表示默认向上
+	Propagation *PropagationRule `json:"propagation,omitempty"` // 传播规则；nil 表示默认 upward。显式环境/组织传播必须写在这里，不能靠节点树结构猜测。
 }
 
 // ResponseMeta 记录本次推理的元信息。

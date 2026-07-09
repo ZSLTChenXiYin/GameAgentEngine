@@ -603,6 +603,128 @@ func TestPropagateUpwardIgnoresExternalParentByDefault(t *testing.T) {
 	}
 }
 
+func TestParseMemoryUpdatesIncludesPropagationRule(t *testing.T) {
+	pipeline := NewPipeline(&stubProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`})
+	updates := pipeline.parseMemoryUpdates(`[
+		{
+			"node_id":"npc-1",
+			"content":"环境告警",
+			"level":"long_term",
+			"tags":"alarm",
+			"propagation":{"mode":"environment_scope","max_depth":2}
+		}
+	]`)
+	if len(updates) != 1 {
+		t.Fatalf("expected 1 memory update, got %d", len(updates))
+	}
+	if updates[0].Propagation == nil {
+		t.Fatal("expected propagation rule to be parsed")
+	}
+	if updates[0].Propagation.Mode != PropModeEnvironment {
+		t.Fatalf("expected environment_scope mode, got %q", updates[0].Propagation.Mode)
+	}
+	if updates[0].Propagation.MaxDepth != 2 {
+		t.Fatalf("expected max_depth 2, got %d", updates[0].Propagation.MaxDepth)
+	}
+}
+
+func TestPropagateEnvironmentScopeUsesLocatedAtAndLocationAncestors(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	worldInt := store.ResolveNodeUUID(worldID)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	region := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "NorthRegion", NodeType: string(NodeTypeLocation), ParentID: &worldInt}
+	if err := store.CreateNode(region); err != nil {
+		t.Fatalf("create region: %v", err)
+	}
+	store.ResolveNodeParentUUID(region)
+	location := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "Camp", NodeType: string(NodeTypeLocation), ParentID: &region.ID}
+	if err := store.CreateNode(location); err != nil {
+		t.Fatalf("create location: %v", err)
+	}
+	store.ResolveNodeParentUUID(location)
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: nodeInt, SourceUUID: nodeID, TargetID: location.ID, TargetUUID: location.UUID, RelationType: string(RelLocatedAt), Weight: 1}); err != nil {
+		t.Fatalf("create located_at relation: %v", err)
+	}
+
+	pipeline := NewPipeline(&stubProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`})
+	req := &InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom}
+	runtime := &executionConfig{memoryLimit: 50, maxRounds: 1, configuredPipelineMode: PipelineFull, pipelineMode: PipelineFull}
+	pipeline.PropagateMemoryByRule(req, runtime, ModeProduction, MemoryUpdate{NodeID: nodeID, Content: "环境异动", Level: MemLongTerm, Propagation: &PropagationRule{Mode: PropModeEnvironment, MaxDepth: 2}}, nodeID)
+
+	locationMems, err := store.GetNodeMemories(location.UUID, 10)
+	if err != nil {
+		t.Fatalf("get location memories: %v", err)
+	}
+	regionMems, err := store.GetNodeMemories(region.UUID, 10)
+	if err != nil {
+		t.Fatalf("get region memories: %v", err)
+	}
+	worldMems, err := store.GetNodeMemories(worldID, 10)
+	if err != nil {
+		t.Fatalf("get world memories: %v", err)
+	}
+	if len(locationMems) != 1 || locationMems[0].Level != string(MemShared) {
+		t.Fatalf("expected shared memory on location, got %#v", locationMems)
+	}
+	if len(regionMems) != 1 || regionMems[0].Level != string(MemWorld) {
+		t.Fatalf("expected world memory on region ancestor, got %#v", regionMems)
+	}
+	if len(worldMems) != 1 || worldMems[0].Level != string(MemWorld) {
+		t.Fatalf("expected world memory on world ancestor, got %#v", worldMems)
+	}
+}
+
+func TestPropagateOrganizationScopeUsesBelongsToAndSubordinateTargets(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	worldInt := store.ResolveNodeUUID(worldID)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	faction := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "IronLegion", NodeType: string(NodeTypeFaction), ParentID: &worldInt}
+	if err := store.CreateNode(faction); err != nil {
+		t.Fatalf("create faction: %v", err)
+	}
+	store.ResolveNodeParentUUID(faction)
+	commander := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "Commander", NodeType: string(NodeTypeNPC), ParentID: &faction.ID}
+	if err := store.CreateNode(commander); err != nil {
+		t.Fatalf("create commander: %v", err)
+	}
+	store.ResolveNodeParentUUID(commander)
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: nodeInt, SourceUUID: nodeID, TargetID: faction.ID, TargetUUID: faction.UUID, RelationType: string(RelBelongsTo), Weight: 1}); err != nil {
+		t.Fatalf("create belongs_to relation: %v", err)
+	}
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: nodeInt, SourceUUID: nodeID, TargetID: commander.ID, TargetUUID: commander.UUID, RelationType: string(RelSubordinate), Weight: 1}); err != nil {
+		t.Fatalf("create subordinate relation: %v", err)
+	}
+
+	pipeline := NewPipeline(&stubProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`})
+	req := &InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom}
+	runtime := &executionConfig{memoryLimit: 50, maxRounds: 1, configuredPipelineMode: PipelineFull, pipelineMode: PipelineFull}
+	pipeline.PropagateMemoryByRule(req, runtime, ModeProduction, MemoryUpdate{NodeID: nodeID, Content: "组织通报", Level: MemLongTerm, Propagation: &PropagationRule{Mode: PropModeOrganization, MaxDepth: 1}}, nodeID)
+
+	factionMems, err := store.GetNodeMemories(faction.UUID, 10)
+	if err != nil {
+		t.Fatalf("get faction memories: %v", err)
+	}
+	commanderMems, err := store.GetNodeMemories(commander.UUID, 10)
+	if err != nil {
+		t.Fatalf("get commander memories: %v", err)
+	}
+	worldMems, err := store.GetNodeMemories(worldID, 10)
+	if err != nil {
+		t.Fatalf("get world memories: %v", err)
+	}
+	if len(factionMems) != 1 || factionMems[0].Level != string(MemShared) {
+		t.Fatalf("expected shared memory on belongs_to target, got %#v", factionMems)
+	}
+	if len(commanderMems) != 1 || commanderMems[0].Level != string(MemShared) {
+		t.Fatalf("expected shared memory on subordinate target, got %#v", commanderMems)
+	}
+	if len(worldMems) != 1 || worldMems[0].Level != string(MemWorld) {
+		t.Fatalf("expected one deduped world-level organization memory, got %#v", worldMems)
+	}
+}
+
 func TestExecuteAutonomousActUsesLocatedAtEnvironmentChain(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
