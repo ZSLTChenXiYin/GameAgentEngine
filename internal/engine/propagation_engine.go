@@ -31,10 +31,10 @@ func (p *Pipeline) ManualPropagateMemory(req *InvokeRequest, mem MemoryUpdate, s
 // PropagateMemoryByRule 根据传播规则选择传播路径。
 //
 // 当前约束：
-// 1. 默认 upward 传播只沿主 parent 链工作，它反映的是稳定归属作用域，而不是当前环境作用域。
-// 2. 在 parent 与 located_at 语义分离后，任何环境传播或组织传播都不应偷偷复用 upward 语义，而应通过新的显式
-//    传播模式建模。
-// 3. external_parent 是否参与默认传播必须由实现显式声明；不能因为它名字里有 parent 就自动混入 upward。
+//  1. 默认 upward 传播只沿主 parent 链工作，它反映的是稳定归属作用域，而不是当前环境作用域。
+//  2. 在 parent 与 located_at 语义分离后，任何环境传播或组织传播都不应偷偷复用 upward 语义，而应通过新的显式
+//     传播模式建模。
+//  3. external_parent 是否参与默认传播必须由实现显式声明；不能因为它名字里有 parent 就自动混入 upward。
 func (p *Pipeline) PropagateMemoryByRule(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, mem MemoryUpdate, sourceNodeID string) {
 	rule := mem.Propagation
 	mode := PropModeUpward
@@ -44,6 +44,14 @@ func (p *Pipeline) PropagateMemoryByRule(req *InvokeRequest, runtime *executionC
 
 	if rule != nil {
 		mode = rule.Mode
+		if mode == "" {
+			mode = PropModeUpward
+		}
+		if !IsValidPropagationMode(mode) {
+			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_skipped", mem.Content, map[string]any{"source_node_id": sourceNodeID, "reason": "unsupported_mode", "mode": mode})
+			log.Printf("propagate memory: unsupported propagation mode %q", mode)
+			return
+		}
 		if rule.MaxDepth > 0 {
 			maxDepth = rule.MaxDepth
 		} else {
@@ -434,6 +442,10 @@ func (p *Pipeline) runPropagationMachine(req *InvokeRequest, runtime *executionC
 				p.PropagateEnvironmentScope(req, runtime, executionMode, sourceNode.UUID, actionMem.Content, actionMem.Level, action.MaxDepth)
 			case PropModeOrganization:
 				p.PropagateOrganizationScope(req, runtime, executionMode, sourceNode.UUID, actionMem.Content, actionMem.Level, action.MaxDepth)
+			default:
+				p.emitExecutionEvent(req, runtime, executionMode, "propagation_machine_skipped", actionMem.Content, map[string]any{"source_node_id": sourceNode.UUID, "reason": "unsupported_mode", "mode": action.Mode})
+				log.Printf("propagation machine: unsupported propagation mode %q", action.Mode)
+				continue
 			}
 
 			for _, nextUUID := range action.NextChainIDs {

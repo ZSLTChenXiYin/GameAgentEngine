@@ -206,6 +206,14 @@ func (p *Pipeline) parseMemoryUpdates(rawJSON string) []MemoryUpdate {
 		if level == "" {
 			level = MemShortTerm
 		}
+		if rm.Propagation != nil {
+			if rm.Propagation.Mode == "" {
+				rm.Propagation.Mode = PropModeUpward
+			} else if !IsValidPropagationMode(rm.Propagation.Mode) {
+				log.Printf("[warn] parse memory_updates: unsupported propagation mode %q", rm.Propagation.Mode)
+				rm.Propagation = nil
+			}
+		}
 		result = append(result, MemoryUpdate{
 			NodeID:      rm.NodeID,
 			Content:     rm.Content,

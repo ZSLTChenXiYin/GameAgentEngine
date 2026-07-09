@@ -28,10 +28,10 @@ func ValidNodeTypes() []NodeType {
 type ComponentType string
 
 const (
-	CompProfile        ComponentType = "profile"
-	CompMemory         ComponentType = "memory"
-	CompRule           ComponentType = "rule"
-	CompTimeline       ComponentType = "timeline"
+	CompProfile  ComponentType = "profile"
+	CompMemory   ComponentType = "memory"
+	CompRule     ComponentType = "rule"
+	CompTimeline ComponentType = "timeline"
 	// CompRelations 仅表示与关系相关的辅助组件负载；权威关系数据仍以 relations 表中的结构化边为准。
 	// 后续开发不得把它当成与 RelationModel 并列的第二套真相来源。
 	CompActionPolicy   ComponentType = "action_policy"
@@ -70,33 +70,33 @@ func IsStateComponentType(componentType string) bool {
 // RelationType 表示两个节点之间的有向关系类型。
 //
 // 语义总约束：
-// 1. 所有关系边统一按 source -> target 解读，禁止在调用方再反向猜测语义。
-// 2. parent 不是普通关系边；parent 是唯一主层级结构，负责稳定归属、默认祖先链和默认上行传播。
-// 3. 显式关系边负责补充动态语义，不得随意替代 parent 的职责；尤其不能把当前位置、命令链和额外作用域
-//    混写成同一种关系。
-// 4. 各关系类型在默认上下文中的职责必须严格区分：稳定归属走 parent，动态环境走 located_at，组织/控制
-//    关系走 belongs_to/subordinate，社会语义走 ally/enemy/kinship。
+//  1. 所有关系边统一按 source -> target 解读，禁止在调用方再反向猜测语义。
+//  2. parent 不是普通关系边；parent 是唯一主层级结构，负责稳定归属、默认祖先链和默认上行传播。
+//  3. 显式关系边负责补充动态语义，不得随意替代 parent 的职责；尤其不能把当前位置、命令链和额外作用域
+//     混写成同一种关系。
+//  4. 各关系类型在默认上下文中的职责必须严格区分：稳定归属走 parent，动态环境走 located_at，组织/控制
+//     关系走 belongs_to/subordinate，社会语义走 ally/enemy/kinship。
 type RelationType string
 
 const (
 	// RelBelongsTo 表示 source 在归属、拥有、编制或资产依附意义上属于 target。
 	// 它用于表达稳定的归属语义，但不替代 parent，不表示当前位置，也不自动构成默认祖先链。
-	RelBelongsTo      RelationType = "belongs_to"
+	RelBelongsTo RelationType = "belongs_to"
 	// RelAlly 表示 source 与 target 处于友好、合作或联盟关系。
 	// 它属于社会语义边，不参与默认层级继承；如果业务上要求双向盟友，应由上层显式写双向边或做对称解释。
-	RelAlly           RelationType = "ally"
+	RelAlly RelationType = "ally"
 	// RelEnemy 表示 source 与 target 处于敌对、冲突或对抗关系。
 	// 它属于社会语义边，不参与默认层级继承；如果业务上要求双向敌对，应由上层显式写双向边或做对称解释。
-	RelEnemy          RelationType = "enemy"
+	RelEnemy RelationType = "enemy"
 	// RelSubordinate 表示 source 受 target 指挥、汇报或控制。
 	// 它强调命令链/汇报链，不等同于一般归属，不表示当前位置，也不替代主父节点。
-	RelSubordinate    RelationType = "subordinate"
+	RelSubordinate RelationType = "subordinate"
 	// RelKinship 表示 source 与 target 存在亲属、家族或婚姻关系。
 	// 它属于人物背景/社会纽带关系，不参与默认层级继承；更细的亲属类型应写入 properties，而不是继续扩枚举。
-	RelKinship        RelationType = "kinship"
+	RelKinship RelationType = "kinship"
 	// RelLocatedAt 表示 source 当前位于 target 所代表的地点/场景节点。
 	// 它只表达动态环境位置，不表示稳定归属，不替代 parent；后续环境上下文必须优先沿这条关系装配。
-	RelLocatedAt      RelationType = "located_at"
+	RelLocatedAt RelationType = "located_at"
 	// RelExternalParent 表示 source 在主 parent 之外额外挂接到 target 作用域。
 	// 它只用于额外作用域建模，禁止拿来表达当前位置、普通组织归属或社会关系；是否参与默认上下文/传播必须
 	// 由引擎显式实现，不能靠调用方臆测。
@@ -325,13 +325,24 @@ type ActionCall struct {
 type PropagationMode string
 
 const (
-	PropModeUpward       PropagationMode = "upward"        // 只沿主 parent 链向上传播，不包含 located_at、belongs_to、subordinate 或 external_parent。
-	PropModeEnvironment  PropagationMode = "environment_scope" // 沿 located_at 指向的当前环境节点及其 parent 场景祖先传播，用于环境作用域，不替代主父链。
+	PropModeUpward       PropagationMode = "upward"             // 只沿主 parent 链向上传播，不包含 located_at、belongs_to、subordinate 或 external_parent。
+	PropModeEnvironment  PropagationMode = "environment_scope"  // 沿 located_at 指向的当前环境节点及其 parent 场景祖先传播，用于环境作用域，不替代主父链。
 	PropModeOrganization PropagationMode = "organization_scope" // 沿 belongs_to/subordinate 指向的组织或控制节点及其主 parent 链传播，用于组织/控制作用域。
-	PropModeTagBroadcast PropagationMode = "tag_broadcast" // 按 tags 匹配节点扩散，适合显式广播，不表达层级、环境或控制链语义。
-	PropModeTargeted     PropagationMode = "targeted"      // 定向传播到指定节点，适合业务显式点名，不表达默认结构语义。
-	PropModeManual       PropagationMode = "manual"        // 不自动传播，交由外部显式触发。
+	PropModeTagBroadcast PropagationMode = "tag_broadcast"      // 按 tags 匹配节点扩散，适合显式广播，不表达层级、环境或控制链语义。
+	PropModeTargeted     PropagationMode = "targeted"           // 定向传播到指定节点，适合业务显式点名，不表达默认结构语义。
+	PropModeManual       PropagationMode = "manual"             // 不自动传播，交由外部显式触发。
 )
+
+// IsValidPropagationMode reports whether mode is one of the engine's
+// explicitly supported propagation strategies.
+func IsValidPropagationMode(mode PropagationMode) bool {
+	switch mode {
+	case PropModeUpward, PropModeEnvironment, PropModeOrganization, PropModeTagBroadcast, PropModeTargeted, PropModeManual:
+		return true
+	default:
+		return false
+	}
+}
 
 // PropagationRule 描述一条记忆的传播规则。
 type PropagationRule struct {

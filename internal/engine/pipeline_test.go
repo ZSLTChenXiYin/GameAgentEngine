@@ -628,6 +628,24 @@ func TestParseMemoryUpdatesIncludesPropagationRule(t *testing.T) {
 	}
 }
 
+func TestParseMemoryUpdatesDropsUnsupportedPropagationRule(t *testing.T) {
+	pipeline := NewPipeline(&stubProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`})
+	updates := pipeline.parseMemoryUpdates(`[
+		{
+			"node_id":"npc-1",
+			"content":"错误传播模式",
+			"level":"long_term",
+			"propagation":{"mode":"sideways"}
+		}
+	]`)
+	if len(updates) != 1 {
+		t.Fatalf("expected 1 memory update, got %d", len(updates))
+	}
+	if updates[0].Propagation != nil {
+		t.Fatalf("expected invalid propagation rule to be dropped, got %#v", updates[0].Propagation)
+	}
+}
+
 func TestPropagateEnvironmentScopeUsesLocatedAtAndLocationAncestors(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)

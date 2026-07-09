@@ -510,6 +510,9 @@ func MakePropagateMemoryHandler(p *engine.Pipeline) http.HandlerFunc {
 		mode := engine.PropagationMode(req.Mode)
 		if mode == "" {
 			mode = engine.PropModeUpward
+		} else if !engine.IsValidPropagationMode(mode) {
+			errorJSON(w, 400, "unsupported propagation mode")
+			return
 		}
 		level := engine.MemoryLevel(memory.Level)
 		if level == "" {
