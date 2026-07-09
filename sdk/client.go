@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 )
 
@@ -85,6 +86,14 @@ func buildQuery(params map[string]any) string {
 		}
 	}
 	return vals.Encode()
+}
+
+func isValidRelationType(value string) bool {
+	return value != "" && slices.Contains(ValidRelationTypes(), value)
+}
+
+func isValidPropagationMode(value string) bool {
+	return value != "" && slices.Contains(ValidPropagationModes(), value)
 }
 
 // Health 调用健康检查接口确认服务可达。
@@ -366,6 +375,9 @@ func (c *Client) CreateRelation(worldID, sourceID, targetID, relType string, wei
 
 // CreateRelationWithProps 创建一条带属性的关系并返回其 ID。
 func (c *Client) CreateRelationWithProps(worldID, sourceID, targetID, relType string, weight int, props string) (string, error) {
+	if !isValidRelationType(relType) {
+		return "", fmt.Errorf("invalid relation_type: %s", relType)
+	}
 	body := map[string]any{
 		"world_id":      worldID,
 		"source_id":     sourceID,
@@ -395,6 +407,9 @@ func (c *Client) UpdateRelation(id string, sourceID, targetID, relationType, pro
 		body["target_id"] = *targetID
 	}
 	if relationType != nil {
+		if !isValidRelationType(*relationType) {
+			return nil, fmt.Errorf("invalid relation_type: %s", *relationType)
+		}
 		body["relation_type"] = *relationType
 	}
 	if weight != nil {
@@ -1107,6 +1122,12 @@ func (c *Client) ActionCallback(callbackID, status string, result any) error {
 
 // PropagateMemory 手动触发已有记忆的传播。
 func (c *Client) PropagateMemory(memoryID, mode string, tags, targetIDs []string, maxDepth int, publishUp bool) error {
+	if mode == "" {
+		mode = PropagationModeUpward
+	}
+	if !isValidPropagationMode(mode) {
+		return fmt.Errorf("invalid propagation mode: %s", mode)
+	}
 	body := map[string]any{
 		"memory_id": memoryID,
 		"mode":      mode,

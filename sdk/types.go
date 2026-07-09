@@ -2,6 +2,31 @@ package sdk
 
 import "time"
 
+const (
+	RelationBelongsTo      = "belongs_to"
+	RelationAlly           = "ally"
+	RelationEnemy          = "enemy"
+	RelationSubordinate    = "subordinate"
+	RelationKinship        = "kinship"
+	RelationLocatedAt      = "located_at"
+	RelationExternalParent = "external_parent"
+)
+
+const (
+	PipelineModeVertical = "vertical"
+	PipelineModePolling  = "polling"
+	PipelineModeFull     = "full"
+)
+
+const (
+	PropagationModeUpward       = "upward"
+	PropagationModeEnvironment  = "environment_scope"
+	PropagationModeOrganization = "organization_scope"
+	PropagationModeTagBroadcast = "tag_broadcast"
+	PropagationModeTargeted     = "targeted"
+	PropagationModeManual       = "manual"
+)
+
 // Node 表示 Agent API 返回的节点实体。
 type Node struct {
 	ID        string    `json:"id"`
@@ -24,6 +49,7 @@ type Component struct {
 }
 
 // Relation 表示两个节点之间的有向关系。
+// 所有关系都严格按 source -> target 解读；SDK 调用方不应自行反向猜语义。
 type Relation struct {
 	ID           string `json:"id"`
 	WorldID      string `json:"world_id"`
@@ -56,8 +82,8 @@ type InvokeContext struct {
 	MaxAnalysisRounds   int    `json:"max_analysis_rounds,omitempty"`   // LLM 内部轮询最大次数（0 表示使用服务端配置）
 	MaxDepth            int    `json:"max_depth,omitempty"`             // 上下文向上追溯的最大深度（0 表示使用服务端配置）
 	MemoryLimit         int    `json:"memory_limit,omitempty"`          // 每次推理最多加载的记忆数量（0 表示使用服务端配置）
-	IncludeRelatedNodes bool   `json:"include_related_nodes,omitempty"` // 是否加载关联节点的数据
-	PipelineMode        string `json:"pipeline_mode,omitempty"`         // 管线模式：vertical/polling/full
+	IncludeRelatedNodes bool   `json:"include_related_nodes,omitempty"` // 是否启用受控关系补充；这不是“把所有邻接关系节点全部塞进上下文”的开关。
+	PipelineMode        string `json:"pipeline_mode,omitempty"`         // 管线模式：vertical/polling/full；也决定关系图谱装配强度。
 }
 
 // InvokeRequest 是 SDK 侧的统一推理请求结构。
@@ -138,7 +164,7 @@ type MemoryUpdate struct {
 	Content     string           `json:"content"`
 	Level       string           `json:"level"`
 	Tags        string           `json:"tags,omitempty"`
-	Propagation *PropagationRule `json:"propagation,omitempty"`
+	Propagation *PropagationRule `json:"propagation,omitempty"` // nil 表示默认 upward；显式环境/组织传播必须通过 propagation 指定。
 }
 
 // WorldChangePlan 描述一次世界刻推进产生的变更计划。
@@ -328,11 +354,23 @@ type WorldPolicy struct {
 
 // PropagationRule 描述记忆传播规则。
 type PropagationRule struct {
-	Mode          string   `json:"mode,omitempty"`
-	TargetTags    []string `json:"target_tags,omitempty"`
-	TargetNodeIDs []string `json:"target_node_ids,omitempty"`
-	MaxDepth      int      `json:"max_depth,omitempty"`
-	PublishUp     bool     `json:"publish_up,omitempty"`
+	Mode          string   `json:"mode,omitempty"`            // upward / environment_scope / organization_scope / tag_broadcast / targeted / manual
+	TargetTags    []string `json:"target_tags,omitempty"`     // tag_broadcast 模式：按标签扩散
+	TargetNodeIDs []string `json:"target_node_ids,omitempty"` // targeted 模式：定向目标节点
+	MaxDepth      int      `json:"max_depth,omitempty"`       // 对结构传播模式表示目标节点起始后的祖先展开深度
+	PublishUp     bool     `json:"publish_up,omitempty"`      // 仅影响 upward 主父链传播的更高层发布行为，不改变模式语义
+}
+
+func ValidRelationTypes() []string {
+	return []string{RelationBelongsTo, RelationAlly, RelationEnemy, RelationSubordinate, RelationKinship, RelationLocatedAt, RelationExternalParent}
+}
+
+func ValidPropagationModes() []string {
+	return []string{PropagationModeUpward, PropagationModeEnvironment, PropagationModeOrganization, PropagationModeTagBroadcast, PropagationModeTargeted, PropagationModeManual}
+}
+
+func ValidPipelineModes() []string {
+	return []string{PipelineModeVertical, PipelineModePolling, PipelineModeFull}
 }
 
 // WorldSettings 表示世界的运行设置。
