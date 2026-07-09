@@ -271,26 +271,83 @@ function validateWorldTimeSettingsInput(settings) {
   if (!Number.isInteger(settings.tick_step) || settings.tick_step <= 0) return 'tick_step must be greater than 0';
   if (!Array.isArray(settings.tick_units) || settings.tick_units.length === 0) return 'tick_units must contain at least one unit';
   var seen = {};
+  var normalizedUnits = [];
   for (var i = 0; i < settings.tick_units.length; i++) {
-    var unit = settings.tick_units[i];
+    var unit = String(settings.tick_units[i] || '').trim();
     if (!unit) return 'tick_units must not contain empty values';
     if (seen[unit]) return 'tick_units must not contain duplicate values';
     seen[unit] = true;
+    normalizedUnits.push(unit);
   }
-  if (settings.tick_units[settings.tick_units.length - 1] !== settings.tick_min_unit) return 'tick_min_unit must match the smallest configured tick unit';
-  if (settings.tick_units.length > 1 && settings.time_scale_carry.length !== settings.tick_units.length - 1) {
+  var tickMinUnit = String(settings.tick_min_unit || '').trim();
+  if (normalizedUnits[normalizedUnits.length - 1] !== tickMinUnit) return 'tick_min_unit must match the smallest configured tick unit';
+
+  var carryRules = Array.isArray(settings.time_scale_carry) ? settings.time_scale_carry : [];
+  if (normalizedUnits.length > 1 && carryRules.length !== normalizedUnits.length - 1) {
     return 'time_scale_carry must define exactly one adjacent rule per unit gap';
   }
-  for (var j = 0; j < settings.time_scale_carry.length; j++) {
-    var rule = settings.time_scale_carry[j];
+  var carryByFrom = {};
+  for (var j = 0; j < carryRules.length; j++) {
+    var rule = carryRules[j] || {};
+    var from = String(rule.from || '').trim();
+    var to = String(rule.to || '').trim();
+    var expectedFrom = normalizedUnits[normalizedUnits.length - 1 - j];
+    var expectedTo = normalizedUnits[normalizedUnits.length - 2 - j];
     if (!rule.from || !rule.to || !Number.isInteger(rule.base) || rule.base <= 0) {
       return 'time_scale_carry entries must define from, to, and base > 0';
     }
+    if (from !== expectedFrom || to !== expectedTo) {
+      return 'time_scale_carry[' + j + '] must be ' + expectedFrom + ' -> ' + expectedTo;
+    }
+    carryByFrom[from] = rule;
   }
+
+  var sequences = Array.isArray(settings.unit_value_sequences) ? settings.unit_value_sequences : [];
+  var sequenceByUnit = {};
+  for (var k = 0; k < sequences.length; k++) {
+    var seq = sequences[k] || {};
+    var seqUnit = String(seq.unit || '').trim();
+    if (!seqUnit) return 'unit_value_sequences[' + k + '].unit must not be empty';
+    if (!seen[seqUnit]) return 'unit_value_sequences[' + k + '].unit ' + JSON.stringify(seqUnit) + ' must exist in tick_units';
+    if (seqUnit === normalizedUnits[0]) return 'unit_value_sequences[' + k + '].unit ' + JSON.stringify(seqUnit) + ' cannot be the largest tick unit';
+    if (!Array.isArray(seq.values) || seq.values.length === 0) return 'unit_value_sequences[' + k + '].values must not be empty';
+    if (!carryByFrom[seqUnit]) return 'unit_value_sequences[' + k + '].unit ' + JSON.stringify(seqUnit) + ' requires a matching time_scale_carry rule';
+    if (seq.values.length !== carryByFrom[seqUnit].base) {
+      return 'unit_value_sequences[' + k + '].values for ' + JSON.stringify(seqUnit) + ' must contain exactly ' + carryByFrom[seqUnit].base + ' entries';
+    }
+    sequenceByUnit[seqUnit] = seq.values.map(function(item) { return String(item || '').trim(); });
+  }
+
   if (settings.time_calendar && settings.time_calendar.enabled) {
     if (!settings.time_calendar.calendar_name) return 'time_calendar.calendar_name must not be empty when calendar mode is enabled';
     if (!Array.isArray(settings.time_calendar.units) || settings.time_calendar.units.length !== settings.tick_units.length) {
       return 'time_calendar.units must match tick_units exactly when calendar mode is enabled';
+    }
+    for (var m = 0; m < settings.time_calendar.units.length; m++) {
+      var calendarUnit = settings.time_calendar.units[m] || {};
+      var calendarUnitName = String(calendarUnit.unit || '').trim();
+      var calendarValue = String(calendarUnit.value || '').trim();
+      if (!calendarUnitName) return 'time_calendar.units[' + m + '].unit must not be empty';
+      if (calendarUnitName !== normalizedUnits[m]) return 'time_calendar.units[' + m + '].unit must be ' + JSON.stringify(normalizedUnits[m]);
+      if (!calendarValue) return 'time_calendar.units[' + m + '].value must not be empty';
+      if (/^-?\d+$/.test(calendarValue)) {
+        var numericValue = parseInt(calendarValue, 10);
+        if (carryByFrom[calendarUnitName]) {
+          if (numericValue < 0 || numericValue >= carryByFrom[calendarUnitName].base) {
+            return 'time_calendar.units[' + m + '].value for ' + JSON.stringify(calendarUnitName) + ' must be between 0 and ' + (carryByFrom[calendarUnitName].base - 1);
+          }
+        }
+      } else {
+        if (!sequenceByUnit[calendarUnitName] || sequenceByUnit[calendarUnitName].length === 0) {
+          return 'time_calendar.units[' + m + '].unit ' + JSON.stringify(calendarUnitName) + ' requires unit_value_sequences';
+        }
+        if (sequenceByUnit[calendarUnitName].indexOf(calendarValue) < 0) {
+          return 'time_calendar.units[' + m + '].value ' + JSON.stringify(calendarValue) + ' must exist in unit_value_sequences for ' + JSON.stringify(calendarUnitName);
+        }
+      }
+    }
+    if (String(settings.time_calendar.units[settings.time_calendar.units.length - 1].unit || '').trim() !== tickMinUnit) {
+      return 'time_calendar smallest unit must match tick_min_unit';
     }
   }
   return '';
