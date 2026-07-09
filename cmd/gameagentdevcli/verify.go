@@ -54,7 +54,10 @@ var verifyDemoCmd = &cobra.Command{
 			fail(fmt.Errorf("reset error: %w", err))
 		}
 
-		path := filepath.Join("docs", "demo-world.yaml")
+		path, err := findDemoWorldFile()
+		if err != nil {
+			fail(err)
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			fail(fmt.Errorf("read demo world: %w", err))
@@ -94,4 +97,28 @@ var verifyDemoCmd = &cobra.Command{
 
 func init() {
 	verifyCmd.AddCommand(verifyImportCmd, verifyDemoCmd)
+}
+
+func findDemoWorldFile() (string, error) {
+	candidates := make([]string, 0, 4)
+	if localConfigPath != "" {
+		candidates = append(candidates, filepath.Join(filepath.Dir(localConfigPath), "demo-world.yaml"))
+	}
+	if exePath, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Join(filepath.Dir(exePath), "demo-world.yaml"))
+	}
+	candidates = append(candidates,
+		"demo-world.yaml",
+		filepath.Join("tools", "source", "demo-world.yaml"),
+		filepath.Join("docs", "demo-world.yaml"),
+	)
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("demo world file not found; checked: %s", strings.Join(candidates, ", "))
 }

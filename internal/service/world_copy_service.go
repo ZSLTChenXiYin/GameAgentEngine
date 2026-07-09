@@ -212,7 +212,7 @@ func copyWorldNodesTx(tx *gorm.DB, newWorld *store.NodeModel, oldWorldInt int64)
 		childrenByParent[*oldNode.ParentID] = append(childrenByParent[*oldNode.ParentID], oldNode)
 	}
 
-	currentLevel := rootChildren
+	currentLevel := append(rootChildren, childrenByParent[oldWorldInt]...)
 	for len(currentLevel) > 0 {
 		nextLevelParents := make([]int64, 0, len(currentLevel))
 		batchNodes := make([]store.NodeModel, 0, minInt(len(currentLevel), worldCopyBatchSize))
@@ -275,7 +275,10 @@ func copyWorldNodesTx(tx *gorm.DB, newWorld *store.NodeModel, oldWorldInt int64)
 
 func copyWorldComponentsTx(tx *gorm.DB, oldWorldInt int64, mappings worldCopyMappings) (int, error) {
 	var allComps []store.ComponentModel
-	if err := tx.Where("node_id IN (SELECT id FROM nodes WHERE world_id = ?)", oldWorldInt).Find(&allComps).Error; err != nil {
+	if err := tx.Model(&store.ComponentModel{}).
+		Joins("JOIN nodes ON nodes.id = components.node_id").
+		Where("nodes.world_id = ? AND nodes.deleted_at IS NULL", oldWorldInt).
+		Find(&allComps).Error; err != nil {
 		return 0, err
 	}
 	newComps := make([]store.ComponentModel, 0, len(allComps))
@@ -307,7 +310,10 @@ func copyWorldComponentsTx(tx *gorm.DB, oldWorldInt int64, mappings worldCopyMap
 
 func copyWorldMemoriesTx(tx *gorm.DB, oldWorldInt int64, mappings worldCopyMappings) (int, error) {
 	var allMems []store.MemoryModel
-	if err := tx.Where("node_id IN (SELECT id FROM nodes WHERE world_id = ?)", oldWorldInt).Find(&allMems).Error; err != nil {
+	if err := tx.Model(&store.MemoryModel{}).
+		Joins("JOIN nodes ON nodes.id = memories.node_id").
+		Where("nodes.world_id = ? AND nodes.deleted_at IS NULL", oldWorldInt).
+		Find(&allMems).Error; err != nil {
 		return 0, err
 	}
 	newMems := make([]store.MemoryModel, 0, len(allMems))

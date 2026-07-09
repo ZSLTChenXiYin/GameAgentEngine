@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/version"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
@@ -375,6 +376,45 @@ func TestRestoreWorldCreatesRunnableCopyFromSnapshot(t *testing.T) {
 	}
 	if restoredSnapshot.SnapshotName != "Restored Session" {
 		t.Fatalf("unexpected restore snapshot name: %s", restoredSnapshot.SnapshotName)
+	}
+}
+
+func TestCreateWorldSnapshotAfterTickStateComponents(t *testing.T) {
+	initImportExportTestDB(t)
+
+	world, err := createNodeTx(store.DB, "", "Tick Snapshot World", "world", nil)
+	if err != nil {
+		t.Fatalf("create world: %v", err)
+	}
+	location, err := createNodeTx(store.DB, world.UUID, "议事厅", "location", &world.UUID)
+	if err != nil {
+		t.Fatalf("create location: %v", err)
+	}
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: location.ID, NodeUUID: location.UUID, ComponentType: "profile", Data: "location profile"}); err != nil {
+		t.Fatalf("create location profile: %v", err)
+	}
+	if _, err := upsertStateComponentTx(store.DB, world.UUID, engine.CompWorldState, engine.WorldStateComponent{Summary: "summary"}); err != nil {
+		t.Fatalf("create world_state: %v", err)
+	}
+	if _, err := upsertStateComponentTx(store.DB, world.UUID, engine.CompStoryState, engine.StoryStateComponent{CurrentSituation: "situation"}); err != nil {
+		t.Fatalf("create story_state: %v", err)
+	}
+	if _, err := upsertStateComponentTx(store.DB, world.UUID, engine.CompStoryHistory, engine.StoryHistoryComponent{}); err != nil {
+		t.Fatalf("create story_history: %v", err)
+	}
+	if _, err := upsertStateComponentTx(store.DB, world.UUID, engine.CompWorldTimeState, engine.WorldTimeStateComponent{CurrentTimeLabel: "tick-1"}); err != nil {
+		t.Fatalf("create world_time_state: %v", err)
+	}
+	if _, err := upsertStateComponentTx(store.DB, world.UUID, engine.CompStateSnapshot, engine.StateSnapshotComponent{SnapshotType: "world_tick", Version: "v1"}); err != nil {
+		t.Fatalf("create state_snapshot: %v", err)
+	}
+
+	snapshotWorld, err := CreateWorldSnapshot(world.UUID, "Tick Snapshot Save", false)
+	if err != nil {
+		t.Fatalf("create snapshot after tick state components: %v", err)
+	}
+	if snapshotWorld == nil || snapshotWorld.UUID == "" {
+		t.Fatal("expected snapshot world to be created")
 	}
 }
 

@@ -4,6 +4,8 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -87,7 +89,21 @@ func Init(configPath string) error {
 	if err := v.Unmarshal(&Global); err != nil {
 		return fmt.Errorf("unmarshal config: %w", err)
 	}
+	Global.Database.DSN = resolveDatabaseDSN(Global.Database.Driver, Global.Database.DSN, v.ConfigFileUsed())
 	return nil
+}
+
+func resolveDatabaseDSN(driver, dsn, configFile string) string {
+	if !strings.EqualFold(driver, "sqlite") {
+		return dsn
+	}
+	if dsn == "" || filepath.IsAbs(dsn) || strings.HasPrefix(strings.ToLower(dsn), "file:") {
+		return dsn
+	}
+	if configFile == "" {
+		return dsn
+	}
+	return filepath.Join(filepath.Dir(configFile), dsn)
 }
 
 // ExecutionMode 返回当前生效的执行模式。
