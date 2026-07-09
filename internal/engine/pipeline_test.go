@@ -393,6 +393,61 @@ func TestExecuteWorldTickIncludesPersistentContinuityState(t *testing.T) {
 	}
 }
 
+func TestExecuteDialogueUsesLocatedAtEnvironmentChain(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	worldInt := store.ResolveNodeUUID(worldID)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	if worldInt == 0 || nodeInt == 0 {
+		t.Fatal("expected resolved world and node ids")
+	}
+	location := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "Tavern", NodeType: string(NodeTypeLocation), ParentID: &worldInt}
+	if err := store.CreateNode(location); err != nil {
+		t.Fatalf("create location: %v", err)
+	}
+	store.ResolveNodeParentUUID(location)
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: location.ID, NodeUUID: location.UUID, ComponentType: string(CompLore), Data: `{"lighting":"warm lanterns"}`}); err != nil {
+		t.Fatalf("create location component: %v", err)
+	}
+	if err := store.CreateMemory(&store.MemoryModel{NodeID: location.ID, NodeUUID: location.UUID, Content: "酒馆里弥漫着麦酒和木烟味。", Level: string(MemShared)}); err != nil {
+		t.Fatalf("create location memory: %v", err)
+	}
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: nodeInt, SourceUUID: nodeID, TargetID: location.ID, TargetUUID: location.UUID, RelationType: string(RelLocatedAt), Weight: 1}); err != nil {
+		t.Fatalf("create located_at relation: %v", err)
+	}
+
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskNPCDialogue}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(provider.lastPrompt, "当前环境链：Tavern(location) > World(world)") {
+		t.Fatalf("expected environment chain in prompt, got %s", provider.lastPrompt)
+	}
+	if !strings.Contains(provider.lastPrompt, "warm lanterns") {
+		t.Fatalf("expected location component in prompt, got %s", provider.lastPrompt)
+	}
+	if !strings.Contains(provider.lastPrompt, "酒馆里弥漫着麦酒和木烟味。") {
+		t.Fatalf("expected location memory in prompt, got %s", provider.lastPrompt)
+	}
+}
+
+func TestExecuteDialogueWithoutLocatedAtDoesNotInjectEnvironmentChain(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskNPCDialogue}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if strings.Contains(provider.lastPrompt, "当前环境链：") {
+		t.Fatalf("did not expect environment chain in prompt, got %s", provider.lastPrompt)
+	}
+	if strings.Contains(provider.lastPrompt, "环境信息：") {
+		t.Fatalf("did not expect environment block in prompt, got %s", provider.lastPrompt)
+	}
+}
+
 func TestExecuteFallsBackToDefaultSettingsWhenStoredValuesAreInvalid(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)

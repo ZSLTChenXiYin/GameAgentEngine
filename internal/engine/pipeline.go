@@ -354,7 +354,7 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 		policyEngine:           p.loadWorldPolicy(req.WorldID),
 	}
 
-	ctx, err := p.ctxBuilder.Build(req.NodeID, depth, runtime.memoryLimit, includeRelated)
+	ctx, err := p.ctxBuilder.Build(req.TaskType, req.NodeID, depth, runtime.memoryLimit, includeRelated)
 	if err != nil {
 		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 			Category:   "pipeline",
@@ -398,6 +398,18 @@ func (s *RoundState) buildPrompt(base string) string {
 		return base
 	}
 	return strings.TrimSpace(base + "\n\n补充上下文:\n" + strings.Join(s.SupplementalContext, "\n"))
+}
+
+func mergeBaseAndTreeContext(baseContext, treeContext string) string {
+	baseContext = strings.TrimSpace(baseContext)
+	treeContext = strings.TrimSpace(treeContext)
+	if treeContext == "" {
+		return baseContext
+	}
+	if baseContext == "" {
+		return treeContext
+	}
+	return strings.TrimSpace(baseContext + "\n\n任务树分析：\n" + treeContext)
 }
 
 func (p *Pipeline) executeMultiTurnLoop(
@@ -832,7 +844,7 @@ func (p *Pipeline) executeDialogue(req *InvokeRequest, ctx *BuiltContext, start 
 	}
 
 	dialogueFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-		return buildDialoguePrompt(treeContext, nodeID)
+		return buildDialoguePrompt(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), nodeID)
 	}
 
 	loopRuntime := *runtime
@@ -860,10 +872,7 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 	}
 
 	tickFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-		baseContext := ctx.SystemPrompt
-		if strings.TrimSpace(treeContext) != "" {
-			baseContext = strings.TrimSpace(ctx.SystemPrompt + "\n\n任务树分析：\n" + treeContext)
-		}
+		baseContext := mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext)
 		return buildWorldTickPrompt(baseContext, currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock)
 	}
 
@@ -936,7 +945,7 @@ func (p *Pipeline) executeWorldEvent(req *InvokeRequest, ctx *BuiltContext, star
 	}
 
 	eventFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-		return buildEventImpactPrompt(treeContext, eventDesc, nodeID)
+		return buildEventImpactPrompt(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), eventDesc, nodeID)
 	}
 
 	var tree *TaskTree
@@ -969,7 +978,7 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 	}
 
 	autonomousFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-		return buildAutonomousPrompt(treeContext, nodeID, cfg)
+		return buildAutonomousPrompt(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), nodeID, cfg)
 	}
 
 	var tree *TaskTree
