@@ -22,6 +22,20 @@ func TestGetContinuityBundleAggregatesTimelineStateLogsAndTraces(t *testing.T) {
 					"timeline": map[string]any{"id": "tick-7", "world_id": "world-1", "tick_number": 7, "tick_type": "daily", "created_at": "2026-01-01T00:00:00Z"},
 				},
 			})
+		case "/api/v1/worlds/world-1/timelines":
+			if r.URL.Query().Get("limit") != "6" {
+				t.Fatalf("expected timeline limit 6, got %q", r.URL.RawQuery)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"world_id": "world-1",
+				"timelines": []map[string]any{{
+					"tick_number":    7,
+					"tick_type":      "daily",
+					"advanced_ticks": 2,
+					"data":           map[string]any{"world_time_state": map[string]any{"current_time_label": "Day 7"}},
+					"timeline":       map[string]any{"id": "tick-7", "world_id": "world-1", "tick_number": 7, "tick_type": "daily", "created_at": "2026-01-01T00:00:00Z"},
+				}},
+			})
 		case "/api/v1/worlds/world-1/state-components":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"world_id": "world-1",
@@ -54,6 +68,9 @@ func TestGetContinuityBundleAggregatesTimelineStateLogsAndTraces(t *testing.T) {
 	if bundle.LatestTimeline == nil || bundle.LatestTimeline.TickNumber != 7 {
 		t.Fatalf("unexpected timeline: %#v", bundle.LatestTimeline)
 	}
+	if len(bundle.Timelines) != 1 || bundle.Timelines[0].AdvancedTicks != 2 {
+		t.Fatalf("unexpected timelines: %#v", bundle.Timelines)
+	}
 	if len(bundle.StateComponents) != 1 || bundle.StateComponents[0].ComponentType != "world_state" {
 		t.Fatalf("unexpected state components: %#v", bundle.StateComponents)
 	}
@@ -63,7 +80,7 @@ func TestGetContinuityBundleAggregatesTimelineStateLogsAndTraces(t *testing.T) {
 	if len(bundle.Traces) != 1 || bundle.Traces[0].ID != "trace-1" {
 		t.Fatalf("unexpected traces: %#v", bundle.Traces)
 	}
-	for _, path := range []string{"/api/v1/worlds/world-1/timelines/latest", "/api/v1/worlds/world-1/state-components", "/api/v1/logs", "/debug/traces"} {
+	for _, path := range []string{"/api/v1/worlds/world-1/timelines/latest", "/api/v1/worlds/world-1/timelines", "/api/v1/worlds/world-1/state-components", "/api/v1/logs", "/debug/traces"} {
 		if requested[path] != 1 {
 			t.Fatalf("expected one request to %s, got %d", path, requested[path])
 		}
@@ -78,6 +95,11 @@ func TestGetContinuityBundleRespectsIncludeFlags(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/worlds/world-1/timelines/latest":
 			_ = json.NewEncoder(w).Encode(map[string]any{"world_id": "world-1", "timeline": map[string]any{"tick_number": 1, "tick_type": "manual", "timeline": map[string]any{"id": "tick-1", "world_id": "world-1", "tick_number": 1, "tick_type": "manual", "created_at": "2026-01-01T00:00:00Z"}}})
+		case "/api/v1/worlds/world-1/timelines":
+			if r.URL.Query().Get("limit") != "3" {
+				t.Fatalf("expected timeline limit 3, got %q", r.URL.RawQuery)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"world_id": "world-1", "timelines": []map[string]any{}})
 		case "/api/v1/worlds/world-1/state-components":
 			_ = json.NewEncoder(w).Encode(map[string]any{"world_id": "world-1", "components": []map[string]any{}})
 		case "/api/v1/logs":
@@ -91,14 +113,14 @@ func TestGetContinuityBundleRespectsIncludeFlags(t *testing.T) {
 	defer ts.Close()
 
 	client := NewClient(ts.URL, "test-key")
-	_, err := client.GetContinuityBundle("world-1", &ContinuityBundleOptions{SkipLogs: true, SkipTraces: true})
+	_, err := client.GetContinuityBundle("world-1", &ContinuityBundleOptions{TimelineLimit: 3, SkipLogs: true, SkipTraces: true})
 	if err != nil {
 		t.Fatalf("get continuity bundle: %v", err)
 	}
 	if requested["/api/v1/logs"] != 0 || requested["/debug/traces"] != 0 {
 		t.Fatalf("expected logs and traces to be skipped, got %#v", requested)
 	}
-	if requested["/api/v1/worlds/world-1/timelines/latest"] != 1 || requested["/api/v1/worlds/world-1/state-components"] != 1 {
+	if requested["/api/v1/worlds/world-1/timelines/latest"] != 1 || requested["/api/v1/worlds/world-1/timelines"] != 1 || requested["/api/v1/worlds/world-1/state-components"] != 1 {
 		t.Fatalf("expected timeline/state requests, got %#v", requested)
 	}
 }

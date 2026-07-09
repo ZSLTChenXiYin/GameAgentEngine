@@ -477,6 +477,7 @@ type LatestTimelineResponse struct {
 
 // ContinuityBundleOptions controls how much continuity debugging context to load.
 type ContinuityBundleOptions struct {
+	TimelineLimit int
 	LogLimit   int
 	TraceLimit int
 	SkipLogs   bool
@@ -488,6 +489,7 @@ type ContinuityBundleOptions struct {
 type ContinuityBundle struct {
 	WorldID         string                   `json:"world_id"`
 	LatestTimeline  *TimelineEnvelope        `json:"latest_timeline,omitempty"`
+	Timelines       []TimelineEnvelope       `json:"timelines,omitempty"`
 	StateComponents []StateComponentEnvelope `json:"state_components,omitempty"`
 	Logs            []InferenceLog           `json:"logs,omitempty"`
 	Traces          []DebugTrace             `json:"traces,omitempty"`

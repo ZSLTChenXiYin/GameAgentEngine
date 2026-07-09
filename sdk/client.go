@@ -960,9 +960,17 @@ func (c *Client) GetLatestTimeline(worldID string) (*LatestTimelineResponse, err
 // GetContinuityBundle loads the main artifacts used to inspect world_tick continuity.
 func (c *Client) GetContinuityBundle(worldID string, options *ContinuityBundleOptions) (*ContinuityBundle, error) {
 	bundle := &ContinuityBundle{WorldID: worldID}
+	timelineLimit := 6
+	if options != nil && options.TimelineLimit > 0 {
+		timelineLimit = options.TimelineLimit
+	}
 	latest, err := c.GetLatestTimeline(worldID)
 	if err == nil {
 		bundle.LatestTimeline = &latest.Timeline
+	}
+	timelines, err := c.GetTimelines(worldID, timelineLimit)
+	if err == nil && timelines != nil {
+		bundle.Timelines = timelines.Timelines
 	}
 	stateComponents, err := c.GetStateComponents(worldID)
 	if err != nil {
