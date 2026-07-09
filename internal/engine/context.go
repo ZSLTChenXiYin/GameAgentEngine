@@ -141,6 +141,7 @@ func (b *ContextBuilder) collectMemories(nodes []store.NodeModel, limit int) []s
 }
 
 func shouldIncludeRelatedRelation(taskType TaskType, nodeID string, rel store.RelationModel) bool {
+	// external_parent 当前只保留结构化边语义，不进入默认 prompt 关系扩图。
 	if rel.SourceUUID == nodeID && rel.RelationType == string(RelExternalParent) {
 		return false
 	}

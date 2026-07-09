@@ -525,6 +525,84 @@ func TestExecuteIncludeRelatedNodesSkipsSocialRelationsByDefault(t *testing.T) {
 	}
 }
 
+func TestExecuteIncludeRelatedNodesSkipsExternalParentByDefault(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	worldInt := store.ResolveNodeUUID(worldID)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	extraScope := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "SecretScope", NodeType: string(NodeTypeFaction)}
+	if err := store.CreateNode(extraScope); err != nil {
+		t.Fatalf("create extra scope: %v", err)
+	}
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: extraScope.ID, NodeUUID: extraScope.UUID, ComponentType: string(CompLore), Data: `{"scope":"external parent only"}`}); err != nil {
+		t.Fatalf("create extra scope component: %v", err)
+	}
+	if err := store.CreateMemory(&store.MemoryModel{NodeID: extraScope.ID, NodeUUID: extraScope.UUID, Content: "只允许显式作用域管线使用的额外挂接信息。", Level: string(MemShared)}); err != nil {
+		t.Fatalf("create extra scope memory: %v", err)
+	}
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: nodeInt, SourceUUID: nodeID, TargetID: extraScope.ID, TargetUUID: extraScope.UUID, RelationType: string(RelExternalParent), Weight: 1}); err != nil {
+		t.Fatalf("create external_parent relation: %v", err)
+	}
+
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskNPCDialogue, Context: &InvokeContext{IncludeRelatedNodes: true}}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if strings.Contains(provider.lastPrompt, "external parent only") {
+		t.Fatalf("did not expect external_parent component in prompt, got %s", provider.lastPrompt)
+	}
+	if strings.Contains(provider.lastPrompt, "额外挂接信息") {
+		t.Fatalf("did not expect external_parent memory in prompt, got %s", provider.lastPrompt)
+	}
+}
+
+func TestPropagateUpwardIgnoresExternalParentByDefault(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	worldInt := store.ResolveNodeUUID(worldID)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	mainParent := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "MainParent", NodeType: string(NodeTypeFaction), ParentID: &worldInt}
+	if err := store.CreateNode(mainParent); err != nil {
+		t.Fatalf("create main parent: %v", err)
+	}
+	store.ResolveNodeParentUUID(mainParent)
+	if err := store.DB.Model(&store.NodeModel{}).Where("id = ?", nodeInt).Update("parent_id", mainParent.ID).Error; err != nil {
+		t.Fatalf("attach main parent: %v", err)
+	}
+	extraScope := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "ExtraScope", NodeType: string(NodeTypeFaction), ParentID: &worldInt}
+	if err := store.CreateNode(extraScope); err != nil {
+		t.Fatalf("create extra scope: %v", err)
+	}
+	store.ResolveNodeParentUUID(extraScope)
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: nodeInt, SourceUUID: nodeID, TargetID: extraScope.ID, TargetUUID: extraScope.UUID, RelationType: string(RelExternalParent), Weight: 1}); err != nil {
+		t.Fatalf("create external_parent relation: %v", err)
+	}
+
+	pipeline := NewPipeline(&stubProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`})
+	req := &InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom}
+	runtime := &executionConfig{memoryLimit: 50, maxRounds: 1, configuredPipelineMode: PipelineFull, pipelineMode: PipelineFull}
+	pipeline.PropagateUpward(req, runtime, ModeProduction, nodeID, "主父链传播测试", MemLongTerm, 1, false)
+
+	mainMems, err := store.GetNodeMemories(mainParent.UUID, 10)
+	if err != nil {
+		t.Fatalf("get main parent memories: %v", err)
+	}
+	extraMems, err := store.GetNodeMemories(extraScope.UUID, 10)
+	if err != nil {
+		t.Fatalf("get extra scope memories: %v", err)
+	}
+	if len(mainMems) != 1 {
+		t.Fatalf("expected 1 propagated memory on main parent, got %d", len(mainMems))
+	}
+	if mainMems[0].Content != "主父链传播测试" || mainMems[0].Level != string(MemShared) {
+		t.Fatalf("unexpected propagated memory on main parent: %#v", mainMems[0])
+	}
+	if len(extraMems) != 0 {
+		t.Fatalf("did not expect propagated memory on external_parent scope, got %#v", extraMems)
+	}
+}
+
 func TestExecuteAutonomousActUsesLocatedAtEnvironmentChain(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)

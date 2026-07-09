@@ -325,10 +325,10 @@ type ActionCall struct {
 type PropagationMode string
 
 const (
-	PropModeUpward       PropagationMode = "upward"        // 沿父链向上传播
-	PropModeTagBroadcast PropagationMode = "tag_broadcast" // 按 tags 匹配节点扩散
-	PropModeTargeted     PropagationMode = "targeted"      // 定向传播到指定节点
-	PropModeManual       PropagationMode = "manual"        // 不自动传播，用户手动触发
+	PropModeUpward       PropagationMode = "upward"        // 只沿主 parent 链向上传播，不包含 located_at、belongs_to、subordinate 或 external_parent。
+	PropModeTagBroadcast PropagationMode = "tag_broadcast" // 按 tags 匹配节点扩散，适合显式广播，不表达层级、环境或控制链语义。
+	PropModeTargeted     PropagationMode = "targeted"      // 定向传播到指定节点，适合业务显式点名，不表达默认结构语义。
+	PropModeManual       PropagationMode = "manual"        // 不自动传播，交由外部显式触发。
 )
 
 // PropagationRule 描述一条记忆的传播规则。
