@@ -525,6 +525,69 @@ func TestExecuteIncludeRelatedNodesSkipsSocialRelationsByDefault(t *testing.T) {
 	}
 }
 
+func TestExecuteAutonomousActUsesLocatedAtEnvironmentChain(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	worldInt := store.ResolveNodeUUID(worldID)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	location := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "Gate", NodeType: string(NodeTypeLocation), ParentID: &worldInt}
+	if err := store.CreateNode(location); err != nil {
+		t.Fatalf("create location: %v", err)
+	}
+	store.ResolveNodeParentUUID(location)
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: location.ID, NodeUUID: location.UUID, ComponentType: string(CompLore), Data: `{"terrain":"stone rampart"}`}); err != nil {
+		t.Fatalf("create location component: %v", err)
+	}
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: nodeInt, SourceUUID: nodeID, TargetID: location.ID, TargetUUID: location.UUID, RelationType: string(RelLocatedAt), Weight: 1}); err != nil {
+		t.Fatalf("create located_at relation: %v", err)
+	}
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: nodeInt, NodeUUID: nodeID, ComponentType: string(CompAutonomous), Data: `{"enabled":true,"trigger":"manual","capabilities":[{"id":"send_dialogue"}]}`}); err != nil {
+		t.Fatalf("create autonomous component: %v", err)
+	}
+
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskAutonomousAct}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(provider.lastPrompt, "当前环境链：Gate(location) > World(world)") {
+		t.Fatalf("expected environment chain in autonomous prompt, got %s", provider.lastPrompt)
+	}
+	if !strings.Contains(provider.lastPrompt, "stone rampart") {
+		t.Fatalf("expected location component in autonomous prompt, got %s", provider.lastPrompt)
+	}
+}
+
+func TestExecuteWorldEventUsesLocatedAtEnvironmentForNPCScope(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	worldInt := store.ResolveNodeUUID(worldID)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	location := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "Harbor", NodeType: string(NodeTypeLocation), ParentID: &worldInt}
+	if err := store.CreateNode(location); err != nil {
+		t.Fatalf("create location: %v", err)
+	}
+	store.ResolveNodeParentUUID(location)
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: location.ID, NodeUUID: location.UUID, ComponentType: string(CompLore), Data: `{"weather":"salt fog"}`}); err != nil {
+		t.Fatalf("create location component: %v", err)
+	}
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: nodeInt, SourceUUID: nodeID, TargetID: location.ID, TargetUUID: location.UUID, RelationType: string(RelLocatedAt), Weight: 1}); err != nil {
+		t.Fatalf("create located_at relation: %v", err)
+	}
+
+	provider := &captureProvider{response: `{"reply":"impact","action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"impact","world_events":[],"proposed_actions":[]}}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskWorldEvent, Event: &WorldEvent{EventType: "storm", ScopeID: nodeID, Description: "storm front", Severity: "high"}}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(provider.lastPrompt, "当前环境链：Harbor(location) > World(world)") {
+		t.Fatalf("expected environment chain in world event prompt, got %s", provider.lastPrompt)
+	}
+	if !strings.Contains(provider.lastPrompt, "salt fog") {
+		t.Fatalf("expected location component in world event prompt, got %s", provider.lastPrompt)
+	}
+}
+
 func TestExecuteFallsBackToDefaultSettingsWhenStoredValuesAreInvalid(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
