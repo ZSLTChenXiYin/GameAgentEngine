@@ -62,6 +62,9 @@ function renderLeftPanel() {
     ce('button', { id: 'btnAddNode' }, [ttxt('+')]),
   ]);
   lp.appendChild(tb);
+  lp.appendChild(ce('div', { className: 'hint', style: { padding: '6px 10px 0 10px', textAlign: 'left' } }, [
+    txt(tr('Outline drag, drop, and Add New Parent only update the node primary parent. Use Relations to edit non-tree links.')),
+  ]));
   const body = el('div', { id: 'treeBody', className: 'tree-body' });
   lp.appendChild(body);
   document.getElementById('btnAddNode').addEventListener('click', openCreateNodeModal);
@@ -248,8 +251,8 @@ function renderTree() {
             showContextMenu([
               { label: tr('Edit'), onClick: function() { openEditNodeModal(nn.id); } },
               { label: tr('Copy Node'), onClick: function() { openCopyNodeModal(nn.id); } },
-              { label: tr('Add New Parent'), onClick: function() { openCreateParentNodeModal(nn.id); } },
-              { label: tr('Add Outgoing Relation'), onClick: function() { openAddOutgoingRelationModal(nn.id); } },
+              { label: tr('Add New Parent'), tip: tr('Creates a new node and rewires only parent_id'), onClick: function() { openCreateParentNodeModal(nn.id); } },
+              { label: tr('Add Outgoing Relation'), tip: tr('Relations are stored separately from the outline tree'), onClick: function() { openAddOutgoingRelationModal(nn.id); } },
               { label: tr('Create Child'), onClick: function() { openCreateNodeModal(nn.id); } },
               { label: tr('Delete'), danger: true, onClick: function() { deleteNodeHandler(nn.id); } },
             ], e.clientX, e.clientY);

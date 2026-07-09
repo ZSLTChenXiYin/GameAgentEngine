@@ -179,20 +179,10 @@ function updateComponentEditorHint(typeElementId, hintElementId) {
   hintEl.textContent = mode === 'free' ? tr('Free text allowed for this component type') : tr('JSON object required for this component type');
 }
 
-function shouldProjectRelationInTree(relationType) {
-  return relationType === 'external_parent' || relationType === 'belongs_to' || relationType === 'located_at' || relationType === 'subordinate';
-}
-
 function getProjectedParentIds(nodeId) {
   var parentIds = [];
   var node = state.nodes.find(function(x) { return x.id === nodeId; });
   if (node && node.parent_id) parentIds.push(node.parent_id);
-  (state.relations || []).forEach(function(rel) {
-    if (rel.source_id !== nodeId) return;
-    if (!shouldProjectRelationInTree(rel.relation_type)) return;
-    if (!rel.target_id) return;
-    if (parentIds.indexOf(rel.target_id) < 0) parentIds.push(rel.target_id);
-  });
   return parentIds;
 }
 
@@ -805,7 +795,7 @@ async function editNode(nodeId) {
 async function moveNodeParent(nodeId, newParentId) {
   try {
     await api('PUT', '/api/v1/nodes/' + encodeURIComponent(nodeId), { parent_id: newParentId });
-    toast(tr('Node moved'), 'success'); loadCurrentWorld();
+    toast(tr('Primary parent updated'), 'success'); loadCurrentWorld();
   } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
@@ -813,6 +803,7 @@ function openCreateParentNodeModal(nodeId) {
   const n = state.nodes.find(function(x) { return x.id === nodeId; });
   if (!n) return;
   const f = ce('div', { className: 'modal-field' }, [
+    ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '8px' } }, [ttxt('This action inserts a new primary parent node and rewires only parent_id. It does not create a relation row.')]),
     ce('label', { for: 'createParentNodeName' }, [ttxt('Node Name')]),
     el('input', { id: 'createParentNodeName', value: (n.name || '') + ' Parent', style: {width: '100%'} }),
     ce('label', { for: 'createParentNodeType' }, [ttxt('Type')]),

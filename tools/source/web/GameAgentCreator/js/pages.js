@@ -290,6 +290,7 @@ function renderNodeDetail(container) {
       ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Type')]), ce('span', { className: 'val' }, [txt(n.node_type)])]),
       n.parent_id ? ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Primary Parent')]), ce('span', { className: 'val' }, [txt(getNodeNameById(n.parent_id) + ' (' + n.parent_id.slice(0,8) + ')')])]) : null,
       externalParents.length > 0 ? ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('External Parents')]), ce('span', { className: 'val' }, [txt(externalParents.join(', '))])]) : null,
+      ce('div', { className: 'hint', style: { textAlign: 'left', marginTop: '8px' } }, [ttxt('Primary Parent is the only hierarchy field shown in the outline. External Parents and other relations stay in the relations table.')]),
     ]),
   ]);
   detail.appendChild(overview);
@@ -313,7 +314,9 @@ function renderNodeDetail(container) {
   // Relations — full detail
   const relSection = ce('div', { className: 'detail-card' }, [
     ce('div', { className: 'card-hd toggle-hd', 'aria-expanded': 'true' }, [function(){var c=nd.relations?nd.relations.length:0;return ce('span',{},[ttxt('Relations'),txt(' ('+c+')')])}(), ce('button', { id: 'btnAddRelationCenter', className: 'sm' }, [ttxt('+')])]),
-    ce('div', { className: 'card-bd', id: 'relDetailList' }, []),
+    ce('div', { className: 'card-bd', id: 'relDetailList' }, [
+      ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '8px' } }, [ttxt('Relations do not change the outline hierarchy unless you separately edit Primary Parent.')]),
+    ]),
   ]);
   detail.appendChild(relSection);
   
