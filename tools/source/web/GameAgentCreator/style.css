@@ -251,6 +251,7 @@ input { padding:0 7px; height:26px; }
   .resize-h{display:none}
   .log-split{flex-direction:column}
   .log-list{width:100%;border-right:none;border-bottom:1px solid var(--border);max-height:30vh}
+  .component-kv-row,.component-inline-row{grid-template-columns:1fr}
 }
 /* ====== Detail Cards ====== */
 .node-detail { display:flex; flex-direction:column; gap:6px; padding:8px; }
@@ -287,6 +288,19 @@ input { padding:0 7px; height:26px; }
 .world-time-calendar-section { display:flex; flex-direction:column; gap:8px; border-top:1px dashed var(--border); padding-top:8px; }
 .world-time-calendar-section.is-collapsed { display:none; }
 .world-time-actions { padding:0; }
+.component-editor-host { display:flex; flex-direction:column; gap:10px; }
+.component-editor-grid { display:flex; flex-direction:column; gap:10px; }
+.component-editor-section { border:1px solid var(--border); background:var(--bg2); }
+.component-editor-section-title { padding:6px 8px; border-bottom:1px solid var(--border); font-size:10px; color:var(--text-dim); text-transform:uppercase; }
+.component-editor-section-body { display:flex; flex-direction:column; gap:8px; padding:8px; }
+.component-editor-field { display:flex; flex-direction:column; gap:4px; }
+.component-editor-field label { min-width:0; }
+.component-editor-actions { padding:0; }
+.component-kv-list, .component-collection-list { display:flex; flex-direction:column; gap:8px; }
+.component-kv-row, .component-inline-row { display:grid; grid-template-columns:minmax(0,1fr) 120px minmax(0,1fr) auto; gap:8px; align-items:start; }
+.component-inline-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; }
+.component-collection-row { display:flex; flex-direction:column; gap:8px; padding:8px; border:1px solid var(--border); background:var(--bg-input); }
+.component-kv-row textarea, .component-collection-row textarea { font-family:var(--font-mono); font-size:11px; }
 .policy-form { padding:8px; display:flex; flex-direction:column; gap:8px; }
 .policy-actions { display:flex; gap:6px; padding:6px 0; }
 .policy-actions button { min-height:26px; }

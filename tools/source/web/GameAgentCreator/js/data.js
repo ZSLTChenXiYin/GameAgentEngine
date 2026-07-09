@@ -205,6 +205,476 @@ function updateComponentEditorHint(typeElementId, hintElementId) {
   hintEl.textContent = mode === 'free' ? tr('Free text allowed for this component type') : tr('JSON object required for this component type');
 }
 
+function splitEditorLines(value) {
+  return String(value || '').split('\n').map(function(item) { return item.trim(); }).filter(Boolean);
+}
+
+function safeParseJSONText(value) {
+  try {
+    return { value: JSON.parse(value), error: '' };
+  } catch (e) {
+    return { value: null, error: e && e.message ? e.message : String(e) };
+  }
+}
+
+function defaultStructuredComponentPayload(componentType) {
+  switch (componentType) {
+    case 'autonomous':
+      return { enabled: false, trigger: 'manual', interval_seconds: 0, capabilities: [], last_run_at: '', last_error: '' };
+    case 'world_state':
+      return { summary: '', key_facts: [], canonical_facts: [], open_questions: [], active_arcs: [], metadata: {} };
+    case 'story_state':
+      return { current_situation: '', recent_changes: [], pending_threads: [], tone: '', metadata: {} };
+    case 'story_history':
+      return { entries: [], metadata: {} };
+    case 'tick_policy':
+      return { continuity_rules: [], focus_scopes: [], banned_resets: [], metadata: {} };
+    case 'world_time_state':
+      return {
+        tick_scale_mode: 'fixed',
+        tick_min_unit: '',
+        tick_step: 1,
+        tick_units: [],
+        calendar_name: '',
+        current_units: [],
+        current_time_label: '',
+        total_ticks: 0,
+        last_tick_number: 0,
+        last_tick_type: '',
+        last_advanced_ticks: 0,
+        metadata: {},
+      };
+    default:
+      return {};
+  }
+}
+
+function getComponentEditorContext(typeElementId, rawElementId, hostElementId, rawLabelId, hintElementId) {
+  return {
+    typeEl: document.getElementById(typeElementId),
+    rawEl: document.getElementById(rawElementId),
+    hostEl: document.getElementById(hostElementId),
+    rawLabelEl: document.getElementById(rawLabelId),
+    hintEl: document.getElementById(hintElementId),
+  };
+}
+
+function setComponentEditorHintText(ctx, componentType, fallbackText) {
+  if (!ctx || !ctx.hintEl) return;
+  var meta = componentMetaMap[componentType] || {};
+  if (fallbackText) {
+    ctx.hintEl.textContent = fallbackText;
+    return;
+  }
+  if (meta.help_text) {
+    ctx.hintEl.textContent = tr(meta.help_text);
+    return;
+  }
+  var mode = componentValidationMode(componentType);
+  ctx.hintEl.textContent = mode === 'free' ? tr('Free text allowed for this component type') : tr('JSON object required for this component type');
+}
+
+function normalizeJSONObject(value) {
+  if (!value || Array.isArray(value) || typeof value !== 'object') return {};
+  return value;
+}
+
+function metadataJSONText(value) {
+  return JSON.stringify(normalizeJSONObject(value), null, 2);
+}
+
+function ensureComponentTextareaVisibility(ctx, visible) {
+  if (!ctx || !ctx.rawEl || !ctx.rawLabelEl) return;
+  ctx.rawEl.style.display = visible ? '' : 'none';
+  ctx.rawLabelEl.style.display = visible ? '' : 'none';
+}
+
+function createComponentField(labelText, control) {
+  return ce('div', { className: 'component-editor-field' }, [
+    ce('label', {}, [ttxt(labelText)]),
+    control,
+  ]);
+}
+
+function createComponentSection(title, bodyChildren) {
+  return ce('div', { className: 'component-editor-section' }, [
+    ce('div', { className: 'component-editor-section-title' }, [ttxt(title)]),
+    ce('div', { className: 'component-editor-section-body' }, bodyChildren),
+  ]);
+}
+
+function appendKeyValueRow(listEl, entry) {
+  var row = ce('div', { className: 'component-kv-row' }, [
+    el('input', { type: 'text', className: 'component-kv-key', placeholder: tr('Key'), value: entry && entry.key ? entry.key : '' }),
+    el('select', { className: 'component-kv-type', innerHTML: '<option value="string">string</option><option value="number">number</option><option value="boolean">boolean</option><option value="json">json</option>' }),
+    el('textarea', { className: 'component-kv-value', rows: 2, placeholder: tr('Value'), textContent: entry && entry.value != null ? String(entry.value) : '' }),
+    ce('button', { type: 'button', className: 'danger component-kv-delete' }, [ttxt('Delete')]),
+  ]);
+  listEl.appendChild(row);
+  var typeEl = row.querySelector('.component-kv-type');
+  var valueEl = row.querySelector('.component-kv-value');
+  typeEl.value = entry && entry.type ? entry.type : 'string';
+  function applyMode() {
+    valueEl.rows = typeEl.value === 'json' ? 4 : 2;
+    valueEl.placeholder = tr(typeEl.value === 'json' ? 'Value JSON' : 'Value');
+  }
+  typeEl.addEventListener('change', applyMode);
+  row.querySelector('.component-kv-delete').addEventListener('click', function() { row.remove(); });
+  applyMode();
+}
+
+function objectToKeyValueEntries(payload) {
+  var obj = normalizeJSONObject(payload);
+  return Object.keys(obj).map(function(key) {
+    var value = obj[key];
+    var type = 'string';
+    var textValue = '';
+    if (typeof value === 'number') {
+      type = 'number';
+      textValue = String(value);
+    } else if (typeof value === 'boolean') {
+      type = 'boolean';
+      textValue = value ? 'true' : 'false';
+    } else if (value && typeof value === 'object') {
+      type = 'json';
+      textValue = JSON.stringify(value, null, 2);
+    } else {
+      textValue = value == null ? '' : String(value);
+    }
+    return { key: key, type: type, value: textValue };
+  });
+}
+
+function renderWeakComponentEditor(ctx, payload) {
+  var listEl = ce('div', { className: 'component-kv-list' }, []);
+  var entries = objectToKeyValueEntries(payload);
+  if (entries.length === 0) entries.push({ key: '', type: 'string', value: '' });
+  entries.forEach(function(entry) { appendKeyValueRow(listEl, entry); });
+  ctx.hostEl.appendChild(createComponentSection('Structured Fields', [
+    listEl,
+    ce('div', { className: 'policy-actions component-editor-actions' }, [
+      ce('button', { type: 'button', id: ctx.hostEl.id + '_addKv' }, [ttxt('Add Pair')]),
+    ]),
+  ]));
+  document.getElementById(ctx.hostEl.id + '_addKv').addEventListener('click', function() {
+    appendKeyValueRow(listEl, { key: '', type: 'string', value: '' });
+  });
+  ctx.hostEl.dataset.editorMode = 'weak';
+}
+
+function appendCapabilityRow(listEl, entry) {
+  var row = ce('div', { className: 'component-collection-row' }, [
+    createComponentField('Capability ID', el('input', { type: 'text', className: 'component-cap-id', value: entry && entry.id ? entry.id : '' })),
+    createComponentField('Capability Mode', el('input', { type: 'text', className: 'component-cap-mode', value: entry && entry.mode ? entry.mode : '' })),
+    createComponentField('Capability Description', el('textarea', { className: 'component-cap-desc', rows: 2, textContent: entry && entry.description ? entry.description : '' })),
+    createComponentField('Capability Schema (JSON object)', el('textarea', { className: 'component-cap-schema', rows: 4, textContent: entry && entry.schema ? JSON.stringify(entry.schema, null, 2) : '{}' })),
+    ce('div', { className: 'policy-actions component-editor-actions' }, [ce('button', { type: 'button', className: 'danger component-collection-delete' }, [ttxt('Delete')])]),
+  ]);
+  listEl.appendChild(row);
+  row.querySelector('.component-collection-delete').addEventListener('click', function() { row.remove(); });
+}
+
+function appendStoryHistoryEntryRow(listEl, entry) {
+  var row = ce('div', { className: 'component-collection-row' }, [
+    createComponentField('Tick Number', el('input', { type: 'number', min: '0', className: 'component-entry-tick', value: entry && Number.isFinite(entry.tick_number) ? String(entry.tick_number) : '0' })),
+    createComponentField('Summary', el('textarea', { className: 'component-entry-summary', rows: 2, textContent: entry && entry.summary ? entry.summary : '' })),
+    createComponentField('Facts (one per line)', el('textarea', { className: 'component-entry-facts', rows: 4, textContent: entry && Array.isArray(entry.facts) ? entry.facts.join('\n') : '' })),
+    createComponentField('Game Time', el('input', { type: 'text', className: 'component-entry-game-time', value: entry && entry.game_time ? entry.game_time : '' })),
+    ce('div', { className: 'policy-actions component-editor-actions' }, [ce('button', { type: 'button', className: 'danger component-collection-delete' }, [ttxt('Delete')])]),
+  ]);
+  listEl.appendChild(row);
+  row.querySelector('.component-collection-delete').addEventListener('click', function() { row.remove(); });
+}
+
+function appendCurrentUnitRow(listEl, entry) {
+  var row = ce('div', { className: 'component-inline-row' }, [
+    el('input', { type: 'text', className: 'component-unit-name', placeholder: tr('Unit'), value: entry && entry.unit ? entry.unit : '' }),
+    el('input', { type: 'text', className: 'component-unit-value', placeholder: tr('Value'), value: entry && entry.value ? entry.value : '' }),
+    ce('button', { type: 'button', className: 'danger component-collection-delete' }, [ttxt('Delete')]),
+  ]);
+  listEl.appendChild(row);
+  row.querySelector('.component-collection-delete').addEventListener('click', function() { row.remove(); });
+}
+
+function renderStrongComponentEditor(ctx, componentType, payload) {
+  var value = normalizeJSONObject(payload);
+  var sections = [];
+  switch (componentType) {
+    case 'autonomous': {
+      var capList = ce('div', { className: 'component-collection-list', id: ctx.hostEl.id + '_caps' }, []);
+      (Array.isArray(value.capabilities) ? value.capabilities : []).forEach(function(item) { appendCapabilityRow(capList, item || {}); });
+      sections.push(createComponentSection('Structured Fields', [
+        createComponentField('Enabled', el('input', { type: 'checkbox', id: ctx.hostEl.id + '_enabled', checked: !!value.enabled })),
+        createComponentField('Trigger', el('select', { id: ctx.hostEl.id + '_trigger', innerHTML: '<option value="manual">manual</option><option value="world_tick_sync">world_tick_sync</option><option value="scheduled">scheduled</option>' })),
+        createComponentField('Interval Seconds (scheduled)', el('input', { type: 'number', min: '0', id: ctx.hostEl.id + '_interval', value: Number.isFinite(value.interval_seconds) ? String(value.interval_seconds) : '0' })),
+        createComponentField('Last Run At', el('input', { type: 'text', id: ctx.hostEl.id + '_lastRunAt', value: value.last_run_at || '' })),
+        createComponentField('Last Error', el('textarea', { id: ctx.hostEl.id + '_lastError', rows: 2, textContent: value.last_error || '' })),
+      ]));
+      sections.push(createComponentSection('Capabilities', [
+        capList,
+        ce('div', { className: 'policy-actions component-editor-actions' }, [ce('button', { type: 'button', id: ctx.hostEl.id + '_addCap' }, [ttxt('Add Capability')])]),
+      ]));
+      ctx.hostEl.appendChild(ce('div', { className: 'component-editor-grid' }, sections));
+      document.getElementById(ctx.hostEl.id + '_trigger').value = value.trigger || 'manual';
+      document.getElementById(ctx.hostEl.id + '_addCap').addEventListener('click', function() { appendCapabilityRow(capList, {}); });
+      break;
+    }
+    case 'world_state':
+      sections.push(createComponentSection('Structured Fields', [
+        createComponentField('Summary', el('textarea', { id: ctx.hostEl.id + '_summary', rows: 3, textContent: value.summary || '' })),
+        createComponentField('Key Facts', el('textarea', { id: ctx.hostEl.id + '_keyFacts', rows: 4, textContent: Array.isArray(value.key_facts) ? value.key_facts.join('\n') : '' })),
+        createComponentField('Canonical Facts', el('textarea', { id: ctx.hostEl.id + '_canonicalFacts', rows: 4, textContent: Array.isArray(value.canonical_facts) ? value.canonical_facts.join('\n') : '' })),
+        createComponentField('Open Questions', el('textarea', { id: ctx.hostEl.id + '_openQuestions', rows: 4, textContent: Array.isArray(value.open_questions) ? value.open_questions.join('\n') : '' })),
+        createComponentField('Active Arcs', el('textarea', { id: ctx.hostEl.id + '_activeArcs', rows: 4, textContent: Array.isArray(value.active_arcs) ? value.active_arcs.join('\n') : '' })),
+        createComponentField('Metadata (JSON object)', el('textarea', { id: ctx.hostEl.id + '_metadata', rows: 5, textContent: metadataJSONText(value.metadata) })),
+      ]));
+      ctx.hostEl.appendChild(ce('div', { className: 'component-editor-grid' }, sections));
+      break;
+    case 'story_state':
+      sections.push(createComponentSection('Structured Fields', [
+        createComponentField('Current Situation', el('textarea', { id: ctx.hostEl.id + '_currentSituation', rows: 3, textContent: value.current_situation || '' })),
+        createComponentField('Recent Changes', el('textarea', { id: ctx.hostEl.id + '_recentChanges', rows: 4, textContent: Array.isArray(value.recent_changes) ? value.recent_changes.join('\n') : '' })),
+        createComponentField('Pending Threads', el('textarea', { id: ctx.hostEl.id + '_pendingThreads', rows: 4, textContent: Array.isArray(value.pending_threads) ? value.pending_threads.join('\n') : '' })),
+        createComponentField('Tone', el('input', { type: 'text', id: ctx.hostEl.id + '_tone', value: value.tone || '' })),
+        createComponentField('Metadata (JSON object)', el('textarea', { id: ctx.hostEl.id + '_metadata', rows: 5, textContent: metadataJSONText(value.metadata) })),
+      ]));
+      ctx.hostEl.appendChild(ce('div', { className: 'component-editor-grid' }, sections));
+      break;
+    case 'story_history': {
+      var entryList = ce('div', { className: 'component-collection-list', id: ctx.hostEl.id + '_entries' }, []);
+      (Array.isArray(value.entries) ? value.entries : []).forEach(function(item) { appendStoryHistoryEntryRow(entryList, item || {}); });
+      sections.push(createComponentSection('Entries', [
+        entryList,
+        ce('div', { className: 'policy-actions component-editor-actions' }, [ce('button', { type: 'button', id: ctx.hostEl.id + '_addEntry' }, [ttxt('Add Entry')])]),
+      ]));
+      sections.push(createComponentSection('Metadata', [
+        createComponentField('Metadata (JSON object)', el('textarea', { id: ctx.hostEl.id + '_metadata', rows: 5, textContent: metadataJSONText(value.metadata) })),
+      ]));
+      ctx.hostEl.appendChild(ce('div', { className: 'component-editor-grid' }, sections));
+      document.getElementById(ctx.hostEl.id + '_addEntry').addEventListener('click', function() { appendStoryHistoryEntryRow(entryList, {}); });
+      break;
+    }
+    case 'tick_policy':
+      sections.push(createComponentSection('Structured Fields', [
+        createComponentField('Continuity Rules', el('textarea', { id: ctx.hostEl.id + '_continuityRules', rows: 4, textContent: Array.isArray(value.continuity_rules) ? value.continuity_rules.join('\n') : '' })),
+        createComponentField('Focus Scopes', el('textarea', { id: ctx.hostEl.id + '_focusScopes', rows: 4, textContent: Array.isArray(value.focus_scopes) ? value.focus_scopes.join('\n') : '' })),
+        createComponentField('Banned Resets', el('textarea', { id: ctx.hostEl.id + '_bannedResets', rows: 4, textContent: Array.isArray(value.banned_resets) ? value.banned_resets.join('\n') : '' })),
+        createComponentField('Metadata (JSON object)', el('textarea', { id: ctx.hostEl.id + '_metadata', rows: 5, textContent: metadataJSONText(value.metadata) })),
+      ]));
+      ctx.hostEl.appendChild(ce('div', { className: 'component-editor-grid' }, sections));
+      break;
+    case 'world_time_state': {
+      var unitList = ce('div', { className: 'component-collection-list', id: ctx.hostEl.id + '_units' }, []);
+      (Array.isArray(value.current_units) ? value.current_units : []).forEach(function(item) { appendCurrentUnitRow(unitList, item || {}); });
+      sections.push(createComponentSection('Structured Fields', [
+        createComponentField('Tick Scale Mode', el('select', { id: ctx.hostEl.id + '_tickScaleMode', innerHTML: '<option value="fixed">fixed</option><option value="flexible">flexible</option>' })),
+        createComponentField('Tick Min Unit', el('input', { type: 'text', id: ctx.hostEl.id + '_tickMinUnit', value: value.tick_min_unit || '' })),
+        createComponentField('Tick Step', el('input', { type: 'number', min: '0', id: ctx.hostEl.id + '_tickStep', value: Number.isFinite(value.tick_step) ? String(value.tick_step) : '1' })),
+        createComponentField('Tick Units', el('textarea', { id: ctx.hostEl.id + '_tickUnits', rows: 4, textContent: Array.isArray(value.tick_units) ? value.tick_units.join('\n') : '' })),
+        createComponentField('Calendar Name', el('input', { type: 'text', id: ctx.hostEl.id + '_calendarName', value: value.calendar_name || '' })),
+        createComponentField('Current Time Label', el('input', { type: 'text', id: ctx.hostEl.id + '_currentTimeLabel', value: value.current_time_label || '' })),
+        createComponentField('Total Ticks', el('input', { type: 'number', min: '0', id: ctx.hostEl.id + '_totalTicks', value: Number.isFinite(value.total_ticks) ? String(value.total_ticks) : '0' })),
+        createComponentField('Last Tick Number', el('input', { type: 'number', min: '0', id: ctx.hostEl.id + '_lastTickNumber', value: Number.isFinite(value.last_tick_number) ? String(value.last_tick_number) : '0' })),
+        createComponentField('Last Tick Type', el('input', { type: 'text', id: ctx.hostEl.id + '_lastTickType', value: value.last_tick_type || '' })),
+        createComponentField('Last Advanced Ticks', el('input', { type: 'number', min: '0', id: ctx.hostEl.id + '_lastAdvancedTicks', value: Number.isFinite(value.last_advanced_ticks) ? String(value.last_advanced_ticks) : '0' })),
+      ]));
+      sections.push(createComponentSection('Current Units', [
+        unitList,
+        ce('div', { className: 'policy-actions component-editor-actions' }, [ce('button', { type: 'button', id: ctx.hostEl.id + '_addUnitValue' }, [ttxt('Add Unit Value')])]),
+      ]));
+      sections.push(createComponentSection('Metadata', [
+        createComponentField('Metadata (JSON object)', el('textarea', { id: ctx.hostEl.id + '_metadata', rows: 5, textContent: metadataJSONText(value.metadata) })),
+      ]));
+      ctx.hostEl.appendChild(ce('div', { className: 'component-editor-grid' }, sections));
+      document.getElementById(ctx.hostEl.id + '_tickScaleMode').value = value.tick_scale_mode || 'fixed';
+      document.getElementById(ctx.hostEl.id + '_addUnitValue').addEventListener('click', function() { appendCurrentUnitRow(unitList, {}); });
+      break;
+    }
+    default:
+      ctx.hostEl.appendChild(ce('div', { className: 'hint', style: { textAlign: 'left', padding: '0' } }, [ttxt('Structured editor unavailable for this component type.')]));
+      ensureComponentTextareaVisibility(ctx, true);
+      ctx.hostEl.dataset.editorMode = 'free';
+      return;
+  }
+  ctx.hostEl.dataset.editorMode = 'strong:' + componentType;
+}
+
+function renderComponentEditor(typeElementId, rawElementId, hostElementId, rawLabelId, hintElementId) {
+  var ctx = getComponentEditorContext(typeElementId, rawElementId, hostElementId, rawLabelId, hintElementId);
+  if (!ctx.typeEl || !ctx.rawEl || !ctx.hostEl) return;
+  var componentType = ctx.typeEl.value || '';
+  var mode = componentValidationMode(componentType);
+  ctx.hostEl.innerHTML = '';
+  if (mode === 'free') {
+    ensureComponentTextareaVisibility(ctx, true);
+    ctx.hostEl.dataset.editorMode = 'free';
+    setComponentEditorHintText(ctx, componentType, '');
+    return;
+  }
+
+  var raw = ctx.rawEl.value.trim();
+  var parsed = raw ? safeParseJSONText(raw) : { value: defaultStructuredComponentPayload(componentType), error: '' };
+  if (parsed.error || !parsed.value || Array.isArray(parsed.value) || typeof parsed.value !== 'object') {
+    ensureComponentTextareaVisibility(ctx, true);
+    ctx.hostEl.appendChild(ce('div', { className: 'hint', style: { textAlign: 'left', padding: '0 0 8px 0' } }, [ttxt('Malformed JSON detected. Fix raw content before using the structured editor.')]));
+    ctx.hostEl.dataset.editorMode = 'fallback';
+    setComponentEditorHintText(ctx, componentType, tr('Component data contains invalid JSON. Fix it in raw mode before saving.'));
+    return;
+  }
+
+  ensureComponentTextareaVisibility(ctx, false);
+  setComponentEditorHintText(ctx, componentType, '');
+  if (mode === 'weak') {
+    renderWeakComponentEditor(ctx, parsed.value);
+    return;
+  }
+  renderStrongComponentEditor(ctx, componentType, parsed.value);
+}
+
+function parseJSONObjectEditorField(value, label) {
+  var raw = String(value || '').trim();
+  if (!raw) return {};
+  var parsed = safeParseJSONText(raw);
+  if (parsed.error || !parsed.value || Array.isArray(parsed.value) || typeof parsed.value !== 'object') {
+    throw new Error(tr(label) + ': ' + tr('JSON object required for this component type'));
+  }
+  return parsed.value;
+}
+
+function parseJSONEditorField(value, label) {
+  var raw = String(value || '').trim();
+  if (!raw) return {};
+  var parsed = safeParseJSONText(raw);
+  if (parsed.error) {
+    throw new Error(tr(label) + ': ' + parsed.error);
+  }
+  return parsed.value;
+}
+
+function collectWeakComponentEditorData(ctx) {
+  var result = {};
+  var rows = Array.prototype.slice.call(ctx.hostEl.querySelectorAll('.component-kv-row'));
+  for (var i = 0; i < rows.length; i++) {
+    var key = String(rows[i].querySelector('.component-kv-key').value || '').trim();
+    var type = rows[i].querySelector('.component-kv-type').value || 'string';
+    var rawValue = String(rows[i].querySelector('.component-kv-value').value || '').trim();
+    if (!key && !rawValue) continue;
+    if (!key) throw new Error(tr('Key cannot be empty'));
+    if (Object.prototype.hasOwnProperty.call(result, key)) throw new Error(tr('Duplicate keys are not allowed'));
+    if (type === 'number') {
+      var num = rawValue === '' ? 0 : Number(rawValue);
+      if (!Number.isFinite(num)) throw new Error(tr('Value must be a valid number'));
+      result[key] = num;
+    } else if (type === 'boolean') {
+      if (rawValue !== 'true' && rawValue !== 'false') throw new Error(tr('Boolean values must be true or false'));
+      result[key] = rawValue === 'true';
+    } else if (type === 'json') {
+      result[key] = parseJSONEditorField(rawValue || '{}', 'Value JSON');
+    } else {
+      result[key] = rawValue;
+    }
+  }
+  return result;
+}
+
+function collectStrongComponentEditorData(ctx, componentType) {
+  var root = ctx.hostEl;
+  switch (componentType) {
+    case 'autonomous':
+      return {
+        enabled: !!document.getElementById(root.id + '_enabled').checked,
+        trigger: document.getElementById(root.id + '_trigger').value || 'manual',
+        interval_seconds: parseInt(document.getElementById(root.id + '_interval').value, 10) || 0,
+        capabilities: Array.prototype.slice.call(root.querySelectorAll('.component-collection-row')).map(function(row) {
+          return {
+            id: String(row.querySelector('.component-cap-id').value || '').trim(),
+            mode: String(row.querySelector('.component-cap-mode').value || '').trim(),
+            description: String(row.querySelector('.component-cap-desc').value || '').trim(),
+            schema: parseJSONObjectEditorField(row.querySelector('.component-cap-schema').value, 'Capability Schema (JSON object)'),
+          };
+        }).filter(function(item) { return item.id || item.mode || item.description || Object.keys(item.schema || {}).length > 0; }),
+        last_run_at: String(document.getElementById(root.id + '_lastRunAt').value || '').trim(),
+        last_error: String(document.getElementById(root.id + '_lastError').value || '').trim(),
+      };
+    case 'world_state':
+      return {
+        summary: String(document.getElementById(root.id + '_summary').value || '').trim(),
+        key_facts: splitEditorLines(document.getElementById(root.id + '_keyFacts').value),
+        canonical_facts: splitEditorLines(document.getElementById(root.id + '_canonicalFacts').value),
+        open_questions: splitEditorLines(document.getElementById(root.id + '_openQuestions').value),
+        active_arcs: splitEditorLines(document.getElementById(root.id + '_activeArcs').value),
+        metadata: parseJSONObjectEditorField(document.getElementById(root.id + '_metadata').value, 'Metadata (JSON object)'),
+      };
+    case 'story_state':
+      return {
+        current_situation: String(document.getElementById(root.id + '_currentSituation').value || '').trim(),
+        recent_changes: splitEditorLines(document.getElementById(root.id + '_recentChanges').value),
+        pending_threads: splitEditorLines(document.getElementById(root.id + '_pendingThreads').value),
+        tone: String(document.getElementById(root.id + '_tone').value || '').trim(),
+        metadata: parseJSONObjectEditorField(document.getElementById(root.id + '_metadata').value, 'Metadata (JSON object)'),
+      };
+    case 'story_history':
+      return {
+        entries: Array.prototype.slice.call(root.querySelectorAll('.component-collection-row')).map(function(row) {
+          return {
+            tick_number: parseInt(row.querySelector('.component-entry-tick').value, 10) || 0,
+            summary: String(row.querySelector('.component-entry-summary').value || '').trim(),
+            facts: splitEditorLines(row.querySelector('.component-entry-facts').value),
+            game_time: String(row.querySelector('.component-entry-game-time').value || '').trim(),
+          };
+        }).filter(function(entry) { return entry.tick_number || entry.summary || entry.facts.length > 0 || entry.game_time; }),
+        metadata: parseJSONObjectEditorField(document.getElementById(root.id + '_metadata').value, 'Metadata (JSON object)'),
+      };
+    case 'tick_policy':
+      return {
+        continuity_rules: splitEditorLines(document.getElementById(root.id + '_continuityRules').value),
+        focus_scopes: splitEditorLines(document.getElementById(root.id + '_focusScopes').value),
+        banned_resets: splitEditorLines(document.getElementById(root.id + '_bannedResets').value),
+        metadata: parseJSONObjectEditorField(document.getElementById(root.id + '_metadata').value, 'Metadata (JSON object)'),
+      };
+    case 'world_time_state':
+      return {
+        tick_scale_mode: document.getElementById(root.id + '_tickScaleMode').value || 'fixed',
+        tick_min_unit: String(document.getElementById(root.id + '_tickMinUnit').value || '').trim(),
+        tick_step: parseInt(document.getElementById(root.id + '_tickStep').value, 10) || 0,
+        tick_units: splitEditorLines(document.getElementById(root.id + '_tickUnits').value),
+        calendar_name: String(document.getElementById(root.id + '_calendarName').value || '').trim(),
+        current_units: Array.prototype.slice.call(root.querySelectorAll('.component-inline-row')).map(function(row) {
+          return {
+            unit: String(row.querySelector('.component-unit-name').value || '').trim(),
+            value: String(row.querySelector('.component-unit-value').value || '').trim(),
+          };
+        }).filter(function(item) { return item.unit || item.value; }),
+        current_time_label: String(document.getElementById(root.id + '_currentTimeLabel').value || '').trim(),
+        total_ticks: parseInt(document.getElementById(root.id + '_totalTicks').value, 10) || 0,
+        last_tick_number: parseInt(document.getElementById(root.id + '_lastTickNumber').value, 10) || 0,
+        last_tick_type: String(document.getElementById(root.id + '_lastTickType').value || '').trim(),
+        last_advanced_ticks: parseInt(document.getElementById(root.id + '_lastAdvancedTicks').value, 10) || 0,
+        metadata: parseJSONObjectEditorField(document.getElementById(root.id + '_metadata').value, 'Metadata (JSON object)'),
+      };
+    default:
+      return parseJSONObjectEditorField(ctx.rawEl.value, 'Component Data');
+  }
+}
+
+function collectComponentEditorData(typeElementId, rawElementId, hostElementId, rawLabelId, hintElementId) {
+  var ctx = getComponentEditorContext(typeElementId, rawElementId, hostElementId, rawLabelId, hintElementId);
+  if (!ctx.typeEl || !ctx.rawEl || !ctx.hostEl) return { data: '' };
+  var componentType = ctx.typeEl.value || '';
+  var mode = componentValidationMode(componentType);
+  if (mode === 'free' || ctx.hostEl.dataset.editorMode === 'fallback') {
+    return { data: ctx.rawEl.value.trim() };
+  }
+  try {
+    var payload = mode === 'weak' ? collectWeakComponentEditorData(ctx) : collectStrongComponentEditorData(ctx, componentType);
+    var text = JSON.stringify(payload, null, 2);
+    ctx.rawEl.value = text;
+    return { data: text };
+  } catch (e) {
+    return { error: e && e.message ? e.message : String(e) };
+  }
+}
+
 function getProjectedParentIds(nodeId) {
   var parentIds = [];
   var node = state.nodes.find(function(x) { return x.id === nodeId; });
@@ -1164,22 +1634,25 @@ function openAddComponentModal() {
   const f = ce('div', { className: 'modal-field' }, [
     ce('label', { for: 'addCompType' }, [ttxt('Component Type')]),
     el('select', { id: 'addCompType', innerHTML: componentTypeOptionsHTML() }),
-    ce('label', { for: 'addCompData' }, [ttxt('Component Data (JSON/Markdown)')]),
+    ce('label', { for: 'addCompData', id: 'addCompRawLabel' }, [ttxt('Component Data (JSON/Markdown)')]),
+    ce('div', { id: 'addCompEditorHost', className: 'component-editor-host' }, []),
     el('textarea', { id: 'addCompData', placeholder: tr('Enter component data...'), rows: 8, style: {width: '100%', fontFamily: 'var(--font-mono)'} }),
     ce('div', { id: 'addCompHint', className: 'hint', style: {textAlign: 'left'} }, [txt('')]),
   ]);
   openModal(tr('Add Component'), f,
     ce('div', {}, [ce('button', { className: 'primary', id: 'modalAddCompBtn' }, [ttxt('Add')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
-  document.getElementById('addCompType').addEventListener('change', function() { updateComponentEditorHint('addCompType', 'addCompHint'); });
-  updateComponentEditorHint('addCompType', 'addCompHint');
+  document.getElementById('addCompType').addEventListener('change', function() { renderComponentEditor('addCompType', 'addCompData', 'addCompEditorHost', 'addCompRawLabel', 'addCompHint'); });
+  renderComponentEditor('addCompType', 'addCompData', 'addCompEditorHost', 'addCompRawLabel', 'addCompHint');
   document.getElementById('modalAddCompBtn').addEventListener('click', addComponent);
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 }
 
 async function addComponent() {
   const compType = document.getElementById('addCompType').value;
-  const data = document.getElementById('addCompData').value.trim();
+  var editorData = collectComponentEditorData('addCompType', 'addCompData', 'addCompEditorHost', 'addCompRawLabel', 'addCompHint');
+  if (editorData.error) { toast(editorData.error, 'error'); return; }
+  const data = editorData.data.trim();
   var validationError = validateComponentEditorData(compType, data);
   if (validationError) { toast(validationError, 'error'); return; }
   try {
@@ -1532,7 +2005,8 @@ function openEditComponentModal(compId) {
   const f = ce('div', { className: 'modal-field' }, [
     ce('label', { for: 'editCompType' }, [ttxt('Component Type')]),
     el('select', { id: 'editCompType', innerHTML: componentTypeOptionsHTML() }),
-    ce('label', { for: 'editCompData' }, [ttxt('Component Data')]),
+    ce('label', { for: 'editCompData', id: 'editCompRawLabel' }, [ttxt('Component Data')]),
+    ce('div', { id: 'editCompEditorHost', className: 'component-editor-host' }, []),
     el('textarea', { id: 'editCompData', rows: 10, style: {width: '100%', fontFamily: 'var(--font-mono)', fontSize: '11px'}, textContent: comp.data || '' }),
     ce('div', { id: 'editCompHint', className: 'hint', style: {textAlign: 'left'} }, [txt('')]),
   ]);
@@ -1540,15 +2014,17 @@ function openEditComponentModal(compId) {
     ce('div', {}, [ce('button', { className: 'primary', id: 'modalEditCompBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
   var ec = document.getElementById('editCompType'); if (ec) ec.value = comp.component_type;
-  if (ec) ec.addEventListener('change', function() { updateComponentEditorHint('editCompType', 'editCompHint'); });
-  updateComponentEditorHint('editCompType', 'editCompHint');
+  if (ec) ec.addEventListener('change', function() { renderComponentEditor('editCompType', 'editCompData', 'editCompEditorHost', 'editCompRawLabel', 'editCompHint'); });
+  renderComponentEditor('editCompType', 'editCompData', 'editCompEditorHost', 'editCompRawLabel', 'editCompHint');
   document.getElementById('modalEditCompBtn').addEventListener('click', function() { editComponent(compId); });
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 }
 
 async function editComponent(compId) {
   const compType = document.getElementById('editCompType').value;
-  const data = document.getElementById('editCompData').value.trim();
+  var editorData = collectComponentEditorData('editCompType', 'editCompData', 'editCompEditorHost', 'editCompRawLabel', 'editCompHint');
+  if (editorData.error) { toast(editorData.error, 'error'); return; }
+  const data = editorData.data.trim();
   var validationError = validateComponentEditorData(compType, data);
   if (validationError) { toast(validationError, 'error'); return; }
   try {
@@ -1674,21 +2150,25 @@ function openEditStateComponentModal(componentType, payload) {
   const f = ce('div', { className: 'modal-field' }, [
     ce('label', { for: 'editStateType' }, [ttxt('State Component')]),
     el('input', { id: 'editStateType', value: componentType, disabled: 'disabled', style: { width: '100%' } }),
-    ce('label', { for: 'editStateData' }, [ttxt('Component Data')]),
+    ce('label', { for: 'editStateData', id: 'editStateRawLabel' }, [ttxt('Component Data')]),
+    ce('div', { id: 'editStateEditorHost', className: 'component-editor-host' }, []),
     el('textarea', { id: 'editStateData', rows: 14, style: { width: '100%', fontFamily: 'var(--font-mono)', fontSize: '11px' }, textContent: text }),
     ce('div', { id: 'editStateHint', className: 'hint', style: { textAlign: 'left' } }, [txt('')]),
   ]);
   openModal(tr('Edit State Component'), f,
     ce('div', {}, [ce('button', { className: 'primary', id: 'modalSaveStateBtn' }, [ttxt('Save')]), el('button', { id: 'modalCancelBtn', textContent: tr('Cancel') })])
   );
+  renderComponentEditor('editStateType', 'editStateData', 'editStateEditorHost', 'editStateRawLabel', 'editStateHint');
   var validationError = validateComponentEditorData(componentType, text);
-  document.getElementById('editStateHint').textContent = validationError || tr('Structured world tick continuity state.');
+  if (!validationError) setComponentEditorHintText(getComponentEditorContext('editStateType', 'editStateData', 'editStateEditorHost', 'editStateRawLabel', 'editStateHint'), componentType, tr('Structured world tick continuity state.'));
   document.getElementById('modalSaveStateBtn').addEventListener('click', function() { saveStateComponent(componentType); });
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 }
 
 async function saveStateComponent(componentType) {
-  const data = document.getElementById('editStateData').value.trim();
+  var editorData = collectComponentEditorData('editStateType', 'editStateData', 'editStateEditorHost', 'editStateRawLabel', 'editStateHint');
+  if (editorData.error) { toast(editorData.error, 'error'); return; }
+  const data = editorData.data.trim();
   var validationError = validateComponentEditorData(componentType, data);
   if (validationError) { toast(validationError, 'error'); return; }
   try {
