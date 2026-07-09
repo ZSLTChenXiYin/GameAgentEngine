@@ -4,51 +4,47 @@
 
 An AI agent creation and runtime engine for game developers.
 
-GameAgentEngine is a Go-based engine that sits between game logic and LLM capabilities. It handles world modeling, NPC behavior, memory management, world timeline progression, and controlled runtime actions.
-
-It does not replace Unity, Unreal, or Godot. It is designed to work alongside them.
+GameAgentEngine sits between game logic and LLM capabilities. It handles world modeling, NPC behavior, memory management, world time progression, and controlled runtime actions. It does not replace Unity, Unreal, or Godot. It works alongside them as a dedicated AI world layer.
 
 ---
 
 ## Highlights
 
 - Unified world graph based on nodes, components, memories, and relations
-- LLM-driven NPC dialogue and world reasoning
-- Tick advancement, event impact assessment, and scope-level evolution
+- LLM-driven NPC dialogue, world reasoning, and event impact evaluation
+- World tick progression, continuity state, timeline archives, and world time advancement
 - Three pipeline modes: `vertical`, `polling`, `full`
-- World copy semantics split into working-copy fork, save snapshot, and restore
+- Distinct semantics for working-copy fork, save snapshot, and restore
 - Shared component validation metadata across Engine, Creator, and DevCli
-- World settings and world policy managed dynamically at runtime
-- Web editor (`GameAgentCreator`) and CLI (`GameAgentDevCli`)
-- Go SDK for integrating the engine into tools and services
-- Observability through response metadata, logs, and debug traces
+- Runtime management of `world_settings`, `world_policy`, and continuity state components
+- Bundled Web editor (`GameAgentCreator`), CLI (`GameAgentDevCli`), and Go SDK
 
 ---
 
 ## Quick Start
 
+If this is your first time using the project, start with [Getting Started](./docs/GETTING_STARTED_EN.md).
+
+Shortest path:
+
 ```bash
-# 1. Clone and build
-git clone <repo-url>
-cd GameAgentEngine
+# 1. Build
 go build ./...
 
 # 2. Copy the default config
 cp tools/source/gameagentengine.conf.yaml .
 
-# 3. Fill in llm.api_key in gameagentengine.conf.yaml
-
-# 4. Start the engine
+# 3. Start the engine
 go run ./cmd/gameagentengine serve
 
-# 5. Import the demo world
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key import tools/source/demo-world.yaml --reset
+# 4. Create a world root node
+go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node create --type world --name "New World"
 
-# 6. Open the Creator UI
-# tools/source/web/GameAgentCreator/index.html
+# 5. Open Creator
+go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key inspect
 ```
 
-See [Getting Started](./docs/GETTING_STARTED_EN.md) for the full walkthrough.
+If you plan to use `world tick`, timeline advancement, or worldline reasoning, configure `world_time_settings` for the world first. That configuration intentionally blocks dependent save flows when missing, so developers are reminded to define the world time system before relying on timeline inference.
 
 ---
 
@@ -58,80 +54,35 @@ See [Getting Started](./docs/GETTING_STARTED_EN.md) for the full walkthrough.
 
 The Creator currently supports:
 
-- world selection and world creation
-- world rename from the world page
-- node tree browsing with collapse state
-- drag-and-drop node reparenting
-- drag-to-root reparenting
-- node creation, edit, delete, and copy
-- generic outgoing relation creation from node actions
-- snapshot save, validation, restore, and delete flows
-- world settings, world policy, logs, and traces
-- component-type-aware validation hints while editing data
+- world selection and creation
+- world rename
+- node tree browsing, drag-to-parent, and drag-to-root
+- node create, edit, delete, and copy
+- relation creation and graph validation hints
+- snapshot save, validation, restore, and delete
+- world settings, world policy, and pending plan management
+- continuity, state, timelines, logs, and traces
+- `world_time_settings` editing and `world_time_state` inspection
 
 ### GameAgentDevCli
 
 The CLI currently supports:
 
-- import and validation flows
 - node / component / memory / relation CRUD
 - world tick, event impact, scope advance, and timeline replan
-- world fork, save snapshot, restore, validate snapshot, snapshot metadata, and snapshot deletion
-- world runtime settings and world policy management
-- world rename via `world update`
-- node copy via `node copy`
-- import and mutation validation reusing Engine-side component rules
+- world settings, world policy, and continuity state management
+- working-copy fork, save snapshot, restore, snapshot validation, and snapshot metadata
+- logs, traces, continuity debugging, and node graph debugging
+- the `inspect` entry for Creator
 
----
+### Go SDK
 
-## World Copy Semantics
+The SDK currently supports:
 
-GameAgentEngine distinguishes three related but different world-copy operations:
-
-- `ForkWorld`: create a runnable working copy for branch simulation and editing
-- `CreateWorldSnapshot`: create a save-oriented snapshot world with compatibility metadata
-- `RestoreWorld`: validate a save snapshot and materialize a fresh runnable world from it
-
-Snapshots preserve compatibility metadata separately from the live world graph so the engine can validate restore safety before rebuilding runtime state.
-
----
-
-## Pipeline Modes
-
-Each world can choose one of three pipeline modes:
-
-- `vertical`: minimal, single-pass execution
-- `polling`: multi-round reasoning without the full orchestration surface
-- `full`: complete orchestration, including the heavier engine features
-
-This lets games use only the amount of pipeline they need, improving response efficiency and reducing runtime cost.
-
----
-
-## Project Structure
-
-```text
-GameAgentEngine/
-|-- cmd/
-|   |-- gameagentengine/
-|   `-- gameagentdevcli/
-|-- docs/
-|-- internal/
-|   |-- action/
-|   |-- api/
-|   |-- config/
-|   |-- engine/
-|   |-- llm/
-|   |-- planner/
-|   |-- service/
-|   `-- store/
-|-- sdk/
-|-- tools/
-|   `-- source/
-|       `-- web/
-|           `-- GameAgentCreator/
-`-- web/
-```
+- basic service access, version, and health checks
+- world settings and `world_time_settings` reads and partial updates
+- continuity state component and timeline archive access
+- world tick, event impact, plan approval, and snapshot flows
 
 ---
 
@@ -146,6 +97,7 @@ GameAgentEngine/
 - [SDK Reference](./docs/SDK_REFERENCE_EN.md)
 - [Configuration](./docs/CONFIGURATION_EN.md)
 - [Build & Deploy](./docs/BUILD_AND_DEPLOY_EN.md)
+- [World Time Tick Reference](./docs/WORLD_TIME_TICK_REFERENCE_EN.md)
 
 ---
 

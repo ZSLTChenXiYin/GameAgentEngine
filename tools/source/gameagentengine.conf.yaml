@@ -26,22 +26,22 @@ auth:
 llm:
   # LLM 提供商：openai (兼容 OpenAI API 格式的均可)
   provider: "openai"
-  # 模型名称，可选：gpt-4o-mini / deepseek-chat / qwen-turbo 等
-  model: "deepseek-chat"
+  # 模型名称，可选：deepseek-v4-flash / deepseek-v4-pro 等
+  model: "deepseek-v4-flash"
   # API Key，留空则使用 mock Provider（仅用于离线调试）
   api_key: "sk-xxx"
   # API 端点地址
-  base_url: "https://api.deepseek.com/v1"
+  base_url: "https://api.deepseek.com"
 
 engine:
   # 执行模式：debug / review / production
   #   debug      — 动作直接执行，日志最详细
   #   review     — 高危动作需确认
   #   production — 自动执行，仅记录日志
-  execution_mode: "production"
+  execution_mode: "debug"
   # 默认世界 ID，留空则由用户首次操作时指定
   # 后台自主行为调度器是服务级静态开关，默认关闭；节点是否参与由数据库中的 autonomous 组件决定
-  autonomous_scheduler_enabled: false
+  autonomous_scheduler_enabled: true
   # 后台调度器扫描间隔秒数
   autonomous_scheduler_interval_seconds: 300
   # 每次扫描每个世界最多触发的 scheduled 自主节点数

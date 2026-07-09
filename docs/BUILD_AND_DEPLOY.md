@@ -2,107 +2,97 @@
 
 **中文** | [**English**](./BUILD_AND_DEPLOY_EN.md)
 
-GameAgentEngine v0.4.5 提供跨平台预编译包和源码构建两种获取方式。
+GameAgentEngine v0.4.6 提供源码构建和预编译打包两种使用方式。
 
 ---
 
-## 预编译包
+## 当前打包内容
 
-每个版本在 dist/ 目录下提供以下平台的压缩包：
+每个版本的打包目录结构以 `dist/GameAgentEngine-{os}-{arch}-v0.4.6/` 为准。当前包内包含：
 
-| 平台 | 文件 |
-|---|---|
-| Windows amd64 | `GameAgentEngine-windows-amd64-v0.4.5.zip` |
-| Windows arm64 | `GameAgentEngine-windows-arm64-v0.4.5.zip` |
-| Linux amd64 | `GameAgentEngine-linux-amd64-v0.4.5.zip` |
-| Linux arm64 | `GameAgentEngine-linux-arm64-v0.4.5.zip` |
-| macOS amd64 (Intel) | `GameAgentEngine-darwin-amd64-v0.4.5.zip` |
-| macOS arm64 (Apple Silicon) | `GameAgentEngine-darwin-arm64-v0.4.5.zip` |
-
-每个包包含：
-
-```
-GameAgentEngine-{os}-{arch}-v0.4.5/
-├── GameAgentEngine.exe     # 后端引擎服务
-├── GameAgentDevCli.exe     # 命令行管理工具
-├── gameagentengine.conf.yaml  # 默认配置文件
-├── demo-world.yaml         # Demo 世界配置
+```text
+GameAgentEngine-{os}-{arch}-v0.4.6/
+├── GameAgentEngine(.exe)
+├── GameAgentDevCli(.exe)
+├── gameagentengine.conf.yaml
+├── README.md
+├── README_EN.md
+├── docs/
 └── web/
-    ├── Demo/               # 可玩 Demo 展示
-    └── GameAgentCreator/   # 可视化编辑器
+    └── GameAgentCreator/
 ```
 
-### 使用预编译包
-
-```bash
-# 解压
-unzip GameAgentEngine-windows-amd64-v0.4.5.zip
-cd GameAgentEngine-windows-amd64-v0.4.5
-
-# 编辑配置文件，填入 LLM API Key
-# 编辑 gameagentengine.conf.yaml
-
-# 启动服务
-GameAgentEngine serve
-
-# 另开终端，导入 Demo 世界
-GameAgentDevCli import demo-world.yaml --reset
-```
+当前打包内容不包含 `demo-world.yaml` 或 `web/Demo/`。
 
 ---
 
-## 源码构建
+## 本地源码构建
 
-### 前置条件
+前置条件：
 
 - Go 1.25+
 
-### 本地构建
+构建全部组件：
 
 ```bash
-# 构建全部组件
 go build -o GameAgentEngine ./cmd/gameagentengine/
 go build -o GameAgentDevCli ./cmd/gameagentdevcli/
 ```
 
-### 跨平台交叉编译
+---
 
-使用 `tools/scripts/build.sh`（Linux/macOS）或 `tools/scripts/build.bat`（Windows）：
+## 使用打包脚本
+
+Windows：
 
 ```bash
-# 构建所有平台
-./tools/scripts/build.sh
-
-# 构建特定平台
-GOOS=linux GOARCH=amd64 go build -o dist/GameAgentEngine-linux-amd64 ./cmd/gameagentengine/
-GOOS=windows GOARCH=amd64 go build -o dist/GameAgentEngine-windows-amd64.exe ./cmd/gameagentengine/
-GOOS=darwin GOARCH=amd64 go build -o dist/GameAgentEngine-darwin-amd64 ./cmd/gameagentengine/
+tools\scripts\build.bat windows/amd64
 ```
 
-打包脚本会自动创建版本目录、重新生成 `tools/source/web/GameAgentCreator/js/component-meta.js`，并复制 `web/` 等资源文件。
+Linux 或 macOS：
+
+```bash
+./tools/scripts/build.sh linux/amd64
+```
+
+全部平台：
+
+```bash
+./tools/scripts/build.sh all
+```
+
+打包脚本会自动：
+
+- 编译 `GameAgentEngine` 与 `GameAgentDevCli`
+- 注入版本号
+- 重新生成 `tools/source/web/GameAgentCreator/js/component-meta.js`
+- 复制 `tools/source/` 下的配置、文档和 Creator 静态资源
+- 输出 zip 包
 
 ---
 
-## 部署
-
-### 基础部署
+## 启动打包产物
 
 ```bash
-# 1. 复制解压后的目录到服务器
-# 2. 修改 gameagentengine.conf.yaml 配置
-# 3. 运行服务
+cd GameAgentEngine-windows-amd64-v0.4.6
 GameAgentEngine serve
 ```
 
-### 生产环境建议
+如果你需要管理世界、打开 Creator、推进 Tick，使用同目录下的 `GameAgentDevCli`。
 
-1. **修改默认 API Key** — 将 `auth.api_key` 从 `"dev-key"` 改为随机字符串
-2. **配置正确的 LLM API Key**
-3. **使用 MySQL**（可选）— 生产环境推荐 MySQL 而非 SQLite
-4. **反向代理** — 生产环境建议使用 Nginx 反向代理
-5. **系统服务** — 建议配置为 systemd（Linux）或 Windows Service
+---
 
-### Nginx 反向代理示例
+## 部署建议
+
+生产环境至少检查以下事项：
+
+1. 修改 `auth.api_key`，不要保留 `dev-key`
+2. 配置真实可用的 LLM API Key
+3. 评估是否切换到 MySQL
+4. 用反向代理暴露 HTTP 服务
+5. 用系统服务托管进程
+
+### Nginx 示例
 
 ```nginx
 server {
@@ -117,7 +107,7 @@ server {
 }
 ```
 
-### systemd 服务配置（Linux）
+### systemd 示例
 
 ```ini
 [Unit]
@@ -139,7 +129,7 @@ WantedBy=multi-user.target
 
 ## 端口与安全
 
-- 默认端口：8080
-- API 认证：通过 `X-API-Key` 请求头
-- 默认开发密钥为 `dev-key`，生产环境务必修改
-- CORS 默认允许所有来源
+- 默认端口：`8080`
+- API 认证：`X-API-Key`
+- 默认开发密钥：`dev-key`
+- 默认 CORS：允许所有来源

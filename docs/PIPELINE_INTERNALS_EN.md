@@ -2,7 +2,7 @@
 
 [**ä¸­æ–‡**](./PIPELINE_INTERNALS.md) | **English**
 
-This document details the internal mechanisms of the GameAgentEngine v0.4.5 inference pipeline, including pipeline modes, multi-round polling, sub-task DAG, data request loops, and memory propagation.
+This document details the internal mechanisms of the GameAgentEngine v0.4.6 inference pipeline, including pipeline modes, multi-round polling, sub-task DAG, data request loops, and memory propagation.
 
 ---
 
@@ -26,11 +26,11 @@ The mode is configured through DevCli or Creator via WorldSettings, independentl
 2. Load world policy (blocked_actions / safe_actions)
 3. Build initial context (BuiltContext)
 4. Dispatch by task type:
-   - `npc_dialogue` â†’ executeDialogue (includes first-round analysis)
-   - `world_tick` â†’ executeWorldTick
-   - `world_event_impact` â†’ executeWorldEvent
-   - `autonomous_act` â†’ executeAutonomousAct (with capability filtering)
-   - `custom` â†’ executeCustom
+   - `npc_dialogue` â†?executeDialogue (includes first-round analysis)
+   - `world_tick` â†?executeWorldTick
+   - `world_event_impact` â†?executeWorldEvent
+   - `autonomous_act` â†?executeAutonomousAct (with capability filtering)
+   - `custom` â†?executeCustom
 5. Each task type ultimately enters the executeMultiTurnLoop common loop
 
 ---
@@ -44,10 +44,10 @@ Round 1:
   1. Build system prompt (with context + task node tree + instructions)
   2. Call LLM
   3. Parse JSON response
-  4. If full mode, check raw_sub_tasks â†’ create DAGInstance
-  5. Process request_data â†’ async data request wait
+  4. If full mode, check raw_sub_tasks â†?create DAGInstance
+  5. Process request_data â†?async data request wait
   6. Execute sync actions
-  7. Write memory updates â†’ propagate
+  7. Write memory updates â†?propagate
 8. Build next TaskNode
 9. Log inference
 
@@ -81,14 +81,14 @@ In `full` mode, the LLM can declare a `sub_tasks` array in its JSON response:
 DAGInstance is responsible for:
 
 - **Registering** sub-task declarations
-- **Dependency resolution** â€” empty depends_on = immediately ready; non-empty = wait for predecessors
+- **Dependency resolution** â€?empty depends_on = immediately ready; non-empty = wait for predecessors
 - **Concurrent execution** of ready sub-tasks (goroutines)
-- **Retry & timeout** â€” each sub-task retries up to MaxRetries times with TimeoutDuration
-- **Result merging** â€” supports three merge modes:
+- **Retry & timeout** â€?each sub-task retries up to MaxRetries times with TimeoutDuration
+- **Result merging** â€?supports three merge modes:
   - `append` (default): concatenates all results
   - `override`: later results replace earlier ones
   - `summarize`: LLM semantic summary
-- **Failure handling** â€” failures do not block the dependency chain; failure info is appended to the final reply
+- **Failure handling** â€?failures do not block the dependency chain; failure info is appended to the final reply
 
 ---
 
@@ -180,3 +180,4 @@ Configurable via DevCli or Creator:
 | sub_task_max_retries | 2 | Max sub-task retries |
 | sub_task_timeout_secs | 60 | Sub-task timeout in seconds |
 | enable_propagation_machine | false | Enable tag propagation state machine |
+

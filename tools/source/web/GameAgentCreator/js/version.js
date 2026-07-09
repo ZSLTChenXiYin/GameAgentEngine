@@ -1,5 +1,5 @@
 /* ============= Version Check ============= */
-const CREATOR_MIN_COMPATIBLE = "v0.4.5";
+const CREATOR_MIN_COMPATIBLE = "v0.4.6";
 
 let engineVersionInfo = null;
 
@@ -29,3 +29,4 @@ function parseSemVer(v) {
   if (parts.length !== 3) return null;
   return { major: parseInt(parts[0], 10), minor: parseInt(parts[1], 10), patch: parseInt(parts[2], 10) };
 }
+

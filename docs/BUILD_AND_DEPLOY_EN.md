@@ -2,144 +2,99 @@
 
 [**中文**](./BUILD_AND_DEPLOY.md) | **English**
 
-GameAgentEngine v0.4.5 can be obtained either as a pre-compiled package for multiple platforms or built from source.
+GameAgentEngine v0.4.6 supports both source builds and packaged releases.
 
 ---
 
-## Pre-compiled Packages
+## Current Package Layout
 
-Each release provides compressed packages in `dist/` for the following platforms:
+Each release package is structured as `dist/GameAgentEngine-{os}-{arch}-v0.4.6/`.
 
-| Platform | File |
-|---|---|
-| Windows amd64 | `GameAgentEngine-windows-amd64-v0.4.5.zip` |
-| Windows arm64 | `GameAgentEngine-windows-arm64-v0.4.5.zip` |
-| Linux amd64 | `GameAgentEngine-linux-amd64-v0.4.5.zip` |
-| Linux arm64 | `GameAgentEngine-linux-arm64-v0.4.5.zip` |
-| macOS amd64 (Intel) | `GameAgentEngine-darwin-amd64-v0.4.5.zip` |
-| macOS arm64 (Apple Silicon) | `GameAgentEngine-darwin-arm64-v0.4.5.zip` |
-
-Each package contains:
-
-```
-GameAgentEngine-{os}-{arch}-v0.4.5/
-├── GameAgentEngine.exe     # Backend engine service
-├── GameAgentDevCli.exe     # CLI management tool
-├── gameagentengine.conf.yaml  # Default configuration file
-├── demo-world.yaml         # Demo world configuration
+```text
+GameAgentEngine-{os}-{arch}-v0.4.6/
+├── GameAgentEngine(.exe)
+├── GameAgentDevCli(.exe)
+├── gameagentengine.conf.yaml
+├── README.md
+├── README_EN.md
+├── docs/
 └── web/
-    ├── Demo/               # Playable Demo showcase
-    └── GameAgentCreator/   # Visual editor
+    └── GameAgentCreator/
 ```
 
-### Using a Pre-compiled Package
-
-```bash
-# Extract
-unzip GameAgentEngine-windows-amd64-v0.4.5.zip
-cd GameAgentEngine-windows-amd64-v0.4.5
-
-# Edit the configuration file, fill in LLM API Key
-# Edit gameagentengine.conf.yaml
-
-# Start the service
-GameAgentEngine serve
-
-# In another terminal, import the Demo world
-GameAgentDevCli import demo-world.yaml --reset
-```
+Packaged builds should not contain `demo-world.yaml` or `web/Demo/`.
 
 ---
 
-## Building from Source
+## Build From Source
 
-### Prerequisites
+Prerequisite:
 
 - Go 1.25+
 
-### Local Build
-
 ```bash
-# Build all components
 go build -o GameAgentEngine ./cmd/gameagentengine/
 go build -o GameAgentDevCli ./cmd/gameagentdevcli/
 ```
 
-### Cross-compilation
+---
 
-Use `tools/scripts/build.sh` (Linux/macOS) or `tools/scripts/build.bat` (Windows):
+## Use the Packaging Scripts
+
+Windows:
 
 ```bash
-# Build for all platforms
-./tools/scripts/build.sh
-
-# Build for a specific platform
-GOOS=linux GOARCH=amd64 go build -o dist/GameAgentEngine-linux-amd64 ./cmd/gameagentengine/
-GOOS=windows GOARCH=amd64 go build -o dist/GameAgentEngine-windows-amd64.exe ./cmd/gameagentengine/
-GOOS=darwin GOARCH=amd64 go build -o dist/GameAgentEngine-darwin-amd64 ./cmd/gameagentengine/
+tools\scripts\build.bat windows/amd64
 ```
 
-The packaging script automatically creates version directories, regenerates `tools/source/web/GameAgentCreator/js/component-meta.js`, and copies resources such as the web/ directory.
+Linux or macOS:
+
+```bash
+./tools/scripts/build.sh linux/amd64
+```
+
+All platforms:
+
+```bash
+./tools/scripts/build.sh all
+```
+
+The packaging scripts automatically:
+
+- build `GameAgentEngine` and `GameAgentDevCli`
+- inject version values
+- regenerate `tools/source/web/GameAgentCreator/js/component-meta.js`
+- copy config, docs, and Creator static assets from `tools/source/`
+- emit zip archives
 
 ---
 
-## Deployment
-
-### Basic Deployment
+## Start a Packaged Build
 
 ```bash
-# 1. Copy the extracted directory to your server
-# 2. Edit gameagentengine.conf.yaml
-# 3. Run the service
+cd GameAgentEngine-windows-amd64-v0.4.6
 GameAgentEngine serve
 ```
 
-### Production Recommendations
+Use the bundled `GameAgentDevCli` to manage worlds, open Creator, and run ticks.
 
-1. **Change the default API Key** — set `auth.api_key` from `"dev-key"` to a random string
-2. **Configure a valid LLM API Key**
-3. **Use MySQL** (optional) — MySQL is recommended over SQLite for production
-4. **Reverse proxy** — Use Nginx as a reverse proxy in production
-5. **System service** — Configure as systemd (Linux) or a Windows Service
+---
 
-### Nginx Reverse Proxy Example
+## Deployment Notes
 
-```nginx
-server {
-    listen 80;
-    server_name engine.example.com;
+At minimum for production:
 
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-### systemd Service Configuration (Linux)
-
-```ini
-[Unit]
-Description=GameAgentEngine
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/opt/gameagent/GameAgentEngine serve
-WorkingDirectory=/opt/gameagent
-Restart=always
-User=gameagent
-
-[Install]
-WantedBy=multi-user.target
-```
+1. replace `auth.api_key` instead of keeping `dev-key`
+2. configure a real LLM API key
+3. evaluate switching to MySQL
+4. put a reverse proxy in front of the HTTP service
+5. supervise the process with a system service
 
 ---
 
 ## Ports & Security
 
-- Default port: 8080
-- API authentication: via `X-API-Key` request header
-- Default dev key is `dev-key` — change it in production
-- CORS allows all origins by default
+- default port: `8080`
+- API auth header: `X-API-Key`
+- default dev key: `dev-key`
+- default CORS behavior: allow all origins
