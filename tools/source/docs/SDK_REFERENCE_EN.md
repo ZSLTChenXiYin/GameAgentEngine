@@ -16,6 +16,24 @@ import "github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 client := sdk.NewClient("http://127.0.0.1:8080", "dev-key")
 ```
 
+## Relation and propagation semantics
+
+The SDK should follow the same semantic boundaries as the Engine:
+
+- `parent` is the only primary hierarchy and represents stable identity / ownership structure.
+- `located_at` represents current environment position and does not replace `parent`.
+- `belongs_to` / `subordinate` represent organization affiliation or control chain and do not replace `parent`.
+- `ally` / `enemy` / `kinship` are social edges and should not enter default prompt context automatically.
+- `external_parent` is an auxiliary scope attachment and is currently excluded from default context and default propagation.
+
+Common SDK constants:
+
+- Relation types: `sdk.RelationBelongsTo`, `sdk.RelationLocatedAt`, `sdk.RelationSubordinate`, `sdk.RelationExternalParent`, etc.
+- Pipeline modes: `sdk.PipelineModeVertical`, `sdk.PipelineModePolling`, `sdk.PipelineModeFull`.
+- Propagation modes: `sdk.PropagationModeUpward`, `sdk.PropagationModeEnvironment`, `sdk.PropagationModeOrganization`, `sdk.PropagationModeTagBroadcast`, `sdk.PropagationModeTargeted`, `sdk.PropagationModeManual`.
+
+`InvokeContext.IncludeRelatedNodes` only enables bounded related-node supplements. It is not permission to expand every adjacent node into prompt context.
+
 ### Health and Version
 
 ```go
@@ -252,6 +270,29 @@ type TickResponse struct {
 }
 ```
 
+### Continuity helpers
+
+The SDK continuity bundle now includes recent timeline history in addition to `LatestTimeline`:
+
+```go
+type ContinuityBundle struct {
+    WorldID         string
+    LatestTimeline  *TimelineEnvelope
+    Timelines       []TimelineEnvelope
+    StateComponents []StateComponentEnvelope
+    Logs            []InferenceLog
+    Traces          []DebugTrace
+}
+```
+
+Use these helpers to avoid re-parsing timeline and state payloads by hand:
+
+- `bundle.FindStateComponent("world_time_state")`
+- `bundle.LatestWorldTimeState()`
+- `timeline.WorldTimeState()`
+- `timeline.PreviousWorldTimeState()`
+- `timeline.EffectiveAdvancedTicks()`
+
 ### `InvokeResponse`
 
 ```go
@@ -267,6 +308,32 @@ type InvokeResponse struct {
     Metadata        *ResponseMeta        `json:"metadata,omitempty"`
 }
 ```
+
+### `PropagationRule`
+
+```go
+type PropagationRule struct {
+    Mode          string   `json:"mode,omitempty"`            // upward / environment_scope / organization_scope / tag_broadcast / targeted / manual
+    TargetTags    []string `json:"target_tags,omitempty"`     // tag_broadcast mode
+    TargetNodeIDs []string `json:"target_node_ids,omitempty"` // targeted mode
+    MaxDepth      int      `json:"max_depth,omitempty"`       // for structural propagation modes, ancestor expansion depth starting from the target node
+    PublishUp     bool     `json:"publish_up,omitempty"`      // only affects higher-level publication behavior for upward mode
+}
+```
+
+Propagation mode meanings:
+
+- `upward`: walk only the primary `parent` chain.
+- `environment_scope`: use the `located_at` target and that environment node's scene ancestors.
+- `organization_scope`: use `belongs_to` / `subordinate` targets and then each target's primary `parent` chain.
+- `tag_broadcast`: explicit tag-based broadcast.
+- `targeted`: explicit point-to-point propagation.
+- `manual`: disable automatic propagation.
+
+Data-query filter semantics must also stay aligned with the Engine:
+
+- `node_relations.filter` = `relation_type`
+- `node_memories.filter` = `memory_level`
 
 ### `ResponseMeta`
 

@@ -16,6 +16,24 @@ import "github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 client := sdk.NewClient("http://127.0.0.1:8080", "dev-key")
 ```
 
+## 关系与传播语义
+
+SDK 应与 Engine 保持同一套语义边界：
+
+- `parent` 是唯一主层级结构，表示稳定身份/归属链。
+- `located_at` 表示当前环境位置，不替代 `parent`。
+- `belongs_to` / `subordinate` 表示组织归属或控制链，不替代 `parent`。
+- `ally` / `enemy` / `kinship` 是社会关系，默认不会自动进入主上下文。
+- `external_parent` 是额外作用域挂接，当前不参与默认上下文和默认传播。
+
+常用 SDK 常量：
+
+- 关系类型：`sdk.RelationBelongsTo`、`sdk.RelationLocatedAt`、`sdk.RelationSubordinate`、`sdk.RelationExternalParent` 等。
+- 管线模式：`sdk.PipelineModeVertical`、`sdk.PipelineModePolling`、`sdk.PipelineModeFull`。
+- 传播模式：`sdk.PropagationModeUpward`、`sdk.PropagationModeEnvironment`、`sdk.PropagationModeOrganization`、`sdk.PropagationModeTagBroadcast`、`sdk.PropagationModeTargeted`、`sdk.PropagationModeManual`。
+
+`InvokeContext.IncludeRelatedNodes` 只是“受控关系补充”开关，不是“把所有邻接节点全部展开”的开关。
+
 ### 健康检查与版本
 
 ```go
@@ -341,6 +359,32 @@ type InvokeResponse struct {
     Metadata        *ResponseMeta        `json:"metadata,omitempty"`
 }
 ```
+
+### `PropagationRule`
+
+```go
+type PropagationRule struct {
+    Mode          string   `json:"mode,omitempty"`            // upward / environment_scope / organization_scope / tag_broadcast / targeted / manual
+    TargetTags    []string `json:"target_tags,omitempty"`     // tag_broadcast 模式
+    TargetNodeIDs []string `json:"target_node_ids,omitempty"` // targeted 模式
+    MaxDepth      int      `json:"max_depth,omitempty"`       // 结构传播模式下表示目标节点起始后的祖先展开深度
+    PublishUp     bool     `json:"publish_up,omitempty"`      // 仅影响 upward 的更高层发布行为
+}
+```
+
+传播模式说明：
+
+- `upward`：只沿主 `parent` 链传播。
+- `environment_scope`：沿 `located_at` 指向的环境节点及其场景祖先传播。
+- `organization_scope`：沿 `belongs_to` / `subordinate` 指向的组织或控制节点及其主 `parent` 链传播。
+- `tag_broadcast`：按标签广播。
+- `targeted`：定向传播。
+- `manual`：不自动传播。
+
+`node_relations` 与 `node_memories` 的数据查询过滤语义也需要与 Engine 保持一致：
+
+- `node_relations.filter` = `relation_type`
+- `node_memories.filter` = `memory_level`
 
 ### `ResponseMeta`
 

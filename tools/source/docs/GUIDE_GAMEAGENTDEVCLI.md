@@ -15,7 +15,7 @@ GameAgentDevCli 是通过 HTTP API 操作 GameAgentEngine 的命令行工具。
 - `--memory-limit`
 - `--max-analysis-rounds`
 - `--max-context-depth`
-- `--include-related-nodes`
+- `--include-related-nodes`：启用受控关系补充，不会无差别展开所有邻接节点
 
 ---
 
@@ -55,6 +55,13 @@ GameAgentDevCli node delete <node-id>
 ```
 
 `node copy` 默认复制整棵子树。
+
+建模约定：
+
+- `parent` 用于稳定身份/归属链，不用于表达 NPC 的临时位置。
+- NPC 当前所在场景应优先通过 `located_at` 关系表达。
+- `belongs_to` / `subordinate` 用于组织归属或控制链，不替代 `parent`。
+- `external_parent` 只用于额外作用域挂接，当前不会进入默认上下文和默认传播。
 
 ---
 
@@ -119,10 +126,23 @@ GameAgentDevCli world policy set <world-id> --blocked spawn_item --safe add_memo
 
 ```bash
 GameAgentDevCli memory propagate <memory-id>
+GameAgentDevCli memory propagate <memory-id> --mode environment_scope --max-depth 2
+GameAgentDevCli memory propagate <memory-id> --mode organization_scope --max-depth 1
 GameAgentDevCli memory propagate <memory-id> --mode tag_broadcast --tags rumor,politics
 GameAgentDevCli memory propagate <memory-id> --mode targeted --target node-a,node-b
 GameAgentDevCli memory propagate <memory-id> --max-depth 2 --publish-up
 ```
+
+传播模式说明：
+
+- `upward`：只沿主 `parent` 链传播。
+- `environment_scope`：沿 `located_at` 指向的环境节点及其场景祖先传播。
+- `organization_scope`：沿 `belongs_to` / `subordinate` 指向的组织或控制节点及其主 `parent` 链传播。
+- `tag_broadcast`：按标签广播。
+- `targeted`：定向传播。
+- `manual`：不自动传播。
+
+`--publish-up` 只对 `upward` 的更高层发布语义有意义；不会把其他模式变成父链传播。
 
 ---
 
