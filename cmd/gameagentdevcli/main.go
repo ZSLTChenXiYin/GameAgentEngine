@@ -188,3 +188,23 @@ func buildInvokeContext(cmd *cobra.Command) *sdk.InvokeContext {
 	}
 	return ctx
 }
+
+func validateRequestedTicksForWorld(worldID string, requestedTicks *int) error {
+	if requestedTicks == nil {
+		return nil
+	}
+	if *requestedTicks <= 0 {
+		return fmt.Errorf("requested-ticks must be greater than 0")
+	}
+	settings, err := newClient().GetWorldSettings(worldID)
+	if err != nil {
+		return err
+	}
+	if settings == nil || settings.WorldTimeSettings == nil {
+		return nil
+	}
+	if settings.WorldTimeSettings.TickScaleMode == "fixed" && *requestedTicks != 1 {
+		return fmt.Errorf("fixed tick scale mode only allows requested-ticks = 1")
+	}
+	return nil
+}

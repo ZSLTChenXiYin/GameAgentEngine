@@ -51,6 +51,9 @@ var worldTickCmd = &cobra.Command{
 			v, _ := cmd.Flags().GetInt("requested-ticks")
 			requestedTicks = &v
 		}
+		if err := validateRequestedTicksForWorld(args[0], requestedTicks); err != nil {
+			fail(err)
+		}
 		var limit *int
 		if cmd.Flags().Changed("autonomous-limit") {
 			v, _ := cmd.Flags().GetInt("autonomous-limit")
@@ -66,7 +69,7 @@ var worldTickCmd = &cobra.Command{
 
 var worldEventImpactCmd = &cobra.Command{
 	Use:   "event-impact <world-id>",
-	Short: "璇勪及涓€涓簨浠跺涓栫晫鐨勫奖鍝?,
+	Short: "Evaluate a world event impact",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		eventType, _ := cmd.Flags().GetString("type")
@@ -106,7 +109,7 @@ var worldScopeAdvanceCmd = &cobra.Command{
 
 var worldReplanCmd = &cobra.Command{
 	Use:   "replan <world-id>",
-	Short: "閲嶆柊鐢熸垚涓栫晫鏈潵鏃堕棿绾垮ぇ绾?,
+	Short: "Rebuild future world timeline plan",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		resp, err := newClient().TimelineReplan(args[0])
@@ -226,7 +229,7 @@ var worldDeleteSnapshotCmd = &cobra.Command{
 
 var worldSnapshotCmd = &cobra.Command{
 	Use:   "snapshot <world-id>",
-	Short: "杈撳嚭涓栫晫褰撳墠鐨勭‘鍒囪繍琛屽揩鐓?,
+	Short: "Export the current world runtime snapshot",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		snapshot, err := buildWorldSnapshot(args[0])
@@ -242,7 +245,7 @@ var worldSnapshotCmd = &cobra.Command{
 
 var worldExportCmd = &cobra.Command{
 	Use:   "export <world-id>",
-	Short: "瀵煎嚭涓哄彲鍐嶆瀵煎叆鐨勪笘鐣岄厤缃?,
+	Short: "Export a world config that can be imported again",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		snapshot, err := buildWorldSnapshot(args[0])
@@ -260,7 +263,7 @@ var worldExportCmd = &cobra.Command{
 
 var worldPolicyCmd = &cobra.Command{
 	Use:   "policy",
-	Short: "绠＄悊涓栫晫绾у姩浣滅瓥鐣?,
+	Short: "Manage world action policy",
 }
 
 var worldPlanCmd = &cobra.Command{
@@ -270,7 +273,7 @@ var worldPlanCmd = &cobra.Command{
 
 var worldPlanPendingCmd = &cobra.Command{
 	Use:   "pending [world-id]",
-	Short: "鍒楀嚭绛夊緟浜哄伐瀹℃牳鐨勮鍒?,
+	Short: "List pending world change plans",
 	Args:  cobra.RangeArgs(0, 1),
 	Run: func(cmd *cobra.Command, args []string) {
 		worldID := ""
@@ -341,7 +344,7 @@ var worldPolicySetCmd = &cobra.Command{
 
 var worldSettingsCmd = &cobra.Command{
 	Use:   "settings",
-	Short: "绠＄悊涓栫晫绾ц繍琛岃缃?,
+	Short: "Manage world runtime settings",
 }
 
 var worldSettingsGetCmd = &cobra.Command{
@@ -448,20 +451,20 @@ func init() {
 	worldSettingsCmd.AddCommand(worldSettingsGetCmd, worldSettingsSetCmd)
 	worldUpdateCmd.Flags().String("name", "", "鏂扮殑涓栫晫鍚嶇О")
 	worldSettingsSetCmd.Flags().Int("memory-limit", 0, "鍗曟鎺ㄧ悊鏈€澶氬姞杞界殑璁板繂鏉℃暟")
-	worldSettingsSetCmd.Flags().Int("analysis-rounds", 0, "LLM 鍐呴儴杞鏈€澶ф鏁?)
-	worldSettingsSetCmd.Flags().Int("context-depth", 0, "涓婁笅鏂囧悜涓婅拷婧殑鏈€澶ф繁搴?)
+	worldSettingsSetCmd.Flags().Int("analysis-rounds", 0, "Maximum internal analysis rounds for the LLM")
+	worldSettingsSetCmd.Flags().Int("context-depth", 0, "Maximum ancestor context lookup depth")
 	worldSettingsSetCmd.Flags().Bool("auto-apply", false, "鏄惁鑷姩鎵ц鍙樻洿璁″垝")
-	worldSettingsSetCmd.Flags().String("review-above", "", "瓒呰繃姝ゅ奖鍝嶇瓑绾ч渶瑕佸鏍?)
+	worldSettingsSetCmd.Flags().String("review-above", "", "Require review above this impact level")
 	worldSettingsSetCmd.Flags().Int("propagation-max-depth", 0, "璁板繂娌跨埗閾句笂浼犵殑鏈€澶у眰鏁帮紱0 涓轰笉闄愬埗")
 	worldSettingsSetCmd.Flags().Bool("enable-propagation-machine", false, "鏄惁鍚敤鏍囩浼犳挱鐘舵€佹満")
 	worldSettingsSetCmd.Flags().Int("sub-task-max-retries", 0, "瀛愪换鍔℃渶澶ч噸璇曟鏁帮紱0 浣跨敤榛樿鍊?2)")
 	worldSettingsSetCmd.Flags().Int("sub-task-timeout-secs", 0, "瀛愪换鍔¤秴鏃剁鏁帮紱0 浣跨敤榛樿鍊?60)")
 	worldSettingsSetCmd.Flags().String("pipeline-mode", "", "绠＄嚎妯″紡锛歷ertical/polling/full锛涚暀绌轰笉淇敼")
-`tworldSettingsSetCmd.Flags().String("world-time-settings-json", "", "JSON string for world_time_settings")
-`tworldSettingsSetCmd.Flags().String("world-time-settings-file", "", "Read world_time_settings JSON from file")
+	worldSettingsSetCmd.Flags().String("world-time-settings-json", "", "JSON string for world_time_settings")
+	worldSettingsSetCmd.Flags().String("world-time-settings-file", "", "Read world_time_settings JSON from file")
 
-	worldTickCmd.Flags().String("type", "manual", "鍒绘帹杩涚被鍨?)
-	worldTickCmd.Flags().String("time", "dev-cli", "娓告垙鍐呮椂闂存爣璇?)
+	worldTickCmd.Flags().String("type", "manual", "Tick request type")
+	worldTickCmd.Flags().String("time", "dev-cli", "Game time label for the request")
 	worldTickCmd.Flags().Int("requested-ticks", 1, "鏈 world tick 璇锋眰鎺ㄨ繘鐨勫熀纭€ tick 鏁伴噺")
 	worldTickCmd.Flags().Int("autonomous-limit", 10, "鏈 tick 鏈€澶氳Е鍙戠殑 world_tick_sync 鑷富鑺傜偣鏁帮紱0 涓轰笉瑙﹀彂")
 
@@ -470,10 +473,10 @@ func init() {
 	worldEventImpactCmd.Flags().String("description", "", "浜嬩欢鎻忚堪")
 	worldEventImpactCmd.Flags().String("severity", "medium", "浜嬩欢涓ラ噸绋嬪害")
 
-	worldSnapshotCmd.Flags().String("out", "", "杈撳嚭鏂囦欢璺緞锛涗负绌烘椂鎵撳嵃鍒?stdout")
-	worldExportCmd.Flags().String("format", "yaml", "瀵煎嚭鏍煎紡锛歽aml 鎴?json")
-	worldExportCmd.Flags().String("out", "", "杈撳嚭鏂囦欢璺緞锛涗负绌烘椂鎵撳嵃鍒?stdout")
-	worldForkCmd.Flags().BoolVar(&worldCopyLock, "lock-world", false, "澶嶅埗鏈熼棿閿佸畾婧愪笘鐣?)
-	worldSaveCmd.Flags().BoolVar(&worldCopyLock, "lock-world", true, "瀛樻。鏈熼棿閿佸畾婧愪笘鐣?)
-	worldRestoreCmd.Flags().BoolVar(&worldCopyLock, "lock-world", true, "鎭㈠鏈熼棿閿佸畾婧愬揩鐓т笘鐣?)
+	worldSnapshotCmd.Flags().String("out", "", "Output file path; print to stdout when empty")
+	worldExportCmd.Flags().String("format", "yaml", "Export format: yaml or json")
+	worldExportCmd.Flags().String("out", "", "Output file path; print to stdout when empty")
+	worldForkCmd.Flags().BoolVar(&worldCopyLock, "lock-world", false, "Lock the source world during fork")
+	worldSaveCmd.Flags().BoolVar(&worldCopyLock, "lock-world", true, "Lock the source world during snapshot save")
+	worldRestoreCmd.Flags().BoolVar(&worldCopyLock, "lock-world", true, "Lock the snapshot world during restore")
 }

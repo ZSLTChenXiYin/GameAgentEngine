@@ -17,6 +17,9 @@ var tickCmd = &cobra.Command{
 			v, _ := cmd.Flags().GetInt("requested-ticks")
 			requestedTicks = &v
 		}
+		if err := validateRequestedTicksForWorld(args[0], requestedTicks); err != nil {
+			fail(err)
+		}
 		var limit *int
 		if cmd.Flags().Changed("autonomous-limit") {
 			v, _ := cmd.Flags().GetInt("autonomous-limit")
