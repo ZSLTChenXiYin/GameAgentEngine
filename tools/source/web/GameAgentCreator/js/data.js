@@ -1170,11 +1170,59 @@ function saveConfig() {
 /* ============= Basic Actions ============= */
 async function tickAdvance() { if (!requireWorldGuard()) return;
   if (!state.selectedWorldId) { toast(tr('Please select a world first'), 'error'); return; }
+  const f = ce('div', { className: 'modal-field' }, [
+    ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '8px' } }, [ttxt('requested_ticks is required for flexible mode and must stay 1 in fixed mode.')]),
+    ce('label', { for: 'tickAdvanceType' }, [ttxt('Tick Type')]),
+    el('input', { id: 'tickAdvanceType', value: 'scheduled', style: { width: '100%' } }),
+    ce('label', { for: 'tickAdvanceGameTime' }, [ttxt('Game Time')]),
+    el('input', { id: 'tickAdvanceGameTime', value: '', placeholder: tr('Optional external time label'), style: { width: '100%' } }),
+    ce('label', { for: 'tickAdvanceRequestedTicks' }, [ttxt('Requested Ticks')]),
+    el('input', { id: 'tickAdvanceRequestedTicks', type: 'number', min: '1', value: '1', style: { width: '120px' } }),
+    ce('label', { for: 'tickAdvanceAutonomousLimit' }, [ttxt('Autonomous Limit')]),
+    el('input', { id: 'tickAdvanceAutonomousLimit', type: 'number', min: '0', value: '', placeholder: tr('Optional'), style: { width: '120px' } }),
+  ]);
+  openModal(tr('Advance Tick'), f,
+    ce('div', {}, [ce('button', { className: 'primary', id: 'modalTickAdvanceBtn' }, [ttxt('Advance Tick')]), el('button', { id: 'modalCancelTickAdvanceBtn', textContent: tr('Cancel') })])
+  );
+  document.getElementById('modalTickAdvanceBtn').addEventListener('click', submitTickAdvance);
+  document.getElementById('modalCancelTickAdvanceBtn').addEventListener('click', closeModal);
+}
+
+async function submitTickAdvance() {
+  var tickType = document.getElementById('tickAdvanceType').value.trim() || 'scheduled';
+  var gameTime = document.getElementById('tickAdvanceGameTime').value.trim();
+  var requestedTicksRaw = document.getElementById('tickAdvanceRequestedTicks').value.trim();
+  var autonomousLimitRaw = document.getElementById('tickAdvanceAutonomousLimit').value.trim();
+  var requestedTicks = requestedTicksRaw ? parseInt(requestedTicksRaw, 10) : 1;
+  var autonomousLimit = autonomousLimitRaw ? parseInt(autonomousLimitRaw, 10) : null;
+  if (!Number.isFinite(requestedTicks) || requestedTicks <= 0) {
+    toast(tr('Requested ticks must be greater than 0'), 'error');
+    return;
+  }
   showLoading(tr('Advancing tick...'));
   try {
-    const res = await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/ticks/advance', { tick_type: 'hour', game_time: '' });
+    const body = { tick_type: tickType, game_time: gameTime, requested_ticks: requestedTicks };
+    if (Number.isFinite(autonomousLimit) && autonomousLimit >= 0) body.autonomous_limit = autonomousLimit;
+    const res = await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/ticks/advance', body);
     hideLoading();
+    closeModal();
     toast(tr('Tick advanced') + ': ' + (res.tick ? 'tick ' + res.tick.tick_number : tr('Valid')), 'success');
+    await loadTimelines();
+    await loadStateComponents();
+    await loadContinuityOverview();
+    var worldTimeState = res.world_time_state || null;
+    var autonomousRuns = Array.isArray(res.autonomous_runs) ? res.autonomous_runs : [];
+    var resultEl = ce('div', { className: 'modal-field' }, [
+      ce('label', {}, [txt(tr('Tick Advance Result'))]),
+      ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Tick')]), ce('span', { className: 'val' }, [txt(res.tick ? String(res.tick.tick_number || 0) : '-')])]),
+      ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Requested Ticks')]), ce('span', { className: 'val' }, [txt(String(requestedTicks))])]),
+      ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Advanced Ticks')]), ce('span', { className: 'val' }, [txt(String(res.advanced_ticks || 0))])]),
+      ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('World Time Label')]), ce('span', { className: 'val' }, [txt(worldTimeState && worldTimeState.current_time_label ? worldTimeState.current_time_label : '-')])]),
+      ce('div', { className: 'prop-row' }, [ce('span', { className: 'key' }, [ttxt('Autonomous Runs')]), ce('span', { className: 'val' }, [txt(String(autonomousRuns.length))])]),
+      el('pre', { style: {fontSize: '11px', whiteSpace: 'pre-wrap', maxHeight: '320px', overflow: 'auto', background: 'var(--bg-input)', padding: '8px', borderRadius: 'var(--radius)'}, textContent: JSON.stringify(res, null, 2) }),
+    ]);
+    openModal(tr('Tick Advance Result'), resultEl, ce('div', {}, [el('button', { id: 'modalCloseTickAdvanceResultBtn', textContent: tr('Close') })]));
+    document.getElementById('modalCloseTickAdvanceResultBtn').addEventListener('click', closeModal);
   } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
