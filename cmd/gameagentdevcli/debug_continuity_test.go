@@ -30,10 +30,24 @@ func TestPrintContinuityBundleSummaryShowsCoreSections(t *testing.T) {
 			TickNumber:    7,
 			TickType:      "daily",
 			GameTime:      "Day 7",
+			AdvancedTicks: 2,
 			Summary:       "vault sealed",
 			FutureOutline: "investigate chamber",
-			Data:          map[string]any{"focus": "reactor"},
+			Data: map[string]any{
+				"focus": "reactor",
+				"world_time_state": map[string]any{"current_time_label": "Day 7 dawn", "last_advanced_ticks": 2, "total_ticks": 14},
+				"previous_world_time_state": map[string]any{"current_time_label": "Day 5 dusk", "last_advanced_ticks": 1},
+			},
 		},
+		Timelines: []sdk.TimelineEnvelope{{
+			TickNumber:    6,
+			TickType:      "daily",
+			GameTime:      "Day 6",
+			AdvancedTicks: 1,
+			Summary:       "outer gate secured",
+			Timeline:      sdk.TimelineTick{CreatedAt: "2026-07-08T09:00:00Z"},
+			Data:          map[string]any{"world_time_state": map[string]any{"current_time_label": "Day 6 dusk", "last_advanced_ticks": 1}},
+		}},
 		StateComponents: []sdk.StateComponentEnvelope{{
 			ComponentType: "story_state",
 			Component:     &sdk.Component{ID: "comp-2"},
@@ -80,7 +94,7 @@ func TestPrintContinuityBundleSummaryShowsCoreSections(t *testing.T) {
 		t.Fatalf("read output: %v", err)
 	}
 	output := string(bytes.TrimSpace(data))
-	for _, want := range []string{"Latest Timeline", "vault sealed", "State Components", "story_state", "Recent Logs", "world_tick", "Recent Traces", "trace-1"} {
+	for _, want := range []string{"Latest Timeline", "Recent Timelines", "vault sealed", "advanced_ticks=2", "world_time=Day 7 dawn", "previous_world_time=Day 5 dusk", "State Components", "story_state", "Recent Logs", "world_tick", "Recent Traces", "trace-1"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("missing %q in output %q", want, output)
 		}

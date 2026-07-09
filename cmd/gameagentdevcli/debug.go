@@ -100,6 +100,48 @@ func summarizeStateComponent(item sdk.StateComponentEnvelope) string {
 	return fmt.Sprintf("- %s [%s] %s", item.ComponentType, status, preview)
 }
 
+func appendTimelineWorldTimeDetails(lines []string, item *sdk.TimelineEnvelope) []string {
+	if item == nil {
+		return lines
+	}
+	advancedTicks := item.EffectiveAdvancedTicks()
+	if advancedTicks > 0 {
+		lines = append(lines, fmt.Sprintf("  advanced_ticks=%d", advancedTicks))
+	}
+	current := item.WorldTimeState()
+	if current != nil {
+		if current.CurrentTimeLabel != "" {
+			lines = append(lines, "  world_time="+current.CurrentTimeLabel)
+		}
+		if current.TotalTicks > 0 {
+			lines = append(lines, fmt.Sprintf("  total_ticks=%d", current.TotalTicks))
+		}
+	}
+	previous := item.PreviousWorldTimeState()
+	if previous != nil && previous.CurrentTimeLabel != "" {
+		lines = append(lines, "  previous_world_time="+previous.CurrentTimeLabel)
+	}
+	return lines
+}
+
+func summarizeTimeline(item sdk.TimelineEnvelope) []string {
+	lines := []string{fmt.Sprintf("- #%d %s %s", item.TickNumber, item.TickType, item.GameTime)}
+	if item.Summary != "" {
+		lines = append(lines, "  summary="+item.Summary)
+	}
+	if item.FutureOutline != "" {
+		lines = append(lines, "  future="+item.FutureOutline)
+	}
+	lines = appendTimelineWorldTimeDetails(lines, &item)
+	if item.Timeline.CreatedAt != "" {
+		lines = append(lines, "  created="+item.Timeline.CreatedAt)
+	}
+	if item.Data != nil {
+		lines = append(lines, "  payload="+compactJSON(item.Data))
+	}
+	return lines
+}
+
 func printContinuityBundleSummary(bundle *sdk.ContinuityBundle) {
 	if bundle == nil {
 		fmt.Println("No continuity bundle found.")
@@ -112,19 +154,24 @@ func printContinuityBundleSummary(bundle *sdk.ContinuityBundle) {
 		fmt.Println("- none")
 		fmt.Println()
 	} else {
-		item := bundle.LatestTimeline
-		fmt.Printf("- #%d %s %s\n", item.TickNumber, item.TickType, item.GameTime)
-		if item.Summary != "" {
-			fmt.Printf("  summary=%s\n", item.Summary)
-		}
-		if item.FutureOutline != "" {
-			fmt.Printf("  future=%s\n", item.FutureOutline)
-		}
-		if item.Data != nil {
-			fmt.Printf("  payload=%s\n", compactJSON(item.Data))
+		for _, line := range summarizeTimeline(*bundle.LatestTimeline) {
+			fmt.Println(line)
 		}
 		fmt.Println()
 	}
+
+	fmt.Println("Recent Timelines")
+	if len(bundle.Timelines) == 0 {
+		fmt.Println("- none")
+	} else {
+		for _, item := range bundle.Timelines {
+			for _, line := range summarizeTimeline(item) {
+				fmt.Println(line)
+			}
+			fmt.Println()
+		}
+	}
+	fmt.Println()
 
 	fmt.Println("State Components")
 	if len(bundle.StateComponents) == 0 {
