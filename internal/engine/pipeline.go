@@ -723,7 +723,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 	case TaskNPCDialogue:
 		systemPrompt = buildDialoguePrompt(ctxDesc, req.NodeID)
 	case TaskWorldTick:
-		systemPrompt = buildWorldTickPrompt(ctxDesc, "", nil, nil, buildWorldTickTimeBlock(req.WorldID))
+		systemPrompt = buildWorldTickPrompt(ctxDesc, "", nil, nil, buildWorldTickTimeBlock(req.WorldID), "")
 	case TaskWorldEvent:
 		eventDesc := ""
 		if req.Event != nil {
@@ -860,6 +860,7 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 		currentOutline = latest.FutureOutline
 	}
 	worldTimeBlock := buildWorldTickTimeBlock(req.WorldID)
+	relationSummary := buildWorldTickRelationSummary(ctx)
 	var recentTimeline []string
 	if ticks, err := store.GetTimelineTicks(req.WorldID, 3); err == nil {
 		for _, tick := range ticks {
@@ -873,7 +874,7 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 
 	tickFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 		baseContext := mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext)
-		return buildWorldTickPrompt(baseContext, currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock)
+		return buildWorldTickPrompt(baseContext, currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary)
 	}
 
 	var tree *TaskTree
@@ -888,6 +889,175 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 		}
 		return resp
 	}, executionMode)
+}
+
+func buildWorldTickRelationSummary(ctx *BuiltContext) string {
+	if ctx == nil || ctx.Node == nil {
+		return ""
+	}
+	scopeNodes := buildWorldTickScopeNodes(ctx)
+	if len(scopeNodes) == 0 {
+		return ""
+	}
+	childrenByParent := map[string][]store.NodeModel{}
+	for _, node := range scopeNodes {
+		if children, err := store.GetChildNodes(node.UUID); err == nil {
+			childrenByParent[node.UUID] = children
+		}
+	}
+
+	var parts []string
+	for _, scope := range scopeNodes {
+		parts = append(parts, fmt.Sprintf("- scope: %s(%s)", scope.Name, scope.NodeType))
+		rels, err := store.GetNodeRelations(scope.UUID)
+		if err == nil {
+			for _, line := range summarizeWorldTickRelations(scope, rels) {
+				parts = append(parts, "  "+line)
+			}
+		}
+		for _, line := range summarizeWorldTickChildren(scope, childrenByParent[scope.UUID]) {
+			parts = append(parts, "  "+line)
+		}
+		for _, line := range summarizeWorldTickChildRelations(scope, childrenByParent[scope.UUID]) {
+			parts = append(parts, "  "+line)
+		}
+	}
+	return strings.TrimSpace(strings.Join(dedupeStrings(parts), "\n"))
+}
+
+func buildWorldTickScopeNodes(ctx *BuiltContext) []store.NodeModel {
+	var nodes []store.NodeModel
+	if ctx.Node != nil {
+		nodes = append(nodes, *ctx.Node)
+	}
+	if ctx.EnvironmentNode != nil {
+		nodes = append(nodes, *ctx.EnvironmentNode)
+	}
+	nodes = append(nodes, ctx.EnvironmentAncestors...)
+	nodes = append(nodes, ctx.IdentityAncestors...)
+	return dedupeNodes(nodes)
+}
+
+func summarizeWorldTickRelations(scope store.NodeModel, rels []store.RelationModel) []string {
+	var lines []string
+	seen := map[string]bool{}
+	for _, rel := range rels {
+		if rel.SourceUUID != scope.UUID {
+			continue
+		}
+		summary := summarizeWorldTickRelation(rel)
+		if summary == "" || seen[summary] {
+			continue
+		}
+		seen[summary] = true
+		lines = append(lines, summary)
+	}
+	return lines
+}
+
+func summarizeWorldTickRelation(rel store.RelationModel) string {
+	switch rel.RelationType {
+	case string(RelLocatedAt):
+		return fmt.Sprintf("位置锚点: %s 位于 %s", relationEndpointName(rel.SourceUUID, rel.SourceUUID), relationEndpointName(rel.TargetUUID, rel.TargetUUID))
+	case string(RelBelongsTo):
+		return fmt.Sprintf("归属结构: %s 属于 %s", relationEndpointName(rel.SourceUUID, rel.SourceUUID), relationEndpointName(rel.TargetUUID, rel.TargetUUID))
+	case string(RelSubordinate):
+		return fmt.Sprintf("控制结构: %s 受 %s 指挥", relationEndpointName(rel.SourceUUID, rel.SourceUUID), relationEndpointName(rel.TargetUUID, rel.TargetUUID))
+	default:
+		return ""
+	}
+}
+
+func summarizeWorldTickChildren(scope store.NodeModel, children []store.NodeModel) []string {
+	if len(children) == 0 {
+		return nil
+	}
+	counts := map[string]int{}
+	samples := map[string][]string{}
+	for _, child := range children {
+		counts[child.NodeType]++
+		if len(samples[child.NodeType]) < 3 {
+			samples[child.NodeType] = append(samples[child.NodeType], child.Name)
+		}
+	}
+	orderedTypes := []string{string(NodeTypeLocation), string(NodeTypeFaction), string(NodeTypeNPC), string(NodeTypeEvent), string(NodeTypeItem), string(NodeTypeQuestLine)}
+	var lines []string
+	for _, nodeType := range orderedTypes {
+		count := counts[nodeType]
+		if count == 0 {
+			continue
+		}
+		line := fmt.Sprintf("子节点分布: %s 下有 %d 个 %s", scope.Name, count, nodeType)
+		if names := samples[nodeType]; len(names) > 0 {
+			line += fmt.Sprintf("（样本: %s）", strings.Join(names, ", "))
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+func summarizeWorldTickChildRelations(scope store.NodeModel, children []store.NodeModel) []string {
+	if len(children) == 0 {
+		return nil
+	}
+	allowedChildren := map[string]bool{}
+	for _, child := range children {
+		allowedChildren[child.UUID] = true
+	}
+	var lines []string
+	seen := map[string]bool{}
+	for _, child := range children {
+		rels, err := store.GetNodeRelations(child.UUID)
+		if err != nil {
+			continue
+		}
+		for _, rel := range rels {
+			if rel.SourceUUID != child.UUID {
+				continue
+			}
+			if rel.RelationType != string(RelLocatedAt) && rel.RelationType != string(RelBelongsTo) && rel.RelationType != string(RelSubordinate) {
+				continue
+			}
+			line := summarizeWorldTickRelation(rel)
+			if line == "" || seen[line] {
+				continue
+			}
+			if rel.TargetUUID != scope.UUID && !allowedChildren[rel.TargetUUID] {
+				targetNode, err := store.GetNode(rel.TargetUUID)
+				if err != nil || targetNode == nil || targetNode.ParentUUID == nil || *targetNode.ParentUUID != scope.UUID {
+					continue
+				}
+			}
+			seen[line] = true
+			lines = append(lines, line)
+			if len(lines) >= 6 {
+				return lines
+			}
+		}
+	}
+	return lines
+}
+
+func relationEndpointName(nodeUUID string, fallback string) string {
+	node, err := store.GetNode(nodeUUID)
+	if err != nil || node == nil || strings.TrimSpace(node.Name) == "" {
+		return fallback
+	}
+	return fmt.Sprintf("%s(%s)", node.Name, node.NodeType)
+}
+
+func dedupeStrings(input []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, item := range input {
+		trimmed := strings.TrimSpace(item)
+		if trimmed == "" || seen[trimmed] {
+			continue
+		}
+		seen[trimmed] = true
+		out = append(out, trimmed)
+	}
+	return out
 }
 
 func buildWorldTickTimeBlock(worldID string) string {

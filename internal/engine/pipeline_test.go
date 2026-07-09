@@ -865,3 +865,47 @@ func TestExecuteWorldTickIncludesWorldTimeConstraintsAndParsesAdvancedTicks(t *t
 		}
 	}
 }
+
+func TestExecuteWorldTickIncludesHighValueRelationSummary(t *testing.T) {
+	initTestDB(t)
+	worldID, _ := createWorldAndNode(t)
+	worldInt := store.ResolveNodeUUID(worldID)
+	if worldInt == 0 {
+		t.Fatal("expected resolved world id")
+	}
+	city := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "IronCity", NodeType: string(NodeTypeLocation), ParentID: &worldInt}
+	if err := store.CreateNode(city); err != nil {
+		t.Fatalf("create city: %v", err)
+	}
+	store.ResolveNodeParentUUID(city)
+	faction := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "Council", NodeType: string(NodeTypeFaction), ParentID: &worldInt}
+	if err := store.CreateNode(faction); err != nil {
+		t.Fatalf("create faction: %v", err)
+	}
+	store.ResolveNodeParentUUID(faction)
+	npc := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "Scout", NodeType: string(NodeTypeNPC), ParentID: &worldInt}
+	if err := store.CreateNode(npc); err != nil {
+		t.Fatalf("create npc: %v", err)
+	}
+	store.ResolveNodeParentUUID(npc)
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: npc.ID, SourceUUID: npc.UUID, TargetID: city.ID, TargetUUID: city.UUID, RelationType: string(RelLocatedAt), Weight: 1}); err != nil {
+		t.Fatalf("create located_at relation: %v", err)
+	}
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: npc.ID, SourceUUID: npc.UUID, TargetID: faction.ID, TargetUUID: faction.UUID, RelationType: string(RelBelongsTo), Weight: 1}); err != nil {
+		t.Fatalf("create belongs_to relation: %v", err)
+	}
+
+	provider := &captureProvider{response: `{"reply":"tick","advanced_ticks":1,"action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"推进","world_events":[],"proposed_actions":[]}}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: worldID, TaskType: TaskWorldTick}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	for _, want := range []string{"当前 scope 的高价值关系摘要：", "子节点分布: World 下有 1 个 location（样本: IronCity）", "子节点分布: World 下有 1 个 faction（样本: Council）", "子节点分布: World 下有 1 个 npc（样本: Scout）", "位置锚点: Scout(npc) 位于 IronCity(location)", "归属结构: Scout(npc) 属于 Council(faction)"} {
+		if !strings.Contains(provider.lastPrompt, want) {
+			t.Fatalf("expected prompt to contain %q, got %s", want, provider.lastPrompt)
+		}
+	}
+	if strings.Contains(provider.lastPrompt, string(RelAlly)) {
+		t.Fatalf("did not expect social relation names in world tick summary, got %s", provider.lastPrompt)
+	}
+}

@@ -34,10 +34,16 @@ type resourceState struct {
 }
 
 // buildWorldTickPrompt 构建世界刻推进任务的系统提示词。
-func buildWorldTickPrompt(systemContext string, outline string, continuityBlocks []string, recentTimeline []string, worldTimeBlock string) string {
+// relationSummary 必须是高价值、低噪音的结构化摘要块，不能退回成全量关系转储。
+func buildWorldTickPrompt(systemContext string, outline string, continuityBlocks []string, recentTimeline []string, worldTimeBlock string, relationSummary string) string {
 	sb := &strings.Builder{}
 	sb.WriteString(systemContext)
 	sb.WriteString("\n\n你正在推进世界时间线。")
+	if strings.TrimSpace(relationSummary) != "" {
+		sb.WriteString("\n\n当前 scope 的高价值关系摘要：\n")
+		sb.WriteString(relationSummary)
+		sb.WriteString("\n以上摘要只用于把握当前 tick 最关键的归属、控制与位置结构，不代表允许你无边界展开整张关系图。")
+	}
 	if strings.TrimSpace(worldTimeBlock) != "" {
 		sb.WriteString("\n\n世界时间约束与当前时间：\n")
 		sb.WriteString(worldTimeBlock)
