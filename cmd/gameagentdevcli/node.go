@@ -237,15 +237,15 @@ func init() {
 	nodeCreateCmd.Flags().String("world", "", "World ID; required for non-world nodes")
 	nodeCreateCmd.Flags().String("name", "", "Node name")
 	nodeCreateCmd.Flags().String("type", "", "Node type")
-	nodeCreateCmd.Flags().String("parent", "", "Parent node ID")
+	nodeCreateCmd.Flags().String("parent", "", "Primary parent node ID; use this for stable identity/ownership, not current location")
 
 	nodeUpdateCmd.Flags().String("name", "", "New node name")
 	nodeUpdateCmd.Flags().String("type", "", "New node type")
-	nodeUpdateCmd.Flags().String("parent", "", "New parent node ID")
+	nodeUpdateCmd.Flags().String("parent", "", "New primary parent node ID; do not use parent to model temporary location")
 	nodeUpdateCmd.Flags().Bool("clear-parent", false, "Clear the parent node")
 
 	nodeCopyCmd.Flags().String("name", "", "Copied node name")
-	nodeCopyCmd.Flags().String("parent", "", "Copied parent node ID; defaults to the original parent")
+	nodeCopyCmd.Flags().String("parent", "", "Copied primary parent node ID; defaults to the original stable parent")
 	nodeCopyCmd.Flags().Bool("with-children", true, "Copy the whole subtree")
 
 	nodeAutonomousSetCmd.Flags().Bool("enabled", false, "Enable autonomous behavior")

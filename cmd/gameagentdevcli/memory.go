@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
 
 var memoryCmd = &cobra.Command{
@@ -116,6 +118,10 @@ var memoryPropagateCmd = &cobra.Command{
 		maxDepth, _ := cmd.Flags().GetInt("max-depth")
 		publishUp, _ := cmd.Flags().GetBool("publish-up")
 
+		if err := validatePropagationMode(mode); err != nil {
+			fail(err)
+		}
+
 		if err := newClient().PropagateMemory(args[0], mode, tags, targetIDs, maxDepth, publishUp); err != nil {
 			fail(err)
 		}
@@ -143,9 +149,9 @@ func init() {
 	memoryUpdateCmd.Flags().String("level", "", "新的记忆层级")
 	memoryUpdateCmd.Flags().String("tags", "", "新的记忆标签")
 	memoryUpdateCmd.Flags().Bool("clear-tags", false, "清空记忆标签")
-	memoryPropagateCmd.Flags().String("mode", "upward", "传播模式：upward/tag_broadcast/targeted/manual")
-	memoryPropagateCmd.Flags().StringSlice("tags", []string{}, "目标标签列表，逗号分隔")
-	memoryPropagateCmd.Flags().StringSlice("target", []string{}, "目标节点 ID 列表，逗号分隔")
-	memoryPropagateCmd.Flags().Int("max-depth", 0, "向上传播时的最大深度；0 为使用服务端默认")
-	memoryPropagateCmd.Flags().Bool("publish-up", false, "是否允许向父链继续发布")
+	memoryPropagateCmd.Flags().String("mode", sdk.PropagationModeUpward, "传播模式："+validPropagationModesText())
+	memoryPropagateCmd.Flags().StringSlice("tags", []string{}, "目标标签列表；仅 tag_broadcast 模式使用")
+	memoryPropagateCmd.Flags().StringSlice("target", []string{}, "目标节点 ID 列表；仅 targeted 模式使用")
+	memoryPropagateCmd.Flags().Int("max-depth", 0, "结构传播时的祖先展开深度；0 为使用服务端默认")
+	memoryPropagateCmd.Flags().Bool("publish-up", false, "仅 upward 模式下用于继续向更高层公共父节点发布")
 }

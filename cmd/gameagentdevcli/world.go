@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"encoding/json"
@@ -455,18 +455,18 @@ func init() {
 	worldSettingsSetCmd.Flags().Int("context-depth", 0, "Maximum ancestor context lookup depth")
 	worldSettingsSetCmd.Flags().Bool("auto-apply", false, "鏄惁鑷姩鎵ц鍙樻洿璁″垝")
 	worldSettingsSetCmd.Flags().String("review-above", "", "Require review above this impact level")
-	worldSettingsSetCmd.Flags().Int("propagation-max-depth", 0, "璁板繂娌跨埗閾句笂浼犵殑鏈€澶у眰鏁帮紱0 涓轰笉闄愬埗")
+	worldSettingsSetCmd.Flags().Int("propagation-max-depth", 0, "默认 upward 主父链传播的最大深度；0 表示不限制")
 	worldSettingsSetCmd.Flags().Bool("enable-propagation-machine", false, "鏄惁鍚敤鏍囩浼犳挱鐘舵€佹満")
 	worldSettingsSetCmd.Flags().Int("sub-task-max-retries", 0, "瀛愪换鍔℃渶澶ч噸璇曟鏁帮紱0 浣跨敤榛樿鍊?2)")
 	worldSettingsSetCmd.Flags().Int("sub-task-timeout-secs", 0, "瀛愪换鍔¤秴鏃剁鏁帮紱0 浣跨敤榛樿鍊?60)")
-	worldSettingsSetCmd.Flags().String("pipeline-mode", "", "绠＄嚎妯″紡锛歷ertical/polling/full锛涚暀绌轰笉淇敼")
+	worldSettingsSetCmd.Flags().String("pipeline-mode", "", "管线模式：vertical / polling / full；留空表示不修改")
 	worldSettingsSetCmd.Flags().String("world-time-settings-json", "", "JSON string for world_time_settings")
 	worldSettingsSetCmd.Flags().String("world-time-settings-file", "", "Read world_time_settings JSON from file")
 
 	worldTickCmd.Flags().String("type", "manual", "Tick request type")
 	worldTickCmd.Flags().String("time", "dev-cli", "Game time label for the request")
-	worldTickCmd.Flags().Int("requested-ticks", 1, "鏈 world tick 璇锋眰鎺ㄨ繘鐨勫熀纭€ tick 鏁伴噺")
-	worldTickCmd.Flags().Int("autonomous-limit", 10, "鏈 tick 鏈€澶氳Е鍙戠殑 world_tick_sync 鑷富鑺傜偣鏁帮紱0 涓轰笉瑙﹀彂")
+	worldTickCmd.Flags().Int("requested-ticks", 1, "本次 world tick 请求推进的基础 tick 数量")
+	worldTickCmd.Flags().Int("autonomous-limit", 10, "本次 tick 最多触发的 world_tick_sync 自主节点数量；0 表示不触发")
 
 	worldEventImpactCmd.Flags().String("type", "", "浜嬩欢绫诲瀷")
 	worldEventImpactCmd.Flags().String("scope", "", "浜嬩欢浣滅敤鑼冨洿鑺傜偣 ID")

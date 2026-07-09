@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -121,6 +122,28 @@ func valueIfChanged(value string, changed bool) string {
 	return value
 }
 
+func validPropagationModesText() string {
+	return "upward / environment_scope / organization_scope / tag_broadcast / targeted / manual"
+}
+
+func validRelationTypesText() string {
+	return "belongs_to / ally / enemy / subordinate / kinship / located_at / external_parent"
+}
+
+func validatePropagationMode(value string) error {
+	if value == "" {
+		return nil
+	}
+	if !slices.Contains(sdk.ValidPropagationModes(), value) {
+		return fmt.Errorf("invalid propagation mode %q; allowed: %s", value, validPropagationModesText())
+	}
+	return nil
+}
+
+func containsString(items []string, value string) bool {
+	return slices.Contains(items, value)
+}
+
 // init 注册 GameAgentDevCli 的根命令和全局参数。
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&serverURL, "server", "s", "http://127.0.0.1:8080", "Agent server URL")
@@ -130,7 +153,7 @@ func init() {
 	rootCmd.PersistentFlags().Int("max-analysis-rounds", 0, "LLM 内部轮询最大次数（0 表示使用服务端配置）")
 	rootCmd.PersistentFlags().Int("max-context-depth", 0, "上下文向上追溯最大深度（0 表示使用服务端配置）")
 	rootCmd.PersistentFlags().Int("memory-limit", 0, "每次推理最多加载的记忆数量（0 表示使用服务端配置）")
-	rootCmd.PersistentFlags().Bool("include-related-nodes", false, "是否加载关联节点的数据")
+	rootCmd.PersistentFlags().Bool("include-related-nodes", false, "是否启用受控关系补充；不会无差别展开所有邻接节点")
 }
 
 // main 执行 GameAgentDevCli 根命令。

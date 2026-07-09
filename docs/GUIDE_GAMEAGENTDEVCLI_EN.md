@@ -15,7 +15,7 @@ GameAgentDevCli is the command-line tool for operating GameAgentEngine over its 
 - `--memory-limit`
 - `--max-analysis-rounds`
 - `--max-context-depth`
-- `--include-related-nodes`
+- `--include-related-nodes`: enable bounded related-node supplements instead of expanding every adjacent node
 
 ---
 
@@ -55,6 +55,13 @@ GameAgentDevCli node delete <node-id>
 ```
 
 `node copy` uses subtree copy by default.
+
+Modeling guidance:
+
+- Use `parent` for stable identity / ownership structure, not temporary NPC location.
+- Express an NPC's current scene primarily through `located_at`.
+- Use `belongs_to` / `subordinate` for organization affiliation or control chain, not as a replacement for `parent`.
+- Use `external_parent` only for auxiliary scope attachment; it is currently excluded from default context and default propagation.
 
 ---
 
@@ -147,10 +154,23 @@ In `fixed` mode, the engine only accepts `1`. In `flexible` mode, the final adop
 
 ```bash
 GameAgentDevCli memory propagate <memory-id>
+GameAgentDevCli memory propagate <memory-id> --mode environment_scope --max-depth 2
+GameAgentDevCli memory propagate <memory-id> --mode organization_scope --max-depth 1
 GameAgentDevCli memory propagate <memory-id> --mode tag_broadcast --tags rumor,politics
 GameAgentDevCli memory propagate <memory-id> --mode targeted --target node-a,node-b
 GameAgentDevCli memory propagate <memory-id> --max-depth 2 --publish-up
 ```
+
+Propagation mode meanings:
+
+- `upward`: walk only the primary `parent` chain.
+- `environment_scope`: use the `located_at` target and its scene ancestors.
+- `organization_scope`: use `belongs_to` / `subordinate` targets and each target's primary `parent` chain.
+- `tag_broadcast`: explicit tag broadcast.
+- `targeted`: explicit point-to-point propagation.
+- `manual`: do not propagate automatically.
+
+`--publish-up` only has meaning for higher-level publication behavior in `upward`; it does not convert other modes into parent-chain propagation.
 
 ---
 
