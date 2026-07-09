@@ -141,3 +141,26 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 - 世界重命名与节点复制依赖新版 API 路由
 - Creator 的组件校验提示来自打包时生成的 `js/component-meta.js`
 - 用于打包与分发的 Creator 副本，是 `tools/source/web/GameAgentCreator`
+
+## Creator 当前语义补充
+
+### 树层级与关系
+
+- 左侧 World Outline 只表示节点的 Primary Parent，也就是 node.parent_id。
+- 拖拽节点、拖到根级、Add New Parent 都只会修改 parent_id。
+- belongs_to、located_at、subordinate、external_parent 等关系会单独写入 relations 表，不会自动改写树层级。
+- 如果你要表达 DAG、位置、归属或组织关系，请使用 Relations，而不是依赖树投影。
+
+### 世界时间配置与 Tick 调试
+
+- Settings 页可以直接编辑 world_time_settings。
+- 支持配置 tick_scale_mode、tick_min_unit、tick_step、tick_units、time_scale_carry、time_calendar 和 unit_value_sequences。
+- tick_units 需要按从大到小填写，tick_min_unit 必须等于最后一个单位。
+- 启用 time_calendar 时，必须填写 calendar_name，且 calendar.units 必须与 tick_units 一一对应。
+- Advance Tick 支持填写 requested_ticks、game_time 和 autonomous_limit。
+- Tick 结果弹窗会显示 advanced_ticks、world_time_state.current_time_label 和完整响应 JSON。
+
+### 状态与时间线
+
+- State 页面现在会显示 world_time_state。
+- Timelines 和 Continuity 页面会显示 advanced_ticks、世界时间标签，以及 timeline payload 内的世界时间状态。

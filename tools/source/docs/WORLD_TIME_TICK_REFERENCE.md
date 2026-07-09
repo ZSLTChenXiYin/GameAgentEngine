@@ -92,3 +92,10 @@ DevCli：
 - timeline `data` 中的时间推进结果
 
 如果后续为 Creator 增加专门的世界时间设置表单，应直接映射到 `world_time_settings`，而不是再引入单独的配置源。
+
+## Creator 当前支持
+
+- Creator 的 Settings 页面已经可以直接编辑 world_time_settings，而不是仅用于只读查看。
+- Creator 的 Advance Tick 弹窗支持填写 requested_ticks、game_time 和 autonomous_limit。
+- Tick 执行完成后，Creator 会显示 advanced_ticks、world_time_state，以及完整返回 JSON。
+- State、Timelines、Continuity 页面都会显示 world_time_state 与 advanced_ticks，方便追踪世界时间推进链路。
