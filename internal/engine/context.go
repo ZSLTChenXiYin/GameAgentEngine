@@ -66,6 +66,9 @@ func (b *ContextBuilder) Build(taskType TaskType, nodeID string, depth int, memo
 
 	if includeRelated {
 		for _, r := range rels {
+			if !shouldIncludeRelatedRelation(taskType, nodeID, r) {
+				continue
+			}
 			relatedUUID := r.SourceUUID
 			if relatedUUID == nodeID {
 				relatedUUID = r.TargetUUID
@@ -135,6 +138,22 @@ func (b *ContextBuilder) collectMemories(nodes []store.NodeModel, limit int) []s
 		}
 	}
 	return mems
+}
+
+func shouldIncludeRelatedRelation(taskType TaskType, nodeID string, rel store.RelationModel) bool {
+	if rel.SourceUUID == nodeID && rel.RelationType == string(RelExternalParent) {
+		return false
+	}
+	switch taskType {
+	case TaskNPCDialogue, TaskAutonomousAct, TaskCustom:
+		return rel.RelationType == string(RelLocatedAt) || rel.RelationType == string(RelBelongsTo) || rel.RelationType == string(RelSubordinate)
+	case TaskWorldEvent:
+		return rel.RelationType == string(RelLocatedAt) || rel.RelationType == string(RelBelongsTo) || rel.RelationType == string(RelSubordinate)
+	case TaskWorldTick:
+		return rel.RelationType == string(RelBelongsTo) || rel.RelationType == string(RelSubordinate)
+	default:
+		return false
+	}
 }
 
 func (b *ContextBuilder) resolveEnvironmentNode(taskType TaskType, node *store.NodeModel, rels []store.RelationModel) *store.NodeModel {

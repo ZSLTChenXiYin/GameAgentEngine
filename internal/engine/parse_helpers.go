@@ -258,11 +258,11 @@ func sanitizeRoles(messages []ChatMessage) []ChatMessage {
 // handleDataRequest 解析模型发出的数据查询请求并把结果压平成补充文本。
 //
 // 约束：
-// 1. 这里是按需扩图接口，不是默认上下文组装器；它应返回任务明确请求的数据，而不是替模型做无边界全量展开。
-// 2. DataQuery.Filter 的含义必须与 types.go 中的注释一致：node_components=component_type,
-//    node_relations=relation_type, node_memories=memory_level。
-// 3. node_relations 返回的是关系视图，不应替代任务级关系图谱策略；尤其不能因为这里能查全量关系，就默认在主 prompt
-//    中拼接全量关系。
+//  1. 这里是按需扩图接口，不是默认上下文组装器；它应返回任务明确请求的数据，而不是替模型做无边界全量展开。
+//  2. DataQuery.Filter 的含义必须与 types.go 中的注释一致：node_components=component_type,
+//     node_relations=relation_type, node_memories=memory_level。
+//  3. node_relations 返回的是关系视图，不应替代任务级关系图谱策略；尤其不能因为这里能查全量关系，就默认在主 prompt
+//     中拼接全量关系。
 func (p *Pipeline) handleDataRequest(policyEngine *planner.PolicyEngine, dr *DataRequest) string {
 	var parts []string
 	for _, q := range dr.Queries {
@@ -278,12 +278,18 @@ func (p *Pipeline) handleDataRequest(policyEngine *planner.PolicyEngine, dr *Dat
 		case "node_memories":
 			if mems, err := store.GetNodeMemories(q.NodeID, limitOrDefault(q.Limit, 50)); err == nil {
 				for _, m := range mems {
+					if q.Filter != "" && m.Level != q.Filter {
+						continue
+					}
 					parts = append(parts, fmt.Sprintf("  [记忆:%s] %s", m.Level, m.Content))
 				}
 			}
 		case "node_relations":
 			if rels, err := store.GetNodeRelations(q.NodeID); err == nil {
 				for _, r := range rels {
+					if q.Filter != "" && r.RelationType != q.Filter {
+						continue
+					}
 					// SourceID/TargetID are int64 now; use UUID fields for display
 					parts = append(parts, fmt.Sprintf("  [关系:%s] %s -> %s (权重:%d)", r.RelationType, r.SourceUUID, r.TargetUUID, r.Weight))
 				}

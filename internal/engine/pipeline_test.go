@@ -448,6 +448,83 @@ func TestExecuteDialogueWithoutLocatedAtDoesNotInjectEnvironmentChain(t *testing
 	}
 }
 
+func TestHandleDataRequestFiltersNodeRelationsByRelationType(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	worldInt := store.ResolveNodeUUID(worldID)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	ally := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "Ally", NodeType: string(NodeTypeNPC)}
+	location := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "Square", NodeType: string(NodeTypeLocation)}
+	if err := store.CreateNode(ally); err != nil {
+		t.Fatalf("create ally: %v", err)
+	}
+	if err := store.CreateNode(location); err != nil {
+		t.Fatalf("create location: %v", err)
+	}
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: nodeInt, SourceUUID: nodeID, TargetID: ally.ID, TargetUUID: ally.UUID, RelationType: string(RelAlly), Weight: 2}); err != nil {
+		t.Fatalf("create ally relation: %v", err)
+	}
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: nodeInt, SourceUUID: nodeID, TargetID: location.ID, TargetUUID: location.UUID, RelationType: string(RelLocatedAt), Weight: 1}); err != nil {
+		t.Fatalf("create located_at relation: %v", err)
+	}
+
+	pipeline := NewPipeline(&stubProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`})
+	result := pipeline.handleDataRequest(nil, &DataRequest{Queries: []DataQuery{{Type: "node_relations", NodeID: nodeID, Filter: string(RelLocatedAt)}}})
+	if !strings.Contains(result, string(RelLocatedAt)) {
+		t.Fatalf("expected located_at relation, got %q", result)
+	}
+	if strings.Contains(result, string(RelAlly)) {
+		t.Fatalf("did not expect ally relation, got %q", result)
+	}
+}
+
+func TestHandleDataRequestFiltersNodeMemoriesByLevel(t *testing.T) {
+	initTestDB(t)
+	_, nodeID := createWorldAndNode(t)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	if err := store.CreateMemory(&store.MemoryModel{NodeID: nodeInt, NodeUUID: nodeID, Content: "short memory", Level: string(MemShortTerm)}); err != nil {
+		t.Fatalf("create short memory: %v", err)
+	}
+	if err := store.CreateMemory(&store.MemoryModel{NodeID: nodeInt, NodeUUID: nodeID, Content: "shared memory", Level: string(MemShared)}); err != nil {
+		t.Fatalf("create shared memory: %v", err)
+	}
+
+	pipeline := NewPipeline(&stubProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`})
+	result := pipeline.handleDataRequest(nil, &DataRequest{Queries: []DataQuery{{Type: "node_memories", NodeID: nodeID, Filter: string(MemShared)}}})
+	if !strings.Contains(result, "shared memory") {
+		t.Fatalf("expected shared memory, got %q", result)
+	}
+	if strings.Contains(result, "short memory") {
+		t.Fatalf("did not expect short memory, got %q", result)
+	}
+}
+
+func TestExecuteIncludeRelatedNodesSkipsSocialRelationsByDefault(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	worldInt := store.ResolveNodeUUID(worldID)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	ally := &store.NodeModel{UUID: store.NewUUID(), WorldID: worldInt, Name: "Ally", NodeType: string(NodeTypeNPC)}
+	if err := store.CreateNode(ally); err != nil {
+		t.Fatalf("create ally: %v", err)
+	}
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: ally.ID, NodeUUID: ally.UUID, ComponentType: string(CompLore), Data: `{"social":"allied contact"}`}); err != nil {
+		t.Fatalf("create ally component: %v", err)
+	}
+	if err := store.CreateRelation(&store.RelationModel{UUID: store.NewUUID(), WorldID: worldInt, WorldUUID: worldID, SourceID: nodeInt, SourceUUID: nodeID, TargetID: ally.ID, TargetUUID: ally.UUID, RelationType: string(RelAlly), Weight: 1}); err != nil {
+		t.Fatalf("create ally relation: %v", err)
+	}
+
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskNPCDialogue, Context: &InvokeContext{IncludeRelatedNodes: true}}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if strings.Contains(provider.lastPrompt, "allied contact") {
+		t.Fatalf("did not expect social ally component in prompt, got %s", provider.lastPrompt)
+	}
+}
+
 func TestExecuteFallsBackToDefaultSettingsWhenStoredValuesAreInvalid(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
