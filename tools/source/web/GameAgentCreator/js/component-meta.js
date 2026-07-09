@@ -88,6 +88,12 @@ window.GAMEAGENT_COMPONENT_META = [
     "help_text": "Structured tick policy and continuity constraints. Optional fields must keep their expected string-array / object shapes."
   },
   {
+    "type": "world_time_state",
+    "validation_mode": "strong",
+    "data_format": "json_object",
+    "help_text": "Structured current world time state for engine-managed tick progression."
+  },
+  {
     "type": "state_snapshot",
     "validation_mode": "weak",
     "data_format": "json_object",
