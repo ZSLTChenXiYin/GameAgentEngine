@@ -45,6 +45,17 @@ componentMetaList.forEach(function(item) {
   if (item && item.type) componentMetaMap[item.type] = item;
 });
 
+function componentTypeLabel(type) {
+  var meta = componentMetaMap[type] || {};
+  return meta.display_name || type;
+}
+
+function componentTypeDisplay(type) {
+  var label = componentTypeLabel(type);
+  if (!type || label === type) return type || '';
+  return type + ' (' + label + ')';
+}
+
 function componentTypeOptionsHTML() {
   var items = componentMetaList.length > 0 ? componentMetaList.slice() : [];
   if (items.length === 0) {
@@ -59,7 +70,7 @@ function componentTypeOptionsHTML() {
     ];
   }
   return items.map(function(item) {
-    return '<option value="' + item.type + '">' + item.type + '</option>';
+    return '<option value="' + item.type + '">' + componentTypeDisplay(item.type) + '</option>';
   }).join('');
 }
 
@@ -101,6 +112,7 @@ const i18n = {
     '-- Select World --': '-- 选择世界 --',
     'API Key': 'API 密钥',
     'Add': '添加',
+    'Add Unit': '添加单位',
     'Add New Parent': '添加新父节点',
     'Link External Parent': '指向外父节点',
     'Add Outgoing Relation': '添加被指向关系',
@@ -167,6 +179,7 @@ const i18n = {
     'Description': '描述',
     'Dry-run': '仅验证',
     'Duration': '耗时',
+    'Down': '下移',
     'Copy': '复制',
     'Copy Node': '复制节点',
     'Copy subtree': '复制子树',
@@ -198,6 +211,7 @@ const i18n = {
     'Event assessed': '事件已评估',
     'Execution Control': '执行控制',
     'Execution Mode': '执行模式',
+    'Expected count': '期望数量',
     'Failed to load logs': '加载日志失败',
     'Failed to load continuity bundle': '加载连续性聚合失败',
     'Failed to load state components': '加载状态组件失败',
@@ -216,6 +230,7 @@ const i18n = {
     'Import Config': '导入配置',
     'Import successful': '导入成功',
     'Inference Params': '推理参数',
+    'Initial value': '初始值',
     'Interval': '间隔',
     'Interval Seconds (scheduled)': '间隔秒数（scheduled）',
     'Invalid JSON': '无效 JSON',
@@ -273,6 +288,7 @@ const i18n = {
     'Pipeline': '管线',
     'Pipeline & Propagation': '管线与传播',
     'Pipeline Mode': '管线模式',
+    'present': '已存在',
     'Please select a node first': '请先选择节点',
     'Please select a world first': '请先选择世界',
     'Policy': '策略',
@@ -306,6 +322,7 @@ const i18n = {
     'Summary': '摘要',
     'Actions': '动作',
     'Memory Updates': '记忆更新',
+    'missing': '缺失',
     'Target node IDs, comma separated': '目标节点 ID，逗号分隔',
     'Tags, comma separated': '标签，逗号分隔',
     'upward': '向上',
@@ -407,6 +424,28 @@ const i18n = {
     'Target node search...': '搜索目标节点...',
     'Tick Advance Result': '推进 Tick 结果',
     'Tick advanced': 'Tick 已推进',
+    'Tick Scale Mode': 'Tick 尺度模式',
+    'Tick Step': 'Tick 步长',
+    'Tick Units': 'Tick 单位列表',
+    'Tick Min Unit': 'Tick 最小单位',
+    'Time Scale Carry': '时间尺度进位',
+    'Enable Calendar Mode': '启用日历模式',
+    'Calendar Name': '历名称',
+    'Calendar Units': '日历单位',
+    'Unit Value Sequences': '单位值序列',
+    'The engine advances this many minimum tick units per inferred tick.': '每次引擎推进一个推理 Tick 时，会按这里配置的最小 Tick 单位数量前进。',
+    'Derived from the smallest configured tick unit to match Engine constraints.': '该值由最小 Tick 单位自动推导，以满足 Engine 的硬约束。',
+    'When enabled, calendar units, carry rules, and sequences must stay consistent.': '启用后，日历单位、进位规则和单位值序列必须保持一致。',
+    'Tick units must be ordered from largest to smallest. The smallest unit becomes Tick Min Unit automatically.': 'Tick 单位必须按从大到小排列，最小单位会自动成为 Tick 最小单位。',
+    'Tick units contain blank values. Fill them before saving.': 'Tick 单位中存在空值，请补全后再保存。',
+    'Tick units contain duplicates. Keep each unit unique before saving.': 'Tick 单位中存在重复值，请保持每个单位唯一。',
+    'Add at least two tick units to configure carry rules.': '至少添加两个 Tick 单位后才能配置进位规则。',
+    'Optional symbolic sequences become available after you add smaller tick units.': '添加更小的 Tick 单位后，才需要配置可选的符号序列。',
+    'Example: 年': '示例：年',
+    'Example: 时辰': '示例：时辰',
+    'Example: 子 | 丑 | 寅 | 卯': '示例：子 | 丑 | 寅 | 卯',
+    'Base': '进位基数',
+    'Up': '上移',
     'Tracked Request': '跟踪请求',
     'Time': '时间',
     'Timeline Payload': '时间线载荷',
@@ -446,8 +485,15 @@ const i18n = {
     'World Outline': '世界节点树',
     'World Policy': '世界策略',
     'World Settings': '世界设置',
+    'World Time Settings': '世界时间设置',
     'Future Outline': '未来大纲',
     'Structured world tick continuity state.': '结构化的 world tick 连续性状态。',
+    'Structured current world state for tick continuity. Optional fields must keep their expected string / string-array / object shapes.': '用于 Tick 连续性的结构化世界状态，可选字段必须保持字符串、字符串数组或对象等既定结构。',
+    'Structured current narrative state and unresolved threads. Optional fields must keep their expected string / string-array / object shapes.': '用于描述当前叙事状态和未解决剧情线的结构化数据，可选字段必须保持字符串、字符串数组或对象等既定结构。',
+    'Structured rolling history of recent story beats. entries must be an array of structured history objects.': '用于记录近期剧情节拍的结构化历史数据，entries 必须是结构化历史对象数组。',
+    'Structured tick policy and continuity constraints. Optional fields must keep their expected string-array / object shapes.': '用于定义 Tick 策略和连续性约束的结构化数据，可选字段必须保持字符串数组或对象等既定结构。',
+    'Structured current world time state for engine-managed tick progression.': '用于引擎管理 Tick 推进的结构化世界时间状态。',
+    'Structured snapshot payload for state rollups and checkpoints.': '用于状态汇总和检查点的结构化快照载荷。',
     'World created': '世界已创建',
     'World updated': '世界已更新',
     'World:': '世界：',

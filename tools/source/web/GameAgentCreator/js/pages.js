@@ -328,7 +328,7 @@ function renderNodeDetail(container) {
     for (const c of nd.components) {
       const row = ce('div', { className: 'detail-item', dataset: { id: c.id } }, [
         ce('div', { className: 'item-hd' }, [
-          ce('span', { className: 'item-tag', style: {background: 'var(--accent-soft)', color: 'var(--accent)'} }, [txt(c.component_type)]),
+          ce('span', { className: 'item-tag', style: {background: 'var(--accent-soft)', color: 'var(--accent)'} }, [txt(componentTypeDisplay(c.component_type))]),
           ce('span', { style: {fontSize: '10px', color: 'var(--text-dim)'} }, [txt(' ' + (c.id ? c.id.substring(0,8) : ''))]),
           ce('button', { className: 'item-edit', dataset: { id: c.id } }, [ttxt('\u270e')]),
           ce('button', { className: 'item-del', dataset: { id: c.id } }, [ttxt('\u2715')]),
@@ -992,11 +992,11 @@ function renderStatePage(container) {
     var editable = item.component_type !== 'state_snapshot';
     var isWorldTimeState = item.component_type === 'world_time_state';
     var detailCard = createToggleDetailCard([
-      ce('span', { style: { fontWeight: 600 } }, [txt(item.component_type || '?')]),
-      txt(item.component ? ' present' : ' missing'),
+      ce('span', { style: { fontWeight: 600 } }, [txt(componentTypeDisplay(item.component_type || '?'))]),
+      txt(' ' + tr(item.component ? 'present' : 'missing')),
     ], false);
     var body = detailCard.body;
-    body.appendChild(renderPropRow('Type', item.component_type || '-'));
+    body.appendChild(renderPropRow('Type', componentTypeDisplay(item.component_type || '-')));
     body.appendChild(renderPropRow('ID', item.component && item.component.id ? item.component.id.slice(0, 8) : '-', { mono: true }));
     body.appendChild(renderPropRow('Node', item.component && item.component.node_id ? item.component.node_id.slice(0, 8) : '-', { mono: true }));
     body.appendChild(renderPropRow('Summary', tr('Structured world tick continuity state.')));
@@ -1097,7 +1097,7 @@ function renderContinuityPage(container) {
     } else {
       bundle.state_components.forEach(function(item) {
         var status = item.component ? 'present' : 'missing';
-        stateCardBody.appendChild(renderPropRow(item.component_type || '-', status, { rawLabel: true }));
+        stateCardBody.appendChild(renderPropRow(componentTypeDisplay(item.component_type || '-'), status, { rawLabel: true }));
       });
       stateCardBody.appendChild(ce('div', { className: 'hint', style: { textAlign: 'left', marginTop: '8px' } }, [ttxt('Select a request to focus linked logs and traces.')]));
     }
