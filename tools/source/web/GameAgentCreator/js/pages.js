@@ -439,6 +439,14 @@ function renderNodeDetail(container) {
     ce('div', { className: 'card-hd toggle-hd', 'aria-expanded': 'true' }, [function(){var c=nd.relations?nd.relations.length:0;return ce('span',{},[ttxt('Relations'),txt(' ('+c+')')])}(), ce('button', { id: 'btnAddRelationCenter', className: 'sm' }, [ttxt('+')])]),
     ce('div', { className: 'card-bd', id: 'relDetailList' }, [
       ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '8px' } }, [ttxt('Relations do not change the outline hierarchy unless you separately edit Primary Parent.')]),
+      nd.relation_validation_issues && nd.relation_validation_issues.length > 0 ? ce('div', { className: 'status-box', style: { marginBottom: '8px', textAlign: 'left' } }, [
+        ce('div', { style: { fontWeight: 600, marginBottom: '6px' } }, [ttxt('Relation Validation')]),
+        ce('div', { className: 'hint' }, [txt(nd.relation_validation_issues.map(function(issue) { return '[' + issue.severity + '] ' + issue.code + ': ' + issue.message; }).join('\n'))]),
+      ]) : null,
+      nd.graph_context_preview && nd.graph_context_preview.summary && nd.graph_context_preview.summary.length > 0 ? ce('div', { className: 'status-box', style: { marginBottom: '8px', textAlign: 'left' } }, [
+        ce('div', { style: { fontWeight: 600, marginBottom: '6px' } }, [ttxt('Graph Context Preview')]),
+        ce('div', { className: 'hint' }, [txt(nd.graph_context_preview.summary.join('\n'))]),
+      ]) : null,
       buildRelationBlueprintCard(n, nd.relations || []),
     ]),
   ]);

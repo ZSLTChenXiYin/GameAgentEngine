@@ -208,6 +208,36 @@ func printContinuityBundleSummary(bundle *sdk.ContinuityBundle) {
 	}
 }
 
+func printNodeGraphSummary(detail *sdk.NodeDetail) {
+	if detail == nil {
+		fmt.Println("No node detail found.")
+		return
+	}
+	fmt.Printf("Node: %s (%s)\n\n", detail.Node.Name, detail.Node.NodeType)
+
+	fmt.Println("Relation Validation")
+	if len(detail.RelationValidationIssues) == 0 {
+		fmt.Println("- none")
+	} else {
+		for _, issue := range detail.RelationValidationIssues {
+			fmt.Printf("- [%s] %s: %s\n", issue.Severity, issue.Code, issue.Message)
+		}
+	}
+	fmt.Println()
+
+	fmt.Println("Graph Context Preview")
+	if detail.GraphContextPreview == nil {
+		fmt.Println("- none")
+		return
+	}
+	for _, line := range detail.GraphContextPreview.Summary {
+		fmt.Println("- " + line)
+	}
+	if len(detail.GraphContextPreview.Summary) == 0 {
+		fmt.Println("- none")
+	}
+}
+
 var debugCmd = &cobra.Command{
 	Use:   "debug",
 	Short: "Debug utilities",
@@ -279,8 +309,27 @@ var debugContinuityCmd = &cobra.Command{
 	},
 }
 
+var debugNodeGraphCmd = &cobra.Command{
+	Use:   "node-graph <node-id>",
+	Short: "Show relation lint and graph context preview for a node",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		detail, err := newClient().GetNode(args[0])
+		if err != nil {
+			fail(err)
+		}
+		jsonOutput, _ := cmd.Flags().GetBool("json")
+		if jsonOutput {
+			printJSON(detail)
+			return
+		}
+		printNodeGraphSummary(detail)
+	},
+}
+
 func init() {
-	debugCmd.AddCommand(debugTracesCmd, debugContinuityCmd)
+	debugCmd.AddCommand(debugTracesCmd, debugContinuityCmd, debugNodeGraphCmd)
+	debugNodeGraphCmd.Flags().Bool("json", false, "输出完整 JSON")
 	debugTracesCmd.Flags().String("world", "", "Filter by world ID")
 	debugTracesCmd.Flags().Int("limit", 20, "Maximum number of traces to return")
 	debugTracesCmd.Flags().Bool("json", false, "Print raw JSON instead of the summary view")

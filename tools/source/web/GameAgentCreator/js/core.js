@@ -385,6 +385,8 @@ const i18n = {
     'Relation Properties': '关系属性',
     'Relation Summary': '关系摘要',
     'Relation Meaning': '关系语义',
+    'Relation Validation': '关系校验',
+    'Graph Context Preview': '图谱上下文预览',
     'Modeling Warnings': '建模警告',
     'Relations are stored separately from the outline tree. To change hierarchy, edit Primary Parent or drag in the outline.': '关系独立存储在大纲树之外。若要调整层级，请编辑 Primary Parent 或直接在大纲树中拖拽。',
     'Relations are stored separately from the outline tree. Primary Parent remains the only stable hierarchy field. Use located_at for current environment, belongs_to/subordinate for organization or control, and external_parent only for auxiliary DAG scope.': '关系独立存储在大纲树之外。Primary Parent 仍然是唯一稳定层级字段。当前环境请使用 located_at，组织或控制链请使用 belongs_to/subordinate，external_parent 只用于辅助 DAG 范围。',

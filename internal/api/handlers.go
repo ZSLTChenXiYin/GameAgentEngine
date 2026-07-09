@@ -48,13 +48,16 @@ func GetNodeHandler(w http.ResponseWriter, r *http.Request) {
 	mems, _ := store.GetNodeMemories(id, 20)
 	children, _ := store.GetChildNodes(id)
 	rels, _ := store.GetNodeRelations(id)
+	relationIssues, graphPreview := service.BuildNodeDiagnostics(node, rels)
 
 	writeJSON(w, 200, map[string]any{
-		"node":       node,
-		"components": comps,
-		"memories":   mems,
-		"children":   children,
-		"relations":  rels,
+		"node":                       node,
+		"components":                 comps,
+		"memories":                   mems,
+		"children":                   children,
+		"relations":                  rels,
+		"relation_validation_issues": relationIssues,
+		"graph_context_preview":      graphPreview,
 	})
 }
 

@@ -516,11 +516,11 @@ type LatestTimelineResponse struct {
 // ContinuityBundleOptions controls how much continuity debugging context to load.
 type ContinuityBundleOptions struct {
 	TimelineLimit int
-	LogLimit   int
-	TraceLimit int
-	SkipLogs   bool
-	SkipTraces bool
-	LogQuery   *InferenceLogQuery
+	LogLimit      int
+	TraceLimit    int
+	SkipLogs      bool
+	SkipTraces    bool
+	LogQuery      *InferenceLogQuery
 }
 
 // ContinuityBundle aggregates the core artifacts used to inspect world tick continuity.
@@ -535,11 +535,28 @@ type ContinuityBundle struct {
 
 // NodeDetail 表示节点详情接口返回的聚合结构。
 type NodeDetail struct {
-	Node       Node        `json:"node"`
-	Components []Component `json:"components,omitempty"`
-	Memories   []Memory    `json:"memories,omitempty"`
-	Children   []Node      `json:"children,omitempty"`
-	Relations  []Relation  `json:"relations,omitempty"`
+	Node                     Node                      `json:"node"`
+	Components               []Component               `json:"components,omitempty"`
+	Memories                 []Memory                  `json:"memories,omitempty"`
+	Children                 []Node                    `json:"children,omitempty"`
+	Relations                []Relation                `json:"relations,omitempty"`
+	RelationValidationIssues []RelationValidationIssue `json:"relation_validation_issues,omitempty"`
+	GraphContextPreview      *GraphContextPreview      `json:"graph_context_preview,omitempty"`
+}
+
+type RelationValidationIssue struct {
+	Severity string `json:"severity"`
+	Code     string `json:"code"`
+	Message  string `json:"message"`
+}
+
+type GraphContextPreview struct {
+	PrimaryParentChain []string `json:"primary_parent_chain,omitempty"`
+	EnvironmentChain   []string `json:"environment_chain,omitempty"`
+	OrganizationChains []string `json:"organization_chains,omitempty"`
+	SocialLinks        []string `json:"social_links,omitempty"`
+	AuxiliaryScopes    []string `json:"auxiliary_scopes,omitempty"`
+	Summary            []string `json:"summary,omitempty"`
 }
 
 // SubTaskDeclaration 描述 LLM 声明的一个子任务。
