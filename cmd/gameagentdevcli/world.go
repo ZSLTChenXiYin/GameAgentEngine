@@ -1,21 +1,47 @@
-package main
+﻿package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
 
+func parseWorldTimeSettingsInput(jsonText, filePath string) (*sdk.WorldTimeSettings, error) {
+	if jsonText != "" && filePath != "" {
+		return nil, fmt.Errorf("use either --world-time-settings-json or --world-time-settings-file, not both")
+	}
+	if jsonText == "" && filePath == "" {
+		return nil, nil
+	}
+	var payload []byte
+	if filePath != "" {
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return nil, err
+		}
+		payload = data
+	} else {
+		payload = []byte(jsonText)
+	}
+	var worldTimeSettings sdk.WorldTimeSettings
+	if err := json.Unmarshal(payload, &worldTimeSettings); err != nil {
+		return nil, fmt.Errorf("invalid world_time_settings JSON: %w", err)
+	}
+	return &worldTimeSettings, nil
+}
+
 var worldCmd = &cobra.Command{
 	Use:   "world",
-	Short: "管理世界级运行时操作",
+	Short: "绠＄悊涓栫晫绾ц繍琛屾椂鎿嶄綔",
 }
 
 var worldTickCmd = &cobra.Command{
 	Use:   "tick <world-id>",
-	Short: "推进一次世界刻",
+	Short: "鎺ㄨ繘涓€娆′笘鐣屽埢",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		tickType, _ := cmd.Flags().GetString("type")
@@ -40,7 +66,7 @@ var worldTickCmd = &cobra.Command{
 
 var worldEventImpactCmd = &cobra.Command{
 	Use:   "event-impact <world-id>",
-	Short: "评估一个事件对世界的影响",
+	Short: "璇勪及涓€涓簨浠跺涓栫晫鐨勫奖鍝?,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		eventType, _ := cmd.Flags().GetString("type")
@@ -67,7 +93,7 @@ var worldEventImpactCmd = &cobra.Command{
 
 var worldScopeAdvanceCmd = &cobra.Command{
 	Use:   "scope-advance <world-id> <scope-id>",
-	Short: "推进某个局部范围的世界演化",
+	Short: "鎺ㄨ繘鏌愪釜灞€閮ㄨ寖鍥寸殑涓栫晫婕斿寲",
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		resp, err := newClient().ScopeAdvance(args[0], args[1])
@@ -80,7 +106,7 @@ var worldScopeAdvanceCmd = &cobra.Command{
 
 var worldReplanCmd = &cobra.Command{
 	Use:   "replan <world-id>",
-	Short: "重新生成世界未来时间线大纲",
+	Short: "閲嶆柊鐢熸垚涓栫晫鏈潵鏃堕棿绾垮ぇ绾?,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		resp, err := newClient().TimelineReplan(args[0])
@@ -95,7 +121,7 @@ var worldCopyLock bool
 
 var worldForkCmd = &cobra.Command{
 	Use:   "fork <world-id> [name]",
-	Short: "创建世界工作副本",
+	Short: "鍒涘缓涓栫晫宸ヤ綔鍓湰",
 	Args:  cobra.RangeArgs(1, 2),
 	Run: func(cmd *cobra.Command, args []string) {
 		worldID := args[0]
@@ -113,7 +139,7 @@ var worldForkCmd = &cobra.Command{
 
 var worldSaveCmd = &cobra.Command{
 	Use:   "save <world-id> [name]",
-	Short: "创建世界存档快照",
+	Short: "鍒涘缓涓栫晫瀛樻。蹇収",
 	Args:  cobra.RangeArgs(1, 2),
 	Run: func(cmd *cobra.Command, args []string) {
 		worldID := args[0]
@@ -131,7 +157,7 @@ var worldSaveCmd = &cobra.Command{
 
 var worldRestoreCmd = &cobra.Command{
 	Use:   "restore <snapshot-world-id> [name]",
-	Short: "从存档快照恢复新世界",
+	Short: "浠庡瓨妗ｅ揩鐓ф仮澶嶆柊涓栫晫",
 	Args:  cobra.RangeArgs(1, 2),
 	Run: func(cmd *cobra.Command, args []string) {
 		worldID := args[0]
@@ -149,7 +175,7 @@ var worldRestoreCmd = &cobra.Command{
 
 var worldValidateSnapshotCmd = &cobra.Command{
 	Use:   "validate-snapshot <snapshot-world-id>",
-	Short: "楠岃瘉瀛樻。蹇収鏄惁鍙互瀹夊叏鎭㈠",
+	Short: "妤犲矁鐦夌€涙ɑ銆傝箛顐ゅ弾閺勵垰鎯侀崣顖欎簰鐎瑰鍙忛幁銏狀槻",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		result, err := newClient().ValidateWorldSnapshot(args[0])
@@ -162,7 +188,7 @@ var worldValidateSnapshotCmd = &cobra.Command{
 
 var worldSnapshotInfoCmd = &cobra.Command{
 	Use:   "snapshot-info <snapshot-world-id>",
-	Short: "鏌ョ湅瀛樻。蹇収鍏冩暟鎹鎯?",
+	Short: "閺屻儳婀呯€涙ɑ銆傝箛顐ゅ弾閸忓啯鏆熼幑顔款嚊閹?",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		result, err := newClient().GetWorldSnapshotMetadata(args[0])
@@ -175,7 +201,7 @@ var worldSnapshotInfoCmd = &cobra.Command{
 
 var worldListSnapshotsCmd = &cobra.Command{
 	Use:   "list-snapshots <world-id>",
-	Short: "鍒楀嚭鏌愪釜涓栫晫鐨勫瓨妗ｅ揩鐓у垪琛?",
+	Short: "閸掓鍤弻鎰嚋娑撴牜鏅惃鍕摠濡楋絽鎻╅悡褍鍨悰?",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		result, err := newClient().ListWorldSnapshots(args[0])
@@ -188,7 +214,7 @@ var worldListSnapshotsCmd = &cobra.Command{
 
 var worldDeleteSnapshotCmd = &cobra.Command{
 	Use:   "delete-snapshot <snapshot-world-id>",
-	Short: "鍒犻櫎瀛樻。蹇収鍙婂叾鎵€瀵瑰簲鐨勪笘鐣屽壇鏈?",
+	Short: "閸掔娀娅庣€涙ɑ銆傝箛顐ゅ弾閸欏﹤鍙鹃幍鈧€电懓绨查惃鍕瑯閻ｅ苯澹囬張?",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := newClient().DeleteWorldSnapshot(args[0]); err != nil {
@@ -200,7 +226,7 @@ var worldDeleteSnapshotCmd = &cobra.Command{
 
 var worldSnapshotCmd = &cobra.Command{
 	Use:   "snapshot <world-id>",
-	Short: "输出世界当前的确切运行快照",
+	Short: "杈撳嚭涓栫晫褰撳墠鐨勭‘鍒囪繍琛屽揩鐓?,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		snapshot, err := buildWorldSnapshot(args[0])
@@ -216,7 +242,7 @@ var worldSnapshotCmd = &cobra.Command{
 
 var worldExportCmd = &cobra.Command{
 	Use:   "export <world-id>",
-	Short: "导出为可再次导入的世界配置",
+	Short: "瀵煎嚭涓哄彲鍐嶆瀵煎叆鐨勪笘鐣岄厤缃?,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		snapshot, err := buildWorldSnapshot(args[0])
@@ -234,17 +260,17 @@ var worldExportCmd = &cobra.Command{
 
 var worldPolicyCmd = &cobra.Command{
 	Use:   "policy",
-	Short: "管理世界级动作策略",
+	Short: "绠＄悊涓栫晫绾у姩浣滅瓥鐣?,
 }
 
 var worldPlanCmd = &cobra.Command{
 	Use:   "plan",
-	Short: "管理待审批的世界变更计划",
+	Short: "绠＄悊寰呭鎵圭殑涓栫晫鍙樻洿璁″垝",
 }
 
 var worldPlanPendingCmd = &cobra.Command{
 	Use:   "pending [world-id]",
-	Short: "列出等待人工审核的计划",
+	Short: "鍒楀嚭绛夊緟浜哄伐瀹℃牳鐨勮鍒?,
 	Args:  cobra.RangeArgs(0, 1),
 	Run: func(cmd *cobra.Command, args []string) {
 		worldID := ""
@@ -261,7 +287,7 @@ var worldPlanPendingCmd = &cobra.Command{
 
 var worldPlanApproveCmd = &cobra.Command{
 	Use:   "approve <world-id> <plan-id>",
-	Short: "批准一条待审批计划",
+	Short: "鎵瑰噯涓€鏉″緟瀹℃壒璁″垝",
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		resp, err := newClient().ApprovePlan(args[0], args[1])
@@ -274,7 +300,7 @@ var worldPlanApproveCmd = &cobra.Command{
 
 var worldPlanRejectCmd = &cobra.Command{
 	Use:   "reject <world-id> <plan-id>",
-	Short: "拒绝一条待审批计划",
+	Short: "鎷掔粷涓€鏉″緟瀹℃壒璁″垝",
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		resp, err := newClient().RejectPlan(args[0], args[1])
@@ -287,7 +313,7 @@ var worldPlanRejectCmd = &cobra.Command{
 
 var worldPolicyGetCmd = &cobra.Command{
 	Use:   "get <world-id>",
-	Short: "查看世界动作策略",
+	Short: "鏌ョ湅涓栫晫鍔ㄤ綔绛栫暐",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		policy, err := newClient().GetWorldPolicy(args[0])
@@ -300,7 +326,7 @@ var worldPolicyGetCmd = &cobra.Command{
 
 var worldPolicySetCmd = &cobra.Command{
 	Use:   "set <world-id>",
-	Short: "设置世界动作策略",
+	Short: "璁剧疆涓栫晫鍔ㄤ綔绛栫暐",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		blocked, _ := cmd.Flags().GetStringSlice("blocked")
@@ -315,12 +341,12 @@ var worldPolicySetCmd = &cobra.Command{
 
 var worldSettingsCmd = &cobra.Command{
 	Use:   "settings",
-	Short: "管理世界级运行设置",
+	Short: "绠＄悊涓栫晫绾ц繍琛岃缃?,
 }
 
 var worldSettingsGetCmd = &cobra.Command{
 	Use:   "get <world-id>",
-	Short: "查看世界运行设置",
+	Short: "鏌ョ湅涓栫晫杩愯璁剧疆",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		settings, err := newClient().GetWorldSettings(args[0])
@@ -333,7 +359,7 @@ var worldSettingsGetCmd = &cobra.Command{
 
 var worldSettingsSetCmd = &cobra.Command{
 	Use:   "set <world-id>",
-	Short: "设置世界运行设置",
+	Short: "璁剧疆涓栫晫杩愯璁剧疆",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		settings := &sdk.WorldSettingsUpdate{}
@@ -377,6 +403,15 @@ var worldSettingsSetCmd = &cobra.Command{
 			v, _ := cmd.Flags().GetString("pipeline-mode")
 			settings.PipelineMode = &v
 		}
+		worldTimeSettingsJSON, _ := cmd.Flags().GetString("world-time-settings-json")
+		worldTimeSettingsFile, _ := cmd.Flags().GetString("world-time-settings-file")
+		if worldTimeSettingsJSON != "" || worldTimeSettingsFile != "" {
+			worldTimeSettings, err := parseWorldTimeSettingsInput(worldTimeSettingsJSON, worldTimeSettingsFile)
+			if err != nil {
+				fail(err)
+			}
+			settings.WorldTimeSettings = worldTimeSettings
+		}
 		result, err := newClient().UpdateWorldSettings(args[0], settings)
 		if err != nil {
 			fail(err)
@@ -387,7 +422,7 @@ var worldSettingsSetCmd = &cobra.Command{
 
 var worldUpdateCmd = &cobra.Command{
 	Use:   "update <world-id>",
-	Short: "更新世界信息",
+	Short: "鏇存柊涓栫晫淇℃伅",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		name, changed := getChangedString(cmd, "name")
@@ -407,36 +442,38 @@ func init() {
 
 	worldPolicyCmd.AddCommand(worldPolicyGetCmd, worldPolicySetCmd)
 	worldPlanCmd.AddCommand(worldPlanPendingCmd, worldPlanApproveCmd, worldPlanRejectCmd)
-	worldPolicySetCmd.Flags().StringSlice("blocked", []string{}, "阻塞的动作列表，逗号分隔")
-	worldPolicySetCmd.Flags().StringSlice("safe", []string{}, "安全的动作列表，逗号分隔")
+	worldPolicySetCmd.Flags().StringSlice("blocked", []string{}, "闃诲鐨勫姩浣滃垪琛紝閫楀彿鍒嗛殧")
+	worldPolicySetCmd.Flags().StringSlice("safe", []string{}, "瀹夊叏鐨勫姩浣滃垪琛紝閫楀彿鍒嗛殧")
 
 	worldSettingsCmd.AddCommand(worldSettingsGetCmd, worldSettingsSetCmd)
-	worldUpdateCmd.Flags().String("name", "", "新的世界名称")
-	worldSettingsSetCmd.Flags().Int("memory-limit", 0, "单次推理最多加载的记忆条数")
-	worldSettingsSetCmd.Flags().Int("analysis-rounds", 0, "LLM 内部轮询最大次数")
-	worldSettingsSetCmd.Flags().Int("context-depth", 0, "上下文向上追溯的最大深度")
-	worldSettingsSetCmd.Flags().Bool("auto-apply", false, "是否自动执行变更计划")
-	worldSettingsSetCmd.Flags().String("review-above", "", "超过此影响等级需要审核")
-	worldSettingsSetCmd.Flags().Int("propagation-max-depth", 0, "记忆沿父链上传的最大层数；0 为不限制")
-	worldSettingsSetCmd.Flags().Bool("enable-propagation-machine", false, "是否启用标签传播状态机")
-	worldSettingsSetCmd.Flags().Int("sub-task-max-retries", 0, "子任务最大重试次数；0 使用默认值(2)")
-	worldSettingsSetCmd.Flags().Int("sub-task-timeout-secs", 0, "子任务超时秒数；0 使用默认值(60)")
-	worldSettingsSetCmd.Flags().String("pipeline-mode", "", "管线模式：vertical/polling/full；留空不修改")
+	worldUpdateCmd.Flags().String("name", "", "鏂扮殑涓栫晫鍚嶇О")
+	worldSettingsSetCmd.Flags().Int("memory-limit", 0, "鍗曟鎺ㄧ悊鏈€澶氬姞杞界殑璁板繂鏉℃暟")
+	worldSettingsSetCmd.Flags().Int("analysis-rounds", 0, "LLM 鍐呴儴杞鏈€澶ф鏁?)
+	worldSettingsSetCmd.Flags().Int("context-depth", 0, "涓婁笅鏂囧悜涓婅拷婧殑鏈€澶ф繁搴?)
+	worldSettingsSetCmd.Flags().Bool("auto-apply", false, "鏄惁鑷姩鎵ц鍙樻洿璁″垝")
+	worldSettingsSetCmd.Flags().String("review-above", "", "瓒呰繃姝ゅ奖鍝嶇瓑绾ч渶瑕佸鏍?)
+	worldSettingsSetCmd.Flags().Int("propagation-max-depth", 0, "璁板繂娌跨埗閾句笂浼犵殑鏈€澶у眰鏁帮紱0 涓轰笉闄愬埗")
+	worldSettingsSetCmd.Flags().Bool("enable-propagation-machine", false, "鏄惁鍚敤鏍囩浼犳挱鐘舵€佹満")
+	worldSettingsSetCmd.Flags().Int("sub-task-max-retries", 0, "瀛愪换鍔℃渶澶ч噸璇曟鏁帮紱0 浣跨敤榛樿鍊?2)")
+	worldSettingsSetCmd.Flags().Int("sub-task-timeout-secs", 0, "瀛愪换鍔¤秴鏃剁鏁帮紱0 浣跨敤榛樿鍊?60)")
+	worldSettingsSetCmd.Flags().String("pipeline-mode", "", "绠＄嚎妯″紡锛歷ertical/polling/full锛涚暀绌轰笉淇敼")
+`tworldSettingsSetCmd.Flags().String("world-time-settings-json", "", "JSON string for world_time_settings")
+`tworldSettingsSetCmd.Flags().String("world-time-settings-file", "", "Read world_time_settings JSON from file")
 
-	worldTickCmd.Flags().String("type", "manual", "刻推进类型")
-	worldTickCmd.Flags().String("time", "dev-cli", "游戏内时间标识")
-	worldTickCmd.Flags().Int("requested-ticks", 1, "本次 world tick 请求推进的基础 tick 数量")
-	worldTickCmd.Flags().Int("autonomous-limit", 10, "本次 tick 最多触发的 world_tick_sync 自主节点数；0 为不触发")
+	worldTickCmd.Flags().String("type", "manual", "鍒绘帹杩涚被鍨?)
+	worldTickCmd.Flags().String("time", "dev-cli", "娓告垙鍐呮椂闂存爣璇?)
+	worldTickCmd.Flags().Int("requested-ticks", 1, "鏈 world tick 璇锋眰鎺ㄨ繘鐨勫熀纭€ tick 鏁伴噺")
+	worldTickCmd.Flags().Int("autonomous-limit", 10, "鏈 tick 鏈€澶氳Е鍙戠殑 world_tick_sync 鑷富鑺傜偣鏁帮紱0 涓轰笉瑙﹀彂")
 
-	worldEventImpactCmd.Flags().String("type", "", "事件类型")
-	worldEventImpactCmd.Flags().String("scope", "", "事件作用范围节点 ID")
-	worldEventImpactCmd.Flags().String("description", "", "事件描述")
-	worldEventImpactCmd.Flags().String("severity", "medium", "事件严重程度")
+	worldEventImpactCmd.Flags().String("type", "", "浜嬩欢绫诲瀷")
+	worldEventImpactCmd.Flags().String("scope", "", "浜嬩欢浣滅敤鑼冨洿鑺傜偣 ID")
+	worldEventImpactCmd.Flags().String("description", "", "浜嬩欢鎻忚堪")
+	worldEventImpactCmd.Flags().String("severity", "medium", "浜嬩欢涓ラ噸绋嬪害")
 
-	worldSnapshotCmd.Flags().String("out", "", "输出文件路径；为空时打印到 stdout")
-	worldExportCmd.Flags().String("format", "yaml", "导出格式：yaml 或 json")
-	worldExportCmd.Flags().String("out", "", "输出文件路径；为空时打印到 stdout")
-	worldForkCmd.Flags().BoolVar(&worldCopyLock, "lock-world", false, "复制期间锁定源世界")
-	worldSaveCmd.Flags().BoolVar(&worldCopyLock, "lock-world", true, "存档期间锁定源世界")
-	worldRestoreCmd.Flags().BoolVar(&worldCopyLock, "lock-world", true, "恢复期间锁定源快照世界")
+	worldSnapshotCmd.Flags().String("out", "", "杈撳嚭鏂囦欢璺緞锛涗负绌烘椂鎵撳嵃鍒?stdout")
+	worldExportCmd.Flags().String("format", "yaml", "瀵煎嚭鏍煎紡锛歽aml 鎴?json")
+	worldExportCmd.Flags().String("out", "", "杈撳嚭鏂囦欢璺緞锛涗负绌烘椂鎵撳嵃鍒?stdout")
+	worldForkCmd.Flags().BoolVar(&worldCopyLock, "lock-world", false, "澶嶅埗鏈熼棿閿佸畾婧愪笘鐣?)
+	worldSaveCmd.Flags().BoolVar(&worldCopyLock, "lock-world", true, "瀛樻。鏈熼棿閿佸畾婧愪笘鐣?)
+	worldRestoreCmd.Flags().BoolVar(&worldCopyLock, "lock-world", true, "鎭㈠鏈熼棿閿佸畾婧愬揩鐓т笘鐣?)
 }
