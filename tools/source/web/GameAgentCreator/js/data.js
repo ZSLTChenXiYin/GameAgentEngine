@@ -25,9 +25,33 @@ async function checkHealth() {
 async function loadWorlds() {
   try {
     state.worlds = await api('GET', '/api/v1/worlds');
+    var selectedExists = !!(state.selectedWorldId && state.worlds.some(function(w) { return w.id === state.selectedWorldId; }));
+    if (!selectedExists) {
+      state.selectedWorldId = null;
+      state.nodes = [];
+      state.relations = [];
+      state.selectedNodeId = null;
+      state.selectedNodeIds = [];
+      state.selectionAnchorId = null;
+      state.selectedTreePathKey = null;
+      state.nodeDetail = null;
+      state.snapshots = [];
+      state.snapshotMeta = null;
+      state.snapshotListWorldId = null;
+      state.logs = [];
+      state.stateComponents = [];
+      state.timelines = [];
+      state.continuityBundle = null;
+      state.continuityRequestId = '';
+      state.continuityMode = '';
+      state.settings = null;
+      state.policy = null;
+      state.plans = [];
+    }
     const sel = document.getElementById('worldSelector');
     if (sel) {
-      const cur = sel.value; sel.innerHTML = '';
+      const cur = selectedExists ? state.selectedWorldId : '';
+      sel.innerHTML = '';
       sel.appendChild(el('option', { value: '', textContent: '-- Select World --' }));
       for (const w of state.worlds) sel.appendChild(el('option', { value: w.id, textContent: w.name }));
       if (cur) sel.value = cur;
@@ -35,7 +59,9 @@ async function loadWorlds() {
     if (!state.selectedWorldId && state.worlds.length > 0) {
       state.selectedWorldId = state.worlds[0].id;
       selectWorld(state.selectedWorldId);
+      return;
     }
+    renderTree(); renderCurrent();
   } catch(e) {
     state.worlds = [];
     toast(tr('Failed to load worlds') + ': ' + apiErrorMessage(e), 'error');
