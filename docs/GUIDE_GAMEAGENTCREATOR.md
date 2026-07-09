@@ -153,6 +153,8 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 - `external_parent` 只用于辅助 DAG 范围，它不会进入默认上下文组装，也不会参与默认传播，不应用来替代主层级、当前位置或主要组织归属。
 - `ally`、`enemy`、`kinship` 属于社会关系边，默认不参与身份树和环境树的上下文扩展。
 - 如果你要表达 DAG、位置、归属或组织关系，请使用 Relations，而不是依赖树投影。
+- 节点详情页中的 `Relation Validation` 会直接显示高信号建模问题，例如多个 `located_at`、辅助 `external_parent` 的提醒，以及 NPC 缺少 `located_at` 的提示。
+- 节点详情页中的 `Graph Context Preview` 会汇总当前节点的主身份链、环境链、组织链和社会关系摘要，方便核对推理管线最终会如何理解这个节点。
 
 ### 记忆传播语义
 

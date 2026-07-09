@@ -157,6 +157,8 @@ The Snapshots page is used for two related views:
 - `belongs_to` models stable affiliation or ownership, while `subordinate` models command/reporting chains. Neither relation means current location.
 - `external_parent` is auxiliary DAG scope only. It is excluded from default context assembly and default propagation, so it should not replace the main hierarchy, current location, or primary organization modeling.
 - `ally`, `enemy`, and `kinship` are social graph edges and stay out of the default identity/environment expansion path.
+- The node detail view now surfaces `Relation Validation` so modeling drift such as multiple `located_at` edges, auxiliary `external_parent` usage, or NPCs missing a `located_at` edge can be spotted directly in the editor.
+- The node detail view also surfaces `Graph Context Preview`, which summarizes the primary identity chain, environment chain, organization chain, and social-link summary that the engine will treat as the node's graph context.
 
 ### Memory propagation modes
 

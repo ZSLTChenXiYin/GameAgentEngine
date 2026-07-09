@@ -37,6 +37,7 @@ GameAgentDevCli node create --world <world-id> --name "议事厅" --type locatio
 # 查询
 GameAgentDevCli node get <node-id>
 GameAgentDevCli node list --world <world-id>
+GameAgentDevCli debug node-graph <node-id>
 
 # 更新
 GameAgentDevCli node update <node-id> --name "新名称"
@@ -62,6 +63,7 @@ GameAgentDevCli node delete <node-id>
 - NPC 当前所在场景应优先通过 `located_at` 关系表达。
 - `belongs_to` / `subordinate` 用于组织归属或控制链，不替代 `parent`。
 - `external_parent` 只用于额外作用域挂接，当前不会进入默认上下文和默认传播。
+- `debug node-graph` 会直接读取节点详情中的关系建模问题和图谱上下文预览，适合快速核对当前节点的身份链、环境链和组织链是否符合预期。
 
 ---
 
@@ -169,11 +171,17 @@ GameAgentDevCli debug traces --world <world-id> --limit 10
 GameAgentDevCli debug traces --world <world-id> --limit 10 --json
 GameAgentDevCli debug continuity <world-id>
 GameAgentDevCli debug continuity <world-id> --mode debug --request-id <request-id> --log-limit 20 --trace-limit 10
+GameAgentDevCli debug node-graph <node-id>
 ```
 
 `logs` 现在支持 `--node`、`--category`、`--event`、`--mode`、`--request-id`、`--round` 等服务端结构化过滤参数。
 
 `debug continuity` 是目前最快的连续性排查入口，它会一次性汇总最近时间线、连续性状态组件、`world_tick` 日志和调试轨迹。
+
+`debug node-graph` 用于排查单个节点的关系建模：
+
+- `Relation Validation` 会提示多条 `located_at`、`external_parent` 辅助范围、NPC 缺少 `located_at` 等高信号问题。
+- `Graph Context Preview` 会展示当前节点的 `Primary Parent` 身份链、`located_at` 环境链、`belongs_to` / `subordinate` 组织链，以及 `ally` / `enemy` / `kinship` 社会关系摘要。
 
 ---
 

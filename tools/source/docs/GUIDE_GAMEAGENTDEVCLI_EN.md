@@ -37,6 +37,7 @@ GameAgentDevCli node create --world <world-id> --name "Council Hall" --type loca
 # Read
 GameAgentDevCli node get <node-id>
 GameAgentDevCli node list --world <world-id>
+GameAgentDevCli debug node-graph <node-id>
 
 # Update
 GameAgentDevCli node update <node-id> --name "New Name"
@@ -62,6 +63,7 @@ Modeling guidance:
 - Express an NPC's current scene primarily through `located_at`.
 - Use `belongs_to` / `subordinate` for organization affiliation or control chain, not as a replacement for `parent`.
 - Use `external_parent` only for auxiliary scope attachment; it is currently excluded from default context and default propagation.
+- `debug node-graph` reads the node-detail diagnostics directly, which makes it the fastest way to confirm whether identity, environment, and organization edges are modeled as intended.
 
 ---
 
@@ -197,12 +199,18 @@ GameAgentDevCli debug traces --world <world-id> --limit 10
 GameAgentDevCli debug traces --world <world-id> --limit 10 --json
 GameAgentDevCli debug continuity <world-id>
 GameAgentDevCli debug continuity <world-id> --mode debug --request-id <request-id> --log-limit 20 --trace-limit 10
+GameAgentDevCli debug node-graph <node-id>
 ```
 
 `logs` now supports server-side filters such as `--node`, `--category`, `--event`, `--mode`, `--request-id`, and `--round`.
 
 `debug continuity` is the fastest way to load the latest timeline, recent timeline history, continuity state components, recent `world_tick` logs, and debug traces in one summary view.
 The summary now expands `advanced_ticks`, the current `world_time` label, and the `previous_world_time` label when the timeline payload carries world time state.
+
+`debug node-graph` is the targeted inspection command for relation modeling:
+
+- `Relation Validation` highlights high-signal issues such as multiple `located_at` edges, auxiliary `external_parent` usage, and NPCs that still lack a `located_at` environment edge.
+- `Graph Context Preview` summarizes the current `Primary Parent` identity chain, the `located_at` environment chain, the `belongs_to` / `subordinate` organization chains, and the social-edge summary for `ally` / `enemy` / `kinship`.
 
 ---
 
