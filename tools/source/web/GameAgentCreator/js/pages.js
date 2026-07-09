@@ -441,6 +441,296 @@ function renderPolicyPage(container) {
 }
 
 /* ============= Settings Page ============= */
+function renderWorldTimeSettingsEditor(initialSettings) {
+  var existing = initialSettings || {};
+  var initialTickUnits = Array.isArray(existing.tick_units) && existing.tick_units.length ? existing.tick_units.slice() : [''];
+  var carryByFrom = {};
+  var sequenceByUnit = {};
+  var calendarValuesByUnit = {};
+  (existing.time_scale_carry || []).forEach(function(rule) {
+    if (!rule || !rule.from) return;
+    carryByFrom[String(rule.from)] = Number.isInteger(rule.base) ? rule.base : '';
+  });
+  (existing.unit_value_sequences || []).forEach(function(seq) {
+    if (!seq || !seq.unit) return;
+    sequenceByUnit[String(seq.unit)] = Array.isArray(seq.values) ? seq.values.join(' | ') : '';
+  });
+  if (existing.time_calendar && Array.isArray(existing.time_calendar.units)) {
+    existing.time_calendar.units.forEach(function(unit) {
+      if (!unit || !unit.unit) return;
+      calendarValuesByUnit[String(unit.unit)] = unit.value || '';
+    });
+  }
+
+  var root = ce('div', { className: 'world-time-editor' }, []);
+  var unitsStatus = ce('div', { id: 'worldTimeUnitsStatus', className: 'hint', style: { textAlign: 'left', padding: '0 0 8px 0' } }, [ttxt('Tick units must be ordered from largest to smallest. The smallest unit becomes Tick Min Unit automatically.')]);
+  root.appendChild(unitsStatus);
+
+  var modeRow = ce('div', { className: 'setting-row setting-row-top' }, [
+    ce('label', { for: 'setTickScaleMode' }, [ttxt('Tick Scale Mode')]),
+    el('select', { id: 'setTickScaleMode', innerHTML: '<option value="fixed">fixed</option><option value="flexible">flexible</option>' }),
+  ]);
+  root.appendChild(modeRow);
+
+  var stepRow = ce('div', { className: 'setting-row' }, [
+    ce('label', { for: 'setTickStep' }, [ttxt('Tick Step')]),
+    el('input', { id: 'setTickStep', type: 'number', min: '1', max: '999999', value: String(existing.tick_step || 1) }),
+    ce('div', { className: 'hint setting-inline-hint' }, [ttxt('The engine advances this many minimum tick units per inferred tick.')]),
+  ]);
+  root.appendChild(stepRow);
+
+  var unitsRow = ce('div', { className: 'setting-row setting-row-block' }, [
+    ce('label', {}, [ttxt('Tick Units')]),
+  ]);
+  var unitsBody = ce('div', { className: 'world-time-block' }, []);
+  var unitsList = ce('div', { id: 'worldTimeTickUnitsList', className: 'world-time-list' }, []);
+  unitsBody.appendChild(unitsList);
+  unitsBody.appendChild(ce('div', { className: 'policy-actions world-time-actions' }, [
+    ce('button', { type: 'button', id: 'btnAddTickUnit' }, [ttxt('Add Unit')]),
+  ]));
+  unitsRow.appendChild(unitsBody);
+  root.appendChild(unitsRow);
+
+  var minUnitRow = ce('div', { className: 'setting-row' }, [
+    ce('label', { for: 'setTickMinUnit' }, [ttxt('Tick Min Unit')]),
+    el('select', { id: 'setTickMinUnit' }),
+    ce('div', { className: 'hint setting-inline-hint' }, [ttxt('Derived from the smallest configured tick unit to match Engine constraints.')]),
+  ]);
+  root.appendChild(minUnitRow);
+
+  var carryRow = ce('div', { className: 'setting-row setting-row-block' }, [
+    ce('label', {}, [ttxt('Time Scale Carry')]),
+  ]);
+  var carryBody = ce('div', { id: 'worldTimeCarryList', className: 'world-time-block' }, []);
+  carryRow.appendChild(carryBody);
+  root.appendChild(carryRow);
+
+  var calendarToggleRow = ce('div', { className: 'setting-row' }, [
+    ce('label', { className: 'checkbox-row' }, [
+      el('input', { id: 'setCalendarEnabled', type: 'checkbox', checked: !!(existing.time_calendar && existing.time_calendar.enabled) }),
+      ttxt('Enable Calendar Mode'),
+    ]),
+    ce('div', { className: 'hint setting-inline-hint' }, [ttxt('When enabled, calendar units, carry rules, and sequences must stay consistent.')]),
+  ]);
+  root.appendChild(calendarToggleRow);
+
+  var calendarSection = ce('div', { id: 'worldTimeCalendarSection', className: 'world-time-calendar-section' }, []);
+  calendarSection.appendChild(ce('div', { className: 'setting-row' }, [
+    ce('label', { for: 'setCalendarName' }, [ttxt('Calendar Name')]),
+    el('input', { id: 'setCalendarName', value: existing.time_calendar && existing.time_calendar.calendar_name ? existing.time_calendar.calendar_name : '', placeholder: tr('Example: 太阴'), style: { width: '100%' } }),
+  ]));
+  var calendarUnitsRow = ce('div', { className: 'setting-row setting-row-block' }, [
+    ce('label', {}, [ttxt('Calendar Units')]),
+  ]);
+  var calendarUnitsBody = ce('div', { id: 'worldTimeCalendarUnitsList', className: 'world-time-block' }, []);
+  calendarUnitsRow.appendChild(calendarUnitsBody);
+  calendarSection.appendChild(calendarUnitsRow);
+  root.appendChild(calendarSection);
+
+  var sequenceRow = ce('div', { className: 'setting-row setting-row-block' }, [
+    ce('label', {}, [ttxt('Unit Value Sequences')]),
+  ]);
+  var sequenceBody = ce('div', { id: 'worldTimeSequenceList', className: 'world-time-block' }, []);
+  sequenceRow.appendChild(sequenceBody);
+  root.appendChild(sequenceRow);
+
+  function arrayFrom(nodeList) {
+    return Array.prototype.slice.call(nodeList || []);
+  }
+
+  function normalizeUnits(values) {
+    var result = [];
+    var seen = {};
+    (values || []).forEach(function(value) {
+      var trimmed = String(value || '').trim();
+      if (!trimmed || seen[trimmed]) return;
+      seen[trimmed] = true;
+      result.push(trimmed);
+    });
+    return result;
+  }
+
+  function collectDraft() {
+    var tickUnits = arrayFrom(root.querySelectorAll('.world-time-unit-input')).map(function(input) { return input.value; });
+    var nextCarryByFrom = {};
+    arrayFrom(root.querySelectorAll('.world-time-carry-base')).forEach(function(input) {
+      nextCarryByFrom[String(input.dataset.from || '')] = input.value.trim();
+    });
+    var nextSequenceByUnit = {};
+    arrayFrom(root.querySelectorAll('.world-time-sequence-values')).forEach(function(input) {
+      nextSequenceByUnit[String(input.dataset.unit || '')] = input.value;
+    });
+    var nextCalendarValuesByUnit = {};
+    arrayFrom(root.querySelectorAll('.world-time-calendar-value')).forEach(function(input) {
+      nextCalendarValuesByUnit[String(input.dataset.unit || '')] = input.value;
+    });
+    return {
+      tick_units: tickUnits,
+      carry_by_from: nextCarryByFrom,
+      sequence_by_unit: nextSequenceByUnit,
+      calendar_values_by_unit: nextCalendarValuesByUnit,
+      calendar_enabled: !!document.getElementById('setCalendarEnabled').checked,
+    };
+  }
+
+  function renderTickUnits(values) {
+    unitsList.innerHTML = '';
+    values.forEach(function(value, index) {
+      var row = ce('div', { className: 'world-time-list-row' }, []);
+      row.appendChild(ce('span', { className: 'world-time-order' }, [txt(String(index + 1))]));
+      row.appendChild(el('input', {
+        type: 'text',
+        value: value,
+        className: 'world-time-unit-input',
+        placeholder: tr(index === 0 ? 'Example: 年' : 'Example: 时辰'),
+        style: { width: '100%' },
+      }));
+      var actions = ce('div', { className: 'world-time-row-actions' }, [
+        ce('button', { type: 'button', className: 'world-time-move-up', disabled: index === 0 }, [ttxt('Up')]),
+        ce('button', { type: 'button', className: 'world-time-move-down', disabled: index === values.length - 1 }, [ttxt('Down')]),
+        ce('button', { type: 'button', className: 'danger world-time-delete-unit', disabled: values.length === 1 }, [ttxt('Delete')]),
+      ]);
+      row.appendChild(actions);
+      unitsList.appendChild(row);
+
+      row.querySelector('.world-time-unit-input').addEventListener('input', syncLinkedSections);
+      row.querySelector('.world-time-move-up').addEventListener('click', function() {
+        var draft = collectDraft();
+        var tmp = draft.tick_units[index - 1];
+        draft.tick_units[index - 1] = draft.tick_units[index];
+        draft.tick_units[index] = tmp;
+        renderTickUnits(draft.tick_units);
+        syncLinkedSections();
+      });
+      row.querySelector('.world-time-move-down').addEventListener('click', function() {
+        var draft = collectDraft();
+        var tmp = draft.tick_units[index + 1];
+        draft.tick_units[index + 1] = draft.tick_units[index];
+        draft.tick_units[index] = tmp;
+        renderTickUnits(draft.tick_units);
+        syncLinkedSections();
+      });
+      row.querySelector('.world-time-delete-unit').addEventListener('click', function() {
+        var draft = collectDraft();
+        draft.tick_units.splice(index, 1);
+        if (!draft.tick_units.length) draft.tick_units.push('');
+        renderTickUnits(draft.tick_units);
+        syncLinkedSections();
+      });
+    });
+  }
+
+  function syncLinkedSections() {
+    var draft = collectDraft();
+    var normalizedUnits = normalizeUnits(draft.tick_units);
+    var hasBlank = draft.tick_units.some(function(value) { return !String(value || '').trim(); });
+    var hasDuplicate = normalizedUnits.length !== draft.tick_units.filter(function(value) { return String(value || '').trim(); }).length;
+
+    unitsStatus.textContent = tr('Tick units must be ordered from largest to smallest. The smallest unit becomes Tick Min Unit automatically.');
+    if (hasBlank) unitsStatus.textContent = tr('Tick units contain blank values. Fill them before saving.');
+    if (!hasBlank && hasDuplicate) unitsStatus.textContent = tr('Tick units contain duplicates. Keep each unit unique before saving.');
+
+    var minUnitSelect = document.getElementById('setTickMinUnit');
+    minUnitSelect.innerHTML = '';
+    if (normalizedUnits.length === 0) {
+      minUnitSelect.appendChild(el('option', { value: '', textContent: '' }));
+      minUnitSelect.value = '';
+    } else {
+      normalizedUnits.forEach(function(unit) {
+        minUnitSelect.appendChild(el('option', { value: unit, textContent: unit }));
+      });
+      minUnitSelect.value = normalizedUnits[normalizedUnits.length - 1];
+    }
+
+    carryBody.innerHTML = '';
+    if (normalizedUnits.length <= 1) {
+      carryBody.appendChild(ce('div', { className: 'hint', style: { textAlign: 'left', padding: '0' } }, [ttxt('Add at least two tick units to configure carry rules.')]))
+    } else {
+      for (var i = normalizedUnits.length - 1; i > 0; i--) {
+        var fromUnit = normalizedUnits[i];
+        var toUnit = normalizedUnits[i - 1];
+        var carryRow = ce('div', { className: 'world-time-linked-row' }, [
+          ce('span', { className: 'world-time-link-label' }, [txt(fromUnit + ' -> ' + toUnit)]),
+          el('input', {
+            type: 'number',
+            min: '1',
+            step: '1',
+            value: draft.carry_by_from[fromUnit] || carryByFrom[fromUnit] || '',
+            className: 'world-time-carry-base',
+            dataset: { from: fromUnit, to: toUnit },
+          }),
+          ce('span', { className: 'hint' }, [ttxt('Base')]),
+        ]);
+        carryBody.appendChild(carryRow);
+        carryRow.querySelector('.world-time-carry-base').addEventListener('input', syncLinkedSections);
+      }
+    }
+
+    sequenceBody.innerHTML = '';
+    if (normalizedUnits.length <= 1) {
+      sequenceBody.appendChild(ce('div', { className: 'hint', style: { textAlign: 'left', padding: '0' } }, [ttxt('Optional symbolic sequences become available after you add smaller tick units.')]))
+    } else {
+      for (var j = 1; j < normalizedUnits.length; j++) {
+        var unit = normalizedUnits[j];
+        var seqBase = draft.carry_by_from[unit] || carryByFrom[unit] || '';
+        var seqRow = ce('div', { className: 'world-time-sequence-row' }, [
+          ce('div', { className: 'world-time-sequence-header' }, [
+            ce('span', { className: 'world-time-link-label' }, [txt(unit)]),
+            ce('span', { className: 'hint' }, [txt(tr('Expected count') + ': ' + (seqBase || '-'))]),
+          ]),
+          el('input', {
+            type: 'text',
+            value: draft.sequence_by_unit[unit] || sequenceByUnit[unit] || '',
+            className: 'world-time-sequence-values',
+            dataset: { unit: unit },
+            placeholder: tr('Example: 子 | 丑 | 寅 | 卯'),
+            style: { width: '100%' },
+          }),
+        ]);
+        sequenceBody.appendChild(seqRow);
+      }
+      arrayFrom(sequenceBody.querySelectorAll('.world-time-sequence-values')).forEach(function(input) {
+        input.addEventListener('input', syncLinkedSections);
+      });
+    }
+
+    calendarSection.classList.toggle('is-collapsed', !draft.calendar_enabled);
+    calendarUnitsBody.innerHTML = '';
+    if (draft.calendar_enabled) {
+      if (normalizedUnits.length === 0) {
+        calendarUnitsBody.appendChild(ce('div', { className: 'hint', style: { textAlign: 'left', padding: '0' } }, [ttxt('Add tick units before configuring calendar values.')]))
+      } else {
+        normalizedUnits.forEach(function(unit) {
+          var row = ce('div', { className: 'world-time-linked-row' }, [
+            ce('span', { className: 'world-time-link-label' }, [txt(unit)]),
+            el('input', {
+              type: 'text',
+              value: draft.calendar_values_by_unit[unit] || calendarValuesByUnit[unit] || '',
+              className: 'world-time-calendar-value',
+              dataset: { unit: unit },
+              placeholder: tr('Initial value'),
+              style: { width: '100%' },
+            }),
+          ]);
+          calendarUnitsBody.appendChild(row);
+        });
+      }
+    }
+  }
+
+  renderTickUnits(initialTickUnits);
+  document.getElementById('setTickScaleMode').value = existing.tick_scale_mode || 'fixed';
+  document.getElementById('btnAddTickUnit').addEventListener('click', function() {
+    var draft = collectDraft();
+    draft.tick_units.push('');
+    renderTickUnits(draft.tick_units);
+    syncLinkedSections();
+  });
+  document.getElementById('setCalendarEnabled').addEventListener('change', syncLinkedSections);
+  syncLinkedSections();
+  return root;
+}
+
 function renderSettingsPage(container) {
   const toolbar = ce('div', { className: 'world-toolbar' }, [
     ce('span', { style: {color: 'var(--text-dim)'} }, [ttxt('World Settings')]),
@@ -490,20 +780,9 @@ function renderSettingsPage(container) {
   form.appendChild(ce('div', { className: 'detail-card' }, [
     ce('div', { className: 'card-hd' }, [ttxt('World Time Settings')]),
     ce('div', { className: 'card-bd' }, [
-      ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '10px' } }, [ttxt('Tick units must be ordered from largest to smallest. When calendar mode is enabled, calendar units and tick units must match exactly.')]),
-      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setTickScaleMode' }, [ttxt('Tick Scale Mode')]), el('select', { id: 'setTickScaleMode', innerHTML: '<option value="fixed">fixed</option><option value="flexible">flexible</option>' })]),
-      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setTickMinUnit' }, [ttxt('Tick Min Unit')]), el('input', { id: 'setTickMinUnit', value: wt.tick_min_unit || '', placeholder: tr('Example: 时辰'), style: { width: '100%' } })]),
-      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setTickStep' }, [ttxt('Tick Step')]), el('input', { id: 'setTickStep', type: 'number', min: '1', max: '999999', value: String(wt.tick_step || 1) })]),
-      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setTickUnits' }, [ttxt('Tick Units')]), el('textarea', { id: 'setTickUnits', rows: 3, placeholder: tr('One unit per line, largest to smallest'), style: { width: '100%', fontFamily: 'var(--font-mono)' }, textContent: (wt.tick_units || []).join('\n') })]),
-      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setTimeScaleCarry' }, [ttxt('Time Scale Carry')]), el('textarea', { id: 'setTimeScaleCarry', rows: 4, placeholder: tr('Format: smaller_unit -> larger_unit = base'), style: { width: '100%', fontFamily: 'var(--font-mono)' }, textContent: ((wt.time_scale_carry || []).map(function(rule) { return (rule.from || '') + ' -> ' + (rule.to || '') + ' = ' + String(rule.base || ''); })).join('\n') })]),
-      ce('div', { className: 'setting-row' }, [ce('label', { className: 'checkbox-row' }, [el('input', { id: 'setCalendarEnabled', type: 'checkbox', checked: !!(wt.time_calendar && wt.time_calendar.enabled) }), ttxt('Enable Calendar Mode')])]),
-      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setCalendarName' }, [ttxt('Calendar Name')]), el('input', { id: 'setCalendarName', value: wt.time_calendar && wt.time_calendar.calendar_name ? wt.time_calendar.calendar_name : '', placeholder: tr('Example: 太阴'), style: { width: '100%' } })]),
-      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setCalendarUnits' }, [ttxt('Calendar Units')]), el('textarea', { id: 'setCalendarUnits', rows: 5, placeholder: tr('Format: unit = initial value'), style: { width: '100%', fontFamily: 'var(--font-mono)' }, textContent: (((wt.time_calendar && wt.time_calendar.units) || []).map(function(unit) { return (unit.unit || '') + ' = ' + (unit.value || ''); })).join('\n') })]),
-      ce('div', { className: 'setting-row' }, [ce('label', { for: 'setUnitValueSequences' }, [ttxt('Unit Value Sequences')]), el('textarea', { id: 'setUnitValueSequences', rows: 6, placeholder: tr('Format: unit = value1 | value2 | value3'), style: { width: '100%', fontFamily: 'var(--font-mono)' }, textContent: ((wt.unit_value_sequences || []).map(function(seq) { return (seq.unit || '') + ' = ' + ((seq.values || []).join(' | ')); })).join('\n') })]),
+      renderWorldTimeSettingsEditor(wt),
     ]),
   ]));
-  var tickScaleModeSelect = form.querySelector('#setTickScaleMode');
-  if (tickScaleModeSelect) tickScaleModeSelect.value = wt.tick_scale_mode || 'fixed';
   const btnRow = ce('div', { className: 'policy-actions' }, [
     ce('button', { className: 'primary', id: 'btnSaveSettings' }, [ttxt('Save Settings')]),
   ]);

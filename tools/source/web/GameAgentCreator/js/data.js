@@ -290,6 +290,55 @@ function parseWorldTimeSequenceLines(value) {
   }).filter(Boolean);
 }
 
+function collectWorldTimeSettingsFromForm() {
+  var tickScaleModeEl = document.getElementById('setTickScaleMode');
+  if (!tickScaleModeEl) return null;
+
+  var tickUnits = Array.prototype.slice.call(document.querySelectorAll('.world-time-unit-input')).map(function(input) {
+    return String(input.value || '').trim();
+  }).filter(Boolean);
+  var minUnitEl = document.getElementById('setTickMinUnit');
+  var timeScaleCarry = Array.prototype.slice.call(document.querySelectorAll('.world-time-carry-base')).map(function(input) {
+    var base = parseInt(String(input.value || '').trim(), 10);
+    return {
+      from: String(input.dataset.from || '').trim(),
+      to: String(input.dataset.to || '').trim(),
+      base: Number.isFinite(base) ? base : 0,
+    };
+  }).filter(function(rule) { return rule.from && rule.to; });
+  var unitValueSequences = Array.prototype.slice.call(document.querySelectorAll('.world-time-sequence-values')).map(function(input) {
+    return {
+      unit: String(input.dataset.unit || '').trim(),
+      values: String(input.value || '').split('|').map(function(item) { return item.trim(); }).filter(Boolean),
+    };
+  }).filter(function(seq) { return seq.unit && seq.values.length > 0; });
+
+  var calendarEnabled = !!document.getElementById('setCalendarEnabled').checked;
+  var timeCalendar = {
+    enabled: calendarEnabled,
+    calendar_name: document.getElementById('setCalendarName').value.trim(),
+    units: Array.prototype.slice.call(document.querySelectorAll('.world-time-calendar-value')).map(function(input) {
+      return {
+        unit: String(input.dataset.unit || '').trim(),
+        value: String(input.value || '').trim(),
+      };
+    }).filter(function(unit) { return unit.unit || unit.value; }),
+  };
+  if (!calendarEnabled) {
+    timeCalendar = { enabled: false, calendar_name: '', units: [] };
+  }
+
+  return {
+    tick_scale_mode: tickScaleModeEl.value || 'fixed',
+    tick_min_unit: minUnitEl ? String(minUnitEl.value || '').trim() : '',
+    tick_step: parseInt(document.getElementById('setTickStep').value.trim(), 10) || 0,
+    tick_units: tickUnits,
+    time_scale_carry: timeScaleCarry,
+    time_calendar: timeCalendar,
+    unit_value_sequences: unitValueSequences,
+  };
+}
+
 function validateWorldTimeSettingsInput(settings) {
   if (!settings) return '';
   if (settings.tick_scale_mode !== 'fixed' && settings.tick_scale_mode !== 'flexible') return 'tick_scale_mode must be fixed or flexible';
@@ -1402,22 +1451,7 @@ async function saveSettings() {
 
     var tickScaleModeEl = document.getElementById('setTickScaleMode');
     if (tickScaleModeEl) {
-      var worldTimeSettings = {
-        tick_scale_mode: tickScaleModeEl.value || 'fixed',
-        tick_min_unit: document.getElementById('setTickMinUnit').value.trim(),
-        tick_step: parseInt(document.getElementById('setTickStep').value.trim(), 10) || 0,
-        tick_units: parseMultilineList(document.getElementById('setTickUnits').value),
-        time_scale_carry: parseWorldTimeCarryLines(document.getElementById('setTimeScaleCarry').value),
-        time_calendar: {
-          enabled: !!document.getElementById('setCalendarEnabled').checked,
-          calendar_name: document.getElementById('setCalendarName').value.trim(),
-          units: parseWorldTimeCalendarLines(document.getElementById('setCalendarUnits').value),
-        },
-        unit_value_sequences: parseWorldTimeSequenceLines(document.getElementById('setUnitValueSequences').value),
-      };
-      if (!worldTimeSettings.time_calendar.enabled) {
-        worldTimeSettings.time_calendar = { enabled: false, calendar_name: '', units: [] };
-      }
+      var worldTimeSettings = collectWorldTimeSettingsFromForm();
       var worldTimeValidationError = validateWorldTimeSettingsInput(worldTimeSettings);
       if (worldTimeValidationError) {
         toast(worldTimeValidationError, 'error');
