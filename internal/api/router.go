@@ -20,6 +20,7 @@ func NewRouter(p *engine.Pipeline) *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/runtime/tasks/start", MakeStartRuntimeTaskHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/heartbeat", MakeHeartbeatRuntimeTaskHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/release", MakeReleaseRuntimeTaskHandler())
+	mux.HandleFunc("POST /api/v1/runtime/tasks/requeue", MakeRequeueRuntimeTaskHandler())
 
 	mux.HandleFunc("GET /api/v1/worlds/{world_id}/policy", GetWorldPolicyHandler)
 	mux.HandleFunc("PUT /api/v1/worlds/{world_id}/policy", SetWorldPolicyHandler)

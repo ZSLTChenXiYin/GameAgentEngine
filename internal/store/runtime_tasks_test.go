@@ -181,4 +181,33 @@ func TestMarkRuntimeTasksHeartbeatTimeoutMarksStaleClaimedAndRunningTasks(t *tes
 	}
 }
 
+func TestRequeueHeartbeatTimeoutTaskMovesTaskBackToReleased(t *testing.T) {
+	initRuntimeTaskTestDB(t)
+	now := time.Now()
+	row := &RuntimeTaskModel{TaskID: "timeout-task", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Status: RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`, HeartbeatTimeoutAt: &now, ErrorMessage: "heartbeat timeout"}
+	if err := CreateRuntimeTask(row); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	requeued, err := RequeueHeartbeatTimeoutTask("timeout-task", 2*time.Second, "requeued after timeout")
+	if err != nil {
+		t.Fatalf("requeue task: %v", err)
+	}
+	if requeued.Status != RuntimeTaskStatusReleased {
+		t.Fatalf("expected released status, got %q", requeued.Status)
+	}
+	if requeued.HeartbeatTimeoutAt != nil {
+		t.Fatalf("expected heartbeat timeout cleared, got %+v", requeued.HeartbeatTimeoutAt)
+	}
+	if requeued.AvailableAt == nil || !requeued.AvailableAt.After(time.Now().Add(1*time.Second)) {
+		t.Fatalf("expected delayed availability, got %+v", requeued.AvailableAt)
+	}
+	if requeued.ErrorMessage != "requeued after timeout" {
+		t.Fatalf("unexpected error message: %q", requeued.ErrorMessage)
+	}
+	_, err = RequeueHeartbeatTimeoutTask("timeout-task", 0, "again")
+	if !errors.Is(err, ErrRuntimeTaskNotClaimable) {
+		t.Fatalf("expected not requeueable error, got %v", err)
+	}
+}
+
 func ptrTime(v time.Time) *time.Time { return &v }

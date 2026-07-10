@@ -175,3 +175,40 @@ func TestMakeStartRuntimeTaskHandlerTransitionsClaimedTaskToRunning(t *testing.T
 		t.Fatalf("expected running status, got %q", body.Task.Status)
 	}
 }
+
+func TestMakeRequeueRuntimeTaskHandlerMovesHeartbeatTimeoutTaskToReleased(t *testing.T) {
+	initRuntimeTaskAPITestDB(t)
+	now := time.Now()
+	row := &store.RuntimeTaskModel{TaskID: "requeue-api", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Status: store.RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`, HeartbeatTimeoutAt: &now, ErrorMessage: "heartbeat timeout"}
+	if err := store.CreateRuntimeTask(row); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	h := MakeRequeueRuntimeTaskHandler()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runtime/tasks/requeue", strings.NewReader(`{"task_id":"requeue-api","retry_delay_ms":1500,"error_message":"manual requeue"}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Task store.RuntimeTaskModel `json:"task"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal requeue response: %v", err)
+	}
+	if body.Task.Status != store.RuntimeTaskStatusReleased {
+		t.Fatalf("expected released status, got %q", body.Task.Status)
+	}
+	if body.Task.HeartbeatTimeoutAt != nil {
+		t.Fatalf("expected timeout cleared, got %+v", body.Task.HeartbeatTimeoutAt)
+	}
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/runtime/tasks/requeue", strings.NewReader(`{"task_id":"requeue-api"}`))
+	w2 := httptest.NewRecorder()
+	h(w2, req2)
+	if w2.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d body=%s", w2.Code, w2.Body.String())
+	}
+	if !strings.Contains(w2.Body.String(), "runtime_task_not_requeueable") {
+		t.Fatalf("expected runtime_task_not_requeueable, got %s", w2.Body.String())
+	}
+}

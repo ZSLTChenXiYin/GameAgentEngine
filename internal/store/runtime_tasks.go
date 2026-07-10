@@ -248,6 +248,36 @@ func MarkRuntimeTasksHeartbeatTimeout(timeout time.Duration) (int64, error) {
 	return affected, nil
 }
 
+func RequeueHeartbeatTimeoutTask(taskID string, retryDelay time.Duration, errMsg string) (*RuntimeTaskModel, error) {
+	if taskID == "" {
+		return nil, fmt.Errorf("task id required")
+	}
+	availableAt := time.Now().Add(retryDelay)
+	err := Write(func(db *gorm.DB) error {
+		result := db.Model(&RuntimeTaskModel{}).
+			Where("task_id = ? AND status = ?", taskID, RuntimeTaskStatusHeartbeatTimeout).
+			Updates(map[string]any{
+				"status":               RuntimeTaskStatusReleased,
+				"available_at":         &availableAt,
+				"lease_owner":          "",
+				"lease_token":          "",
+				"heartbeat_timeout_at": nil,
+				"error_message":        errMsg,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrRuntimeTaskNotClaimable
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return GetRuntimeTask(taskID)
+}
+
 func CompleteRuntimeTaskByCallbackID(callbackID string, status string, result any) error {
 	if callbackID == "" {
 		return nil

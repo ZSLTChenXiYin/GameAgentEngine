@@ -160,6 +160,27 @@
 - `retry_delay_ms` 可控制任务何时再次出现在 pending 列表里。
 - lease 不匹配时返回 `409`，错误码 `runtime_task_lease_mismatch`。
 
+### `POST /api/v1/runtime/tasks/requeue`
+
+将一个 `heartbeat_timeout` 状态的 runtime task 显式重新放回队列。
+
+典型请求体：
+
+```json
+{
+  "task_id": "task-id",
+  "retry_delay_ms": 1500,
+  "error_message": "manual requeue"
+}
+```
+
+当前行为：
+
+- 只有 `heartbeat_timeout` 状态的任务可以被 requeue。
+- requeue 成功后，任务状态会变成 `released`，并清除超时标记与租约。
+- `retry_delay_ms` 可控制任务何时重新进入 pending 列表。
+- 非 `heartbeat_timeout` 任务会返回 `409`，错误码 `runtime_task_not_requeueable`。
+
 ### `GET /api/v1/plans/pending`
 
 列出处于人工审核等待中的计划。

@@ -153,3 +153,36 @@ func MakeReleaseRuntimeTaskHandler() http.HandlerFunc {
 		writeJSON(w, http.StatusOK, map[string]any{"task": item})
 	}
 }
+
+func MakeRequeueRuntimeTaskHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			TaskID       string `json:"task_id"`
+			RetryDelayMs int    `json:"retry_delay_ms,omitempty"`
+			ErrorMessage string `json:"error_message,omitempty"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			errorJSON(w, http.StatusBadRequest, "invalid json: "+err.Error())
+			return
+		}
+		if req.TaskID == "" {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_runtime_task_requeue", "task_id required")
+			return
+		}
+		if req.RetryDelayMs < 0 {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_retry_delay_ms", "retry_delay_ms must be >= 0")
+			return
+		}
+		item, err := store.RequeueHeartbeatTimeoutTask(req.TaskID, time.Duration(req.RetryDelayMs)*time.Millisecond, req.ErrorMessage)
+		if err != nil {
+			switch {
+			case errors.Is(err, store.ErrRuntimeTaskNotClaimable):
+				errorJSONCode(w, http.StatusConflict, "runtime_task_not_requeueable", err.Error())
+			default:
+				errorJSON(w, http.StatusInternalServerError, err.Error())
+			}
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"task": item})
+	}
+}

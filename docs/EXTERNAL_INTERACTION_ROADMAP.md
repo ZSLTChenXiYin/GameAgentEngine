@@ -118,7 +118,7 @@ external_interfaces:
 | 已完成 | 恢复链路测试 | 覆盖 engine 层与 API 层自动恢复测试 |
 | 已完成 | callback / pipeline 文档 | 现有 API、SDK、Pipeline 文档已覆盖恢复行为 |
 | 已完成 | runtime task 持久化模型 | 已引入统一 `runtime_tasks` 队列模型 |
-| 已完成 | pull 基础 API | 已提供 `pending / claim / start / heartbeat / release` 五个接口 |
+| 已完成 | pull 基础 API | 已提供 `pending / claim / start / heartbeat / release / requeue` 六个接口 |
 | 已完成 | pull 基础测试 | 覆盖 store 层与 API 层的核心领取链路 |
 | 已完成 | game_client request_data 真实入队 | 暂停执行时会自动生成可拉取的 runtime task |
 | 已完成 | runtime task callback 完成态回写 | callback 回填后会同步更新 runtime task 成功/失败状态 |
@@ -234,12 +234,14 @@ external_interfaces:
 | `POST /api/v1/runtime/tasks/start` | 已完成 |
 | `POST /api/v1/runtime/tasks/heartbeat` | 已完成 |
 | `POST /api/v1/runtime/tasks/release` | 已完成 |
+| `POST /api/v1/runtime/tasks/requeue` | 已完成 |
 | pull 基础测试 | 已完成 |
 | runtime task 与真实外部任务生产对接 | 已完成（当前先覆盖 game_client request_data） |
 | task 成功/失败完成态闭环 | 已完成（当前先覆盖 callback 驱动的 game_client request_data） |
 | 普通 async action 接入 runtime task queue | 已完成 |
 | 更细粒度 task 状态迁移（如 running / heartbeat_timeout） | 已完成基础能力 |
-| heartbeat_timeout 后续回收/重派策略 | 未开始 |
+| heartbeat_timeout 后续回收/重派策略 | 已完成基础能力 |
+| heartbeat_timeout 自动化治理策略 | 未开始 |
 
 ### 阶段 P2：内建 push adapter
 
@@ -343,7 +345,7 @@ external_interfaces:
 
 后续还需要继续补的内容是：
 
-- 为 `heartbeat_timeout` 补自动回收、重派或人工介入策略
+- 为 `heartbeat_timeout` 补自动化治理策略，例如自动重派阈值、死信策略或人工介入规则
 - 在 scheduled 自主行为里把更多外部交互统一走 external interface 配置层，而不是只覆盖当前的 `game_client request_data`
 
 当前普通 async action 的 consumer 路由仍然是过渡方案：默认使用 `bridge`，并允许通过动作参数显式覆盖；后续仍需要升级到 `external_interfaces` 配置层驱动的正式路由策略。
