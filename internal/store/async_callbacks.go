@@ -6,6 +6,12 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	AsyncCallbackPostProcessSucceeded = "succeeded"
+	AsyncCallbackPostProcessSkipped   = "skipped"
+	AsyncCallbackPostProcessFailed    = "failed"
+)
+
 func CreateAsyncCallbackRecord(m *AsyncCallbackRecordModel) error {
 	return Write(func(db *gorm.DB) error {
 		return db.Create(m).Error
@@ -36,6 +42,19 @@ func CompleteAsyncCallbackRecord(callbackID string, status string, resultJSON st
 		"completed_at":  &now,
 	}
 	return UpdateAsyncCallbackRecord(callbackID, updates)
+}
+
+func MarkAsyncCallbackPostProcessed(callbackID string, status string, resultJSON string, errMsg string) error {
+	if callbackID == "" {
+		return nil
+	}
+	now := time.Now()
+	return UpdateAsyncCallbackRecord(callbackID, map[string]any{
+		"post_process_status": status,
+		"post_process_result": resultJSON,
+		"post_process_error":  errMsg,
+		"post_processed_at":   &now,
+	})
 }
 
 func CreatePausedExecution(m *PausedExecutionModel) error {

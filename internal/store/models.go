@@ -218,6 +218,10 @@ type AsyncCallbackRecordModel struct {
 	ArgsJSON          string     `gorm:"type:text" json:"args_json,omitempty"`
 	ResultJSON        string     `gorm:"type:text" json:"result_json,omitempty"`
 	ErrorMessage      string     `gorm:"type:text" json:"error_message,omitempty"`
+	PostProcessStatus string     `gorm:"size:20;index" json:"post_process_status,omitempty"`
+	PostProcessResult string     `gorm:"type:text" json:"post_process_result,omitempty"`
+	PostProcessError  string     `gorm:"type:text" json:"post_process_error,omitempty"`
+	PostProcessedAt   *time.Time `json:"post_processed_at,omitempty"`
 	CompletedAt       *time.Time `json:"completed_at,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`

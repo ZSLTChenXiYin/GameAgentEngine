@@ -62,6 +62,36 @@ func runtimeTaskTimeoutFromArgs(args map[string]any) int {
 	return 0
 }
 
+func runtimeTaskCallbackPostProcessFromArgs(args map[string]any) string {
+	if args == nil {
+		return ""
+	}
+	if value, ok := args["callback_post_process"].(string); ok && strings.TrimSpace(value) != "" {
+		return strings.TrimSpace(value)
+	}
+	return ""
+}
+
+func runtimeTaskCallbackMemoryLevelFromArgs(args map[string]any) string {
+	if args == nil {
+		return ""
+	}
+	if value, ok := args["callback_memory_level"].(string); ok && strings.TrimSpace(value) != "" {
+		return strings.TrimSpace(value)
+	}
+	return ""
+}
+
+func runtimeTaskCallbackMemoryTemplateFromArgs(args map[string]any) string {
+	if args == nil {
+		return ""
+	}
+	if value, ok := args["callback_memory_template"].(string); ok && strings.TrimSpace(value) != "" {
+		return strings.TrimSpace(value)
+	}
+	return ""
+}
+
 func sanitizeExternalActionArgs(args map[string]any) map[string]any {
 	if len(args) == 0 {
 		return map[string]any{}
@@ -69,7 +99,7 @@ func sanitizeExternalActionArgs(args map[string]any) map[string]any {
 	result := make(map[string]any, len(args))
 	for k, v := range args {
 		switch k {
-		case "delivery_mode", "mode", "primary_transport", "integration", "transport", "timeout_ms", "consumer":
+		case "delivery_mode", "mode", "primary_transport", "integration", "transport", "timeout_ms", "consumer", "callback_post_process", "callback_memory_level", "callback_memory_template":
 			continue
 		default:
 			result[k] = v
@@ -106,6 +136,10 @@ func runtimeTaskInterfaceNameForAction(actionID string) string {
 
 func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, args map[string]any, callbackID string) string {
 	route := resolveAsyncActionRoute(actionID, args)
+	interfaceCfg, _ := externalInterfaceConfig(asyncActionInterfaceName(actionID, args))
+	callbackPostProcess := firstNonEmpty(runtimeTaskCallbackPostProcessFromArgs(args), interfaceCfg.CallbackPostProcess)
+	callbackMemoryLevel := firstNonEmpty(runtimeTaskCallbackMemoryLevelFromArgs(args), interfaceCfg.CallbackMemoryLevel)
+	callbackMemoryTemplate := firstNonEmpty(runtimeTaskCallbackMemoryTemplateFromArgs(args), interfaceCfg.CallbackMemoryTemplate)
 	payload := map[string]any{
 		"task_type":            req.TaskType,
 		"world_id":             req.WorldID,
@@ -119,7 +153,12 @@ func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, arg
 		"primary_transport":    route.PrimaryTransport,
 		"fallback_transport":   route.FallbackTransport,
 		"consumer":             route.Consumer,
-		"args":                 sanitizeExternalActionArgs(args),
+		"callback_post_process": map[string]any{
+			"mode":            callbackPostProcess,
+			"memory_level":    callbackMemoryLevel,
+			"memory_template": callbackMemoryTemplate,
+		},
+		"args": sanitizeExternalActionArgs(args),
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {

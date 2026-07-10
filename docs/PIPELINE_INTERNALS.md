@@ -112,8 +112,15 @@
 3. 同步动作立即执行。
 4. 异步动作返回 `callback_id`。
 5. 调用方通过 `POST /api/v1/actions/callback` 回填结果。
-6. 对普通异步动作，回调结果会更新持久化 callback 记录并触发 `OnResult(...)`。
+6. 对普通异步动作，回调结果会更新持久化 callback 记录、触发 `OnResult(...)`，并按 runtime task payload 中固化的 `callback_post_process` 策略执行统一后处理。
 7. 对暂停中的 `game_client request_data`，回调会自动恢复原执行并继续后续轮次。
+
+当前统一后处理基础版已经支持：
+
+- `record_only`：显式只记录 callback / task 结果
+- `write_memory`：将 callback 结果按模板渲染后写入目标节点记忆
+
+这里刻意使用 runtime task payload 中的策略快照，而不是在 callback 时重新读取最新配置。这样即使服务重启、发生上下文压缩，或配置在任务发出后被修改，callback 也仍然会按任务创建时的原始策略执行。
 
 对 `autonomous_act`，能力白名单是硬约束，不是提示性建议。
 

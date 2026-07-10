@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +11,36 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/service"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
+
+type callbackPostProcessConfig struct {
+	Mode           string `json:"mode"`
+	MemoryLevel    string `json:"memory_level"`
+	MemoryTemplate string `json:"memory_template"`
+}
+
+type callbackTaskPayload struct {
+	TaskType            string                    `json:"task_type"`
+	WorldID             string                    `json:"world_id"`
+	NodeID              string                    `json:"node_id"`
+	RequestID           string                    `json:"request_id"`
+	CallbackID          string                    `json:"callback_id"`
+	ResumeExecutionID   string                    `json:"resume_execution_id"`
+	ResumePolicy        string                    `json:"resume_policy"`
+	ExternalInterface   string                    `json:"external_interface"`
+	ExternalInteraction string                    `json:"external_interaction"`
+	ActionID            string                    `json:"action_id"`
+	DeliveryMode        string                    `json:"delivery_mode"`
+	PrimaryTransport    string                    `json:"primary_transport"`
+	FallbackTransport   string                    `json:"fallback_transport"`
+	Consumer            string                    `json:"consumer"`
+	CallbackPostProcess callbackPostProcessConfig `json:"callback_post_process"`
+}
+
+type callbackPostProcessOutcome struct {
+	Status  string         `json:"status"`
+	Applied bool           `json:"applied"`
+	Details map[string]any `json:"details,omitempty"`
+}
 
 func shouldResumeRuntimeTask(callbackID string) bool {
 	task, err := store.GetRuntimeTaskByCallbackID(callbackID)
@@ -24,6 +55,180 @@ func shouldResumeRuntimeTask(callbackID string) bool {
 	}
 	policy := strings.TrimSpace(strings.ToLower(payload.ResumePolicy))
 	return policy == "" || policy == "resume_paused_execution"
+}
+
+func runCallbackPostProcess(callbackID string, runtimeResult any) (*callbackPostProcessOutcome, error) {
+	if strings.TrimSpace(callbackID) == "" {
+		return nil, nil
+	}
+	callbackRecord, err := store.GetAsyncCallbackRecord(callbackID)
+	if err != nil {
+		if store.IsRecordNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if strings.TrimSpace(callbackRecord.PostProcessStatus) != "" {
+		return &callbackPostProcessOutcome{
+			Status:  callbackRecord.PostProcessStatus,
+			Applied: callbackRecord.PostProcessStatus == store.AsyncCallbackPostProcessSucceeded,
+			Details: callbackPostProcessDetailsFromRecord(callbackRecord),
+		}, nil
+	}
+	task, err := store.GetRuntimeTaskByCallbackID(callbackID)
+	if err != nil {
+		if store.IsRecordNotFound(err) {
+			if err := store.MarkAsyncCallbackPostProcessed(callbackID, store.AsyncCallbackPostProcessSkipped, marshalCallbackPostProcessResult(map[string]any{"reason": "runtime_task_not_found"}), ""); err != nil {
+				return nil, err
+			}
+			return &callbackPostProcessOutcome{Status: store.AsyncCallbackPostProcessSkipped, Applied: false, Details: map[string]any{"reason": "runtime_task_not_found"}}, nil
+		}
+		return nil, err
+	}
+	if strings.TrimSpace(task.PayloadJSON) == "" {
+		if err := store.MarkAsyncCallbackPostProcessed(callbackID, store.AsyncCallbackPostProcessSkipped, marshalCallbackPostProcessResult(map[string]any{"reason": "empty_runtime_task_payload"}), ""); err != nil {
+			return nil, err
+		}
+		return &callbackPostProcessOutcome{Status: store.AsyncCallbackPostProcessSkipped, Applied: false, Details: map[string]any{"reason": "empty_runtime_task_payload"}}, nil
+	}
+	var payload callbackTaskPayload
+	if err := json.Unmarshal([]byte(task.PayloadJSON), &payload); err != nil {
+		message := fmt.Sprintf("parse runtime task payload: %v", err)
+		if markErr := store.MarkAsyncCallbackPostProcessed(callbackID, store.AsyncCallbackPostProcessFailed, "", message); markErr != nil {
+			return nil, markErr
+		}
+		return &callbackPostProcessOutcome{Status: store.AsyncCallbackPostProcessFailed, Applied: false, Details: map[string]any{"error": message}}, nil
+	}
+	mode := strings.ToLower(strings.TrimSpace(payload.CallbackPostProcess.Mode))
+	switch mode {
+	case "", "none", "record_only":
+		details := map[string]any{"mode": firstCallbackValue(mode, "record_only")}
+		if err := store.MarkAsyncCallbackPostProcessed(callbackID, store.AsyncCallbackPostProcessSkipped, marshalCallbackPostProcessResult(details), ""); err != nil {
+			return nil, err
+		}
+		return &callbackPostProcessOutcome{Status: store.AsyncCallbackPostProcessSkipped, Applied: false, Details: details}, nil
+	case "write_memory":
+		nodeID := firstCallbackValue(payload.NodeID, task.NodeUUID, callbackRecord.NodeUUID)
+		if strings.TrimSpace(nodeID) == "" {
+			message := "callback post process missing node_id"
+			if err := store.MarkAsyncCallbackPostProcessed(callbackID, store.AsyncCallbackPostProcessFailed, "", message); err != nil {
+				return nil, err
+			}
+			return &callbackPostProcessOutcome{Status: store.AsyncCallbackPostProcessFailed, Applied: false, Details: map[string]any{"error": message, "mode": mode}}, nil
+		}
+		memoryLevel := strings.TrimSpace(payload.CallbackPostProcess.MemoryLevel)
+		if memoryLevel == "" {
+			memoryLevel = "short_term"
+		}
+		if !engine.IsValidMemoryLevel(memoryLevel) {
+			message := fmt.Sprintf("callback post process invalid memory level %q", memoryLevel)
+			if err := store.MarkAsyncCallbackPostProcessed(callbackID, store.AsyncCallbackPostProcessFailed, "", message); err != nil {
+				return nil, err
+			}
+			return &callbackPostProcessOutcome{Status: store.AsyncCallbackPostProcessFailed, Applied: false, Details: map[string]any{"error": message, "mode": mode}}, nil
+		}
+		content := renderCallbackMemoryTemplate(payload, task, callbackRecord, runtimeResult)
+		nodeIntID := store.ResolveNodeUUID(nodeID)
+		if nodeIntID == 0 {
+			message := fmt.Sprintf("callback post process unknown node %q", nodeID)
+			if err := store.MarkAsyncCallbackPostProcessed(callbackID, store.AsyncCallbackPostProcessFailed, "", message); err != nil {
+				return nil, err
+			}
+			return &callbackPostProcessOutcome{Status: store.AsyncCallbackPostProcessFailed, Applied: false, Details: map[string]any{"error": message, "mode": mode}}, nil
+		}
+		memory := &store.MemoryModel{NodeID: nodeIntID, Content: content, Level: memoryLevel}
+		if err := store.CreateMemory(memory); err != nil {
+			message := fmt.Sprintf("callback post process write memory: %v", err)
+			if markErr := store.MarkAsyncCallbackPostProcessed(callbackID, store.AsyncCallbackPostProcessFailed, "", message); markErr != nil {
+				return nil, markErr
+			}
+			return &callbackPostProcessOutcome{Status: store.AsyncCallbackPostProcessFailed, Applied: false, Details: map[string]any{"error": message, "mode": mode}}, nil
+		}
+		details := map[string]any{
+			"mode":         mode,
+			"memory_id":    memory.UUID,
+			"memory_level": memoryLevel,
+			"node_id":      nodeID,
+			"content":      content,
+		}
+		if err := store.MarkAsyncCallbackPostProcessed(callbackID, store.AsyncCallbackPostProcessSucceeded, marshalCallbackPostProcessResult(details), ""); err != nil {
+			return nil, err
+		}
+		return &callbackPostProcessOutcome{Status: store.AsyncCallbackPostProcessSucceeded, Applied: true, Details: details}, nil
+	default:
+		message := fmt.Sprintf("unsupported callback post process mode %q", mode)
+		if err := store.MarkAsyncCallbackPostProcessed(callbackID, store.AsyncCallbackPostProcessFailed, "", message); err != nil {
+			return nil, err
+		}
+		return &callbackPostProcessOutcome{Status: store.AsyncCallbackPostProcessFailed, Applied: false, Details: map[string]any{"error": message, "mode": mode}}, nil
+	}
+}
+
+func callbackPostProcessDetailsFromRecord(record *store.AsyncCallbackRecordModel) map[string]any {
+	if record == nil || strings.TrimSpace(record.PostProcessResult) == "" {
+		if record == nil || strings.TrimSpace(record.PostProcessError) == "" {
+			return nil
+		}
+		return map[string]any{"error": record.PostProcessError}
+	}
+	var details map[string]any
+	if err := json.Unmarshal([]byte(record.PostProcessResult), &details); err == nil {
+		if strings.TrimSpace(record.PostProcessError) != "" && details["error"] == nil {
+			details["error"] = record.PostProcessError
+		}
+		return details
+	}
+	return map[string]any{"result": record.PostProcessResult, "error": record.PostProcessError}
+}
+
+func marshalCallbackPostProcessResult(value any) string {
+	if value == nil {
+		return ""
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprintf("%v", value)
+	}
+	return string(data)
+}
+
+func renderCallbackMemoryTemplate(payload callbackTaskPayload, task *store.RuntimeTaskModel, callbackRecord *store.AsyncCallbackRecordModel, runtimeResult any) string {
+	template := strings.TrimSpace(payload.CallbackPostProcess.MemoryTemplate)
+	if template == "" {
+		template = "async action {action_id} callback {status}: {result_json}"
+	}
+	status := ""
+	if callbackRecord != nil {
+		status = callbackRecord.Status
+	}
+	resultJSON := marshalCallbackPostProcessResult(runtimeResult)
+	replacements := map[string]string{
+		"{action_id}":         payload.ActionID,
+		"{status}":            status,
+		"{result_json}":       resultJSON,
+		"{callback_id}":       firstCallbackValue(payload.CallbackID, task.CallbackID),
+		"{interface_name}":    firstCallbackValue(payload.ExternalInterface, task.InterfaceName),
+		"{task_id}":           task.TaskID,
+		"{node_id}":           firstCallbackValue(payload.NodeID, task.NodeUUID),
+		"{world_id}":          firstCallbackValue(payload.WorldID, task.WorldUUID),
+		"{request_id}":        firstCallbackValue(payload.RequestID, task.RequestID),
+		"{delivery_mode}":     firstCallbackValue(payload.DeliveryMode, task.DeliveryMode),
+		"{primary_transport}": payload.PrimaryTransport,
+	}
+	result := template
+	for placeholder, value := range replacements {
+		result = strings.ReplaceAll(result, placeholder, value)
+	}
+	return result
+}
+
+func firstCallbackValue(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 // MakeInvokeHandler 返回统一推理入口的处理函数。
@@ -79,6 +284,14 @@ func MakeActionCallbackHandler(p *engine.Pipeline) http.HandlerFunc {
 			return
 		}
 		resp := map[string]any{"status": "ok"}
+		postProcess, err := runCallbackPostProcess(req.CallbackID, req.Result)
+		if err != nil {
+			errorJSON(w, 500, err.Error())
+			return
+		}
+		if postProcess != nil {
+			resp["post_process"] = postProcess
+		}
 		if rec != nil && rec.ResumeExecutionID != "" {
 			resp["resume_execution_id"] = rec.ResumeExecutionID
 			if (req.Status == "success" || req.Status == "completed" || req.Status == "ok") && shouldResumeRuntimeTask(req.CallbackID) {

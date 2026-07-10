@@ -138,6 +138,7 @@ external_interfaces:
 | 已完成 | 普通 async action push/hybrid 派发 | 已可按动作参数走 push，并在 hybrid 下保留 pull 回退 |
 | 已完成 | hybrid fallback 基础状态迁移 | push 失败且配置 `fallback_transport` 时，runtime task 会显式转为 `released` 并切换到 fallback transport |
 | 已完成 | `resume_policy` 基础恢复控制 | callback 自动恢复现在受 task payload 中的 `resume_policy` 控制 |
+| 已完成 | 普通 async action 统一 callback 后处理基础版 | 已支持基于 runtime task payload 快照执行 `record_only` / `write_memory` 编排 |
 | 已完成 | external task metrics 基础版 | 已支持 runtime task 聚合统计接口 |
 | 已完成 | admin / management endpoints 基础版 | 已支持 runtime task 列表、详情与 `heartbeat_timeout` sweep 管理入口 |
 | 已完成 | callback / task claim 鉴权模型基础版 | 已支持 callback token 与 runtime task token 两类专用入口鉴权 |
@@ -154,7 +155,7 @@ external_interfaces:
 | 部分完成 | `pull` 任务拉取接口 | 已有统一 runtime task queue API，并已接入 game_client request_data 与普通 async action 的真实生产及 callback 完成态闭环 |
 | 部分完成 | `hybrid` 自动降级 | 已有 push 失败后保留 pull task 的最小闭环，并已接入正式接口级路由配置，尚未完成完整策略编排 |
 | 部分完成 | 定时调度下主动出站调用 | 已具备基础 push 派发能力与接口级正式路由，但尚未完成全部自主行动类型统一接线 |
-| 未完成 | 普通异步 action 的 richer business resume | 目前主要是 `OnResult(...)`，还没有统一的后续编排策略 |
+| 部分完成 | 普通异步 action 的 richer business resume | 已有统一 callback 后处理基础版，进一步的多阶段业务编排仍未完成 |
 
 当前还需要特别注意两个边界：
 
@@ -224,6 +225,7 @@ external_interfaces:
 - `callback_id` / task id / execution id
 - 恢复策略与幂等信息
 - 最近一次外部回填结果或错误
+- callback 后处理策略快照与执行结果
 
 当前已完成前五项的核心持久化；后续要把接口策略、任务态、consumer 领取态也一起纳入持久化边界。
 
@@ -293,7 +295,7 @@ external_interfaces:
 | `delivery_mode` / `primary_transport` / `fallback_transport` | 已完成基础配置模型，`fallback_transport` 编排仍未完成 |
 | `consumer` 路由策略 | 已完成基础配置驱动路由 |
 | `resume_policy` 扩展 | 已完成基础能力，当前已接入 callback 自动恢复控制 |
-| 普通 async action 的统一后处理编排 | 未开始 |
+| 普通 async action 的统一后处理编排 | 已完成基础版，当前支持 `record_only` / `write_memory` |
 | hybrid fallback 状态迁移 | 已完成最小闭环，完整策略编排未完成 |
 
 ### 阶段 P4：安全、观测、管理能力
@@ -317,10 +319,9 @@ external_interfaces:
 
 基于当前代码状态，推荐按以下顺序继续实施：
 
-1. 先补齐 `hybrid` 的完整策略编排，包括 fallback 自动治理与 richer 后处理能力。
-2. 再补 callback / task claim 鉴权、防重放与幂等安全边界。
-3. 再补 external task metrics、admin / management endpoints 与故障注入能力。
-4. 最后补开发者示例与端到端接入文档，收口生产化落地体验。
+1. 先补齐 `hybrid` 的完整策略编排，包括重试后降级、按 consumer/category 的治理策略，以及必要的死信阈值。
+2. 再补故障注入与测试矩阵，把 callback、push、pull、hybrid、heartbeat timeout 组合路径覆盖完整。
+3. 再补开发者示例与端到端接入文档，收口生产化落地体验。
 
 这样排序的原因：
 
@@ -342,6 +343,7 @@ external_interfaces:
 | paused execution 自动恢复 | 已支持 |
 | runtime task queue | 已支持基础队列、拉取接口，以及 game_client request_data / 普通 async action 真实任务生产 |
 | built-in push adapter | 已支持 `http_adapter`、`websocket_adapter`、`rpc_adapter` |
+| 普通 async action callback 后处理 | 已支持基础配置化编排，并按 runtime task payload 快照执行 |
 | scheduled 自主行动真实出站派发 | 已具备基础能力，后续需继续扩大到全部 external interface 场景 |
 | hybrid 策略与 consumer 路由 | 已支持基础配置化路由与 push 失败回落 |
 
@@ -371,7 +373,7 @@ external_interfaces:
 
 - 为 `heartbeat_timeout` 补更细粒度自动化治理策略，例如死信阈值、按 consumer/category 分流和人工介入规则
 - 在 scheduled 自主行为里把更多外部交互统一走 `external_interfaces` 配置层，而不是只覆盖当前已接线入口
-- 为普通 async action 补 richer post-processing / resume 编排，让 callback 结果不只停留在 `OnResult(...)`
+- 在普通 async action 已有统一 callback 后处理基础版的前提下，继续扩展 richer post-processing / multi-stage resume 编排
 - 为 hybrid 补更完整的 fallback state machine，例如重试后再降级、降级后回切与治理策略
 - 为 runtime task 管理面补更细粒度安全边界，例如 callback / claim / admin 操作分级鉴权与 token 生命周期管理
 - 为管理面补更多批量治理能力，例如 heartbeat timeout 自动 requeue、失败任务筛选与人工干预流

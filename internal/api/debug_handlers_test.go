@@ -195,6 +195,104 @@ func TestMakeActionCallbackHandlerCompletesAsyncActionRuntimeTask(t *testing.T) 
 	}
 }
 
+func TestMakeActionCallbackHandlerRunsConfiguredAsyncActionPostProcessFromPayloadSnapshot(t *testing.T) {
+	if err := store.Init("sqlite", "file:async_action_post_process_api?mode=memory&cache=shared"); err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	world := &store.NodeModel{UUID: store.NewUUID(), Name: "World", NodeType: "world"}
+	if err := store.CreateNode(world); err != nil {
+		t.Fatalf("create world: %v", err)
+	}
+	if err := store.DB.Model(world).Update("world_id", world.ID).Error; err != nil {
+		t.Fatalf("set world id: %v", err)
+	}
+	node := &store.NodeModel{UUID: store.NewUUID(), Name: "NPC", NodeType: "npc", WorldID: world.ID}
+	if err := store.CreateNode(node); err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	if _, err := store.UpsertWorldPolicy(world.UUID, nil, []string{"spawn_item"}); err != nil {
+		t.Fatalf("policy: %v", err)
+	}
+	previousInterfaces := config.Global.ExternalInterfaces
+	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
+		"spawn_item": {
+			Category:               "external_action",
+			DeliveryMode:           "pull",
+			Consumer:               "bridge",
+			ResumePolicy:           "none",
+			CallbackPostProcess:    "write_memory",
+			CallbackMemoryLevel:    "long_term",
+			CallbackMemoryTemplate: "spawn callback {status}: {result_json}",
+		},
+	}
+	defer func() { config.Global.ExternalInterfaces = previousInterfaces }()
+	pipeline := engine.NewPipeline(&singleResponseProvider{response: `{"reply":"ok","action_calls":[{"action_id":"spawn_item","args":{"item_name":"potion","consumer":"bridge"}}],"memory_updates":[]}`})
+	resp, err := pipeline.Execute(&engine.InvokeRequest{WorldID: world.UUID, NodeID: node.UUID, TaskType: engine.TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	callbackID := resp.ActionCalls[0].CallbackID
+	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
+		"spawn_item": {
+			Category:               "external_action",
+			DeliveryMode:           "pull",
+			Consumer:               "bridge",
+			ResumePolicy:           "none",
+			CallbackPostProcess:    "write_memory",
+			CallbackMemoryLevel:    "short_term",
+			CallbackMemoryTemplate: "mutated template should not apply",
+		},
+	}
+	h := MakeActionCallbackHandler(pipeline)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/actions/callback", strings.NewReader(`{"callback_id":"`+callbackID+`","status":"success","result":{"spawned":true,"item":"potion"}}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	postProcess, ok := body["post_process"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected post_process payload, got %+v", body)
+	}
+	if postProcess["status"] != store.AsyncCallbackPostProcessSucceeded {
+		t.Fatalf("unexpected post_process status: %+v", postProcess)
+	}
+	details, ok := postProcess["details"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected post_process details, got %+v", postProcess)
+	}
+	if details["memory_level"] != "long_term" {
+		t.Fatalf("expected payload snapshot memory level long_term, got %+v", details)
+	}
+	mems, err := store.GetNodeMemories(node.UUID, 10)
+	if err != nil {
+		t.Fatalf("get node memories: %v", err)
+	}
+	if len(mems) != 1 {
+		t.Fatalf("expected one callback memory, got %d", len(mems))
+	}
+	if mems[0].Level != "long_term" {
+		t.Fatalf("expected callback memory level long_term, got %+v", mems[0])
+	}
+	if !strings.Contains(mems[0].Content, `spawn callback success:`) || !strings.Contains(mems[0].Content, `"spawned":true`) || !strings.Contains(mems[0].Content, `"item":"potion"`) {
+		t.Fatalf("unexpected callback memory content: %+v", mems[0])
+	}
+	callbackRecord, err := store.GetAsyncCallbackRecord(callbackID)
+	if err != nil {
+		t.Fatalf("get async callback record: %v", err)
+	}
+	if callbackRecord.PostProcessStatus != store.AsyncCallbackPostProcessSucceeded {
+		t.Fatalf("expected callback post process succeeded, got %+v", callbackRecord)
+	}
+	if callbackRecord.PostProcessedAt == nil || callbackRecord.PostProcessResult == "" {
+		t.Fatalf("expected persisted callback post process metadata, got %+v", callbackRecord)
+	}
+}
+
 func TestMakeActionCallbackHandlerSkipsAutoResumeWhenResumePolicyIsNone(t *testing.T) {
 	if err := store.Init("sqlite", "file:callback_resume_policy_none?mode=memory&cache=shared"); err != nil {
 		t.Fatalf("init db: %v", err)

@@ -68,10 +68,16 @@
 
 当前行为：
 
-- 对普通异步动作：更新 callback 记录，并将结果交给对应 action 的 `OnResult(...)`。
+- 对普通异步动作：更新 callback 记录，将结果交给对应 action 的 `OnResult(...)`，并按 runtime task payload 中持久化的 `callback_post_process` 策略执行统一后处理。
 - 对由 `request_data.target = "game_client"` 触发的暂停执行：当该 task payload 的 `resume_policy` 为空或 `resume_paused_execution` 时，Engine 会自动恢复原始多轮推理，并在响应中返回 `resumed` 字段，携带恢复后的最终推理结果。
 - 如果该 paused execution 对应的 `resume_policy = none`，当前 callback 只会回填结果，不会自动恢复，原执行会继续保持 `paused`。
 - 如果该 callback 对应某个 `runtime task`，Engine 还会同步将该任务标记为 `succeeded`、`failed` 或 `cancelled`，写回完成结果。
+
+当前普通 async action 的统一后处理基础版包括：
+
+- `callback_post_process = none` 或 `record_only`：只记录结果，不追加额外业务编排
+- `callback_post_process = write_memory`：按 payload 快照中的 `callback_memory_level` 与 `callback_memory_template` 向目标节点写入一条记忆
+- callback 响应体中的 `post_process` 字段会返回本次后处理的状态与细节，便于 bridge / 管理面观测
 
 安全与防重放：
 

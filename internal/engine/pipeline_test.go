@@ -1341,7 +1341,7 @@ func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
 		"game_http": {Type: "http_adapter", BaseURL: server.URL, Path: "/dispatch"},
 	}
 	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
-		"spawn_item": {Category: "external_action", DeliveryMode: "push", PrimaryTransport: "game_http", Consumer: "bridge", ResumePolicy: "none"},
+		"spawn_item": {Category: "external_action", DeliveryMode: "push", PrimaryTransport: "game_http", Consumer: "bridge", ResumePolicy: "none", CallbackPostProcess: "write_memory", CallbackMemoryLevel: "long_term", CallbackMemoryTemplate: "spawn callback {status}: {result_json}"},
 	}
 	defer func() {
 		config.Global.ExternalIntegrations = previousIntegrations
@@ -1362,8 +1362,27 @@ func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
 	if task.Transport != "game_http" || task.Status != store.RuntimeTaskStatusDispatched {
 		t.Fatalf("expected configured async route to dispatch via game_http, got %+v", task)
 	}
-	payload := gotBody["payload"].(map[string]any)
-	if payload["action_id"] != "spawn_item" {
+	var taskPayload struct {
+		CallbackPostProcess struct {
+			Mode           string `json:"mode"`
+			MemoryLevel    string `json:"memory_level"`
+			MemoryTemplate string `json:"memory_template"`
+		} `json:"callback_post_process"`
+	}
+	if err := json.Unmarshal([]byte(task.PayloadJSON), &taskPayload); err != nil {
+		t.Fatalf("unmarshal runtime task payload: %v", err)
+	}
+	if taskPayload.CallbackPostProcess.Mode != "write_memory" {
+		t.Fatalf("expected callback post process mode write_memory, got %+v", taskPayload.CallbackPostProcess)
+	}
+	if taskPayload.CallbackPostProcess.MemoryLevel != "long_term" {
+		t.Fatalf("expected callback memory level long_term, got %+v", taskPayload.CallbackPostProcess)
+	}
+	if taskPayload.CallbackPostProcess.MemoryTemplate != "spawn callback {status}: {result_json}" {
+		t.Fatalf("unexpected callback memory template: %+v", taskPayload.CallbackPostProcess)
+	}
+	dispatchPayload := gotBody["payload"].(map[string]any)
+	if dispatchPayload["action_id"] != "spawn_item" {
 		t.Fatalf("unexpected async dispatch payload: %+v", gotBody)
 	}
 }
