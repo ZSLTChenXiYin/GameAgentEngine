@@ -140,6 +140,8 @@ engine:
 
 如果你希望直接照着接入样例配置外部交互，可以继续看 [外部交互接入示例](./EXTERNAL_INTERACTION_EXAMPLES.md)。
 
+如果你还想确认这些配置路径当前有哪些自动化保障，可以继续看 [外部交互测试矩阵](./EXTERNAL_INTERACTION_TEST_MATRIX.md)。
+
 ---
 
 ## 外部交互静态配置

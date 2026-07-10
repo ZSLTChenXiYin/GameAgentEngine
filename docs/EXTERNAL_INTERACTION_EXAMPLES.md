@@ -182,7 +182,132 @@ external_interfaces:
 
 ---
 
-## 七、当前边界
+## 七、最小接入样例
+
+下面给出两个最小化样例，帮助开发者快速接上 `pull` worker 或 `push` 接收端。
+
+### 7.1 Bridge / 游戏端 Pull Worker
+
+这个样例适合本地 bridge、编辑器插件或游戏客户端主动领取任务。
+
+```js
+const baseUrl = process.env.ENGINE_BASE_URL || 'http://127.0.0.1:8080';
+const runtimeTaskToken = process.env.RUNTIME_TASK_TOKEN || 'dev-task-token';
+const callbackToken = process.env.CALLBACK_TOKEN || 'dev-callback-token';
+
+async function engineFetch(path, init = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Runtime-Task-Token': runtimeTaskToken,
+    ...(init.headers || {}),
+  };
+  return fetch(baseUrl + path, { ...init, headers });
+}
+
+async function callbackFetch(body, requestId) {
+  return fetch(baseUrl + '/api/v1/actions/callback', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Callback-Token': callbackToken,
+      'X-Callback-Request-Id': requestId,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+async function pollOnce() {
+  const pendingResp = await engineFetch('/api/v1/runtime/tasks/pending?consumer=game_client&limit=1');
+  const pending = await pendingResp.json();
+  const task = pending.tasks?.[0];
+  if (!task) return false;
+
+  const claimResp = await engineFetch('/api/v1/runtime/tasks/claim', {
+    method: 'POST',
+    body: JSON.stringify({ task_id: task.task_id, consumer: 'game_client', lease_owner: 'local-worker-1' }),
+  });
+  const claimBody = await claimResp.json();
+  const claimed = claimBody.task;
+
+  await engineFetch('/api/v1/runtime/tasks/start', {
+    method: 'POST',
+    body: JSON.stringify({ task_id: claimed.task_id, lease_token: claimed.lease_token }),
+  });
+
+  const result = { scene: 'tavern', source: 'pull-worker' };
+  await callbackFetch({ callback_id: claimed.callback_id, status: 'success', result }, `cb-${claimed.task_id}`);
+  return true;
+}
+
+pollOnce().catch((err) => {
+  console.error('pull worker failed', err);
+  process.exitCode = 1;
+});
+```
+
+### 7.2 游戏端 Push Receiver
+
+这个样例适合 Engine 通过 `http_adapter` 主动向外派发时，游戏端暴露一个接收端点。
+
+```js
+import http from 'node:http';
+
+const port = Number(process.env.GAME_PORT || 9000);
+
+function readJson(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.setEncoding('utf8');
+    req.on('data', (chunk) => { data += chunk; });
+    req.on('end', () => {
+      try {
+        resolve(data ? JSON.parse(data) : {});
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+http.createServer(async (req, res) => {
+  if (req.method !== 'POST' || req.url !== '/api/v1/runtime/dispatch') {
+    res.statusCode = 404;
+    res.end('not found');
+    return;
+  }
+
+  const body = await readJson(req);
+  console.log('dispatch request', body.task_id, body.payload?.action_id || body.payload?.external_interface);
+
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify({ status: 200, accepted: true, worker: 'game-http-server' }));
+}).listen(port, () => {
+  console.log(`game push receiver listening on ${port}`);
+});
+```
+
+---
+
+## 八、定时调度推荐接线
+
+如果是定时调度触发的自主行动，推荐按下面方式选型：
+
+| 场景 | 推荐接线 |
+|---|---|
+| Engine 与游戏逻辑服务同网部署 | scheduled action -> `push` -> callback |
+| 客户端/编辑器间歇在线 | scheduled action -> `pull` queue -> callback |
+| 服务端优先、客户端兜底 | scheduled action -> `hybrid` -> push fail fallback to pull -> callback |
+
+要点：
+
+- 定时调度并不影响 callback 使用；callback 只负责结果回填。
+- 是否需要恢复原推理现场，仍由 task payload 中固化的 `resume_policy` 决定。
+- 如果担心配置漂移，关键治理策略和 callback 后处理都应该走 `external_interfaces` 并依赖 payload 快照。
+
+---
+
+## 九、当前边界
 
 当前已经完成生产可用基础版，但仍要注意：
 

@@ -183,6 +183,7 @@ external_interfaces:
 | 已完成 | runtime task 管理面诊断视图基础版 | 已支持按 dispatch failure class / decision、重试耗尽、长时间 dispatched 未 callback、多次 heartbeat timeout 做筛选与统计 |
 | 已完成 | heartbeat timeout 次数持久化 | 已支持记录每个 task 的 `heartbeat_timeout_count`，用于治理与管理面排查 |
 | 已完成 | 外部交互测试矩阵文档 | 已固化当前自动化覆盖面、代表测试与未覆盖增强项 |
+| 已完成 | 开发者最小接入样例 | 已提供 bridge / 游戏端 worker 最小接线与 scheduled 场景推荐接法 |
 
 ### 3.2 当前真实边界
 
@@ -352,7 +353,7 @@ external_interfaces:
 | external task metrics | 已完成基础版 |
 | admin / management endpoints | 已完成增强版，当前已支持诊断筛选与扩展统计 |
 | 故障注入与测试矩阵 | 已完成当前阶段目标，已覆盖 push/pull/hybrid/callback/max_attempts/heartbeat_timeout/配置漂移/重入/恢复路径的核心回归矩阵 |
-| 开发者文档与示例 | 已完成基础版，已提供外部交互接入示例文档 |
+| 开发者文档与示例 | 已完成增强版，已提供接入示例、测试矩阵与最小 bridge / 游戏端样例 |
 
 ---
 
