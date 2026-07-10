@@ -162,6 +162,20 @@ func (r *Registry) HandleCallback(callbackID string, status string, result any) 
 
 	rec.Status = status
 	rec.Result = result
+	if rec.ResumeExecutionID == "" {
+		if model, err := store.GetAsyncCallbackRecord(callbackID); err == nil {
+			rec.ResumeExecutionID = model.ResumeExecutionID
+			if rec.RequestID == "" {
+				rec.RequestID = model.RequestID
+			}
+			if rec.WorldID == "" {
+				rec.WorldID = model.WorldUUID
+			}
+			if rec.NodeID == "" {
+				rec.NodeID = model.NodeUUID
+			}
+		}
+	}
 	resultJSON := marshalJSON(result)
 	errMsg := ""
 	if status == "failed" {
@@ -210,4 +224,3 @@ func marshalJSON(value any) string {
 	}
 	return string(data)
 }
-

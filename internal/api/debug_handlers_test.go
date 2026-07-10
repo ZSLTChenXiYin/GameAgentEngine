@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
 func TestMakeDebugTracesHandlerReturnsPipelineObservabilityFields(t *testing.T) {
@@ -54,5 +56,63 @@ func TestMakeDebugTracesHandlerReturnsPipelineObservabilityFields(t *testing.T) 
 	}
 	if trace.MaxAnalysisRounds != 4 || trace.RoundsUsed != 2 {
 		t.Fatalf("unexpected round fields: %+v", trace)
+	}
+}
+
+type callbackSequenceProvider struct {
+	responses []string
+	calls     int
+}
+
+func (s *callbackSequenceProvider) Chat(systemPrompt string, messages []engine.ChatMessage) (*engine.LLMResult, error) {
+	resp := s.responses[s.calls]
+	s.calls++
+	return &engine.LLMResult{Content: resp, Model: "callback-seq", Tokens: 6}, nil
+}
+
+func (s *callbackSequenceProvider) ModelName() string { return "callback-seq" }
+
+func TestMakeActionCallbackHandlerAutoResumesPausedExecution(t *testing.T) {
+	if err := store.Init("sqlite", "file:callback_resume_api?mode=memory&cache=shared"); err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	world := &store.NodeModel{UUID: store.NewUUID(), Name: "World", NodeType: "world"}
+	if err := store.CreateNode(world); err != nil {
+		t.Fatalf("create world: %v", err)
+	}
+	if err := store.DB.Model(world).Update("world_id", world.ID).Error; err != nil {
+		t.Fatalf("set world id: %v", err)
+	}
+	node := &store.NodeModel{UUID: store.NewUUID(), Name: "NPC", NodeType: "npc", WorldID: world.ID}
+	if err := store.CreateNode(node); err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	provider := &callbackSequenceProvider{responses: []string{
+		`{"reply":"wait","request_data":{"label":"fetch-client","target":"game_client","queries":[{"type":"node_detail","node_id":"` + node.UUID + `"}]}}`,
+		`{"reply":"resumed-final","action_calls":[],"memory_updates":[]}`,
+	}}
+	pipeline := engine.NewPipeline(provider)
+	first, err := pipeline.Execute(&engine.InvokeRequest{WorldID: world.UUID, NodeID: node.UUID, TaskType: engine.TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	callbackID := first.ActionCalls[0].CallbackID
+	h := MakeActionCallbackHandler(pipeline)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/actions/callback", strings.NewReader(`{"callback_id":"`+callbackID+`","status":"success","result":{"scene":"tavern"}}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	resumed, ok := body["resumed"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected resumed payload, got %+v", body)
+	}
+	if resumed["reply"] != "resumed-final" {
+		t.Fatalf("unexpected resumed reply: %+v", resumed)
 	}
 }

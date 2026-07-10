@@ -385,7 +385,7 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 
 // ResumePausedExecution restores a persisted paused execution snapshot and returns the decoded state.
 // The actual round continuation is implemented separately so the callback path can reuse the same snapshot.
-func (p *Pipeline) ResumePausedExecution(callbackID string, result any) (*store.PausedExecutionModel, *InvokeRequest, *BuiltContext, *RoundState, *executionConfig, *DataRequest, ExecutionMode, int, error) {
+func (p *Pipeline) loadPausedExecutionForResume(callbackID string, result any) (*store.PausedExecutionModel, *InvokeRequest, *BuiltContext, *RoundState, *executionConfig, *DataRequest, ExecutionMode, int, error) {
 	paused, err := store.GetPausedExecutionByCallbackID(callbackID)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, ModeProduction, 0, err
@@ -402,6 +402,54 @@ func (p *Pipeline) ResumePausedExecution(callbackID string, result any) (*store.
 		return nil, nil, nil, nil, nil, nil, ModeProduction, 0, err
 	}
 	return paused, req, ctx, state, runtime, dr, executionMode, pausedRound, nil
+}
+
+// ResumePausedExecution restores a paused execution, injects callback data into context,
+// and continues the remaining multi-turn reasoning loop automatically.
+func (p *Pipeline) ResumePausedExecution(callbackID string, result any) (*InvokeResponse, error) {
+	paused, req, ctx, state, runtime, dr, executionMode, pausedRound, err := p.loadPausedExecutionForResume(callbackID, result)
+	if err != nil {
+		return nil, err
+	}
+	resolved := marshalLogDetail(map[string]any{
+		"callback_id": callbackID,
+		"result":      result,
+	})
+	if dr != nil {
+		label := dr.Label
+		if label == "" {
+			label = "game_client"
+		}
+		state.SupplementalContext = append(state.SupplementalContext, "[数据查询回填] "+label, resolved)
+		appendRoundStateTreeEntry(state, pausedRound, nil, resolved)
+	}
+	start := time.Now()
+	resp, err := p.executeMultiTurnLoopFromState(req, ctx, start, paused.RequestID, runtime, state, pausedRound, executionMode)
+	if err != nil {
+		_ = store.MarkPausedExecutionFailed(paused.ExecutionID, err.Error())
+		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+			Category:   "pipeline_resume",
+			EventName:  "resume_failed",
+			LogLevel:   "error",
+			Message:    err.Error(),
+			Round:      pausedRound,
+			DetailData: marshalLogDetail(map[string]any{"callback_id": callbackID, "execution_id": paused.ExecutionID}),
+		})
+		return nil, err
+	}
+	if err := store.MarkPausedExecutionCompleted(paused.ExecutionID); err != nil {
+		return nil, err
+	}
+	p.emitLog(req, resp, runtime, executionMode, pipelineLogEvent{
+		Category:     "pipeline_resume",
+		EventName:    "resume_completed",
+		Message:      truncateForLog(resp.Reply, 180),
+		Round:        resp.Metadata.RoundsUsed,
+		ResponseData: buildFullResponseLogData(resp),
+		DetailData:   marshalLogDetail(map[string]any{"callback_id": callbackID, "execution_id": paused.ExecutionID}),
+		DurationMs:   time.Since(start).Milliseconds(),
+	})
+	return resp, nil
 }
 
 type RoundState struct {
@@ -426,12 +474,12 @@ type pausedExecutionRuntime struct {
 }
 
 type pausedExecutionSnapshot struct {
-	RoundState   *RoundState           `json:"round_state"`
-	Runtime      pausedExecutionRuntime `json:"runtime"`
-	DataRequest  *DataRequest          `json:"data_request,omitempty"`
-	PausedRound  int                   `json:"paused_round"`
-	CallbackID   string                `json:"callback_id"`
-	ExecutionID  string                `json:"execution_id"`
+	RoundState  *RoundState            `json:"round_state"`
+	Runtime     pausedExecutionRuntime `json:"runtime"`
+	DataRequest *DataRequest           `json:"data_request,omitempty"`
+	PausedRound int                    `json:"paused_round"`
+	CallbackID  string                 `json:"callback_id"`
+	ExecutionID string                 `json:"execution_id"`
 }
 
 func (s *RoundState) buildPrompt(base string) string {
@@ -636,17 +684,135 @@ func (p *Pipeline) executeMultiTurnLoop(
 	finalizeFn func(*InvokeResponse, *llmParsedOutput, *BuiltContext, *InvokeRequest) *InvokeResponse,
 	executionMode ExecutionMode,
 ) (*InvokeResponse, error) {
-	targetNodeID := req.NodeID
 	state := &RoundState{
 		Context:      ctx,
 		Tree:         taskTree,
 		TreeContext:  "",
 		Messages:     sanitizeRoles(req.Messages),
-		TargetNodeID: targetNodeID,
+		TargetNodeID: req.NodeID,
 		MaxRounds:    runtime.maxRounds,
 	}
+	return p.executeMultiTurnLoopInternal(req, ctx, start, requestID, runtime, state, 0, taskPromptFn, finalizeFn, executionMode)
+}
 
-	for round := 0; round < runtime.maxRounds; round++ {
+func (p *Pipeline) executeMultiTurnLoopFromState(
+	req *InvokeRequest,
+	ctx *BuiltContext,
+	start time.Time,
+	requestID string,
+	runtime *executionConfig,
+	state *RoundState,
+	startRound int,
+	executionMode ExecutionMode,
+) (*InvokeResponse, error) {
+	var taskPromptFn func(treeContext string, req *InvokeRequest, nodeID string, round int) string
+	var finalizeFn func(*InvokeResponse, *llmParsedOutput, *BuiltContext, *InvokeRequest) *InvokeResponse
+	switch req.TaskType {
+	case TaskNPCDialogue:
+		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
+			return buildDialoguePrompt(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), nodeID)
+		}
+	case TaskWorldTick:
+		var currentOutline string
+		if latest, err := store.GetLatestTick(req.WorldID); err == nil {
+			currentOutline = latest.FutureOutline
+		}
+		worldTimeBlock := buildWorldTickTimeBlock(req.WorldID)
+		relationSummary := buildWorldTickRelationSummary(ctx)
+		var recentTimeline []string
+		if ticks, err := store.GetTimelineTicks(req.WorldID, 3); err == nil {
+			for _, tick := range ticks {
+				summary := strings.TrimSpace(tick.Summary)
+				if summary == "" {
+					continue
+				}
+				recentTimeline = append(recentTimeline, fmt.Sprintf("[tick %d] %s", tick.TickNumber, summary))
+			}
+		}
+		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
+			baseContext := mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext)
+			return buildWorldTickPrompt(baseContext, currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary)
+		}
+		finalizeFn = func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
+			_ = ctx
+			_ = req
+			if parsed != nil && parsed.AdvancedTicks > 0 {
+				resp.AdvancedTicks = parsed.AdvancedTicks
+			}
+			return resp
+		}
+	case TaskWorldEvent:
+		eventDesc := ""
+		if req.Event != nil {
+			eventDesc = fmt.Sprintf("事件类型:%s 范围:%s 描述:%s 严重度:%s", req.Event.EventType, req.Event.ScopeID, req.Event.Description, req.Event.Severity)
+		}
+		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
+			return buildEventImpactPrompt(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), eventDesc, nodeID)
+		}
+	case TaskAutonomousAct:
+		cfg, _, err := LoadAutonomousConfig(req.NodeID)
+		if err != nil {
+			return nil, err
+		}
+		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
+			return buildAutonomousPrompt(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), nodeID, cfg)
+		}
+		finalizeFn = func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
+			_ = parsed
+			_ = ctx
+			_ = req
+			allowedCalls, rejected := filterActionCallsByCapabilities(resp.ActionCalls, cfg.Capabilities)
+			allowedCalls, schemaRejected := validateActionCallsBySchema(allowedCalls, cfg.Capabilities)
+			rejected = append(rejected, schemaRejected...)
+			for _, call := range rejected {
+				log.Printf("[autonomous:blocked] node=%s action=%s", req.NodeID, call.ActionID)
+			}
+			resp.ActionCalls = p.executeActions(req, runtime, executionMode, runtime.policyEngine, allowedCalls)
+			if len(resp.ActionCalls) == 0 && len(resp.MemoryUpdates) == 0 {
+				memUpdate := MemoryUpdate{NodeID: req.NodeID, Content: "自主行为周期未采取行动。", Level: MemShortTerm, Tags: "autonomous,no_action"}
+				resp.MemoryUpdates = append(resp.MemoryUpdates, memUpdate)
+				nodeID2 := store.ResolveNodeUUID(req.NodeID)
+				if nodeID2 != 0 {
+					mm := store.MemoryModel{NodeID: nodeID2, Content: memUpdate.Content, Level: string(memUpdate.Level), Tags: memUpdate.Tags}
+					if err := store.CreateMemory(&mm); err != nil {
+						log.Printf("write memory: %v", err)
+					}
+				}
+			}
+			return resp
+		}
+	default:
+		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
+			return treeContext
+		}
+	}
+	return p.executeMultiTurnLoopInternal(req, ctx, start, requestID, runtime, state, startRound, taskPromptFn, finalizeFn, executionMode)
+}
+
+func (p *Pipeline) executeMultiTurnLoopInternal(
+	req *InvokeRequest,
+	ctx *BuiltContext,
+	start time.Time,
+	requestID string,
+	runtime *executionConfig,
+	state *RoundState,
+	startRound int,
+	taskPromptFn func(treeContext string, req *InvokeRequest, nodeID string, round int) string,
+	finalizeFn func(*InvokeResponse, *llmParsedOutput, *BuiltContext, *InvokeRequest) *InvokeResponse,
+	executionMode ExecutionMode,
+) (*InvokeResponse, error) {
+	targetNodeID := req.NodeID
+	if state == nil {
+		state = &RoundState{
+			Context:      ctx,
+			Messages:     sanitizeRoles(req.Messages),
+			TargetNodeID: targetNodeID,
+			MaxRounds:    runtime.maxRounds,
+		}
+	}
+	state.Context = ctx
+
+	for round := startRound; round < runtime.maxRounds; round++ {
 		var roundNode *TaskNode
 		var promptSeed string
 		if state.Tree != nil {
@@ -735,10 +901,10 @@ func (p *Pipeline) executeMultiTurnLoop(
 						return nil, fmt.Errorf("link callback to paused execution: %w", err)
 					}
 					resp := &InvokeResponse{
-						RequestID:   requestID,
+						RequestID:     requestID,
 						ExecutionMode: executionMode,
-						TaskType:    req.TaskType,
-						DataRequest: &dr,
+						TaskType:      req.TaskType,
+						DataRequest:   &dr,
 						ActionCalls: []ActionCall{{
 							ActionID:   "data_request",
 							Mode:       "async",

@@ -30,6 +30,11 @@ type captureProvider struct {
 	lastMsgs   []ChatMessage
 }
 
+type sequenceProvider struct {
+	responses []string
+	calls     int
+}
+
 func (s *stubProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error) {
 	s.calls++
 	if s.err != nil {
@@ -61,6 +66,17 @@ func (c *captureProvider) Chat(systemPrompt string, messages []ChatMessage) (*LL
 }
 
 func (c *captureProvider) ModelName() string { return "capture" }
+
+func (s *sequenceProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error) {
+	if s.calls >= len(s.responses) {
+		return &LLMResult{Content: `{"reply":"done","action_calls":[],"memory_updates":[]}`, Model: "sequence", Tokens: 5}, nil
+	}
+	resp := s.responses[s.calls]
+	s.calls++
+	return &LLMResult{Content: resp, Model: "sequence", Tokens: 5}, nil
+}
+
+func (s *sequenceProvider) ModelName() string { return "sequence" }
 
 func initTestDB(t *testing.T) {
 	t.Helper()
@@ -496,6 +512,67 @@ func TestHandleDataRequestFiltersNodeMemoriesByLevel(t *testing.T) {
 	}
 	if strings.Contains(result, "short memory") {
 		t.Fatalf("did not expect short memory, got %q", result)
+	}
+}
+
+func TestResumePausedExecutionContinuesAfterGameClientCallback(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"need-client","request_data":{"label":"fetch-scene","target":"game_client","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+		`{"reply":"after-resume","action_calls":[],"memory_updates":[]}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	first, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if first.DataRequest == nil {
+		t.Fatal("expected paused data request")
+	}
+	if len(first.ActionCalls) != 1 || first.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected callback action, got %+v", first.ActionCalls)
+	}
+	callbackID := first.ActionCalls[0].CallbackID
+
+	resumed, err := pipeline.ResumePausedExecution(callbackID, map[string]any{"scene": "tavern"})
+	if err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if resumed == nil || resumed.Reply != "after-resume" {
+		t.Fatalf("unexpected resumed response: %+v", resumed)
+	}
+	paused, err := store.GetPausedExecutionByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get paused execution: %v", err)
+	}
+	if paused.Status != "completed" {
+		t.Fatalf("expected completed paused execution, got %q", paused.Status)
+	}
+	record, err := store.GetAsyncCallbackRecord(callbackID)
+	if err != nil {
+		t.Fatalf("get callback record: %v", err)
+	}
+	if record.Status != "pending" && record.Status != "success" && record.Status != "completed" && record.Status != "ok" {
+		t.Fatalf("unexpected callback status: %q", record.Status)
+	}
+	if provider.calls != 2 {
+		t.Fatalf("expected 2 llm calls, got %d", provider.calls)
+	}
+	logs, err := store.GetInferenceLogs(worldID, 50, 0, string(TaskCustom))
+	if err != nil {
+		t.Fatalf("get logs: %v", err)
+	}
+	var foundResume bool
+	for _, item := range logs {
+		if item.EventName == "resume_completed" {
+			foundResume = true
+			break
+		}
+	}
+	if !foundResume {
+		t.Fatal("expected resume_completed log")
 	}
 }
 

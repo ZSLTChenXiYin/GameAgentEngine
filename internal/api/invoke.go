@@ -61,6 +61,14 @@ func MakeActionCallbackHandler(p *engine.Pipeline) http.HandlerFunc {
 		resp := map[string]any{"status": "ok"}
 		if rec != nil && rec.ResumeExecutionID != "" {
 			resp["resume_execution_id"] = rec.ResumeExecutionID
+			if req.Status == "success" || req.Status == "completed" || req.Status == "ok" {
+				resumed, err := p.ResumePausedExecution(req.CallbackID, req.Result)
+				if err != nil {
+					errorJSON(w, 500, err.Error())
+					return
+				}
+				resp["resumed"] = resumed
+			}
 		}
 		writeJSON(w, 200, resp)
 	}
