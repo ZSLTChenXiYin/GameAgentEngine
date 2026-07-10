@@ -94,17 +94,20 @@ type ExternalIntegrationAuthConfig struct {
 
 // ExternalInterfaceConfig 定义一个业务接口的正式投递策略。
 type ExternalInterfaceConfig struct {
-	Category               string `mapstructure:"category"`
-	DeliveryMode           string `mapstructure:"delivery_mode"`
-	PrimaryTransport       string `mapstructure:"primary_transport"`
-	FallbackTransport      string `mapstructure:"fallback_transport"`
-	Consumer               string `mapstructure:"consumer"`
-	ResumePolicy           string `mapstructure:"resume_policy"`
-	CallbackPostProcess    string `mapstructure:"callback_post_process"`
-	CallbackMemoryLevel    string `mapstructure:"callback_memory_level"`
-	CallbackMemoryTemplate string `mapstructure:"callback_memory_template"`
-	MaxAttempts            int    `mapstructure:"max_attempts"`
-	TimeoutMs              int    `mapstructure:"timeout_ms"`
+	Category                       string `mapstructure:"category"`
+	DeliveryMode                   string `mapstructure:"delivery_mode"`
+	PrimaryTransport               string `mapstructure:"primary_transport"`
+	FallbackTransport              string `mapstructure:"fallback_transport"`
+	Consumer                       string `mapstructure:"consumer"`
+	ResumePolicy                   string `mapstructure:"resume_policy"`
+	CallbackPostProcess            string `mapstructure:"callback_post_process"`
+	CallbackMemoryLevel            string `mapstructure:"callback_memory_level"`
+	CallbackMemoryTemplate         string `mapstructure:"callback_memory_template"`
+	MaxAttempts                    int    `mapstructure:"max_attempts"`
+	HeartbeatTimeoutAutoRequeue    *bool  `mapstructure:"heartbeat_timeout_auto_requeue"`
+	HeartbeatTimeoutRequeueDelayMs int    `mapstructure:"heartbeat_timeout_requeue_delay_ms"`
+	HeartbeatTimeoutReason         string `mapstructure:"heartbeat_timeout_reason"`
+	TimeoutMs                      int    `mapstructure:"timeout_ms"`
 }
 
 var Global Config

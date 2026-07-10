@@ -113,6 +113,9 @@ external_interfaces:
     primary_transport: "game_http"
     consumer: "bridge"
     max_attempts: 3
+    heartbeat_timeout_auto_requeue: true
+    heartbeat_timeout_requeue_delay_ms: 2500
+    heartbeat_timeout_reason: "spawn_item timeout auto requeue"
     resume_policy: "none"
     callback_post_process: "write_memory"
     callback_memory_level: "long_term"
@@ -179,6 +182,9 @@ engine:
 - `fallback_transport`：`hybrid` 下 push 失败后的回退 transport 标签
 - `consumer`：pull/hybrid 下默认消费方
 - `max_attempts`：pull/hybrid 生命周期内允许的最大领取尝试次数；超过后 release/requeue 不再回队，而是进入终态 `failed`
+- `heartbeat_timeout_auto_requeue`：该接口的任务进入 `heartbeat_timeout` 后，是否允许 governor 自动 requeue
+- `heartbeat_timeout_requeue_delay_ms`：该接口任务自动 requeue 前的延迟
+- `heartbeat_timeout_reason`：自动 requeue 时写入任务的原因文本
 - `resume_policy`：当前支持 `none`、`resume_paused_execution`
 - `callback_post_process`：callback 完成后的统一后处理策略，当前支持 `none`、`record_only`、`write_memory`
 - `callback_memory_level`：当 `callback_post_process = write_memory` 时写入的记忆层级，默认 `short_term`
@@ -195,6 +201,7 @@ engine:
 - `hybrid` 下如果 push 派发失败且配置了 `fallback_transport`，runtime task 会转为 `released`，并把 `transport` 写成该 fallback 值，供 pull consumer 后续领取
 - 当前 `fallback_transport` 还不是“自动切到第二个 push adapter 再发一次”的意思，而是“明确进入 pull 风格回退态”的持久化语义
 - 当前 `max_attempts` 已接入 runtime task 治理：claim 会累加 `attempt_count`，当达到上限后，后续 `release` 或 `heartbeat_timeout` requeue 会把任务稳定落到 `failed`，避免无限回队
+- 当前 `heartbeat_timeout_*` 策略也已接入 task payload 快照：当 governor 运行时，会按任务创建时的接口策略决定是否自动 requeue、延迟多久、原因写什么，而不是只看最新全局配置
 - 当前 `hybrid` push 失败后还会把失败分类与回退决策写入 task 字段，例如 `last_dispatch_failure_class`、`last_dispatch_decision`、`fallback_from_transport`、`last_transition_reason`，方便后续治理与排查
 - 普通 async action 当前已经支持统一 callback 后处理基础版；Engine 会把 `callback_post_process` 策略快照写入 runtime task payload，再由 callback handler 按持久化快照执行后处理，避免配置漂移或上下文压缩导致行为变化
 - 当前已经提供基础 runtime task 管理面，包括聚合统计、条件查询、单任务详情和 `heartbeat_timeout` sweep 入口，方便运维排查与后续自动治理接线

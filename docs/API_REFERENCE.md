@@ -106,6 +106,8 @@
 
 当前如果接口配置或请求载荷中提供 `max_attempts`，该值也会进入 runtime task 生命周期：每次 claim 会增加 `attempt_count`，达到上限后，后续 release / timeout requeue 不再把任务放回队列，而会把它稳定标记为 `failed`。
 
+当前如果接口配置提供 `heartbeat_timeout_auto_requeue`、`heartbeat_timeout_requeue_delay_ms`、`heartbeat_timeout_reason`，Engine 也会把这组治理策略快照写入 task payload。这样后台 governor 在处理 `heartbeat_timeout` 自动回收时，会按任务创建时的接口策略决定是否自动 requeue、延迟多久、原因写什么，而不是受后续配置漂移影响。
+
 当前如果外部交互配置为 `push` 或 `hybrid`，Engine 也可能先通过内建 adapter 主动派发；当前已支持 `http_adapter`、`websocket_adapter` 与 `rpc_adapter`。此时任务状态会进入 `dispatched`，不再出现在 pending 列表里，等待后续 callback 完成。
 
 当前 push 基础能力还包括：
@@ -269,7 +271,7 @@
 
 - `timeout_seconds` 必须大于 `0`
 - 成功后返回本次 sweep 影响的任务数量
-- 这是最小管理入口，后续还会继续补自动治理与批量 requeue 策略
+- 这是将任务转入 `heartbeat_timeout` 的管理入口；当后台 governor 已开启自动治理时，后续是否自动 requeue 还会继续受每个 task payload 中固化的 `heartbeat_timeout_policy` 控制
 
 ### `POST /api/v1/runtime/tasks/heartbeat-timeout/requeue`
 
@@ -293,7 +295,7 @@
 - 可按 `consumer`、`category`、`transport` 过滤批量目标
 - `limit` 最大 `500`，默认按最早创建的 timeout task 优先处理
 - requeue 后任务会依据各自的 `max_attempts` 进入 `released` 或终态 `failed`，并清理 timeout/lease 状态
-- 这是 `heartbeat_timeout` 自动治理前的批量运维入口，后续还会继续补策略化自动回收能力
+- 该接口属于显式人工/运维入口，不读取 task payload 中的自动治理策略；payload 快照只用于后台 governor 的自动回收链路
 
 ### `GET /api/v1/plans/pending`
 

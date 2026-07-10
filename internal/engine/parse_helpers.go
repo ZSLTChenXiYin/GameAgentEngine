@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/action"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/external"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/planner"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
@@ -168,6 +169,18 @@ func resolveAsyncActionMaxAttempts(actionID string, args map[string]any) int {
 	return 0
 }
 
+func heartbeatTimeoutPolicySnapshot(cfg config.ExternalInterfaceConfig) map[string]any {
+	autoRequeue := false
+	if cfg.HeartbeatTimeoutAutoRequeue != nil {
+		autoRequeue = *cfg.HeartbeatTimeoutAutoRequeue
+	}
+	return map[string]any{
+		"auto_requeue":     autoRequeue,
+		"requeue_delay_ms": cfg.HeartbeatTimeoutRequeueDelayMs,
+		"reason":           strings.TrimSpace(cfg.HeartbeatTimeoutReason),
+	}
+}
+
 func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, args map[string]any, callbackID string) string {
 	route := resolveAsyncActionRoute(actionID, args)
 	interfaceCfg, _ := externalInterfaceConfig(asyncActionInterfaceName(actionID, args))
@@ -176,19 +189,20 @@ func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, arg
 	callbackMemoryTemplate := firstNonEmpty(runtimeTaskCallbackMemoryTemplateFromArgs(args), interfaceCfg.CallbackMemoryTemplate)
 	maxAttempts := resolveAsyncActionMaxAttempts(actionID, args)
 	payload := map[string]any{
-		"task_type":            req.TaskType,
-		"world_id":             req.WorldID,
-		"node_id":              req.NodeID,
-		"callback_id":          callbackID,
-		"resume_policy":        firstNonEmpty(route.ResumePolicy, "none"),
-		"external_interface":   asyncActionInterfaceName(actionID, args),
-		"external_interaction": "external_action",
-		"action_id":            actionID,
-		"delivery_mode":        route.DeliveryMode,
-		"primary_transport":    route.PrimaryTransport,
-		"fallback_transport":   route.FallbackTransport,
-		"consumer":             route.Consumer,
-		"max_attempts":         maxAttempts,
+		"task_type":                req.TaskType,
+		"world_id":                 req.WorldID,
+		"node_id":                  req.NodeID,
+		"callback_id":              callbackID,
+		"resume_policy":            firstNonEmpty(route.ResumePolicy, "none"),
+		"external_interface":       asyncActionInterfaceName(actionID, args),
+		"external_interaction":     "external_action",
+		"action_id":                actionID,
+		"delivery_mode":            route.DeliveryMode,
+		"primary_transport":        route.PrimaryTransport,
+		"fallback_transport":       route.FallbackTransport,
+		"consumer":                 route.Consumer,
+		"max_attempts":             maxAttempts,
+		"heartbeat_timeout_policy": heartbeatTimeoutPolicySnapshot(interfaceCfg),
 		"callback_post_process": map[string]any{
 			"mode":            callbackPostProcess,
 			"memory_level":    callbackMemoryLevel,

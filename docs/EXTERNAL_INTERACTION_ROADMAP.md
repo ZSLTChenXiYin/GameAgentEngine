@@ -179,6 +179,7 @@ external_interfaces:
 | 已完成 | `heartbeat_timeout` 自动治理基础版 | 已支持后台 governor 周期性标记 timeout，并可按配置自动批量 requeue |
 | 已完成 | runtime task `max_attempts` 终态阈值基础版 | 已支持 claim 次数上限，超限后 release / timeout requeue 进入 `failed` |
 | 已完成 | hybrid dispatch 失败分类与回退决策持久化基础版 | 已支持记录 dispatch failure class、decision、transition reason 与 fallback source |
+| 已完成 | task 级 heartbeat timeout 策略快照 | 已支持把接口级 auto requeue 策略固化进 task payload，由 governor 按任务创建时策略执行差异化治理 |
 
 ### 3.2 当前真实边界
 
@@ -190,12 +191,13 @@ external_interfaces:
 | 部分完成 | `hybrid` 自动降级 | 已有 push 失败后的 failure class、dispatch decision 与 fallback source 持久化，仍未完成多阶段完整策略编排 |
 | 部分完成 | 定时调度下主动出站调用 | 已具备基础 push 派发能力与接口级正式路由，但尚未完成全部自主行动类型统一接线 |
 | 部分完成 | 普通异步 action 的 richer business resume | 已有统一 callback 后处理基础版，进一步的多阶段业务编排仍未完成 |
+| 部分完成 | 差异化治理策略 | 已支持按 interface 快照化 `heartbeat_timeout` auto requeue 策略，按 `consumer` / `category` 的更细粒度治理仍未完成 |
 
 当前还需要特别注意两个边界：
 
 - `fallback_transport` 当前表示“push 失败后，任务回落为 pull 可消费状态时写入的 transport 标签”，并不会自动再触发第二次 outbound adapter 派发；不过当前已经会持久化 `last_dispatch_decision`、`last_dispatch_failure_class` 和 `fallback_from_transport`，便于后续治理和管理面筛选。
 - 当 `game_client request_data` 使用 `resume_policy: none` 时，callback 成功后会完成 callback/task 记录，但原 paused execution 会保持 `paused`，等待显式恢复或后续编排能力接入。
-- `max_attempts` 当前只约束 pull/hybrid 阶段的领取重试上限；它还不是完整 dead-letter 队列，也还没有按 consumer/category 的差异化阈值策略。
+- `max_attempts` 当前只约束 pull/hybrid 阶段的领取重试上限；它还不是完整 dead-letter 队列。与此同时，`heartbeat_timeout` 的自动 requeue 已支持按 interface 策略快照差异化治理，但按 consumer/category 的细粒度阈值策略仍未完成。
 
 这意味着当前系统已经具备“结果回填并恢复推理”的下半段能力，但还缺“如何把任务稳定送到游戏端或 bridge”的上半段能力。
 
@@ -302,7 +304,7 @@ external_interfaces:
 | 普通 async action 接入 runtime task queue | 已完成 |
 | 更细粒度 task 状态迁移（如 running / heartbeat_timeout） | 已完成基础能力 |
 | heartbeat_timeout 后续回收/重派策略 | 已完成基础能力，并支持 `max_attempts` 终态阈值 |
-| heartbeat_timeout 自动化治理策略 | 已完成基础自动治理，按 consumer/category 的细粒度策略未开始 |
+| heartbeat_timeout 自动化治理策略 | 已完成基础自动治理，并已支持按 interface/task payload 快照差异化执行；按 consumer/category 的细粒度策略未开始 |
 
 ### 阶段 P2：内建 push adapter
 
@@ -380,6 +382,7 @@ external_interfaces:
 | built-in push adapter | 已支持 `http_adapter`、`websocket_adapter`、`rpc_adapter` |
 | 普通 async action callback 后处理 | 已支持基础配置化编排，并按 runtime task payload 快照执行 |
 | hybrid dispatch failure observability | 已支持 `last_dispatch_failure_class`、`last_dispatch_decision`、`fallback_from_transport`、`last_transition_reason` |
+| task-scoped heartbeat timeout governance | 已支持按 runtime task payload 快照执行 `auto_requeue`、`requeue_delay_ms`、`reason` |
 | scheduled 自主行动真实出站派发 | 已具备基础能力，后续需继续扩大到全部 external interface 场景 |
 | hybrid 策略与 consumer 路由 | 已支持基础配置化路由与 push 失败回落 |
 
@@ -412,7 +415,7 @@ external_interfaces:
 - 在普通 async action 已有统一 callback 后处理基础版的前提下，继续扩展 richer post-processing / multi-stage resume 编排
 - 为 hybrid 补更完整的 fallback state machine，例如重试后再降级、降级后回切与治理策略
 - 为 runtime task 管理面补更细粒度安全边界，例如 callback / claim / admin 操作分级鉴权与 token 生命周期管理
-- 为管理面补更多批量治理能力，例如 heartbeat timeout 自动 requeue、失败任务筛选与人工干预流
+- 为管理面补更多诊断与治理视图，例如按 dispatch failure class / decision、重试耗尽、长时间 dispatched 未 callback、重复 heartbeat timeout 做筛选与人工干预流
 - 为 callback replay 保护补 TTL、签名或 nonce 策略，而不只依赖请求 ID 首占
 
 当前普通 async action 的 consumer 路由已经支持 `external_interfaces` 正式配置层：默认读取同名 `action_id` 配置，也允许通过动作参数显式覆盖；后续主要要补的是更完整的后处理与策略编排，而不是基础路由接线。

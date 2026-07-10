@@ -685,28 +685,30 @@ func (p *Pipeline) persistPausedExecution(req *InvokeRequest, ctx *BuiltContext,
 }
 
 func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID string, executionID string, requestID string, route external.Route) string {
+	interfaceCfg, _ := externalInterfaceConfig(gameClientInterfaceName(dr))
 	maxAttempts := 0
 	if dr != nil && dr.MaxAttempts > 0 {
 		maxAttempts = dr.MaxAttempts
-	} else if cfg, ok := externalInterfaceConfig(gameClientInterfaceName(dr)); ok && cfg.MaxAttempts > 0 {
-		maxAttempts = cfg.MaxAttempts
+	} else if interfaceCfg.MaxAttempts > 0 {
+		maxAttempts = interfaceCfg.MaxAttempts
 	}
 	payload := map[string]any{
-		"task_type":            req.TaskType,
-		"world_id":             req.WorldID,
-		"node_id":              req.NodeID,
-		"request_id":           requestID,
-		"callback_id":          callbackID,
-		"resume_execution_id":  executionID,
-		"resume_policy":        firstNonEmpty(route.ResumePolicy, "resume_paused_execution"),
-		"external_interface":   gameClientInterfaceName(dr),
-		"external_interaction": "external_query",
-		"delivery_mode":        route.DeliveryMode,
-		"primary_transport":    route.PrimaryTransport,
-		"fallback_transport":   route.FallbackTransport,
-		"consumer":             route.Consumer,
-		"max_attempts":         maxAttempts,
-		"request_data":         dr,
+		"task_type":                req.TaskType,
+		"world_id":                 req.WorldID,
+		"node_id":                  req.NodeID,
+		"request_id":               requestID,
+		"callback_id":              callbackID,
+		"resume_execution_id":      executionID,
+		"resume_policy":            firstNonEmpty(route.ResumePolicy, "resume_paused_execution"),
+		"external_interface":       gameClientInterfaceName(dr),
+		"external_interaction":     "external_query",
+		"delivery_mode":            route.DeliveryMode,
+		"primary_transport":        route.PrimaryTransport,
+		"fallback_transport":       route.FallbackTransport,
+		"consumer":                 route.Consumer,
+		"max_attempts":             maxAttempts,
+		"heartbeat_timeout_policy": heartbeatTimeoutPolicySnapshot(interfaceCfg),
+		"request_data":             dr,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -716,11 +718,12 @@ func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID str
 }
 
 func enqueueGameClientRuntimeTask(req *InvokeRequest, dr *DataRequest, callbackID string, executionID string, requestID string, route external.Route) (*store.RuntimeTaskModel, error) {
+	interfaceCfg, _ := externalInterfaceConfig(gameClientInterfaceName(dr))
 	maxAttempts := 0
 	if dr != nil && dr.MaxAttempts > 0 {
 		maxAttempts = dr.MaxAttempts
-	} else if cfg, ok := externalInterfaceConfig(gameClientInterfaceName(dr)); ok && cfg.MaxAttempts > 0 {
-		maxAttempts = cfg.MaxAttempts
+	} else if interfaceCfg.MaxAttempts > 0 {
+		maxAttempts = interfaceCfg.MaxAttempts
 	}
 	item := &store.RuntimeTaskModel{
 		Category:          "external_query",

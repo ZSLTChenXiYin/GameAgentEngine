@@ -100,6 +100,9 @@ external_interfaces:
     fallback_transport: "task_pull"
     consumer: "bridge"
     max_attempts: 3
+    heartbeat_timeout_auto_requeue: true
+    heartbeat_timeout_requeue_delay_ms: 2500
+    heartbeat_timeout_reason: "spawn_item selective auto requeue"
     resume_policy: "none"
     callback_post_process: "write_memory"
     callback_memory_level: "long_term"
@@ -111,6 +114,7 @@ external_interfaces:
 - `fallback_transport` 表示 push 失败后，任务进入 pull 风格的 `released` 状态，并写入该 transport 标签。
 - 它当前不表示“自动切换到第二个 push adapter 再发一次”。
 - `max_attempts` 约束的是 pull/hybrid 阶段的领取重试次数；达到上限后，release 或 timeout requeue 会把任务落到终态 `failed`。
+- `heartbeat_timeout_*` 允许为这个接口单独声明 timeout 后是否自动回队、延迟多久、原因写什么；这些值会在任务创建时固化到 payload 快照里，避免后续配置漂移影响已发出的任务。
 
 ---
 
@@ -183,4 +187,4 @@ external_interfaces:
 - `callback` 仍然是入站完成机制，不是出站投递机制。
 - `fallback_transport` 还不是多 push adapter 串联重试。
 - `max_attempts` 已支持终态阈值，但还不是完整 dead-letter 管理面。
-- 按 consumer/category 的差异化阈值策略、自动回切策略仍属于后续增强。
+- 按 interface 的 heartbeat-timeout 差异化治理已经支持；按 consumer/category 的更细粒度阈值策略、自动回切策略仍属于后续增强。

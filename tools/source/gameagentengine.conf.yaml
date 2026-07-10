@@ -119,6 +119,9 @@ external_interfaces:
     primary_transport: "game_http"
     consumer: "bridge"
     max_attempts: 3
+    heartbeat_timeout_auto_requeue: true
+    heartbeat_timeout_requeue_delay_ms: 2500
+    heartbeat_timeout_reason: "spawn_item timeout auto requeue"
     resume_policy: "none"
     callback_post_process: "write_memory"
     callback_memory_level: "long_term"

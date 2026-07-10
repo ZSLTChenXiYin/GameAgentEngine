@@ -1343,11 +1343,12 @@ func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
 
 	previousIntegrations := config.Global.ExternalIntegrations
 	previousInterfaces := config.Global.ExternalInterfaces
+	autoRequeue := true
 	config.Global.ExternalIntegrations = map[string]config.ExternalIntegrationConfig{
 		"game_http": {Type: "http_adapter", BaseURL: server.URL, Path: "/dispatch"},
 	}
 	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
-		"spawn_item": {Category: "external_action", DeliveryMode: "push", PrimaryTransport: "game_http", Consumer: "bridge", ResumePolicy: "none", CallbackPostProcess: "write_memory", CallbackMemoryLevel: "long_term", CallbackMemoryTemplate: "spawn callback {status}: {result_json}", MaxAttempts: 3},
+		"spawn_item": {Category: "external_action", DeliveryMode: "push", PrimaryTransport: "game_http", Consumer: "bridge", ResumePolicy: "none", CallbackPostProcess: "write_memory", CallbackMemoryLevel: "long_term", CallbackMemoryTemplate: "spawn callback {status}: {result_json}", MaxAttempts: 3, HeartbeatTimeoutAutoRequeue: &autoRequeue, HeartbeatTimeoutRequeueDelayMs: 2500, HeartbeatTimeoutReason: "interface timeout requeue"},
 	}
 	defer func() {
 		config.Global.ExternalIntegrations = previousIntegrations
@@ -1372,7 +1373,12 @@ func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
 		t.Fatalf("expected task max_attempts from interface config, got %+v", task)
 	}
 	var taskPayload struct {
-		MaxAttempts         int `json:"max_attempts"`
+		MaxAttempts            int `json:"max_attempts"`
+		HeartbeatTimeoutPolicy struct {
+			AutoRequeue    bool   `json:"auto_requeue"`
+			RequeueDelayMs int    `json:"requeue_delay_ms"`
+			Reason         string `json:"reason"`
+		} `json:"heartbeat_timeout_policy"`
 		CallbackPostProcess struct {
 			Mode           string `json:"mode"`
 			MemoryLevel    string `json:"memory_level"`
@@ -1393,6 +1399,9 @@ func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
 	}
 	if taskPayload.MaxAttempts != 3 {
 		t.Fatalf("expected payload max_attempts 3, got %+v", taskPayload)
+	}
+	if !taskPayload.HeartbeatTimeoutPolicy.AutoRequeue || taskPayload.HeartbeatTimeoutPolicy.RequeueDelayMs != 2500 || taskPayload.HeartbeatTimeoutPolicy.Reason != "interface timeout requeue" {
+		t.Fatalf("unexpected heartbeat timeout policy snapshot: %+v", taskPayload.HeartbeatTimeoutPolicy)
 	}
 	dispatchPayload := gotBody["payload"].(map[string]any)
 	if dispatchPayload["action_id"] != "spawn_item" {
