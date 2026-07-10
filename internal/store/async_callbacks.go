@@ -30,10 +30,10 @@ func UpdateAsyncCallbackRecord(callbackID string, updates map[string]any) error 
 func CompleteAsyncCallbackRecord(callbackID string, status string, resultJSON string, errMsg string) error {
 	now := time.Now()
 	updates := map[string]any{
-		"status":       status,
-		"result_json":  resultJSON,
+		"status":        status,
+		"result_json":   resultJSON,
 		"error_message": errMsg,
-		"completed_at": &now,
+		"completed_at":  &now,
 	}
 	return UpdateAsyncCallbackRecord(callbackID, updates)
 }
@@ -92,4 +92,3 @@ func MarkPausedExecutionFailed(executionID string, errMsg string) error {
 		"last_error": errMsg,
 	})
 }
-

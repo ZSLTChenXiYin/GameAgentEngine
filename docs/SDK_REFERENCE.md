@@ -218,6 +218,11 @@ bundle, err := client.GetContinuityBundle(worldID, &sdk.ContinuityBundleOptions{
 | `SetAutonomousConfig(nodeID string, cfg *AutonomousConfig) (*AutonomousConfigResponse, error)` | 创建或更新自主行为配置 |
 | `RunAutonomousNode(worldID, nodeID string) (*InvokeResponse, error)` | 手动触发一次自主行为执行 |
 
+说明：
+
+- `ActionCallback(...)` 当前用于两类场景：普通异步动作回调，以及 `request_data.target = "game_client"` 的数据回填。
+- 当某次回调对应的是 paused execution 时，Engine 会在服务端自动恢复原始多轮推理；调用方不需要再单独发一次 resume 请求。
+
 ### 设置、策略、日志与导入
 
 | 方法 | 说明 |

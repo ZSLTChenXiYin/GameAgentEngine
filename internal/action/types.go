@@ -21,9 +21,9 @@ type AsyncAction interface {
 
 // Result 描述一次动作执行的通用结果。
 type Result struct {
-	Success bool        `json:"success"`
-	Data    any `json:"data,omitempty"`
-	Error   string      `json:"error,omitempty"`
+	Success bool   `json:"success"`
+	Data    any    `json:"data,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 // ActionCallRecord 记录待回调的异步动作调用信息。

@@ -87,10 +87,19 @@
 
 1. 管线解析查询列表。
 2. 对 `target="store"` 的请求直接读数据库。
-3. 对 `target="game_client"` 的请求交给回调机制。
-4. 将结果拼接回下一轮上下文。
+3. 对 `target="game_client"` 的请求会暂停当前多轮执行，并生成持久化的 `callback_id` 与 paused execution 快照。
+4. 外部通过 `POST /api/v1/actions/callback` 回填结果后，Engine 会自动恢复原始执行现场。
+5. 回填结果会作为补充上下文注入后续轮次，再继续下一轮 LLM 推理。
 
 这样可以把“先问、再查、再推理”的流程留在统一循环里，而不是把业务逻辑散落到调用方。
+
+当前恢复链路会持久化以下信息，避免上下文压缩、服务重启或调用方丢失中间态时无法续跑：
+
+- 原始 `InvokeRequest`
+- `BuiltContext` 快照
+- 当前 round state 与补充上下文
+- 暂停时的 `request_data`
+- `callback_id` 与恢复载荷
 
 ---
 
@@ -103,6 +112,8 @@
 3. 同步动作立即执行。
 4. 异步动作返回 `callback_id`。
 5. 调用方通过 `POST /api/v1/actions/callback` 回填结果。
+6. 对普通异步动作，回调结果会更新持久化 callback 记录并触发 `OnResult(...)`。
+7. 对暂停中的 `game_client request_data`，回调会自动恢复原执行并继续后续轮次。
 
 对 `autonomous_act`，能力白名单是硬约束，不是提示性建议。
 

@@ -49,6 +49,23 @@
 
 完成异步动作回调。
 
+典型请求体：
+
+```json
+{
+  "callback_id": "callback-id",
+  "status": "success",
+  "result": {
+    "scene": "tavern"
+  }
+}
+```
+
+当前行为：
+
+- 对普通异步动作：更新 callback 记录，并将结果交给对应 action 的 `OnResult(...)`。
+- 对由 `request_data.target = "game_client"` 触发的暂停执行：Engine 会自动恢复原始多轮推理，并在响应中返回 `resumed` 字段，携带恢复后的最终推理结果。
+
 ### `GET /api/v1/plans/pending`
 
 列出处于人工审核等待中的计划。
