@@ -80,6 +80,8 @@
 
 当前 `game_client request_data` 已经接入该队列：当多轮推理因为请求游戏端数据而暂停时，Engine 会自动生成对应的 pull task，供游戏端或 bridge 领取执行。
 
+普通 async action 也已经接入该队列：当模型输出异步动作调用时，Engine 会为对应 callback 同步生成 `external_action` 类型的 runtime task，默认由 `bridge` 消费；如果动作参数中显式提供 `consumer`，则按该值路由。
+
 ### `POST /api/v1/runtime/tasks/claim`
 
 领取一个 runtime task。

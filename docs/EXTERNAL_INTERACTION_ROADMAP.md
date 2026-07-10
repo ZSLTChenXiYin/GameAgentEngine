@@ -122,6 +122,7 @@ external_interfaces:
 | 已完成 | pull 基础测试 | 覆盖 store 层与 API 层的核心领取链路 |
 | 已完成 | game_client request_data 真实入队 | 暂停执行时会自动生成可拉取的 runtime task |
 | 已完成 | runtime task callback 完成态回写 | callback 回填后会同步更新 runtime task 成功/失败状态 |
+| 已完成 | 普通 async action 真实入队 | 普通异步动作也会同步生成 `external_action` 类型 runtime task |
 
 ### 3.2 当前真实边界
 
@@ -129,7 +130,7 @@ external_interfaces:
 |---|---|---|
 | 部分完成 | callback 作为入站完成机制 | 已实现 |
 | 未完成 | `push` 出站投递到游戏端 | 还没有内建 `http_adapter` / `websocket_adapter` / `rpc_adapter` |
-| 部分完成 | `pull` 任务拉取接口 | 已有统一 runtime task queue API，并已接入 game_client request_data 的真实生产与 callback 完成态闭环 |
+| 部分完成 | `pull` 任务拉取接口 | 已有统一 runtime task queue API，并已接入 game_client request_data 与普通 async action 的真实生产及 callback 完成态闭环 |
 | 未完成 | `hybrid` 自动降级 | 还没有策略编排 |
 | 未完成 | 定时调度下主动出站调用 | 当前只完成暂停/恢复基础链路，未完成实际出站派发 |
 | 未完成 | 普通异步 action 的 richer business resume | 目前主要是 `OnResult(...)`，还没有统一的后续编排策略 |
@@ -233,7 +234,7 @@ external_interfaces:
 | pull 基础测试 | 已完成 |
 | runtime task 与真实外部任务生产对接 | 已完成（当前先覆盖 game_client request_data） |
 | task 成功/失败完成态闭环 | 已完成（当前先覆盖 callback 驱动的 game_client request_data） |
-| 普通 async action 接入 runtime task queue | 未开始 |
+| 普通 async action 接入 runtime task queue | 已完成 |
 | 更细粒度 task 状态迁移（如 running / heartbeat_timeout） | 未开始 |
 
 ### 阶段 P2：内建 push adapter
@@ -309,7 +310,7 @@ external_interfaces:
 | `game_client` 数据请求暂停 | 已支持 |
 | callback 入站结果回填 | 已支持 |
 | paused execution 自动恢复 | 已支持 |
-| runtime task queue | 已支持基础队列、拉取接口，以及 game_client request_data 真实任务生产 |
+| runtime task queue | 已支持基础队列、拉取接口，以及 game_client request_data / 普通 async action 真实任务生产 |
 | built-in push adapter | 尚未支持 |
 | scheduled 自主行动真实出站派发 | 尚未支持 |
 | hybrid 策略与 consumer 路由 | 尚未支持 |
@@ -338,9 +339,10 @@ external_interfaces:
 
 后续还需要继续补的内容是：
 
-- 把普通 async action 也纳入 runtime task queue
 - 为 pull consumer 补更细粒度的 `running` / `heartbeat_timeout` / `cancelled` 状态迁移
 - 在 scheduled 自主行为里把更多外部交互统一走 external interface 配置层，而不是只覆盖当前的 `game_client request_data`
+
+当前普通 async action 的 consumer 路由仍然是过渡方案：默认使用 `bridge`，并允许通过动作参数显式覆盖；后续仍需要升级到 `external_interfaces` 配置层驱动的正式路由策略。
 
 ---
 

@@ -586,6 +586,38 @@ func TestResumePausedExecutionContinuesAfterGameClientCallback(t *testing.T) {
 	}
 }
 
+func TestExecuteAsyncActionEnqueuesRuntimeTask(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	if _, err := store.UpsertWorldPolicy(worldID, nil, []string{"spawn_item"}); err != nil {
+		t.Fatalf("policy: %v", err)
+	}
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[{"action_id":"spawn_item","args":{"item_name":"potion","consumer":"bridge"}}],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(resp.ActionCalls) != 1 || resp.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected async action callback, got %+v", resp.ActionCalls)
+	}
+	callbackID := resp.ActionCalls[0].CallbackID
+	runtimeTask, err := store.GetRuntimeTaskByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get runtime task: %v", err)
+	}
+	if runtimeTask.Category != "external_action" {
+		t.Fatalf("expected external_action task, got %+v", runtimeTask)
+	}
+	if runtimeTask.InterfaceName != "spawn_item" || runtimeTask.Consumer != "bridge" {
+		t.Fatalf("unexpected runtime task routing: %+v", runtimeTask)
+	}
+	if runtimeTask.Status != store.RuntimeTaskStatusPending {
+		t.Fatalf("expected pending runtime task, got %q", runtimeTask.Status)
+	}
+}
+
 func TestExecuteIncludeRelatedNodesSkipsSocialRelationsByDefault(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)

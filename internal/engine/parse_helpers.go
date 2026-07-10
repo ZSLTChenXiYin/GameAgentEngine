@@ -6,9 +6,62 @@ import (
 	"log"
 	"strings"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/action"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/planner"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
+
+func runtimeTaskConsumerFromArgs(args map[string]any) string {
+	if args == nil {
+		return "bridge"
+	}
+	if consumer, ok := args["consumer"].(string); ok && strings.TrimSpace(consumer) != "" {
+		return strings.TrimSpace(consumer)
+	}
+	return "bridge"
+}
+
+func runtimeTaskInterfaceNameForAction(actionID string) string {
+	if strings.TrimSpace(actionID) == "" {
+		return "async_action"
+	}
+	return actionID
+}
+
+func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, args map[string]any, callbackID string) string {
+	payload := map[string]any{
+		"task_type":            req.TaskType,
+		"world_id":             req.WorldID,
+		"node_id":              req.NodeID,
+		"callback_id":          callbackID,
+		"resume_policy":        "none",
+		"external_interface":   runtimeTaskInterfaceNameForAction(actionID),
+		"external_interaction": "external_action",
+		"action_id":            actionID,
+		"args":                 args,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
+}
+
+func enqueueAsyncActionRuntimeTask(req *InvokeRequest, actionID string, args map[string]any, callbackID string) error {
+	item := &store.RuntimeTaskModel{
+		Category:      "external_action",
+		InterfaceName: runtimeTaskInterfaceNameForAction(actionID),
+		DeliveryMode:  "pull",
+		Consumer:      runtimeTaskConsumerFromArgs(args),
+		WorldUUID:     req.WorldID,
+		NodeUUID:      req.NodeID,
+		CallbackID:    callbackID,
+		Status:        store.RuntimeTaskStatusPending,
+		Priority:      80,
+		PayloadJSON:   buildAsyncActionRuntimeTaskPayload(req, actionID, args, callbackID),
+	}
+	return store.CreateRuntimeTask(item)
+}
 
 type llmParsedOutput struct {
 	Reply                   string
@@ -156,7 +209,16 @@ func (p *Pipeline) executeActions(req *InvokeRequest, runtime *executionConfig, 
 				log.Printf("[action:sync] %s success: %v", actionID, out)
 			}
 		} else if p.actionReg.IsAsync(actionID) {
-			cbID := p.actionReg.CreateCallback(actionID, args)
+			cbID := p.actionReg.CreateCallbackWithMetadata(actionID, args, action.CallbackMetadata{
+				NodeID:    req.NodeID,
+				WorldID:   req.WorldID,
+				RequestID: "",
+			})
+			if err := enqueueAsyncActionRuntimeTask(req, actionID, args, cbID); err != nil {
+				p.emitExecutionEvent(req, runtime, executionMode, "action_async_enqueue_failed", actionID, map[string]any{"action_id": actionID, "args": args, "callback_id": cbID, "error": err.Error()})
+				log.Printf("[action:async] %s enqueue failed callback=%s err=%v", actionID, cbID, err)
+				continue
+			}
 			call.Mode = "async"
 			call.CallbackID = cbID
 			result = append(result, call)

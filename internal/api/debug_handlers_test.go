@@ -64,6 +64,10 @@ type callbackSequenceProvider struct {
 	calls     int
 }
 
+type singleResponseProvider struct {
+	response string
+}
+
 func (s *callbackSequenceProvider) Chat(systemPrompt string, messages []engine.ChatMessage) (*engine.LLMResult, error) {
 	resp := s.responses[s.calls]
 	s.calls++
@@ -71,6 +75,12 @@ func (s *callbackSequenceProvider) Chat(systemPrompt string, messages []engine.C
 }
 
 func (s *callbackSequenceProvider) ModelName() string { return "callback-seq" }
+
+func (s *singleResponseProvider) Chat(systemPrompt string, messages []engine.ChatMessage) (*engine.LLMResult, error) {
+	return &engine.LLMResult{Content: s.response, Model: "single-response", Tokens: 5}, nil
+}
+
+func (s *singleResponseProvider) ModelName() string { return "single-response" }
 
 func TestMakeActionCallbackHandlerAutoResumesPausedExecution(t *testing.T) {
 	if err := store.Init("sqlite", "file:callback_resume_api?mode=memory&cache=shared"); err != nil {
@@ -121,6 +131,56 @@ func TestMakeActionCallbackHandlerAutoResumesPausedExecution(t *testing.T) {
 	}
 	if resumed["reply"] != "resumed-final" {
 		t.Fatalf("unexpected resumed reply: %+v", resumed)
+	}
+	runtimeTask, err = store.GetRuntimeTaskByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get runtime task after callback: %v", err)
+	}
+	if runtimeTask.Status != store.RuntimeTaskStatusSucceeded {
+		t.Fatalf("expected succeeded runtime task, got %q", runtimeTask.Status)
+	}
+	if runtimeTask.ResultJSON == "" {
+		t.Fatalf("expected runtime task result payload, got %+v", runtimeTask)
+	}
+}
+
+func TestMakeActionCallbackHandlerCompletesAsyncActionRuntimeTask(t *testing.T) {
+	if err := store.Init("sqlite", "file:async_action_runtime_task_api?mode=memory&cache=shared"); err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	world := &store.NodeModel{UUID: store.NewUUID(), Name: "World", NodeType: "world"}
+	if err := store.CreateNode(world); err != nil {
+		t.Fatalf("create world: %v", err)
+	}
+	if err := store.DB.Model(world).Update("world_id", world.ID).Error; err != nil {
+		t.Fatalf("set world id: %v", err)
+	}
+	node := &store.NodeModel{UUID: store.NewUUID(), Name: "NPC", NodeType: "npc", WorldID: world.ID}
+	if err := store.CreateNode(node); err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	if _, err := store.UpsertWorldPolicy(world.UUID, nil, []string{"spawn_item"}); err != nil {
+		t.Fatalf("policy: %v", err)
+	}
+	pipeline := engine.NewPipeline(&singleResponseProvider{response: `{"reply":"ok","action_calls":[{"action_id":"spawn_item","args":{"item_name":"potion","consumer":"bridge"}}],"memory_updates":[]}`})
+	resp, err := pipeline.Execute(&engine.InvokeRequest{WorldID: world.UUID, NodeID: node.UUID, TaskType: engine.TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	callbackID := resp.ActionCalls[0].CallbackID
+	runtimeTask, err := store.GetRuntimeTaskByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get runtime task: %v", err)
+	}
+	if runtimeTask.Status != store.RuntimeTaskStatusPending {
+		t.Fatalf("expected pending runtime task, got %q", runtimeTask.Status)
+	}
+	h := MakeActionCallbackHandler(pipeline)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/actions/callback", strings.NewReader(`{"callback_id":"`+callbackID+`","status":"success","result":{"spawned":true}}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
 	}
 	runtimeTask, err = store.GetRuntimeTaskByCallbackID(callbackID)
 	if err != nil {
