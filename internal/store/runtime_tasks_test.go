@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -290,6 +291,34 @@ func TestReleaseRuntimeTaskAllowsRunningTasks(t *testing.T) {
 	}
 }
 
+func TestReleaseRuntimeTaskFailsTerminallyWhenMaxAttemptsExhausted(t *testing.T) {
+	initRuntimeTaskTestDB(t)
+	row := &RuntimeTaskModel{TaskID: "running-release-fail", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Status: RuntimeTaskStatusPending, PayloadJSON: `{}`, MaxAttempts: 1}
+	if err := CreateRuntimeTask(row); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	claimed, err := ClaimRuntimeTask("running-release-fail", "bridge", "bridge-1")
+	if err != nil {
+		t.Fatalf("claim task: %v", err)
+	}
+	failed, err := ReleaseRuntimeTask("running-release-fail", claimed.LeaseToken, time.Second, "worker restart")
+	if err != nil {
+		t.Fatalf("release task: %v", err)
+	}
+	if failed.Status != RuntimeTaskStatusFailed {
+		t.Fatalf("expected failed status after exhausting attempts, got %q", failed.Status)
+	}
+	if failed.CompletedAt == nil {
+		t.Fatalf("expected completed_at after exhausting attempts, got %+v", failed)
+	}
+	if failed.AvailableAt != nil {
+		t.Fatalf("expected no available_at after exhausting attempts, got %+v", failed.AvailableAt)
+	}
+	if !strings.Contains(failed.ErrorMessage, "max_attempts=1") {
+		t.Fatalf("expected retry exhaustion message, got %q", failed.ErrorMessage)
+	}
+}
+
 func TestMarkRuntimeTasksHeartbeatTimeoutMarksStaleClaimedAndRunningTasks(t *testing.T) {
 	initRuntimeTaskTestDB(t)
 	old := time.Now().Add(-10 * time.Minute)
@@ -355,6 +384,31 @@ func TestRequeueHeartbeatTimeoutTaskMovesTaskBackToReleased(t *testing.T) {
 	_, err = RequeueHeartbeatTimeoutTask("timeout-task", 0, "again")
 	if !errors.Is(err, ErrRuntimeTaskNotClaimable) {
 		t.Fatalf("expected not requeueable error, got %v", err)
+	}
+}
+
+func TestRequeueHeartbeatTimeoutTaskFailsTerminallyWhenMaxAttemptsExhausted(t *testing.T) {
+	initRuntimeTaskTestDB(t)
+	now := time.Now()
+	row := &RuntimeTaskModel{TaskID: "timeout-task-fail", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Status: RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`, HeartbeatTimeoutAt: &now, ErrorMessage: "heartbeat timeout", AttemptCount: 2, MaxAttempts: 2}
+	if err := CreateRuntimeTask(row); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	failed, err := RequeueHeartbeatTimeoutTask("timeout-task-fail", 2*time.Second, "requeued after timeout")
+	if err != nil {
+		t.Fatalf("requeue task: %v", err)
+	}
+	if failed.Status != RuntimeTaskStatusFailed {
+		t.Fatalf("expected failed status, got %q", failed.Status)
+	}
+	if failed.CompletedAt == nil {
+		t.Fatalf("expected completed_at to be set, got %+v", failed)
+	}
+	if failed.AvailableAt != nil {
+		t.Fatalf("expected no delayed availability for exhausted task, got %+v", failed.AvailableAt)
+	}
+	if !strings.Contains(failed.ErrorMessage, "max_attempts=2") {
+		t.Fatalf("expected retry exhaustion message, got %q", failed.ErrorMessage)
 	}
 }
 

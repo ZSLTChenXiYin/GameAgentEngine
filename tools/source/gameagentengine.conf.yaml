@@ -118,6 +118,7 @@ external_interfaces:
     delivery_mode: "hybrid"
     primary_transport: "game_http"
     consumer: "bridge"
+    max_attempts: 3
     resume_policy: "none"
     callback_post_process: "write_memory"
     callback_memory_level: "long_term"

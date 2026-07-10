@@ -421,29 +421,56 @@ func RecordRuntimeTaskDispatchFallback(taskID string, fallbackTransport string, 
 	return GetRuntimeTask(taskID)
 }
 
+func runtimeTaskRetryExhausted(task *RuntimeTaskModel) bool {
+	return task != nil && task.MaxAttempts > 0 && task.AttemptCount >= task.MaxAttempts
+}
+
+func runtimeTaskRetryExhaustedMessage(task *RuntimeTaskModel, errMsg string) string {
+	base := strings.TrimSpace(errMsg)
+	if base == "" {
+		base = "runtime task retry limit exhausted"
+	}
+	if task == nil || task.MaxAttempts <= 0 {
+		return base
+	}
+	return fmt.Sprintf("%s (attempt_count=%d max_attempts=%d)", base, task.AttemptCount, task.MaxAttempts)
+}
+
 func ReleaseRuntimeTask(taskID string, leaseToken string, retryDelay time.Duration, errMsg string) (*RuntimeTaskModel, error) {
 	if taskID == "" || leaseToken == "" {
 		return nil, fmt.Errorf("task id and lease token required")
 	}
 	availableAt := time.Now().Add(retryDelay)
-	err := Write(func(db *gorm.DB) error {
-		result := db.Model(&RuntimeTaskModel{}).
-			Where("task_id = ? AND status IN ? AND lease_token = ?", taskID, []string{RuntimeTaskStatusClaimed, RuntimeTaskStatusRunning}, leaseToken).
-			Updates(map[string]any{
-				"status":            RuntimeTaskStatusReleased,
-				"lease_owner":       "",
-				"lease_token":       "",
-				"available_at":      &availableAt,
-				"last_heartbeat_at": nil,
-				"error_message":     errMsg,
-			})
-		if result.Error != nil {
-			return result.Error
+	err := WriteTransaction(func(tx *gorm.DB) error {
+		var task RuntimeTaskModel
+		if err := tx.Where("task_id = ?", taskID).First(&task).Error; err != nil {
+			if IsRecordNotFound(err) {
+				return ErrRuntimeTaskLeaseMismatch
+			}
+			return err
 		}
-		if result.RowsAffected == 0 {
+		if task.LeaseToken != leaseToken || (task.Status != RuntimeTaskStatusClaimed && task.Status != RuntimeTaskStatusRunning) {
 			return ErrRuntimeTaskLeaseMismatch
 		}
-		return nil
+		updates := map[string]any{
+			"lease_owner":       "",
+			"lease_token":       "",
+			"last_heartbeat_at": nil,
+			"error_message":     errMsg,
+		}
+		if runtimeTaskRetryExhausted(&task) {
+			now := time.Now()
+			updates["status"] = RuntimeTaskStatusFailed
+			updates["completed_at"] = &now
+			updates["available_at"] = nil
+			updates["error_message"] = runtimeTaskRetryExhaustedMessage(&task, errMsg)
+		} else {
+			updates["status"] = RuntimeTaskStatusReleased
+			updates["available_at"] = &availableAt
+		}
+		return tx.Model(&RuntimeTaskModel{}).
+			Where("task_id = ? AND status IN ? AND lease_token = ?", taskID, []string{RuntimeTaskStatusClaimed, RuntimeTaskStatusRunning}, leaseToken).
+			Updates(updates).Error
 	})
 	if err != nil {
 		return nil, err
@@ -486,24 +513,36 @@ func RequeueHeartbeatTimeoutTask(taskID string, retryDelay time.Duration, errMsg
 		return nil, fmt.Errorf("task id required")
 	}
 	availableAt := time.Now().Add(retryDelay)
-	err := Write(func(db *gorm.DB) error {
-		result := db.Model(&RuntimeTaskModel{}).
-			Where("task_id = ? AND status = ?", taskID, RuntimeTaskStatusHeartbeatTimeout).
-			Updates(map[string]any{
-				"status":               RuntimeTaskStatusReleased,
-				"available_at":         &availableAt,
-				"lease_owner":          "",
-				"lease_token":          "",
-				"heartbeat_timeout_at": nil,
-				"error_message":        errMsg,
-			})
-		if result.Error != nil {
-			return result.Error
+	err := WriteTransaction(func(tx *gorm.DB) error {
+		var task RuntimeTaskModel
+		if err := tx.Where("task_id = ?", taskID).First(&task).Error; err != nil {
+			if IsRecordNotFound(err) {
+				return ErrRuntimeTaskNotClaimable
+			}
+			return err
 		}
-		if result.RowsAffected == 0 {
+		if task.Status != RuntimeTaskStatusHeartbeatTimeout {
 			return ErrRuntimeTaskNotClaimable
 		}
-		return nil
+		updates := map[string]any{
+			"lease_owner":          "",
+			"lease_token":          "",
+			"heartbeat_timeout_at": nil,
+			"error_message":        errMsg,
+		}
+		if runtimeTaskRetryExhausted(&task) {
+			now := time.Now()
+			updates["status"] = RuntimeTaskStatusFailed
+			updates["completed_at"] = &now
+			updates["available_at"] = nil
+			updates["error_message"] = runtimeTaskRetryExhaustedMessage(&task, errMsg)
+		} else {
+			updates["status"] = RuntimeTaskStatusReleased
+			updates["available_at"] = &availableAt
+		}
+		return tx.Model(&RuntimeTaskModel{}).
+			Where("task_id = ? AND status = ?", taskID, RuntimeTaskStatusHeartbeatTimeout).
+			Updates(updates).Error
 	})
 	if err != nil {
 		return nil, err
@@ -551,27 +590,15 @@ func RequeueHeartbeatTimeoutTasksBatch(consumer string, category string, transpo
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	availableAt := time.Now().Add(retryDelay)
 	var affected int64
-	err := Write(func(db *gorm.DB) error {
-		result := db.Model(&RuntimeTaskModel{}).
-			Where("task_id IN ? AND status = ?", ids, RuntimeTaskStatusHeartbeatTimeout).
-			Updates(map[string]any{
-				"status":               RuntimeTaskStatusReleased,
-				"available_at":         &availableAt,
-				"lease_owner":          "",
-				"lease_token":          "",
-				"heartbeat_timeout_at": nil,
-				"error_message":        errMsg,
-			})
-		if result.Error != nil {
-			return result.Error
+	for _, id := range ids {
+		if _, err := RequeueHeartbeatTimeoutTask(id, retryDelay, errMsg); err != nil {
+			if errors.Is(err, ErrRuntimeTaskNotClaimable) {
+				continue
+			}
+			return 0, err
 		}
-		affected = result.RowsAffected
-		return nil
-	})
-	if err != nil {
-		return 0, err
+		affected++
 	}
 	return affected, nil
 }

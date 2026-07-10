@@ -1341,7 +1341,7 @@ func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
 		"game_http": {Type: "http_adapter", BaseURL: server.URL, Path: "/dispatch"},
 	}
 	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
-		"spawn_item": {Category: "external_action", DeliveryMode: "push", PrimaryTransport: "game_http", Consumer: "bridge", ResumePolicy: "none", CallbackPostProcess: "write_memory", CallbackMemoryLevel: "long_term", CallbackMemoryTemplate: "spawn callback {status}: {result_json}"},
+		"spawn_item": {Category: "external_action", DeliveryMode: "push", PrimaryTransport: "game_http", Consumer: "bridge", ResumePolicy: "none", CallbackPostProcess: "write_memory", CallbackMemoryLevel: "long_term", CallbackMemoryTemplate: "spawn callback {status}: {result_json}", MaxAttempts: 3},
 	}
 	defer func() {
 		config.Global.ExternalIntegrations = previousIntegrations
@@ -1362,7 +1362,11 @@ func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
 	if task.Transport != "game_http" || task.Status != store.RuntimeTaskStatusDispatched {
 		t.Fatalf("expected configured async route to dispatch via game_http, got %+v", task)
 	}
+	if task.MaxAttempts != 3 {
+		t.Fatalf("expected task max_attempts from interface config, got %+v", task)
+	}
 	var taskPayload struct {
+		MaxAttempts         int `json:"max_attempts"`
 		CallbackPostProcess struct {
 			Mode           string `json:"mode"`
 			MemoryLevel    string `json:"memory_level"`
@@ -1380,6 +1384,9 @@ func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
 	}
 	if taskPayload.CallbackPostProcess.MemoryTemplate != "spawn callback {status}: {result_json}" {
 		t.Fatalf("unexpected callback memory template: %+v", taskPayload.CallbackPostProcess)
+	}
+	if taskPayload.MaxAttempts != 3 {
+		t.Fatalf("expected payload max_attempts 3, got %+v", taskPayload)
 	}
 	dispatchPayload := gotBody["payload"].(map[string]any)
 	if dispatchPayload["action_id"] != "spawn_item" {

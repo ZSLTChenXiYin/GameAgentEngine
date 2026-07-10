@@ -187,6 +187,7 @@ type DataRequest struct {
 	DeliveryMode      string      `json:"delivery_mode,omitempty"`      // 可选: push / pull / hybrid
 	PrimaryTransport  string      `json:"primary_transport,omitempty"`  // 可选: 例如 game_http
 	Consumer          string      `json:"consumer,omitempty"`           // 可选: 例如 game_client / bridge
+	MaxAttempts       int         `json:"max_attempts,omitempty"`       // 可选: pull/hybrid 最大领取尝试次数
 	TimeoutMs         int         `json:"timeout_ms,omitempty"`         // 可选: 外部调用超时
 	Queries           []DataQuery `json:"queries,omitempty"`            // 要查询的数据列表
 }

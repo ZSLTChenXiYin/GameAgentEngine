@@ -112,6 +112,7 @@ external_interfaces:
     delivery_mode: "hybrid"
     primary_transport: "game_http"
     consumer: "bridge"
+    max_attempts: 3
     resume_policy: "none"
     callback_post_process: "write_memory"
     callback_memory_level: "long_term"
@@ -175,6 +176,7 @@ engine:
 - `primary_transport`：主通道 integration 名称
 - `fallback_transport`：`hybrid` 下 push 失败后的回退 transport 标签
 - `consumer`：pull/hybrid 下默认消费方
+- `max_attempts`：pull/hybrid 生命周期内允许的最大领取尝试次数；超过后 release/requeue 不再回队，而是进入终态 `failed`
 - `resume_policy`：当前支持 `none`、`resume_paused_execution`
 - `callback_post_process`：callback 完成后的统一后处理策略，当前支持 `none`、`record_only`、`write_memory`
 - `callback_memory_level`：当 `callback_post_process = write_memory` 时写入的记忆层级，默认 `short_term`
@@ -190,6 +192,7 @@ engine:
 - callback 自动恢复当前会读取 runtime task payload 中的 `resume_policy`；为空或 `resume_paused_execution` 时自动恢复，`none` 时只回填结果不自动恢复
 - `hybrid` 下如果 push 派发失败且配置了 `fallback_transport`，runtime task 会转为 `released`，并把 `transport` 写成该 fallback 值，供 pull consumer 后续领取
 - 当前 `fallback_transport` 还不是“自动切到第二个 push adapter 再发一次”的意思，而是“明确进入 pull 风格回退态”的持久化语义
+- 当前 `max_attempts` 已接入 runtime task 治理：claim 会累加 `attempt_count`，当达到上限后，后续 `release` 或 `heartbeat_timeout` requeue 会把任务稳定落到 `failed`，避免无限回队
 - 普通 async action 当前已经支持统一 callback 后处理基础版；Engine 会把 `callback_post_process` 策略快照写入 runtime task payload，再由 callback handler 按持久化快照执行后处理，避免配置漂移或上下文压缩导致行为变化
 - 当前已经提供基础 runtime task 管理面，包括聚合统计、条件查询、单任务详情和 `heartbeat_timeout` sweep 入口，方便运维排查与后续自动治理接线
 

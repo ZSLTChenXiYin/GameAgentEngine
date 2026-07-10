@@ -102,6 +102,8 @@
 
 普通 async action 也已经接入该队列：当模型输出异步动作调用时，Engine 会为对应 callback 同步生成 `external_action` 类型的 runtime task，默认由 `bridge` 消费；如果动作参数中显式提供 `consumer`，则按该值路由。
 
+当前如果接口配置或请求载荷中提供 `max_attempts`，该值也会进入 runtime task 生命周期：每次 claim 会增加 `attempt_count`，达到上限后，后续 release / timeout requeue 不再把任务放回队列，而会把它稳定标记为 `failed`。
+
 当前如果外部交互配置为 `push` 或 `hybrid`，Engine 也可能先通过内建 adapter 主动派发；当前已支持 `http_adapter`、`websocket_adapter` 与 `rpc_adapter`。此时任务状态会进入 `dispatched`，不再出现在 pending 列表里，等待后续 callback 完成。
 
 当前 push 基础能力还包括：
@@ -163,6 +165,7 @@
 
 - 只有 `pending` / `released` 且已到达可领取时间的任务可以被 claim。
 - claim 成功后，任务状态会变成 `claimed`，并生成 `lease_token`。
+- claim 同时会累加 `attempt_count`；如果任务配置了 `max_attempts`，这个计数会参与后续 release / timeout 重派治理。
 - `dispatched` 状态任务表示已经由 Engine 主动向外部系统发出，不参与 pull claim。
 - 如果任务已被其他 consumer 领取，会返回 `409`，错误码 `runtime_task_not_claimable`。
 
@@ -220,7 +223,8 @@
 
 当前行为：
 
-- release 成功后，任务状态会变成 `released`。
+- 当任务尚未达到 `max_attempts` 上限时，release 成功后状态会变成 `released`。
+- 当任务已达到 `max_attempts` 上限时，release 不会再回队，而会把任务标记为 `failed`。
 - `retry_delay_ms` 可控制任务何时再次出现在 pending 列表里。
 - lease 不匹配时返回 `409`，错误码 `runtime_task_lease_mismatch`。
 
@@ -241,7 +245,8 @@
 当前行为：
 
 - 只有 `heartbeat_timeout` 状态的任务可以被 requeue。
-- requeue 成功后，任务状态会变成 `released`，并清除超时标记与租约。
+- 当任务尚未达到 `max_attempts` 上限时，requeue 成功后状态会变成 `released`，并清除超时标记与租约。
+- 当任务已达到 `max_attempts` 上限时，requeue 不会再回队，而会把任务标记为 `failed`。
 - `retry_delay_ms` 可控制任务何时重新进入 pending 列表。
 - 非 `heartbeat_timeout` 任务会返回 `409`，错误码 `runtime_task_not_requeueable`。
 
@@ -284,7 +289,7 @@
 
 - 可按 `consumer`、`category`、`transport` 过滤批量目标
 - `limit` 最大 `500`，默认按最早创建的 timeout task 优先处理
-- requeue 后任务会回到 `released`，并清理 timeout/lease 状态
+- requeue 后任务会依据各自的 `max_attempts` 进入 `released` 或终态 `failed`，并清理 timeout/lease 状态
 - 这是 `heartbeat_timeout` 自动治理前的批量运维入口，后续还会继续补策略化自动回收能力
 
 ### `GET /api/v1/plans/pending`

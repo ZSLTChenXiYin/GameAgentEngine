@@ -145,6 +145,7 @@ external_interfaces:
 | 已完成 | callback 防重放基础版 | 已支持基于 `X-Callback-Request-Id` 的请求级 replay 保护 |
 | 已完成 | `heartbeat_timeout` 批量 requeue 管理入口 | 已支持按条件批量把 timeout task 重新放回队列 |
 | 已完成 | `heartbeat_timeout` 自动治理基础版 | 已支持后台 governor 周期性标记 timeout，并可按配置自动批量 requeue |
+| 已完成 | runtime task `max_attempts` 终态阈值基础版 | 已支持 claim 次数上限，超限后 release / timeout requeue 进入 `failed` |
 
 ### 3.2 当前真实边界
 
@@ -161,6 +162,7 @@ external_interfaces:
 
 - `fallback_transport` 当前表示“push 失败后，任务回落为 pull 可消费状态时写入的 transport 标签”，并不会自动再触发第二次 outbound adapter 派发。
 - 当 `game_client request_data` 使用 `resume_policy: none` 时，callback 成功后会完成 callback/task 记录，但原 paused execution 会保持 `paused`，等待显式恢复或后续编排能力接入。
+- `max_attempts` 当前只约束 pull/hybrid 阶段的领取重试上限；它还不是完整 dead-letter 队列，也还没有按 consumer/category 的差异化阈值策略。
 
 这意味着当前系统已经具备“结果回填并恢复推理”的下半段能力，但还缺“如何把任务稳定送到游戏端或 bridge”的上半段能力。
 
@@ -266,8 +268,8 @@ external_interfaces:
 | task 成功/失败完成态闭环 | 已完成（当前先覆盖 callback 驱动的 game_client request_data） |
 | 普通 async action 接入 runtime task queue | 已完成 |
 | 更细粒度 task 状态迁移（如 running / heartbeat_timeout） | 已完成基础能力 |
-| heartbeat_timeout 后续回收/重派策略 | 已完成基础能力 |
-| heartbeat_timeout 自动化治理策略 | 已完成基础自动治理，细粒度策略未开始 |
+| heartbeat_timeout 后续回收/重派策略 | 已完成基础能力，并支持 `max_attempts` 终态阈值 |
+| heartbeat_timeout 自动化治理策略 | 已完成基础自动治理，按 consumer/category 的细粒度策略未开始 |
 
 ### 阶段 P2：内建 push adapter
 

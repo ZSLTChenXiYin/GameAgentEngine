@@ -685,6 +685,12 @@ func (p *Pipeline) persistPausedExecution(req *InvokeRequest, ctx *BuiltContext,
 }
 
 func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID string, executionID string, requestID string, route external.Route) string {
+	maxAttempts := 0
+	if dr != nil && dr.MaxAttempts > 0 {
+		maxAttempts = dr.MaxAttempts
+	} else if cfg, ok := externalInterfaceConfig(gameClientInterfaceName(dr)); ok && cfg.MaxAttempts > 0 {
+		maxAttempts = cfg.MaxAttempts
+	}
 	payload := map[string]any{
 		"task_type":            req.TaskType,
 		"world_id":             req.WorldID,
@@ -699,6 +705,7 @@ func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID str
 		"primary_transport":    route.PrimaryTransport,
 		"fallback_transport":   route.FallbackTransport,
 		"consumer":             route.Consumer,
+		"max_attempts":         maxAttempts,
 		"request_data":         dr,
 	}
 	data, err := json.Marshal(payload)
@@ -709,6 +716,12 @@ func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID str
 }
 
 func enqueueGameClientRuntimeTask(req *InvokeRequest, dr *DataRequest, callbackID string, executionID string, requestID string, route external.Route) (*store.RuntimeTaskModel, error) {
+	maxAttempts := 0
+	if dr != nil && dr.MaxAttempts > 0 {
+		maxAttempts = dr.MaxAttempts
+	} else if cfg, ok := externalInterfaceConfig(gameClientInterfaceName(dr)); ok && cfg.MaxAttempts > 0 {
+		maxAttempts = cfg.MaxAttempts
+	}
 	item := &store.RuntimeTaskModel{
 		Category:          "external_query",
 		InterfaceName:     gameClientInterfaceName(dr),
@@ -720,6 +733,7 @@ func enqueueGameClientRuntimeTask(req *InvokeRequest, dr *DataRequest, callbackI
 		RequestID:         requestID,
 		CallbackID:        callbackID,
 		ResumeExecutionID: executionID,
+		MaxAttempts:       maxAttempts,
 		Status:            store.RuntimeTaskStatusPending,
 		Priority:          100,
 		PayloadJSON:       buildRuntimeTaskPayload(req, dr, callbackID, executionID, requestID, route),

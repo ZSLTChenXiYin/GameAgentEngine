@@ -62,6 +62,21 @@ func runtimeTaskTimeoutFromArgs(args map[string]any) int {
 	return 0
 }
 
+func runtimeTaskMaxAttemptsFromArgs(args map[string]any) int {
+	if args == nil {
+		return 0
+	}
+	if raw, ok := args["max_attempts"]; ok {
+		switch value := raw.(type) {
+		case int:
+			return value
+		case float64:
+			return int(value)
+		}
+	}
+	return 0
+}
+
 func runtimeTaskCallbackPostProcessFromArgs(args map[string]any) string {
 	if args == nil {
 		return ""
@@ -99,7 +114,7 @@ func sanitizeExternalActionArgs(args map[string]any) map[string]any {
 	result := make(map[string]any, len(args))
 	for k, v := range args {
 		switch k {
-		case "delivery_mode", "mode", "primary_transport", "integration", "transport", "timeout_ms", "consumer", "callback_post_process", "callback_memory_level", "callback_memory_template":
+		case "delivery_mode", "mode", "primary_transport", "integration", "transport", "timeout_ms", "consumer", "max_attempts", "callback_post_process", "callback_memory_level", "callback_memory_template":
 			continue
 		default:
 			result[k] = v
@@ -134,12 +149,25 @@ func runtimeTaskInterfaceNameForAction(actionID string) string {
 	return actionID
 }
 
+func resolveAsyncActionMaxAttempts(actionID string, args map[string]any) int {
+	maxAttempts := runtimeTaskMaxAttemptsFromArgs(args)
+	if maxAttempts > 0 {
+		return maxAttempts
+	}
+	interfaceCfg, ok := externalInterfaceConfig(asyncActionInterfaceName(actionID, args))
+	if ok && interfaceCfg.MaxAttempts > 0 {
+		return interfaceCfg.MaxAttempts
+	}
+	return 0
+}
+
 func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, args map[string]any, callbackID string) string {
 	route := resolveAsyncActionRoute(actionID, args)
 	interfaceCfg, _ := externalInterfaceConfig(asyncActionInterfaceName(actionID, args))
 	callbackPostProcess := firstNonEmpty(runtimeTaskCallbackPostProcessFromArgs(args), interfaceCfg.CallbackPostProcess)
 	callbackMemoryLevel := firstNonEmpty(runtimeTaskCallbackMemoryLevelFromArgs(args), interfaceCfg.CallbackMemoryLevel)
 	callbackMemoryTemplate := firstNonEmpty(runtimeTaskCallbackMemoryTemplateFromArgs(args), interfaceCfg.CallbackMemoryTemplate)
+	maxAttempts := resolveAsyncActionMaxAttempts(actionID, args)
 	payload := map[string]any{
 		"task_type":            req.TaskType,
 		"world_id":             req.WorldID,
@@ -153,6 +181,7 @@ func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, arg
 		"primary_transport":    route.PrimaryTransport,
 		"fallback_transport":   route.FallbackTransport,
 		"consumer":             route.Consumer,
+		"max_attempts":         maxAttempts,
 		"callback_post_process": map[string]any{
 			"mode":            callbackPostProcess,
 			"memory_level":    callbackMemoryLevel,
@@ -168,6 +197,7 @@ func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, arg
 }
 
 func enqueueAsyncActionRuntimeTask(req *InvokeRequest, actionID string, args map[string]any, callbackID string, route external.Route) (*store.RuntimeTaskModel, error) {
+	maxAttempts := resolveAsyncActionMaxAttempts(actionID, args)
 	item := &store.RuntimeTaskModel{
 		Category:      "external_action",
 		InterfaceName: asyncActionInterfaceName(actionID, args),
@@ -177,6 +207,7 @@ func enqueueAsyncActionRuntimeTask(req *InvokeRequest, actionID string, args map
 		WorldUUID:     req.WorldID,
 		NodeUUID:      req.NodeID,
 		CallbackID:    callbackID,
+		MaxAttempts:   maxAttempts,
 		Status:        store.RuntimeTaskStatusPending,
 		Priority:      80,
 		PayloadJSON:   buildAsyncActionRuntimeTaskPayload(req, actionID, args, callbackID),

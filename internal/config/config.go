@@ -103,6 +103,7 @@ type ExternalInterfaceConfig struct {
 	CallbackPostProcess    string `mapstructure:"callback_post_process"`
 	CallbackMemoryLevel    string `mapstructure:"callback_memory_level"`
 	CallbackMemoryTemplate string `mapstructure:"callback_memory_template"`
+	MaxAttempts            int    `mapstructure:"max_attempts"`
 	TimeoutMs              int    `mapstructure:"timeout_ms"`
 }
 
