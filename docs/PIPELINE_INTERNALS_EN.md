@@ -2,182 +2,214 @@
 
 [**‰∏≠Êñá**](./PIPELINE_INTERNALS.md) | **English**
 
-This document details the internal mechanisms of the GameAgentEngine v0.4.6 inference pipeline, including pipeline modes, multi-round polling, sub-task DAG, data request loops, and memory propagation.
+This document describes the current GameAgentEngine inference pipeline, including PipelineMode, multi-round execution, sub-task DAG orchestration, data-request loops, action execution, memory propagation, and the recently added database-pipeline and observability layers.
 
 ---
 
-## PipelineMode
+## Pipeline Modes
 
-Each world can independently configure its pipeline mode, stored in the database WorldSettings:
+Each world can independently configure `pipeline_mode`:
 
 | Mode | Value | Behavior |
 |---|---|---|
-| Vertical | `vertical` | Single LLM call, no task node tree, no polling, minimal features |
-| Polling | `polling` | Multi-round LLM polling, supports request_data queries, no sub-task DAG |
-| Full | `full` | Full features: multi-round polling + DAG sub-task orchestration |
+| Vertical | `vertical` | Single-pass inference with minimal branching |
+| Polling | `polling` | Multi-round inference with follow-up data requests |
+| Full | `full` | Multi-round inference plus sub-task DAG orchestration |
 
-The mode is configured through DevCli or Creator via WorldSettings, independently from ExecutionMode (debug/review/production).
+`pipeline_mode` and `execution_mode` are independent:
 
----
-
-## Pipeline.Execute Main Flow
-
-1. Load world settings (memory_limit, max_analysis_rounds, pipeline_mode, etc.)
-2. Load world policy (blocked_actions / safe_actions)
-3. Build initial context (BuiltContext)
-4. Dispatch by task type:
-   - `npc_dialogue` ‚Ü?executeDialogue (includes first-round analysis)
-   - `world_tick` ‚Ü?executeWorldTick
-   - `world_event_impact` ‚Ü?executeWorldEvent
-   - `autonomous_act` ‚Ü?executeAutonomousAct (with capability filtering)
-   - `custom` ‚Ü?executeCustom
-5. Each task type ultimately enters the executeMultiTurnLoop common loop
+- `pipeline_mode` controls how reasoning is performed
+- `execution_mode` controls how outcomes are applied or reviewed
 
 ---
 
-## executeMultiTurnLoop Common Loop
+## Pipeline.Execute Flow
 
-The multi-round inference loop is the core engine for all task types:
+The unified execution entrypoint now performs the following stages:
 
-```
-Round 1:
-  1. Build system prompt (with context + task node tree + instructions)
-  2. Call LLM
-  3. Parse JSON response
-  4. If full mode, check raw_sub_tasks ‚Ü?create DAGInstance
-  5. Process request_data ‚Ü?async data request wait
-  6. Execute sync actions
-  7. Write memory updates ‚Ü?propagate
-8. Build next TaskNode
-9. Log inference
+1. Load world settings and world policy.
+2. Build base context.
+3. Dispatch by task type.
+4. Enter the shared multi-round loop.
+5. Execute actions, persist memories, and trigger propagation.
+6. Persist structured logs and return the response.
 
-Round 2+ (when needed):
-  - Include previous round analysis in context
-  - Call LLM again
-  - Same processing as above
+Main task types currently include:
 
-Ends when max_analysis_rounds is reached or LLM marks decision=stop
-```
-
-In `debug` and `review`, the pipeline persists more complete request / response / detail payloads into the unified `logs` table. In `production`, it still records execution summaries, but with a smaller observability footprint.
+- `npc_dialogue`
+- `world_tick`
+- `world_event`
+- `autonomous_act`
+- `custom`
 
 ---
 
-## Sub-task DAG Orchestration
+## Shared Multi-round Loop
 
-In `full` mode, the LLM can declare a `sub_tasks` array in its JSON response:
+The common loop drives all complex tasks:
 
-```json
-{
-  "reply": "Need to investigate several aspects in parallel.",
-  "sub_tasks": [
-    {"label": "investigate_market", "task_type": "custom", "node_id": "...", "depends_on": []},
-    {"label": "assess_military", "task_type": "custom", "node_id": "...", "depends_on": []},
-    {"label": "make_plan", "task_type": "custom", "node_id": "...", "depends_on": ["investigate_market", "assess_military"]}
-  ]
-}
-```
+1. Build the system prompt.
+2. Call the LLM.
+3. Parse the JSON response.
+4. Process `request_data`.
+5. Process `sub_tasks`.
+6. Execute actions.
+7. Persist memories and propagation side effects.
+8. Log the result and decide whether another round is needed.
 
-DAGInstance is responsible for:
+In `debug` and `review`, logs retain richer request / response / detail payloads. In `production`, the engine still writes structured summaries with a smaller footprint.
 
-- **Registering** sub-task declarations
-- **Dependency resolution** ‚Ä?empty depends_on = immediately ready; non-empty = wait for predecessors
-- **Concurrent execution** of ready sub-tasks (goroutines)
-- **Retry & timeout** ‚Ä?each sub-task retries up to MaxRetries times with TimeoutDuration
-- **Result merging** ‚Ä?supports three merge modes:
-  - `append` (default): concatenates all results
-  - `override`: later results replace earlier ones
-  - `summarize`: LLM semantic summary
-- **Failure handling** ‚Ä?failures do not block the dependency chain; failure info is appended to the final reply
+---
+
+## Sub-task DAG
+
+In `full` mode, the model can declare `sub_tasks`, which are registered as DAG nodes and scheduled according to dependency order.
+
+Key responsibilities:
+
+- sub-task registration
+- dependency resolution
+- ready-task execution
+- retry and timeout handling
+- result merging
+
+Current merge modes:
+
+- `append`
+- `override`
+- `summarize`
 
 ---
 
 ## Data Request Loop
 
-The LLM can issue `request_data` queries in its response. The pipeline executes the following logic:
+The model can emit `request_data` queries inside a reasoning round:
 
-1. Parse DataRequest queries
-2. For `target="store"` queries, execute data loading (node components, memories, relations)
-3. For `target="game_client"` queries, wait for an external response via the callback mechanism
-4. After loading, inject data into the next round's context
-5. The loop runs at most max_analysis_rounds times
+1. The pipeline parses the query list.
+2. `target="store"` queries are resolved directly against the database.
+3. `target="game_client"` queries are delegated through the callback mechanism.
+4. Resolved data is injected into the next round of context.
 
----
-
-## Action Execution Flow
-
-1. Pipeline parses the LLM's output action_calls
-2. For autonomous_act tasks, perform capability validation and schema validation
-3. Sync actions execute immediately within the pipeline
-4. Async actions return a callback_id to the caller
-5. The caller reports results via POST /api/v1/actions/callback
-6. ActionRegistry matches the callback_id and stores the result
-
-For `world_tick`, the same execution loop can also write structured continuity-oriented logs that later align with `request_id`, `execution_mode`, and `round` filters.
+This keeps the ‚Äúask, fetch, continue reasoning‚Äù pattern inside the shared pipeline instead of scattering it across callers.
 
 ---
 
-## Memory Processing & Propagation
+## Action Execution
 
-1. LLM declares memory_updates (with propagation rules)
-2. Pipeline creates MemoryModel entries and persists them
-3. Executes propagation per PropagationRule:
-   - upward: recursively upload along the parent chain (limited by propagation_max_depth)
-   - tag_broadcast: match nodes in the same world with the same tags
-   - targeted: write to a specified list of NodeIDs
-   - manual: no automatic propagation
-4. Optionally enable state machine mode (enable_propagation_machine):
-   - Check rule chain after each propagation round
-   - Execute PropagateAction when trigger conditions are met
-   - Supports TransformRule (content prefix, level promotion, tag appending)
+Action execution follows a shared rule set:
 
-For `world_tick`, memory processing is followed by continuity persistence. The service layer stores timeline rows together with `world_state`, `story_state`, `story_history`, `tick_policy`, and `state_snapshot`, then later rounds can inject that continuity bundle back into prompts.
+1. Parse `action_calls`.
+2. Validate capability and schema constraints.
+3. Execute sync actions immediately.
+4. Return `callback_id` for async actions.
+5. Accept async completion via `POST /api/v1/actions/callback`.
+
+For `autonomous_act`, the capability allowlist is an enforced constraint, not a soft suggestion.
 
 ---
 
-## Configuration Reference
+## Memory and Propagation
 
-### Static Configuration (gameagentengine.conf.yaml)
+`memory_updates` flow through the unified write path and may trigger propagation:
+
+- `upward`
+- `tag_broadcast`
+- `targeted`
+- `manual`
+
+The optional propagation machine can add:
+
+- rule-chain checks
+- transform rules
+- chained propagation actions
+
+Recent database-pipeline work moved direct memory writes and part of propagation persistence into batched write paths, which reduces fragmented transactions on SQLite.
+
+---
+
+## world_tick Continuity Artifacts
+
+`world_tick` does more than a normal inference call. It also persists continuity artifacts such as:
+
+- `world_state`
+- `story_state`
+- `story_history`
+- `world_time_state`
+- `state_snapshot`
+- timeline archive rows
+
+These artifacts can be injected back into later prompts, creating a continuity loop across ticks.
+
+---
+
+## Database Pipeline Integration
+
+The inference pipeline is now aligned with the unified database pipeline.
+
+### SQLite
+
+- WAL mode
+- busy timeout
+- single writer connection
+- concurrent reads
+- batched log writes
+- batched memory / propagation writes
+- same-world exclusion for critical heavy operations
+
+### MySQL / PostgreSQL
+
+- pooled concurrent writes
+- shared transaction entrypoints
+- shared migration runner
+- shared retriable-write layer
+
+As a result, bottleneck analysis is no longer limited to business logic. You can now directly observe retry, queue, and lock behavior.
+
+---
+
+## Observability
+
+New read-only endpoint:
+
+- `GET /api/v1/pipeline/stats`
+
+Current observable indicators include:
+
+- write retry attempts / retries / recoveries / failures
+- transaction count and accumulated duration
+- log sink queue depth, flush count, fallback writes
+- world-lock acquisitions, contention count, active holders
+
+For replay and detailed debugging, combine this with:
+
+- `GET /api/v1/logs`
+- `GET /debug/traces`
+
+---
+
+## Config and Fallback Controls
+
+Static config fields most relevant to pipeline stability now include:
 
 ```yaml
-server:
-  host: "0.0.0.0"
-  port: 8080
-
 database:
-  driver: "sqlite"    # sqlite / mysql
+  driver: "sqlite"                # sqlite / mysql / postgres
   dsn: "gameagentengine.db"
-
-auth:
-  api_key: "dev-key"
-
-llm:
-  provider: "openai"
-  model: "deepseek-chat"
-  api_key: ""
-  base_url: "https://api.deepseek.com/v1"
+  migrations_enabled: true
+  write_retry_enabled: true
+  write_retry_max_attempts: 3
+  write_retry_base_delay_ms: 40
+  write_retry_max_delay_ms: 250
+  log_batch_enabled: true
+  log_batch_size: 32
+  log_batch_flush_ms: 750
+  log_batch_queue_size: 1024
 
 engine:
-  execution_mode: "production"    # debug / review / production
+  world_lock_enabled: true
   autonomous_scheduler_enabled: false
   autonomous_scheduler_interval_seconds: 300
   autonomous_scheduler_max_nodes_per_world: 10
 ```
 
-### Dynamic Configuration (Database WorldSettings)
-
-Configurable via DevCli or Creator:
-
-| Field | Default | Description |
-|---|---|---|
-| memory_limit | 50 | Max memories loaded per inference |
-| max_analysis_rounds | 5 | Max LLM polling rounds |
-| max_context_depth | 3 | Max context traceback depth |
-| auto_apply | true | Auto-apply change plans |
-| require_review_above | critical | Impact level requiring review |
-| pipeline_mode | full | Pipeline mode: vertical/polling/full |
-| propagation_max_depth | 2 | Max upward memory propagation depth |
-| sub_task_max_retries | 2 | Max sub-task retries |
-| sub_task_timeout_secs | 60 | Sub-task timeout in seconds |
-| enable_propagation_machine | false | Enable tag propagation state machine |
-
+These flags are not meant for permanent degradation. They exist so staged rollouts, stress testing, and incident mitigation can temporarily fall back to safer behavior without reverting business-layer code.

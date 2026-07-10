@@ -15,7 +15,7 @@ server:
 database:
   # 数据库驱动：sqlite / mysql / postgres
   driver: "sqlite"
-  # SQLite：文件名；MySQL：user:pass@tcp(host:port)/dbname?charset=utf8
+  # SQLite：文件名；MySQL/PostgreSQL：连接串 / DSN
   dsn: "gameagentengine.db"
   # 是否在初始化时执行 schema/data migrations
   migrations_enabled: true
@@ -27,7 +27,7 @@ database:
   write_retry_base_delay_ms: 40
   # 重试最大回退延迟（毫秒）
   write_retry_max_delay_ms: 250
-  # 是否启用日志批量写入
+  # 是否启用推理日志批量写入
   log_batch_enabled: true
   # 单次批量落库的最大日志条数
   log_batch_size: 32
@@ -42,9 +42,9 @@ auth:
   api_key: "dev-key"
 
 llm:
-  # LLM 提供商：openai (兼容 OpenAI API 格式的均可)
+  # LLM 提供商：openai（兼容 OpenAI API 格式的供应商也可）
   provider: "openai"
-  # 模型名称，可选：deepseek-v4-flash / deepseek-v4-pro 等
+  # 模型名称，按所接入的平台填写
   model: "deepseek-v4-flash"
   # API Key，留空则使用 mock Provider（仅用于离线调试）
   api_key: "sk-xxx"
@@ -52,21 +52,13 @@ llm:
   base_url: "https://api.deepseek.com"
 
 engine:
-  # 执行模式：debug / review / production
-  #   debug      — 动作直接执行，日志最详细
-  #   review     — 高危动作需确认
-  #   production — 自动执行，仅记录日志
+  # 执行模式：debug / review / production / full
   execution_mode: "debug"
   # 是否启用世界级重操作互斥锁
   world_lock_enabled: true
-  # 默认世界 ID，留空则由用户首次操作时指定
-  # 后台自主行为调度器是服务级静态开关，默认关闭；节点是否参与由数据库中的 autonomous 组件决定
-  autonomous_scheduler_enabled: true
+  # 后台自主行为调度器是服务级静态开关，默认模板保持关闭
+  autonomous_scheduler_enabled: false
   # 后台调度器扫描间隔秒数
   autonomous_scheduler_interval_seconds: 300
   # 每次扫描每个世界最多触发的 scheduled 自主节点数
   autonomous_scheduler_max_nodes_per_world: 10
-
-
-
-

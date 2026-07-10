@@ -47,14 +47,20 @@ Copy the default config:
 cp tools/source/gameagentengine.conf.yaml .
 ```
 
-Important defaults in the current config:
+Important points in the packaged template:
 
 - default listen address: `0.0.0.0:8080`
 - default API key: `dev-key`
-- default model: `deepseek-v4-flash`
-- default `base_url`: `https://api.deepseek.com`
-- default execution mode: `debug`
-- background autonomous scheduler: enabled by default
+- sample model in the template: `deepseek-v4-flash`
+- sample `base_url` in the template: `https://api.deepseek.com`
+- template execution mode: `debug`
+- background autonomous scheduler: disabled by default
+
+There is also an important distinction between template values and code-level fallback defaults. If fields are omitted, the engine falls back to internal defaults such as:
+
+- `llm.model = gpt-4o-mini`
+- `llm.base_url = https://api.openai.com/v1`
+- `engine.execution_mode = full`
 
 At minimum, check these fields:
 
@@ -109,109 +115,58 @@ You can then create child nodes, for example:
 go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node create --world <world-id> --type location --name "Starter Village"
 ```
 
-If you prefer code-driven world setup, you can also use `Agent.CreateWorld()` from the SDK.
-
 ---
 
 ## Step 5: Open Creator
 
-Recommended path:
+The simplest path is through DevCli:
 
 ```bash
 go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key inspect
 ```
 
-If that entry is not convenient in your environment, open this file directly:
+If that launcher path is inconvenient in your environment, you can also open:
 
 `tools/source/web/GameAgentCreator/index.html`
 
-Core pages you will use first:
+Key pages include:
 
-- `Worlds`: world and node tree
-- `Settings`: world runtime settings
-- `Policy`: world policy
-- `Plans`: pending plan approvals
-- `State`: continuity state components
-- `Timelines`: archived world ticks
-- `Continuity`: continuity debugging overview
-- `Logs` / `Traces`: observability and debugging
+- `Worlds`
+- `Settings`
+- `Policy`
+- `Plans`
+- `State`
+- `Timelines`
+- `Continuity`
+- `Logs` / `Traces`
 
 ---
 
 ## Step 6: Configure World Time Before Running Tick
 
-If you want to use any of the following:
+If you plan to use:
 
 - `world tick`
 - timeline advancement
-- world time evolution inside continuity state
+- world-time continuity state
 - worldline reasoning
 
-configure `world_time_settings` first in the `Settings` page.
+you should configure `world_time_settings` first in the `Settings` page.
 
-This is an intentional guardrail in the current design. Without a defined world time system, the Engine cannot reliably advance time or maintain timeline continuity, so dependent flows are intentionally blocked to remind developers to configure it first.
-
-You can also configure it through DevCli:
-
-```bash
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key world settings set <world-id> --world-time-settings-json '{"tick_scale_mode":"flexible","tick_min_unit":"hour","tick_step":1,"tick_units":["day","hour"]}'
-```
-
-Minimum rules:
-
-- `tick_units` must be ordered from large to small
-- `tick_min_unit` must match the last unit
-- `tick_scale_mode` currently must be `fixed` or `flexible`
+This is a deliberate hard requirement in the current design. Without a valid world-time system, the engine cannot reliably advance time or maintain continuity reasoning, so related save / advance flows intentionally stop and ask you to finish the configuration first.
 
 ---
 
-## Step 7: Run a Tick
+## Step 7: Watch Pipeline State Early
 
-Once world time is configured, you can advance a world tick:
+Once you start load-testing, running ticks, or enabling autonomous behavior, it helps to monitor:
 
-```bash
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key world tick <world-id> --type manual --time "day-1" --requested-ticks 1
-```
+- `GET /api/v1/pipeline/stats`
+- `GET /api/v1/logs`
+- `GET /debug/traces`
 
-To limit how many autonomous nodes can run during this tick:
+These endpoints quickly show whether:
 
-```bash
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key world tick <world-id> --autonomous-limit 2
-```
-
-After that, inspect the result in Creator:
-
-- `State` for `world_time_state`
-- `Timelines` for the latest tick archive
-- `Continuity` for the aggregated continuity bundle and diff
-
----
-
-## Common Follow-Up Commands
-
-```bash
-# List worlds
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node list --type world
-
-# Read world settings
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key world settings get <world-id>
-
-# Read continuity state components
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key state list <world-id>
-
-# Read the latest timeline archive
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key timeline latest <world-id>
-
-# Read recent logs
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key logs --world <world-id> --limit 10
-```
-
----
-
-## What To Read Next
-
-- [Configuration](./CONFIGURATION_EN.md)
-- [GameAgentCreator Guide](./GUIDE_GAMEAGENTCREATOR_EN.md)
-- [GameAgentDevCli Guide](./GUIDE_GAMEAGENTDEVCLI_EN.md)
-- [World Time Tick Reference](./WORLD_TIME_TICK_REFERENCE_EN.md)
-- [SDK Reference](./SDK_REFERENCE_EN.md)
+- write retries are becoming frequent
+- the batched log queue is backing up
+- world-level lock contention is increasing

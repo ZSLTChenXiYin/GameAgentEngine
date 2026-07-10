@@ -2,16 +2,27 @@
 
 **中文** | [**English**](./CONFIGURATION_EN.md)
 
-GameAgentEngine v0.4.6 采用双层配置体系：
+GameAgentEngine 采用双层配置：
 
 - 静态配置：`gameagentengine.conf.yaml`
-- 动态配置：数据库中的 `world_settings`、`world_policy` 与状态组件
+- 动态世界配置：数据库中的 `world_settings`、`world_policy` 和状态组件
+
+---
+
+## 两类默认值要分开理解
+
+仓库里当前同时存在两种“默认值”：
+
+- 代码级默认值：由 `internal/config/config.go` 注册，在缺失配置项时生效
+- 随包模板值：写在 `tools/source/gameagentengine.conf.yaml`，更偏向本地演示与开箱体验
+
+例如，代码级默认的 `engine.autonomous_scheduler_enabled` 当前是 `false`，而旧模板曾经写成 `true`。本次文档和模板都已经统一到关闭状态。
 
 ---
 
 ## 静态配置文件
 
-默认配置文件位于 `tools/source/gameagentengine.conf.yaml`。
+默认模板位于 `tools/source/gameagentengine.conf.yaml`。
 
 搜索顺序：
 
@@ -19,7 +30,7 @@ GameAgentEngine v0.4.6 采用双层配置体系：
 2. `./gameagentengine.conf.yaml`
 3. `./config/gameagentengine.conf.yaml`
 
-当前默认内容：
+当前推荐模板：
 
 ```yaml
 server:
@@ -29,6 +40,15 @@ server:
 database:
   driver: "sqlite"
   dsn: "gameagentengine.db"
+  migrations_enabled: true
+  write_retry_enabled: true
+  write_retry_max_attempts: 3
+  write_retry_base_delay_ms: 40
+  write_retry_max_delay_ms: 250
+  log_batch_enabled: true
+  log_batch_size: 32
+  log_batch_flush_ms: 750
+  log_batch_queue_size: 1024
 
 auth:
   api_key: "dev-key"
@@ -41,25 +61,57 @@ llm:
 
 engine:
   execution_mode: "debug"
-  autonomous_scheduler_enabled: true
+  world_lock_enabled: true
+  autonomous_scheduler_enabled: false
   autonomous_scheduler_interval_seconds: 300
   autonomous_scheduler_max_nodes_per_world: 10
 ```
 
-`database.driver` 当前支持 `sqlite`、`mysql` 和 `postgres`。
+代码级缺省值中，还包括这些重要字段：
 
-### 关键说明
+```yaml
+llm:
+  provider: "openai"
+  model: "gpt-4o-mini"
+  base_url: "https://api.openai.com/v1"
 
-- `execution_mode` 是服务级静态配置
-- `pipeline_mode` 是每个世界独立的动态配置
-- 后台自主调度器总开关在静态配置中
-- 节点是否真正参与自主调度，取决于节点上的 `autonomous` 组件
+engine:
+  execution_mode: "full"
+```
+
+这表示如果你不显式提供模板文件中的值，Engine 会回落到代码里的保底默认值。
+
+`database.driver` 当前支持 `sqlite`、`mysql`、`postgres`。
+
+---
+
+## 关键静态开关
+
+### `database.migrations_enabled`
+
+控制初始化时是否执行 schema / data migrations。
+
+### `database.write_retry_enabled`
+
+控制统一可重试写层是否启用。关闭后，数据库写冲突将直接暴露给调用方。
+
+### `database.log_batch_enabled`
+
+控制推理日志是否走内存队列批量落库。关闭后会回退为直接写入。
+
+### `engine.world_lock_enabled`
+
+控制同世界关键重操作是否经过业务级互斥边界。默认建议保持开启。
+
+### `engine.autonomous_scheduler_enabled`
+
+控制服务级后台自主行为调度器。当前推荐默认值是 `false`。
 
 ---
 
 ## 动态配置：world_settings
 
-`world_settings` 是每个世界独立持久化的运行时设置，当前包括：
+`world_settings` 是每个世界独立的运行时配置，常见字段包括：
 
 - `memory_limit`
 - `max_analysis_rounds`
@@ -68,72 +120,40 @@ engine:
 - `require_review_above`
 - `pipeline_mode`
 - `propagation_max_depth`
-- `enable_propagation_machine`
 - `sub_task_max_retries`
 - `sub_task_timeout_secs`
+- `enable_propagation_machine`
 - `world_time_settings`
+
+这些配置影响的是单个世界如何推理，不影响其他世界。
 
 ---
 
-## world_time_settings
+## 时间系统配置
 
-`world_time_settings` 属于 `world_settings`，用于定义世界时间系统规则。它不是静态配置文件字段。
+`world_time_settings` 定义时间规则，`world_time_state` 保存时间结果。
 
-常见字段：
-
-- `tick_scale_mode`
-- `tick_min_unit`
-- `tick_step`
-- `tick_units`
-- `time_scale_carry`
-- `time_calendar`
-- `unit_value_sequences`
+如果没有先配置有效的 `world_time_settings`，依赖世界时间推进的流程会被显式阻塞。
 
 核心约束：
 
 - `tick_scale_mode` 必须是 `fixed` 或 `flexible`
-- `tick_units` 至少包含一个单位，且不能重复
-- `tick_units` 必须按从大到小排列
-- `tick_min_unit` 必须等于最后一个单位
-- 启用 `time_calendar` 时，`calendar_name` 必填
-- 启用 `time_calendar` 时，`time_calendar.units` 必须与 `tick_units` 完全一致
-
-如果没有先设置 `world_time_settings`，依赖世界时间推进的保存和推理流程会被阻塞。这是当前设计中的提醒机制。
+- `tick_units` 不能为空且不能重复
+- `tick_min_unit` 必须等于最小单位
 
 ---
 
-## world_time_state
+## 运维建议
 
-`world_time_state` 不是配置，而是 Engine 运行时写出的状态组件，用于保存当前时间结果。
+排查数据库或管线问题时，优先结合以下入口：
 
-可以这样理解：
+- `GET /api/v1/pipeline/stats`
+- `GET /api/v1/logs`
+- `GET /debug/traces`
 
-- `world_time_settings`：时间规则
-- `world_time_state`：时间结果
+这样可以同时看到：
 
-`world_time_state` 会出现在：
-
-- 状态组件列表
-- 时间线归档
-- 连续性聚合结果
-- Tick 响应
-
----
-
-## 常用入口
-
-### DevCli
-
-```bash
-GameAgentDevCli world settings get <world-id>
-GameAgentDevCli world settings set <world-id> --pipeline-mode polling
-GameAgentDevCli world settings set <world-id> --world-time-settings-file world-time.json
-```
-
-### Creator
-
-在 `Settings` 页面直接编辑普通运行参数和 `world_time_settings`。
-
-### SDK
-
-SDK 的 `WorldSettings` 结构已经包含 `WorldTimeSettings`。
+- 写重试是否频繁
+- 事务累计次数与耗时
+- 日志队列是否堆积
+- 世界级锁是否争用

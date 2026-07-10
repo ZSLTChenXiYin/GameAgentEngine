@@ -276,6 +276,27 @@ All copy routes accept an optional body like:
 }
 ```
 
+Notes:
+
+- `lock_world` is retained for compatibility
+- the current implementation already enforces same-world exclusion for critical copy / restore flows
+- treat this field as a caller intent signal rather than a way to bypass the safety boundary
+
+---
+
+## Pipeline Observability
+
+### `GET /api/v1/pipeline/stats`
+
+Returns lightweight structured stats for the shared data pipeline.
+
+Current fields cover:
+
+- write retry attempts / retries / recoveries / failures
+- transaction count and accumulated duration
+- log sink queue depth, flush count, fallback writes
+- world lock acquisition and contention stats
+
 ---
 
 ## World Settings and Policy

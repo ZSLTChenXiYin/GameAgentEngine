@@ -47,14 +47,20 @@ go build ./...
 cp tools/source/gameagentengine.conf.yaml .
 ```
 
-当前默认配置的关键点如下：
+当前随包模板的关键点如下：
 
 - 默认监听地址：`0.0.0.0:8080`
 - 默认 API Key：`dev-key`
-- 默认模型名：`deepseek-v4-flash`
-- 默认 `base_url`：`https://api.deepseek.com`
-- 默认执行模式：`debug`
-- 默认后台自主调度器：已开启
+- 模板示例模型名：`deepseek-v4-flash`
+- 模板示例 `base_url`：`https://api.deepseek.com`
+- 模板执行模式：`debug`
+- 默认后台自主调度器：关闭
+
+额外需要知道的是，代码级保底默认值与模板示例并不完全相同；如果配置缺项，Engine 会回退到内部默认值，例如：
+
+- `llm.model = gpt-4o-mini`
+- `llm.base_url = https://api.openai.com/v1`
+- `engine.execution_mode = full`
 
 最少要检查这几个字段：
 
@@ -109,8 +115,6 @@ go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node c
 go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node create --world <world-id> --type location --name "起始村庄"
 ```
 
-如果你更喜欢代码方式建世界，也可以用 SDK 的 `Agent.CreateWorld()`。
-
 ---
 
 ## 第五步：打开 Creator
@@ -127,14 +131,14 @@ go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key inspec
 
 进入后你可以看到这些核心页面：
 
-- `Worlds`：世界和节点树
-- `Settings`：世界运行设置
-- `Policy`：世界策略
-- `Plans`：待审批计划
-- `State`：连续性状态组件
-- `Timelines`：时间线归档
-- `Continuity`：连续性排查入口
-- `Logs` / `Traces`：观测与调试
+- `Worlds`
+- `Settings`
+- `Policy`
+- `Plans`
+- `State`
+- `Timelines`
+- `Continuity`
+- `Logs` / `Traces`
 
 ---
 
@@ -151,67 +155,18 @@ go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key inspec
 
 这是当前设计中的强约束，不是可有可无的补充信息。没有世界时间系统，Engine 无法可靠地做时间推进和世界线连续性推理，所以相关保存/推进流程会故意阻塞，提醒开发者先完成配置。
 
-你也可以通过 DevCli 配置：
-
-```bash
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key world settings set <world-id> --world-time-settings-json '{"tick_scale_mode":"flexible","tick_min_unit":"时","tick_step":1,"tick_units":["日","时"]}'
-```
-
-最小规则：
-
-- `tick_units` 必须按从大到小排列
-- `tick_min_unit` 必须等于最后一个单位
-- `tick_scale_mode` 目前只能是 `fixed` 或 `flexible`
-
 ---
 
-## 第七步：执行一次 Tick
+## 第七步：观察管线状态
 
-完成世界时间配置后，就可以推进一次世界 Tick：
+当你开始压测、跑 Tick 或启用自主行为时，推荐顺手观察：
 
-```bash
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key world tick <world-id> --type manual --time "day-1" --requested-ticks 1
-```
+- `GET /api/v1/pipeline/stats`
+- `GET /api/v1/logs`
+- `GET /debug/traces`
 
-如果你要限制这次 Tick 最多触发多少个自主节点：
+这三个入口可以帮助你快速判断：
 
-```bash
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key world tick <world-id> --autonomous-limit 2
-```
-
-推进之后，你可以在 Creator 的这些页面里查看结果：
-
-- `State`：查看 `world_time_state`
-- `Timelines`：查看最新 tick 归档
-- `Continuity`：查看连续性汇总与差异
-
----
-
-## 常用后续命令
-
-```bash
-# 查看世界列表
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node list --type world
-
-# 查看世界设置
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key world settings get <world-id>
-
-# 查看连续性状态组件
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key state list <world-id>
-
-# 查看最新时间线
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key timeline latest <world-id>
-
-# 查看最近日志
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key logs --world <world-id> --limit 10
-```
-
----
-
-## 下一步读什么
-
-- [配置参考](./CONFIGURATION.md)
-- [GameAgentCreator 指南](./GUIDE_GAMEAGENTCREATOR.md)
-- [GameAgentDevCli 指南](./GUIDE_GAMEAGENTDEVCLI.md)
-- [世界时间 Tick 参考](./WORLD_TIME_TICK_REFERENCE.md)
-- [SDK 参考](./SDK_REFERENCE.md)
+- 是否出现频繁写重试
+- 日志批量队列是否积压
+- 世界级锁是否出现争用

@@ -27,13 +27,20 @@ GameAgentDevCli inspect
 
 直接编辑当前目录里的 `gameagentengine.conf.yaml`。
 
-当前默认值重点：
+当前随包模板重点：
 
 - `auth.api_key: dev-key`
 - `llm.model: deepseek-v4-flash`
 - `llm.base_url: https://api.deepseek.com`
 - `engine.execution_mode: debug`
-- `engine.autonomous_scheduler_enabled: true`
+- `engine.autonomous_scheduler_enabled: false`
+- `engine.world_lock_enabled: true`
+
+如果你删掉这些字段，Engine 仍会回退到代码级默认值，例如：
+
+- `llm.model: gpt-4o-mini`
+- `llm.base_url: https://api.openai.com/v1`
+- `engine.execution_mode: full`
 
 ---
 
@@ -45,3 +52,13 @@ GameAgentDevCli world tick <world-id>
 GameAgentDevCli state get <world-id> world_time_state
 GameAgentDevCli timeline latest <world-id>
 ```
+
+---
+
+## 诊断入口
+
+推荐同时关注：
+
+- `GET /api/v1/pipeline/stats`
+- `GET /api/v1/logs`
+- `GET /debug/traces`
