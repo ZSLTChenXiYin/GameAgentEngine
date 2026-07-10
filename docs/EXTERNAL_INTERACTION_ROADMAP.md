@@ -312,8 +312,8 @@ external_interfaces:
 | 幂等键与防重放 | 已完成 callback 基础版 |
 | external task metrics | 已完成基础版 |
 | admin / management endpoints | 已完成基础版 |
-| 故障注入与测试矩阵 | 未开始 |
-| 开发者文档与示例 | 未开始 |
+| 故障注入与测试矩阵 | 部分完成，已补 push/pull/hybrid/max_attempts 组合测试矩阵 |
+| 开发者文档与示例 | 已完成基础版，已提供外部交互接入示例文档 |
 
 ---
 

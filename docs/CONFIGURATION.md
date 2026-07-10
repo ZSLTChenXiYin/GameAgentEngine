@@ -135,6 +135,8 @@ engine:
 
 `database.driver` 当前支持 `sqlite`、`mysql`、`postgres`。
 
+如果你希望直接照着接入样例配置外部交互，可以继续看 [外部交互接入示例](./EXTERNAL_INTERACTION_EXAMPLES.md)。
+
 ---
 
 ## 外部交互静态配置

@@ -1433,3 +1433,100 @@ func TestExecuteHybridFallbackTransportMovesAsyncTaskToReleased(t *testing.T) {
 		t.Fatalf("expected fallback transport task_pull, got %q", task.Transport)
 	}
 }
+
+func TestExecuteAsyncActionDeliveryMatrix(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	if _, err := store.UpsertWorldPolicy(worldID, nil, []string{"spawn_item"}); err != nil {
+		t.Fatalf("policy: %v", err)
+	}
+
+	prevIntegrations := config.Global.ExternalIntegrations
+	prevInterfaces := config.Global.ExternalInterfaces
+	defer func() {
+		config.Global.ExternalIntegrations = prevIntegrations
+		config.Global.ExternalInterfaces = prevInterfaces
+	}()
+
+	type matrixCase struct {
+		name               string
+		interfaceConfig    config.ExternalInterfaceConfig
+		serverStatus       int
+		expectStatus       string
+		expectTransport    string
+		expectMaxAttempts  int
+		expectErrorContain string
+	}
+
+	cases := []matrixCase{
+		{
+			name:              "push_success",
+			interfaceConfig:   config.ExternalInterfaceConfig{Category: "external_action", DeliveryMode: "push", PrimaryTransport: "game_http", Consumer: "bridge", ResumePolicy: "none", MaxAttempts: 2},
+			serverStatus:      http.StatusOK,
+			expectStatus:      store.RuntimeTaskStatusDispatched,
+			expectTransport:   "game_http",
+			expectMaxAttempts: 2,
+		},
+		{
+			name:              "pull_pending",
+			interfaceConfig:   config.ExternalInterfaceConfig{Category: "external_action", DeliveryMode: "pull", Consumer: "bridge", ResumePolicy: "none", MaxAttempts: 4},
+			expectStatus:      store.RuntimeTaskStatusPending,
+			expectTransport:   "",
+			expectMaxAttempts: 4,
+		},
+		{
+			name:               "hybrid_fallback_released",
+			interfaceConfig:    config.ExternalInterfaceConfig{Category: "external_action", DeliveryMode: "hybrid", PrimaryTransport: "game_http", FallbackTransport: "task_pull", Consumer: "bridge", ResumePolicy: "none", MaxAttempts: 3},
+			serverStatus:       http.StatusBadGateway,
+			expectStatus:       store.RuntimeTaskStatusReleased,
+			expectTransport:    "task_pull",
+			expectMaxAttempts:  3,
+			expectErrorContain: "status 502",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
+				"spawn_item": tc.interfaceConfig,
+			}
+			config.Global.ExternalIntegrations = nil
+			var server *httptest.Server
+			if tc.interfaceConfig.PrimaryTransport != "" {
+				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if tc.serverStatus >= 400 {
+						http.Error(w, "upstream error", tc.serverStatus)
+						return
+					}
+					_, _ = w.Write([]byte(`{"status":"accepted"}`))
+				}))
+				defer server.Close()
+				config.Global.ExternalIntegrations = map[string]config.ExternalIntegrationConfig{
+					"game_http": {Type: "http_adapter", BaseURL: server.URL, Path: "/dispatch"},
+				}
+			}
+
+			pipeline := NewPipeline(&stubProvider{response: `{"reply":"ok","action_calls":[{"action_id":"spawn_item","args":{"item_name":"apple"}}],"memory_updates":[]}`})
+			resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+			if err != nil {
+				t.Fatalf("execute: %v", err)
+			}
+			task, err := store.GetRuntimeTaskByCallbackID(resp.ActionCalls[0].CallbackID)
+			if err != nil {
+				t.Fatalf("get runtime task: %v", err)
+			}
+			if task.Status != tc.expectStatus {
+				t.Fatalf("expected status %q, got %+v", tc.expectStatus, task)
+			}
+			if task.Transport != tc.expectTransport {
+				t.Fatalf("expected transport %q, got %+v", tc.expectTransport, task)
+			}
+			if task.MaxAttempts != tc.expectMaxAttempts {
+				t.Fatalf("expected max_attempts %d, got %+v", tc.expectMaxAttempts, task)
+			}
+			if tc.expectErrorContain != "" && !strings.Contains(task.ErrorMessage, tc.expectErrorContain) {
+				t.Fatalf("expected error message to contain %q, got %+v", tc.expectErrorContain, task)
+			}
+		})
+	}
+}
