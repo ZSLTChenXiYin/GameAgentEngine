@@ -88,3 +88,18 @@ external_integrations:
     base_url: "tcp://127.0.0.1:9002"
     path: "Runtime.Dispatch"
     timeout_ms: 5000
+
+external_interfaces:
+  game_client_request_data:
+    category: "external_query"
+    delivery_mode: "push"
+    primary_transport: "game_http"
+    consumer: "game_client"
+    resume_policy: "resume_paused_execution"
+
+  spawn_item:
+    category: "external_action"
+    delivery_mode: "hybrid"
+    primary_transport: "game_http"
+    consumer: "bridge"
+    resume_policy: "none"

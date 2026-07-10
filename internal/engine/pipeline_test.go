@@ -1276,3 +1276,94 @@ func TestExecutePushesGameClientRequestDataThroughRPCAdapter(t *testing.T) {
 		t.Fatalf("expected transport game_rpc, got %q", task.Transport)
 	}
 }
+
+func TestExecuteUsesExternalInterfaceConfigForGameClientRequest(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		_, _ = w.Write([]byte(`{"status":"accepted"}`))
+	}))
+	defer server.Close()
+
+	previousIntegrations := config.Global.ExternalIntegrations
+	previousInterfaces := config.Global.ExternalInterfaces
+	config.Global.ExternalIntegrations = map[string]config.ExternalIntegrationConfig{
+		"game_http": {Type: "http_adapter", BaseURL: server.URL, Path: "/dispatch"},
+	}
+	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
+		"game_client_request_data": {Category: "external_query", DeliveryMode: "push", PrimaryTransport: "game_http", Consumer: "game_client", ResumePolicy: "resume_paused_execution"},
+	}
+	defer func() {
+		config.Global.ExternalIntegrations = previousIntegrations
+		config.Global.ExternalInterfaces = previousInterfaces
+	}()
+
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"need-client","request_data":{"label":"fetch-scene","target":"game_client","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	task, err := store.GetRuntimeTaskByCallbackID(resp.ActionCalls[0].CallbackID)
+	if err != nil {
+		t.Fatalf("get runtime task: %v", err)
+	}
+	if task.Transport != "game_http" || task.Status != store.RuntimeTaskStatusDispatched {
+		t.Fatalf("expected configured route to dispatch via game_http, got %+v", task)
+	}
+	if gotBody["primary_transport"] != "game_http" {
+		t.Fatalf("unexpected dispatch payload: %+v", gotBody)
+	}
+}
+
+func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		_, _ = w.Write([]byte(`ok`))
+	}))
+	defer server.Close()
+
+	previousIntegrations := config.Global.ExternalIntegrations
+	previousInterfaces := config.Global.ExternalInterfaces
+	config.Global.ExternalIntegrations = map[string]config.ExternalIntegrationConfig{
+		"game_http": {Type: "http_adapter", BaseURL: server.URL, Path: "/dispatch"},
+	}
+	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
+		"spawn_item": {Category: "external_action", DeliveryMode: "push", PrimaryTransport: "game_http", Consumer: "bridge", ResumePolicy: "none"},
+	}
+	defer func() {
+		config.Global.ExternalIntegrations = previousIntegrations
+		config.Global.ExternalInterfaces = previousInterfaces
+	}()
+
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[{"action_id":"spawn_item","args":{"item_name":"apple"}}],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	task, err := store.GetRuntimeTaskByCallbackID(resp.ActionCalls[0].CallbackID)
+	if err != nil {
+		t.Fatalf("get runtime task: %v", err)
+	}
+	if task.Transport != "game_http" || task.Status != store.RuntimeTaskStatusDispatched {
+		t.Fatalf("expected configured async route to dispatch via game_http, got %+v", task)
+	}
+	payload := gotBody["payload"].(map[string]any)
+	if payload["action_id"] != "spawn_item" {
+		t.Fatalf("unexpected async dispatch payload: %+v", gotBody)
+	}
+}

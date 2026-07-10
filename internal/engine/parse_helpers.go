@@ -15,27 +15,24 @@ import (
 
 func runtimeTaskConsumerFromArgs(args map[string]any) string {
 	if args == nil {
-		return "bridge"
+		return ""
 	}
 	if consumer, ok := args["consumer"].(string); ok && strings.TrimSpace(consumer) != "" {
 		return strings.TrimSpace(consumer)
 	}
-	return "bridge"
+	return ""
 }
 
 func runtimeTaskDeliveryModeFromArgs(args map[string]any) string {
 	if args == nil {
-		return "pull"
+		return ""
 	}
 	for _, key := range []string{"delivery_mode", "mode"} {
 		if mode, ok := args[key].(string); ok && strings.TrimSpace(mode) != "" {
 			return strings.TrimSpace(mode)
 		}
 	}
-	if integration := runtimeTaskTransportFromArgs(args); integration != "" {
-		return "push"
-	}
-	return "pull"
+	return ""
 }
 
 func runtimeTaskTransportFromArgs(args map[string]any) string {
@@ -108,14 +105,14 @@ func runtimeTaskInterfaceNameForAction(actionID string) string {
 }
 
 func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, args map[string]any, callbackID string) string {
-	route := buildAsyncActionRoute(args)
+	route := resolveAsyncActionRoute(actionID, args)
 	payload := map[string]any{
 		"task_type":            req.TaskType,
 		"world_id":             req.WorldID,
 		"node_id":              req.NodeID,
 		"callback_id":          callbackID,
 		"resume_policy":        "none",
-		"external_interface":   runtimeTaskInterfaceNameForAction(actionID),
+		"external_interface":   asyncActionInterfaceName(actionID, args),
 		"external_interaction": "external_action",
 		"action_id":            actionID,
 		"delivery_mode":        route.DeliveryMode,
@@ -130,14 +127,10 @@ func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, arg
 	return string(data)
 }
 
-func buildAsyncActionRoute(args map[string]any) external.Route {
-	return external.NormalizeRoute(runtimeTaskDeliveryModeFromArgs(args), runtimeTaskTransportFromArgs(args), runtimeTaskConsumerFromArgs(args), runtimeTaskTimeoutFromArgs(args))
-}
-
 func enqueueAsyncActionRuntimeTask(req *InvokeRequest, actionID string, args map[string]any, callbackID string, route external.Route) (*store.RuntimeTaskModel, error) {
 	item := &store.RuntimeTaskModel{
 		Category:      "external_action",
-		InterfaceName: runtimeTaskInterfaceNameForAction(actionID),
+		InterfaceName: asyncActionInterfaceName(actionID, args),
 		DeliveryMode:  route.DeliveryMode,
 		Consumer:      route.Consumer,
 		Transport:     route.PrimaryTransport,
@@ -342,7 +335,7 @@ func (p *Pipeline) executeActions(req *InvokeRequest, runtime *executionConfig, 
 				WorldID:   req.WorldID,
 				RequestID: "",
 			})
-			route := buildAsyncActionRoute(args)
+			route := resolveAsyncActionRoute(actionID, args)
 			task, err := enqueueAsyncActionRuntimeTask(req, actionID, args, cbID, route)
 			if err != nil {
 				p.emitExecutionEvent(req, runtime, executionMode, "action_async_enqueue_failed", actionID, map[string]any{"action_id": actionID, "args": args, "callback_id": cbID, "error": err.Error()})

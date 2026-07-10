@@ -18,6 +18,7 @@ type Config struct {
 	LLM                  LLMConfig                            `mapstructure:"llm"`
 	Engine               EngineConfig                         `mapstructure:"engine"`
 	ExternalIntegrations map[string]ExternalIntegrationConfig `mapstructure:"external_integrations"`
+	ExternalInterfaces   map[string]ExternalInterfaceConfig   `mapstructure:"external_interfaces"`
 }
 
 // ServerConfig 定义 HTTP 服务监听参数。
@@ -81,6 +82,17 @@ type ExternalIntegrationAuthConfig struct {
 	Mode       string `mapstructure:"mode"`
 	Token      string `mapstructure:"token"`
 	HeaderName string `mapstructure:"header_name"`
+}
+
+// ExternalInterfaceConfig 定义一个业务接口的正式投递策略。
+type ExternalInterfaceConfig struct {
+	Category          string `mapstructure:"category"`
+	DeliveryMode      string `mapstructure:"delivery_mode"`
+	PrimaryTransport  string `mapstructure:"primary_transport"`
+	FallbackTransport string `mapstructure:"fallback_transport"`
+	Consumer          string `mapstructure:"consumer"`
+	ResumePolicy      string `mapstructure:"resume_policy"`
+	TimeoutMs         int    `mapstructure:"timeout_ms"`
 }
 
 var Global Config

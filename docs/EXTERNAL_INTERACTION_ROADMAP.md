@@ -132,6 +132,8 @@ external_interfaces:
 | 已完成 | `dispatched` 状态基础能力 | push 成功后 runtime task 会进入 `dispatched` |
 | 已完成 | push 基础重试与幂等透传 | 已支持配置级 `retry_max_attempts` / `retry_backoff_ms` / `idempotency_header` |
 | 已完成 | push 基础观测字段 | runtime task 已记录 `dispatch_attempts`、`last_dispatch_at`、`last_dispatch_error`、`idempotency_key` |
+| 已完成 | `external_interfaces` 配置模型基础版 | 已支持接口级正式路由配置结构与读取 |
+| 已完成 | game_client / async action 正式配置路由接线 | 已支持从 `external_interfaces` 读取正式路由策略 |
 | 已完成 | `game_client request_data` push/hybrid 派发 | 已可按 `delivery_mode` + `primary_transport` 走 push |
 | 已完成 | 普通 async action push/hybrid 派发 | 已可按动作参数走 push，并在 hybrid 下保留 pull 回退 |
 
@@ -142,7 +144,7 @@ external_interfaces:
 | 部分完成 | callback 作为入站完成机制 | 已实现 |
 | 已完成 | `push` 出站投递到游戏端 | 已完成 `http_adapter`、`websocket_adapter` 与 `rpc_adapter` |
 | 部分完成 | `pull` 任务拉取接口 | 已有统一 runtime task queue API，并已接入 game_client request_data 与普通 async action 的真实生产及 callback 完成态闭环 |
-| 部分完成 | `hybrid` 自动降级 | 已有 push 失败后保留 pull task 的最小闭环，尚未完成完整策略编排 |
+| 部分完成 | `hybrid` 自动降级 | 已有 push 失败后保留 pull task 的最小闭环，并已接入正式接口级路由配置，尚未完成完整策略编排 |
 | 部分完成 | 定时调度下主动出站调用 | 已具备基础 push 派发能力，但尚未完成全量 external interface 配置化 |
 | 未完成 | 普通异步 action 的 richer business resume | 目前主要是 `OnResult(...)`，还没有统一的后续编排策略 |
 
@@ -275,8 +277,8 @@ external_interfaces:
 
 | 子项 | 状态 |
 |---|---|
-| `delivery_mode` / `primary_transport` / `fallback_transport` | 未开始 |
-| `consumer` 路由策略 | 未开始 |
+| `delivery_mode` / `primary_transport` / `fallback_transport` | 已完成基础配置模型，`fallback_transport` 编排仍未完成 |
+| `consumer` 路由策略 | 已完成基础配置驱动路由 |
 | `resume_policy` 扩展 | 未开始 |
 | 普通 async action 的统一后处理编排 | 未开始 |
 | hybrid fallback 状态迁移 | 未开始 |

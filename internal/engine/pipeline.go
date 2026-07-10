@@ -684,17 +684,6 @@ func (p *Pipeline) persistPausedExecution(req *InvokeRequest, ctx *BuiltContext,
 	return executionID, nil
 }
 
-func gameClientRouteFromDataRequest(dr *DataRequest) external.Route {
-	if dr == nil {
-		return external.NormalizeRoute("pull", "", "game_client", 0)
-	}
-	consumer := strings.TrimSpace(dr.Consumer)
-	if consumer == "" {
-		consumer = "game_client"
-	}
-	return external.NormalizeRoute(dr.DeliveryMode, dr.PrimaryTransport, consumer, dr.TimeoutMs)
-}
-
 func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID string, executionID string, requestID string, route external.Route) string {
 	payload := map[string]any{
 		"task_type":            req.TaskType,
@@ -704,7 +693,7 @@ func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID str
 		"callback_id":          callbackID,
 		"resume_execution_id":  executionID,
 		"resume_policy":        "resume_paused_execution",
-		"external_interface":   "game_client_request_data",
+		"external_interface":   gameClientInterfaceName(dr),
 		"external_interaction": "external_query",
 		"delivery_mode":        route.DeliveryMode,
 		"primary_transport":    route.PrimaryTransport,
@@ -721,7 +710,7 @@ func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID str
 func enqueueGameClientRuntimeTask(req *InvokeRequest, dr *DataRequest, callbackID string, executionID string, requestID string, route external.Route) (*store.RuntimeTaskModel, error) {
 	item := &store.RuntimeTaskModel{
 		Category:          "external_query",
-		InterfaceName:     "game_client_request_data",
+		InterfaceName:     gameClientInterfaceName(dr),
 		DeliveryMode:      route.DeliveryMode,
 		Consumer:          route.Consumer,
 		Transport:         route.PrimaryTransport,
@@ -1000,7 +989,7 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 					if err := store.UpdateAsyncCallbackRecord(callbackID, map[string]any{"resume_execution_id": executionID}); err != nil {
 						return nil, fmt.Errorf("link callback to paused execution: %w", err)
 					}
-					route := gameClientRouteFromDataRequest(&dr)
+					route := resolveGameClientRoute(&dr)
 					task, err := enqueueGameClientRuntimeTask(req, &dr, callbackID, executionID, requestID, route)
 					if err != nil {
 						return nil, fmt.Errorf("enqueue runtime task: %w", err)

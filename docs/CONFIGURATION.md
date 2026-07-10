@@ -90,6 +90,21 @@ external_integrations:
     base_url: "tcp://127.0.0.1:9002"
     path: "Runtime.Dispatch"
     timeout_ms: 5000
+
+external_interfaces:
+  game_client_request_data:
+    category: "external_query"
+    delivery_mode: "push"
+    primary_transport: "game_http"
+    consumer: "game_client"
+    resume_policy: "resume_paused_execution"
+
+  spawn_item:
+    category: "external_action"
+    delivery_mode: "hybrid"
+    primary_transport: "game_http"
+    consumer: "bridge"
+    resume_policy: "none"
 ```
 
 代码级缺省值中，还包括这些重要字段：
@@ -113,6 +128,8 @@ engine:
 ## 外部交互静态配置
 
 当前已经引入 `external_integrations` 作为 Engine 内建 `push` adapter 的静态配置入口。
+
+当前也已经引入 `external_interfaces` 作为接口级正式路由配置入口，用于把“某个业务接口该走 push/pull/hybrid、使用哪个 transport、由谁消费、是否需要恢复执行”等策略从临时参数提升为正式配置。
 
 已支持字段：
 
@@ -141,6 +158,11 @@ engine:
 - `auth` 与 `headers` 会作为 RPC 参数的一部分一起传入，不走独立传输层头部
 - 当前 push 链路已经支持基础重试与幂等透传；runtime task 会记录 `idempotency_key`、`dispatch_attempts`、`last_dispatch_at`、`last_dispatch_error`
 - `external_interfaces` 的完整双层业务配置模型仍在后续阶段继续补齐；当前属于过渡期可用实现
+
+`external_interfaces` 当前已接线的正式入口：
+
+- `game_client request_data`：默认读取 `game_client_request_data`，也可以通过 `request_data.external_interface` 显式指定其他接口名
+- 普通 async action：默认读取同名 `action_id` 对应配置，也可以通过动作参数 `external_interface` 显式改绑
 
 ---
 
