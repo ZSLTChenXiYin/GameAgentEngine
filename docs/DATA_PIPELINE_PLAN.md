@@ -197,14 +197,15 @@ Acceptance:
 8. Shared write retry handling now covers SQLite lock conflicts and MySQL-style deadlock or lock wait failures on centralized write paths.
 9. Database migrations now run through a dedicated shared runner instead of being embedded ad hoc in initialization flow.
 10. PostgreSQL now initializes through the same adapter entrypoints, validating that the shared pipeline can absorb a new backend without business-layer changes.
+11. Lightweight pipeline observability is now queryable through structured stats instead of relying only on ad hoc logs.
 
 ### In Progress
 
-1. Durable plan tracking in repository.
+1. Feature flags and fallback controls.
 
 ### Pending After Current Phase
 
-1. Load testing and observability expansion.
+1. Durable plan tracking in repository.
 
 ## Verification Rules
 
@@ -263,12 +264,19 @@ Every phase must include:
 3. Config source and initialization template now advertise PostgreSQL as a supported driver.
 4. Store, service, and engine regression tests passed after the adapter addition.
 
+### Phase 12 Evidence
+
+1. The store layer now exposes structured stats for write retries, transactions, and log sink queue or flush behavior.
+2. World-level lock stats are exposed alongside store pipeline stats.
+3. `GET /api/v1/pipeline/stats` now provides a stable diagnostics surface for load testing and troubleshooting.
+4. Store, API, service, and engine regression tests passed after the addition.
+
 ## Current Next Action
 
-Implement Phase 12.
+Implement Phase 13.
 
 Concrete targets:
-1. Add queue, retry, lock, and transaction metrics or at least lightweight in-process counters.
-2. Make key pipeline health indicators queryable or loggable.
-3. Add basic repeatable load or stress verification hooks.
+1. Add feature flags for major pipeline capabilities.
+2. Make risky enhancements degradable without reverting business-layer code.
+3. Keep the safe defaults aligned with the completed rollout.
 4. Commit the phase.

@@ -28,15 +28,19 @@ func Writer() *gorm.DB {
 }
 
 func WriteTransaction(fn func(tx *gorm.DB) error) error {
-	return withWriteRetry("transaction", func() error {
+	started := time.Now()
+	err := withWriteRetry("transaction", func() error {
 		return Writer().Transaction(fn)
 	})
+	recordTransactionResult(time.Since(started), err)
+	return err
 }
 
 func Init(driver, dsn string) error {
 	if err := CloseLogSink(); err != nil {
 		return fmt.Errorf("close previous log sink: %w", err)
 	}
+	ResetPipelineStats()
 	setCurrentDriver(driver)
 
 	var dial gorm.Dialector

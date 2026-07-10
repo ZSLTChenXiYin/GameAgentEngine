@@ -85,16 +85,20 @@ func withWriteRetry(operation string, fn func() error) error {
 	driver := currentDriverName()
 	var err error
 	for attempt := 1; attempt <= attempts; attempt++ {
+		recordWriteAttempt()
 		err = fn()
 		if err == nil {
 			if attempt > 1 {
+				recordWriteRecovery()
 				log.Printf("[db-retry] operation=%s driver=%s recovered_after=%d", operation, driver, attempt)
 			}
 			return nil
 		}
 		if attempt >= attempts || !isRetriableWriteError(driver, err) {
+			recordWriteFailure()
 			return err
 		}
+		recordWriteRetry()
 		delay := retryDelay(opts, attempt)
 		log.Printf("[db-retry] operation=%s driver=%s attempt=%d/%d delay_ms=%d err=%v", operation, driver, attempt, attempts, delay.Milliseconds(), err)
 		if delay > 0 {

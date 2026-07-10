@@ -74,6 +74,7 @@ func NewRouter(p *engine.Pipeline) *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/worlds/{world_id}/restore", IdempotencyMiddleware(MakeRestoreWorldHandler(p)))
 
 	mux.HandleFunc("GET /api/v1/logs", GetLogsHandler)
+	mux.HandleFunc("GET /api/v1/pipeline/stats", GetPipelineStatsHandler)
 	mux.HandleFunc("GET /debug/traces", MakeDebugTracesHandler(p))
 	mux.HandleFunc("POST /api/v1/memories/propagate", MakePropagateMemoryHandler(p))
 	return mux

@@ -100,8 +100,10 @@ func enqueueInferenceLog(model *InferenceLogModel) error {
 	closed := logSinkClosed
 	logSinkMu.RUnlock()
 	if sink == nil || closed {
+		recordLogDirectWrite()
 		return persistInferenceLog(model)
 	}
+	recordLogEnqueue()
 	return sink.enqueue(model)
 }
 
@@ -135,6 +137,7 @@ func (s *inferenceLogSink) enqueue(model *InferenceLogModel) error {
 	case s.queue <- model:
 		return nil
 	default:
+		recordLogFallbackWrite()
 		return persistInferenceLog(model)
 	}
 }
@@ -237,13 +240,16 @@ func persistInferenceLogBatch(batch []*InferenceLogModel) error {
 		})
 	})
 	if err == nil {
+		recordLogBatchFlush(len(rows))
 		return nil
 	}
+	recordLogFlushFailure(err)
 	var result error
 	for i := range rows {
 		if singleErr := Write(func(db *gorm.DB) error {
 			return db.Create(&rows[i]).Error
 		}); singleErr != nil {
+			recordLogFlushFailure(singleErr)
 			result = errors.Join(result, fmt.Errorf("persist log %s: %w", rows[i].UUID, singleErr))
 		}
 	}
