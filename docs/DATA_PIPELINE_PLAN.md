@@ -196,6 +196,7 @@ Acceptance:
 7. World-level exclusion now guards heavy same-world service operations while allowing different worlds to proceed independently.
 8. Shared write retry handling now covers SQLite lock conflicts and MySQL-style deadlock or lock wait failures on centralized write paths.
 9. Database migrations now run through a dedicated shared runner instead of being embedded ad hoc in initialization flow.
+10. PostgreSQL now initializes through the same adapter entrypoints, validating that the shared pipeline can absorb a new backend without business-layer changes.
 
 ### In Progress
 
@@ -203,8 +204,7 @@ Acceptance:
 
 ### Pending After Current Phase
 
-1. PostgreSQL adapter.
-2. Load testing and observability expansion.
+1. Load testing and observability expansion.
 
 ## Verification Rules
 
@@ -256,12 +256,19 @@ Every phase must include:
 3. Migration runner tests verify ordered execution and step-name error reporting.
 4. Store, service, and engine regression tests passed after the refactor.
 
+### Phase 11 Evidence
+
+1. PostgreSQL initializes through the same store adapter flow as SQLite and MySQL.
+2. Shared retry logic now recognizes PostgreSQL deadlock and lock-not-available conflicts.
+3. Config source and initialization template now advertise PostgreSQL as a supported driver.
+4. Store, service, and engine regression tests passed after the adapter addition.
+
 ## Current Next Action
 
-Implement Phase 11.
+Implement Phase 12.
 
 Concrete targets:
-1. Add a PostgreSQL adapter to validate the abstraction quality.
-2. Reuse the same unified read, write, retry, and migration entrypoints.
-3. Verify PostgreSQL initialization does not regress SQLite or MySQL behavior.
+1. Add queue, retry, lock, and transaction metrics or at least lightweight in-process counters.
+2. Make key pipeline health indicators queryable or loggable.
+3. Add basic repeatable load or stress verification hooks.
 4. Commit the phase.

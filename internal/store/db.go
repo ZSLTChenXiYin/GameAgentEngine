@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -49,6 +50,9 @@ func Init(driver, dsn string) error {
 	case "mysql":
 		dial = mysql.Open(dsn)
 		writeDial = mysql.Open(dsn)
+	case "postgres", "postgresql":
+		dial = postgres.Open(dsn)
+		writeDial = postgres.Open(dsn)
 	default:
 		return fmt.Errorf("unsupported database driver: %s", driver)
 	}

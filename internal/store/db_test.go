@@ -9,6 +9,7 @@ import (
 	"time"
 
 	driverMySQL "github.com/go-sql-driver/mysql"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -25,6 +26,9 @@ func TestIsRetriableWriteErrorRecognizesSQLiteAndMySQLConflicts(t *testing.T) {
 	}
 	if !isRetriableWriteError("mysql", &driverMySQL.MySQLError{Number: 1205, Message: "Lock wait timeout exceeded"}) {
 		t.Fatal("expected mysql lock wait timeout to be retriable")
+	}
+	if !isRetriableWriteError("postgres", &pgconn.PgError{Code: "40P01", Message: "deadlock detected"}) {
+		t.Fatal("expected postgres deadlock to be retriable")
 	}
 	if isRetriableWriteError("sqlite", errors.New("syntax error")) {
 		t.Fatal("expected non-lock sqlite error to be non-retriable")
@@ -108,6 +112,16 @@ func TestMigrationRunnerReturnsStepNameOnFailure(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failing_step") {
 		t.Fatalf("expected step name in error, got %v", err)
+	}
+}
+
+func TestInitRejectsUnsupportedDriver(t *testing.T) {
+	err := Init("oracle", "dsn")
+	if err == nil {
+		t.Fatal("expected unsupported driver error")
+	}
+	if !strings.Contains(err.Error(), "unsupported database driver") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

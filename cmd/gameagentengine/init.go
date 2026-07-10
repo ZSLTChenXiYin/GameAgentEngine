@@ -25,6 +25,7 @@ var initCmd = &cobra.Command{
 database:
   driver: "sqlite"
   dsn: "gameagentengine.db"
+  # driver supports sqlite / mysql / postgres
 auth:
   api_key: "dev-key"
 `

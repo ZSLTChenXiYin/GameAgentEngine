@@ -8,6 +8,7 @@ import (
 	"time"
 
 	driverMySQL "github.com/go-sql-driver/mysql"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
 
@@ -140,6 +141,15 @@ func isRetriableWriteError(driver string, err error) bool {
 			}
 		}
 		return strings.Contains(message, "deadlock found") || strings.Contains(message, "lock wait timeout exceeded")
+	case "postgres", "postgresql":
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			switch pgErr.Code {
+			case "40P01", "55P03":
+				return true
+			}
+		}
+		return strings.Contains(message, "deadlock detected") || strings.Contains(message, "lock not available")
 	case "sqlite", "":
 		return strings.Contains(message, "database is locked") ||
 			strings.Contains(message, "database table is locked") ||

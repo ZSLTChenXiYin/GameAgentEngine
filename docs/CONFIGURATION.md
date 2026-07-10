@@ -46,6 +46,8 @@ engine:
   autonomous_scheduler_max_nodes_per_world: 10
 ```
 
+`database.driver` 当前支持 `sqlite`、`mysql` 和 `postgres`。
+
 ### 关键说明
 
 - `execution_mode` 是服务级静态配置

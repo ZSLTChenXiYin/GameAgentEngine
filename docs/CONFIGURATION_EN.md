@@ -46,6 +46,8 @@ engine:
   autonomous_scheduler_max_nodes_per_world: 10
 ```
 
+`database.driver` currently supports `sqlite`, `mysql`, and `postgres`.
+
 ---
 
 ## Dynamic Config: world_settings

@@ -13,7 +13,7 @@ server:
   port: 8080
 
 database:
-  # 数据库驱动：sqlite / mysql
+  # 数据库驱动：sqlite / mysql / postgres
   driver: "sqlite"
   # SQLite：文件名；MySQL：user:pass@tcp(host:port)/dbname?charset=utf8
   dsn: "gameagentengine.db"
