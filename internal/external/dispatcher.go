@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
 )
@@ -17,6 +18,7 @@ type Route struct {
 
 type DispatchRequest struct {
 	TaskID            string         `json:"task_id"`
+	IdempotencyKey    string         `json:"idempotency_key,omitempty"`
 	Category          string         `json:"category"`
 	InterfaceName     string         `json:"interface_name"`
 	DeliveryMode      string         `json:"delivery_mode"`
@@ -72,14 +74,46 @@ func (d *Dispatcher) Dispatch(ctx context.Context, route Route, req DispatchRequ
 	if !ok {
 		return nil, fmt.Errorf("external integration type %q not supported", adapterType)
 	}
-	result, err := adapter.Dispatch(ctx, integration, req)
-	if err != nil {
-		return nil, err
+	maxAttempts := integration.RetryMaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
 	}
-	if result != nil && strings.TrimSpace(result.Transport) == "" {
-		result.Transport = transport
+	backoffMs := integration.RetryBackoffMs
+	if backoffMs <= 0 {
+		backoffMs = 100
 	}
-	return result, nil
+	var lastResult *DispatchResult
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		result, err := adapter.Dispatch(ctx, integration, req)
+		lastResult = result
+		lastErr = err
+		if result != nil {
+			if result.Metadata == nil {
+				result.Metadata = map[string]any{}
+			}
+			result.Metadata["dispatch_attempt"] = attempt
+			result.Metadata["dispatch_max_attempts"] = maxAttempts
+		}
+		if err == nil {
+			if result != nil && strings.TrimSpace(result.Transport) == "" {
+				result.Transport = transport
+			}
+			return result, nil
+		}
+		if attempt >= maxAttempts {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return lastResult, ctx.Err()
+		case <-time.After(time.Duration(backoffMs) * time.Millisecond):
+		}
+	}
+	if lastResult != nil && strings.TrimSpace(lastResult.Transport) == "" {
+		lastResult.Transport = transport
+	}
+	return lastResult, lastErr
 }
 
 func NormalizeRoute(deliveryMode string, primaryTransport string, consumer string, timeoutMs int) Route {

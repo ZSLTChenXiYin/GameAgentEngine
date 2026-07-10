@@ -54,6 +54,9 @@ func (a *WebSocketAdapter) Dispatch(ctx context.Context, integration config.Exte
 			headers.Set(headerName, token)
 		}
 	}
+	if headerName := strings.TrimSpace(integration.IdempotencyHeader); headerName != "" && strings.TrimSpace(req.IdempotencyKey) != "" {
+		headers.Set(headerName, req.IdempotencyKey)
+	}
 	dialer := websocket.Dialer{HandshakeTimeout: time.Duration(timeout) * time.Millisecond}
 	conn, _, err := dialer.DialContext(ctx, baseURL+path, headers)
 	if err != nil {

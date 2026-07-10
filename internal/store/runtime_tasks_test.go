@@ -148,7 +148,7 @@ func TestMarkRuntimeTaskDispatchedTransitionsPendingTask(t *testing.T) {
 	if err := CreateRuntimeTask(row); err != nil {
 		t.Fatalf("create task: %v", err)
 	}
-	dispatched, err := MarkRuntimeTaskDispatched("dispatch-task", "game_http", map[string]any{"status": "accepted"})
+	dispatched, err := MarkRuntimeTaskDispatched("dispatch-task", "game_http", "task-key-1", 1, map[string]any{"status": "accepted"})
 	if err != nil {
 		t.Fatalf("mark dispatched: %v", err)
 	}
@@ -160,6 +160,12 @@ func TestMarkRuntimeTaskDispatchedTransitionsPendingTask(t *testing.T) {
 	}
 	if dispatched.DispatchedAt == nil {
 		t.Fatal("expected dispatched_at to be set")
+	}
+	if dispatched.LastDispatchAt == nil || dispatched.DispatchAttempts != 1 {
+		t.Fatalf("expected dispatch attempt tracking, got %+v", dispatched)
+	}
+	if dispatched.IdempotencyKey != "task-key-1" {
+		t.Fatalf("expected idempotency key to be recorded, got %q", dispatched.IdempotencyKey)
 	}
 	if dispatched.ResultJSON == "" {
 		t.Fatal("expected dispatch result to be recorded")

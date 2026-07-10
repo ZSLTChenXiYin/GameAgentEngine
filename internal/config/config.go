@@ -65,12 +65,15 @@ type EngineConfig struct {
 
 // ExternalIntegrationConfig 定义一个可被 Engine 主动调用的外部接入点。
 type ExternalIntegrationConfig struct {
-	Type      string                        `mapstructure:"type"`
-	BaseURL   string                        `mapstructure:"base_url"`
-	Path      string                        `mapstructure:"path"`
-	TimeoutMs int                           `mapstructure:"timeout_ms"`
-	Headers   map[string]string             `mapstructure:"headers"`
-	Auth      ExternalIntegrationAuthConfig `mapstructure:"auth"`
+	Type              string                        `mapstructure:"type"`
+	BaseURL           string                        `mapstructure:"base_url"`
+	Path              string                        `mapstructure:"path"`
+	TimeoutMs         int                           `mapstructure:"timeout_ms"`
+	RetryMaxAttempts  int                           `mapstructure:"retry_max_attempts"`
+	RetryBackoffMs    int                           `mapstructure:"retry_backoff_ms"`
+	IdempotencyHeader string                        `mapstructure:"idempotency_header"`
+	Headers           map[string]string             `mapstructure:"headers"`
+	Auth              ExternalIntegrationAuthConfig `mapstructure:"auth"`
 }
 
 // ExternalIntegrationAuthConfig 定义外部接入点的认证方式。

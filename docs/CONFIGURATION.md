@@ -72,6 +72,9 @@ external_integrations:
     base_url: "http://127.0.0.1:9000"
     path: "/api/v1/runtime/dispatch"
     timeout_ms: 5000
+    retry_max_attempts: 2
+    retry_backoff_ms: 100
+    idempotency_header: "Idempotency-Key"
     auth:
       mode: "bearer"
       token: "replace-me"
@@ -117,6 +120,9 @@ engine:
 - `base_url`：外部服务基础地址
 - `path`：推送路径；`http_adapter` 缺省为 `/api/v1/runtime/dispatch`，`websocket_adapter` 缺省为 `/ws/runtime/dispatch`，`rpc_adapter` 缺省为 `Runtime.Dispatch`
 - `timeout_ms`：HTTP 请求超时
+- `retry_max_attempts`：push 派发最大尝试次数，默认 `1`
+- `retry_backoff_ms`：重试退避毫秒数，默认 `100`
+- `idempotency_header`：当外部协议支持头部时，Engine 会把 task 级幂等键写入该请求头
 - `headers`：附加请求头
 - `auth.mode`：当前支持 `bearer`、`header`
 - `auth.token`：认证令牌
@@ -133,6 +139,7 @@ engine:
 - `path` 表示 RPC 方法名，默认 `Runtime.Dispatch`
 - 当前使用标准库 `net/rpc/jsonrpc` 做一次请求-响应式派发
 - `auth` 与 `headers` 会作为 RPC 参数的一部分一起传入，不走独立传输层头部
+- 当前 push 链路已经支持基础重试与幂等透传；runtime task 会记录 `idempotency_key`、`dispatch_attempts`、`last_dispatch_at`、`last_dispatch_error`
 - `external_interfaces` 的完整双层业务配置模型仍在后续阶段继续补齐；当前属于过渡期可用实现
 
 ---

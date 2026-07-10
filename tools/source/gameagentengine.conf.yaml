@@ -70,6 +70,9 @@ external_integrations:
     base_url: "http://127.0.0.1:9000"
     path: "/api/v1/runtime/dispatch"
     timeout_ms: 5000
+    retry_max_attempts: 2
+    retry_backoff_ms: 100
+    idempotency_header: "Idempotency-Key"
     auth:
       mode: "bearer"
       token: "replace-me"

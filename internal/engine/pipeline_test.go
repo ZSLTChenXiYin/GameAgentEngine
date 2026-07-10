@@ -1058,8 +1058,14 @@ func TestExecuteWorldTickIncludesHighValueRelationSummary(t *testing.T) {
 func TestExecutePushesGameClientRequestDataThroughHTTPAdapter(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
+	attempts := 0
 	var gotBody map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			http.Error(w, "temporary error", http.StatusBadGateway)
+			return
+		}
 		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
 			t.Fatalf("decode request body: %v", err)
 		}
@@ -1069,7 +1075,7 @@ func TestExecutePushesGameClientRequestDataThroughHTTPAdapter(t *testing.T) {
 
 	previousIntegrations := config.Global.ExternalIntegrations
 	config.Global.ExternalIntegrations = map[string]config.ExternalIntegrationConfig{
-		"game_http": {Type: "http_adapter", BaseURL: server.URL, Path: "/dispatch"},
+		"game_http": {Type: "http_adapter", BaseURL: server.URL, Path: "/dispatch", RetryMaxAttempts: 2, RetryBackoffMs: 1, IdempotencyHeader: "Idempotency-Key"},
 	}
 	defer func() { config.Global.ExternalIntegrations = previousIntegrations }()
 
@@ -1091,6 +1097,12 @@ func TestExecutePushesGameClientRequestDataThroughHTTPAdapter(t *testing.T) {
 	}
 	if task.Status != store.RuntimeTaskStatusDispatched {
 		t.Fatalf("expected dispatched task status, got %q", task.Status)
+	}
+	if attempts != 2 || task.DispatchAttempts != 2 {
+		t.Fatalf("expected 2 dispatch attempts, got server=%d task=%d", attempts, task.DispatchAttempts)
+	}
+	if task.IdempotencyKey == "" {
+		t.Fatalf("expected idempotency key to be recorded, got %+v", task)
 	}
 	if gotBody["task_id"] == "" {
 		t.Fatalf("expected task_id in dispatched payload, got %+v", gotBody)

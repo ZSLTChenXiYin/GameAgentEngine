@@ -130,6 +130,8 @@ external_interfaces:
 | 已完成 | `websocket_adapter` | Engine 已可通过内建 WebSocket adapter 主动向外部系统派发 |
 | 已完成 | `rpc_adapter` | Engine 已可通过内建 RPC adapter 主动向外部系统派发 |
 | 已完成 | `dispatched` 状态基础能力 | push 成功后 runtime task 会进入 `dispatched` |
+| 已完成 | push 基础重试与幂等透传 | 已支持配置级 `retry_max_attempts` / `retry_backoff_ms` / `idempotency_header` |
+| 已完成 | push 基础观测字段 | runtime task 已记录 `dispatch_attempts`、`last_dispatch_at`、`last_dispatch_error`、`idempotency_key` |
 | 已完成 | `game_client request_data` push/hybrid 派发 | 已可按 `delivery_mode` + `primary_transport` 走 push |
 | 已完成 | 普通 async action push/hybrid 派发 | 已可按动作参数走 push，并在 hybrid 下保留 pull 回退 |
 
@@ -262,8 +264,8 @@ external_interfaces:
 | `http_adapter` | 已完成 |
 | `websocket_adapter` | 已完成 |
 | `rpc_adapter` | 已完成 |
-| dispatch 失败重试与幂等 | 未开始 |
-| push 基础观测 | 已完成基础日志/任务态落盘 |
+| dispatch 失败重试与幂等 | 已完成基础能力 |
+| push 基础观测 | 已完成 |
 
 ### 阶段 P3：hybrid 与策略编排
 

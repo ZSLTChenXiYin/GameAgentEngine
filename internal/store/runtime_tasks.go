@@ -190,20 +190,27 @@ func StartRuntimeTask(taskID string, leaseToken string) (*RuntimeTaskModel, erro
 	return GetRuntimeTask(taskID)
 }
 
-func MarkRuntimeTaskDispatched(taskID string, transport string, result any) (*RuntimeTaskModel, error) {
+func MarkRuntimeTaskDispatched(taskID string, transport string, idempotencyKey string, dispatchAttempts int, result any) (*RuntimeTaskModel, error) {
 	if taskID == "" {
 		return nil, fmt.Errorf("task id required")
+	}
+	if dispatchAttempts <= 0 {
+		dispatchAttempts = 1
 	}
 	now := time.Now()
 	err := Write(func(db *gorm.DB) error {
 		resultDB := db.Model(&RuntimeTaskModel{}).
 			Where("task_id = ? AND status IN ?", taskID, []string{RuntimeTaskStatusPending, RuntimeTaskStatusReleased}).
 			Updates(map[string]any{
-				"status":        RuntimeTaskStatusDispatched,
-				"transport":     transport,
-				"dispatched_at": &now,
-				"result_json":   marshalRuntimeTaskJSON(result),
-				"error_message": "",
+				"status":              RuntimeTaskStatusDispatched,
+				"transport":           transport,
+				"idempotency_key":     idempotencyKey,
+				"dispatched_at":       &now,
+				"last_dispatch_at":    &now,
+				"dispatch_attempts":   gorm.Expr("dispatch_attempts + ?", dispatchAttempts),
+				"last_dispatch_error": "",
+				"result_json":         marshalRuntimeTaskJSON(result),
+				"error_message":       "",
 			})
 		if resultDB.Error != nil {
 			return resultDB.Error
@@ -219,20 +226,28 @@ func MarkRuntimeTaskDispatched(taskID string, transport string, result any) (*Ru
 	return GetRuntimeTask(taskID)
 }
 
-func RecordRuntimeTaskDispatchFailure(taskID string, keepPending bool, errMsg string) (*RuntimeTaskModel, error) {
+func RecordRuntimeTaskDispatchFailure(taskID string, keepPending bool, idempotencyKey string, dispatchAttempts int, errMsg string) (*RuntimeTaskModel, error) {
 	if taskID == "" {
 		return nil, fmt.Errorf("task id required")
+	}
+	if dispatchAttempts <= 0 {
+		dispatchAttempts = 1
 	}
 	status := RuntimeTaskStatusFailed
 	if keepPending {
 		status = RuntimeTaskStatusPending
 	}
+	now := time.Now()
 	err := Write(func(db *gorm.DB) error {
 		resultDB := db.Model(&RuntimeTaskModel{}).
 			Where("task_id = ? AND status IN ?", taskID, []string{RuntimeTaskStatusPending, RuntimeTaskStatusReleased}).
 			Updates(map[string]any{
-				"status":        status,
-				"error_message": errMsg,
+				"status":              status,
+				"idempotency_key":     idempotencyKey,
+				"last_dispatch_at":    &now,
+				"dispatch_attempts":   gorm.Expr("dispatch_attempts + ?", dispatchAttempts),
+				"last_dispatch_error": errMsg,
+				"error_message":       errMsg,
 			})
 		if resultDB.Error != nil {
 			return resultDB.Error

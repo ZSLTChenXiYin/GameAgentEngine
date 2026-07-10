@@ -81,6 +81,25 @@ func sanitizeExternalActionArgs(args map[string]any) map[string]any {
 	return result
 }
 
+func dispatchAttemptsFromResult(result *external.DispatchResult) int {
+	if result == nil || result.Metadata == nil {
+		return 1
+	}
+	if raw, ok := result.Metadata["dispatch_attempt"]; ok {
+		switch value := raw.(type) {
+		case int:
+			if value > 0 {
+				return value
+			}
+		case float64:
+			if value > 0 {
+				return int(value)
+			}
+		}
+	}
+	return 1
+}
+
 func runtimeTaskInterfaceNameForAction(actionID string) string {
 	if strings.TrimSpace(actionID) == "" {
 		return "async_action"
@@ -139,8 +158,10 @@ func (p *Pipeline) dispatchAsyncActionRuntimeTask(task *store.RuntimeTaskModel, 
 	if task == nil || !route.ShouldPush() {
 		return nil
 	}
+	idempotencyKey := task.TaskID
 	dispatchReq := external.DispatchRequest{
 		TaskID:           task.TaskID,
+		IdempotencyKey:   idempotencyKey,
 		Category:         task.Category,
 		InterfaceName:    task.InterfaceName,
 		DeliveryMode:     route.DeliveryMode,
@@ -158,7 +179,7 @@ func (p *Pipeline) dispatchAsyncActionRuntimeTask(task *store.RuntimeTaskModel, 
 	}
 	result, err := p.externalDispatcher().Dispatch(context.Background(), route, dispatchReq)
 	if err != nil {
-		_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), err.Error())
+		_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), idempotencyKey, dispatchAttemptsFromResult(result), err.Error())
 		if route.IsStrictPush() {
 			_ = store.CompleteAsyncCallbackRecord(task.CallbackID, "failed", "", err.Error())
 			_ = store.UpdateRuntimeTaskTerminalCallbackFailure(task.CallbackID, err.Error())
@@ -166,7 +187,7 @@ func (p *Pipeline) dispatchAsyncActionRuntimeTask(task *store.RuntimeTaskModel, 
 		}
 		return nil
 	}
-	_, err = store.MarkRuntimeTaskDispatched(task.TaskID, route.PrimaryTransport, result)
+	_, err = store.MarkRuntimeTaskDispatched(task.TaskID, route.PrimaryTransport, idempotencyKey, dispatchAttemptsFromResult(result), result)
 	return err
 }
 

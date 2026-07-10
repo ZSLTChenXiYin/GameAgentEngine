@@ -58,6 +58,9 @@ func (a *HTTPAdapter) Dispatch(ctx context.Context, integration config.ExternalI
 			httpReq.Header.Set(headerName, token)
 		}
 	}
+	if headerName := strings.TrimSpace(integration.IdempotencyHeader); headerName != "" && strings.TrimSpace(req.IdempotencyKey) != "" {
+		httpReq.Header.Set(headerName, req.IdempotencyKey)
+	}
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("dispatch http request: %w", err)

@@ -744,8 +744,10 @@ func (p *Pipeline) dispatchGameClientRuntimeTask(task *store.RuntimeTaskModel, r
 	if task == nil || !route.ShouldPush() {
 		return nil
 	}
+	idempotencyKey := task.TaskID
 	dispatchReq := external.DispatchRequest{
 		TaskID:            task.TaskID,
+		IdempotencyKey:    idempotencyKey,
 		Category:          task.Category,
 		InterfaceName:     task.InterfaceName,
 		DeliveryMode:      route.DeliveryMode,
@@ -764,10 +766,10 @@ func (p *Pipeline) dispatchGameClientRuntimeTask(task *store.RuntimeTaskModel, r
 	}
 	result, err := p.externalDispatcher().Dispatch(context.Background(), route, dispatchReq)
 	if err != nil {
-		_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), err.Error())
+		_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), idempotencyKey, dispatchAttemptsFromResult(result), err.Error())
 		return err
 	}
-	_, err = store.MarkRuntimeTaskDispatched(task.TaskID, route.PrimaryTransport, result)
+	_, err = store.MarkRuntimeTaskDispatched(task.TaskID, route.PrimaryTransport, idempotencyKey, dispatchAttemptsFromResult(result), result)
 	return err
 }
 

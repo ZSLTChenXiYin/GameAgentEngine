@@ -271,6 +271,7 @@ type RuntimeTaskModel struct {
 	RequestID          string     `gorm:"size:36;index" json:"request_id,omitempty"`
 	CallbackID         string     `gorm:"size:64;index" json:"callback_id,omitempty"`
 	ResumeExecutionID  string     `gorm:"size:64;index" json:"resume_execution_id,omitempty"`
+	IdempotencyKey     string     `gorm:"size:128;index" json:"idempotency_key,omitempty"`
 	Status             string     `gorm:"size:20;not null;index" json:"status"`
 	LeaseOwner         string     `gorm:"size:100;index" json:"lease_owner,omitempty"`
 	LeaseToken         string     `gorm:"size:64;index" json:"lease_token,omitempty"`
@@ -282,6 +283,9 @@ type RuntimeTaskModel struct {
 	ErrorMessage       string     `gorm:"type:text" json:"error_message,omitempty"`
 	AvailableAt        *time.Time `gorm:"index" json:"available_at,omitempty"`
 	DispatchedAt       *time.Time `json:"dispatched_at,omitempty"`
+	LastDispatchAt     *time.Time `json:"last_dispatch_at,omitempty"`
+	DispatchAttempts   int        `gorm:"default:0" json:"dispatch_attempts"`
+	LastDispatchError  string     `gorm:"type:text" json:"last_dispatch_error,omitempty"`
 	ClaimedAt          *time.Time `json:"claimed_at,omitempty"`
 	LastHeartbeatAt    *time.Time `json:"last_heartbeat_at,omitempty"`
 	HeartbeatTimeoutAt *time.Time `json:"heartbeat_timeout_at,omitempty"`

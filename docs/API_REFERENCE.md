@@ -84,6 +84,12 @@
 
 当前如果外部交互配置为 `push` 或 `hybrid`，Engine 也可能先通过内建 adapter 主动派发；当前已支持 `http_adapter`、`websocket_adapter` 与 `rpc_adapter`。此时任务状态会进入 `dispatched`，不再出现在 pending 列表里，等待后续 callback 完成。
 
+当前 push 基础能力还包括：
+
+- 可按 integration 配置执行基础重试
+- 会为每个 runtime task 生成稳定幂等键并向支持头部的外部协议透传
+- 任务侧会记录 dispatch 尝试次数与最近一次派发错误
+
 ### `POST /api/v1/runtime/tasks/claim`
 
 领取一个 runtime task。
