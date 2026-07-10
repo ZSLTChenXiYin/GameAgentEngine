@@ -81,6 +81,12 @@ external_integrations:
     base_url: "ws://127.0.0.1:9001"
     path: "/ws/runtime/dispatch"
     timeout_ms: 5000
+
+  game_rpc:
+    type: "rpc_adapter"
+    base_url: "tcp://127.0.0.1:9002"
+    path: "Runtime.Dispatch"
+    timeout_ms: 5000
 ```
 
 代码级缺省值中，还包括这些重要字段：
@@ -107,9 +113,9 @@ engine:
 
 已支持字段：
 
-- `type`：当前支持 `http_adapter`、`websocket_adapter`
+- `type`：当前支持 `http_adapter`、`websocket_adapter`、`rpc_adapter`
 - `base_url`：外部服务基础地址
-- `path`：推送路径；`http_adapter` 缺省为 `/api/v1/runtime/dispatch`，`websocket_adapter` 缺省为 `/ws/runtime/dispatch`
+- `path`：推送路径；`http_adapter` 缺省为 `/api/v1/runtime/dispatch`，`websocket_adapter` 缺省为 `/ws/runtime/dispatch`，`rpc_adapter` 缺省为 `Runtime.Dispatch`
 - `timeout_ms`：HTTP 请求超时
 - `headers`：附加请求头
 - `auth.mode`：当前支持 `bearer`、`header`
@@ -118,8 +124,15 @@ engine:
 
 当前实现边界：
 
-- `game_client request_data` 可以通过 `delivery_mode: push|hybrid` + `primary_transport` 使用内建 `http_adapter` 或 `websocket_adapter`
+- `game_client request_data` 可以通过 `delivery_mode: push|hybrid` + `primary_transport` 使用内建 `http_adapter`、`websocket_adapter` 或 `rpc_adapter`
 - 普通 async action 也可以通过动作参数中的 `delivery_mode` / `primary_transport` 走相同 push 链路
+
+`rpc_adapter` 当前最小实现约束：
+
+- `base_url` 需要使用 `tcp://` 或 `unix://`
+- `path` 表示 RPC 方法名，默认 `Runtime.Dispatch`
+- 当前使用标准库 `net/rpc/jsonrpc` 做一次请求-响应式派发
+- `auth` 与 `headers` 会作为 RPC 参数的一部分一起传入，不走独立传输层头部
 - `external_interfaces` 的完整双层业务配置模型仍在后续阶段继续补齐；当前属于过渡期可用实现
 
 ---

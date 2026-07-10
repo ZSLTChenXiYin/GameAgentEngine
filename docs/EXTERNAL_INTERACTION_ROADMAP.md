@@ -128,6 +128,7 @@ external_interfaces:
 | 已完成 | push adapter 抽象层 | 已引入统一 dispatcher / adapter 抽象 |
 | 已完成 | `http_adapter` | Engine 已可通过内建 HTTP adapter 主动向外部系统派发 |
 | 已完成 | `websocket_adapter` | Engine 已可通过内建 WebSocket adapter 主动向外部系统派发 |
+| 已完成 | `rpc_adapter` | Engine 已可通过内建 RPC adapter 主动向外部系统派发 |
 | 已完成 | `dispatched` 状态基础能力 | push 成功后 runtime task 会进入 `dispatched` |
 | 已完成 | `game_client request_data` push/hybrid 派发 | 已可按 `delivery_mode` + `primary_transport` 走 push |
 | 已完成 | 普通 async action push/hybrid 派发 | 已可按动作参数走 push，并在 hybrid 下保留 pull 回退 |
@@ -137,7 +138,7 @@ external_interfaces:
 | 状态 | 能力 | 当前情况 |
 |---|---|---|
 | 部分完成 | callback 作为入站完成机制 | 已实现 |
-| 部分完成 | `push` 出站投递到游戏端 | 已完成 `http_adapter` 与 `websocket_adapter`，`rpc_adapter` 仍未完成 |
+| 已完成 | `push` 出站投递到游戏端 | 已完成 `http_adapter`、`websocket_adapter` 与 `rpc_adapter` |
 | 部分完成 | `pull` 任务拉取接口 | 已有统一 runtime task queue API，并已接入 game_client request_data 与普通 async action 的真实生产及 callback 完成态闭环 |
 | 部分完成 | `hybrid` 自动降级 | 已有 push 失败后保留 pull task 的最小闭环，尚未完成完整策略编排 |
 | 部分完成 | 定时调度下主动出站调用 | 已具备基础 push 派发能力，但尚未完成全量 external interface 配置化 |
@@ -260,7 +261,7 @@ external_interfaces:
 | adapter 抽象层 | 已完成 |
 | `http_adapter` | 已完成 |
 | `websocket_adapter` | 已完成 |
-| `rpc_adapter` | 未开始 |
+| `rpc_adapter` | 已完成 |
 | dispatch 失败重试与幂等 | 未开始 |
 | push 基础观测 | 已完成基础日志/任务态落盘 |
 

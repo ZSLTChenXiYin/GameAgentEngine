@@ -79,3 +79,9 @@ external_integrations:
     base_url: "ws://127.0.0.1:9001"
     path: "/ws/runtime/dispatch"
     timeout_ms: 5000
+
+  game_rpc:
+    type: "rpc_adapter"
+    base_url: "tcp://127.0.0.1:9002"
+    path: "Runtime.Dispatch"
+    timeout_ms: 5000

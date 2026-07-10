@@ -3,8 +3,11 @@ package engine
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/rpc"
+	"net/rpc/jsonrpc"
 	"strings"
 	"sync"
 	"testing"
@@ -1181,5 +1184,83 @@ func TestExecutePushesGameClientRequestDataThroughWebSocketAdapter(t *testing.T)
 	}
 	if gotBody["primary_transport"] != "game_ws" {
 		t.Fatalf("unexpected primary_transport in payload: %+v", gotBody)
+	}
+}
+
+type pipelineRPCDispatchService struct{}
+
+func (s *pipelineRPCDispatchService) Dispatch(args map[string]any, reply *map[string]any) error {
+	*reply = map[string]any{
+		"transport": "game_rpc",
+		"status":    200,
+		"body":      "rpc accepted",
+		"metadata": map[string]any{
+			"task_id": args["request"].(map[string]any)["task_id"],
+		},
+	}
+	return nil
+}
+
+func startPipelineRPCServer(t *testing.T) (string, func()) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen rpc server: %v", err)
+	}
+	server := rpc.NewServer()
+	if err := server.RegisterName("Runtime", &pipelineRPCDispatchService{}); err != nil {
+		listener.Close()
+		t.Fatalf("register rpc service: %v", err)
+	}
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go server.ServeCodec(jsonrpc.NewServerCodec(conn))
+		}
+	}()
+	return "tcp://" + listener.Addr().String(), func() {
+		_ = listener.Close()
+		<-stopped
+	}
+}
+
+func TestExecutePushesGameClientRequestDataThroughRPCAdapter(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	baseURL, stop := startPipelineRPCServer(t)
+	defer stop()
+
+	previousIntegrations := config.Global.ExternalIntegrations
+	config.Global.ExternalIntegrations = map[string]config.ExternalIntegrationConfig{
+		"game_rpc": {Type: "rpc_adapter", BaseURL: baseURL, Path: "Runtime.Dispatch"},
+	}
+	defer func() { config.Global.ExternalIntegrations = previousIntegrations }()
+
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"need-client","request_data":{"label":"fetch-scene","target":"game_client","delivery_mode":"push","primary_transport":"game_rpc","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp == nil || len(resp.ActionCalls) != 1 || resp.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected async callback response, got %+v", resp)
+	}
+	task, err := store.GetRuntimeTaskByCallbackID(resp.ActionCalls[0].CallbackID)
+	if err != nil {
+		t.Fatalf("get runtime task by callback id: %v", err)
+	}
+	if task.Status != store.RuntimeTaskStatusDispatched {
+		t.Fatalf("expected dispatched task status, got %q", task.Status)
+	}
+	if task.Transport != "game_rpc" {
+		t.Fatalf("expected transport game_rpc, got %q", task.Transport)
 	}
 }
