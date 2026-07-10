@@ -75,6 +75,8 @@ func defaultMigrationSteps() []MigrationStep {
 					&WorldPolicyModel{},
 					&WorldSettingsModel{},
 					&PropagationChainModel{},
+					&AsyncCallbackRecordModel{},
+					&PausedExecutionModel{},
 				)
 			},
 		},

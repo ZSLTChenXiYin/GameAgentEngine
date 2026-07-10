@@ -28,10 +28,13 @@ type Result struct {
 
 // ActionCallRecord 记录待回调的异步动作调用信息。
 type ActionCallRecord struct {
-	CallbackID string
-	ActionID   string
-	NodeID     string
-	Args       map[string]any
-	Status     string // pending, success, failed
-	Result     any
+	CallbackID        string
+	ActionID          string
+	NodeID            string
+	WorldID           string
+	RequestID         string
+	ResumeExecutionID string
+	Args              map[string]any
+	Status            string // pending, success, failed
+	Result            any
 }

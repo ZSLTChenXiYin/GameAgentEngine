@@ -204,3 +204,55 @@ type PropagationChainModel struct {
 }
 
 func (PropagationChainModel) TableName() string { return "propagation_chains" }
+
+// AsyncCallbackRecordModel stores pending and completed async callback records.
+type AsyncCallbackRecordModel struct {
+	ID                 int64     `gorm:"primaryKey;autoIncrement" json:"-"`
+	CallbackID         string    `gorm:"uniqueIndex;size:64;not null" json:"callback_id"`
+	ActionID           string    `gorm:"size:100;not null;index" json:"action_id"`
+	Status             string    `gorm:"size:20;not null;index" json:"status"`
+	NodeUUID           string    `gorm:"size:36;index" json:"node_id,omitempty"`
+	WorldUUID          string    `gorm:"size:36;index" json:"world_id,omitempty"`
+	RequestID          string    `gorm:"size:36;index" json:"request_id,omitempty"`
+	ResumeExecutionID  string    `gorm:"size:64;index" json:"resume_execution_id,omitempty"`
+	ArgsJSON           string    `gorm:"type:text" json:"args_json,omitempty"`
+	ResultJSON         string    `gorm:"type:text" json:"result_json,omitempty"`
+	ErrorMessage       string    `gorm:"type:text" json:"error_message,omitempty"`
+	CompletedAt        *time.Time `json:"completed_at,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+func (AsyncCallbackRecordModel) TableName() string { return "async_callback_records" }
+
+// PausedExecutionModel stores a resumable multi-turn execution snapshot.
+type PausedExecutionModel struct {
+	ID                    int64      `gorm:"primaryKey;autoIncrement" json:"-"`
+	ExecutionID           string     `gorm:"uniqueIndex;size:64;not null" json:"execution_id"`
+	RequestID             string     `gorm:"size:36;not null;index" json:"request_id"`
+	WorldUUID             string     `gorm:"size:36;not null;index" json:"world_id"`
+	NodeUUID              string     `gorm:"size:36;not null;index" json:"node_id"`
+	TaskType              string     `gorm:"size:50;not null;index" json:"task_type"`
+	ExecutionMode         string     `gorm:"size:20;not null" json:"execution_mode"`
+	ConfiguredPipelineMode string    `gorm:"size:20" json:"configured_pipeline_mode,omitempty"`
+	EffectivePipelineMode string     `gorm:"size:20" json:"effective_pipeline_mode,omitempty"`
+	Status                string     `gorm:"size:20;not null;index" json:"status"`
+	PausedRound           int        `gorm:"not null" json:"paused_round"`
+	MaxRounds             int        `gorm:"not null" json:"max_rounds"`
+	TargetNodeID          string     `gorm:"size:36;not null" json:"target_node_id"`
+	PauseReason           string     `gorm:"size:100;not null" json:"pause_reason"`
+	CallbackID            string     `gorm:"size:64;index" json:"callback_id,omitempty"`
+	OriginalRequestJSON   string     `gorm:"type:text;not null" json:"original_request_json"`
+	BuiltContextJSON      string     `gorm:"type:text;not null" json:"built_context_json"`
+	RuntimeJSON           string     `gorm:"type:text;not null" json:"runtime_json"`
+	RoundStateJSON        string     `gorm:"type:text;not null" json:"round_state_json"`
+	PendingDataRequestJSON string    `gorm:"type:text" json:"pending_data_request_json,omitempty"`
+	ResumePayloadJSON     string     `gorm:"type:text" json:"resume_payload_json,omitempty"`
+	LastError             string     `gorm:"type:text" json:"last_error,omitempty"`
+	ResumedAt             *time.Time `json:"resumed_at,omitempty"`
+	CompletedAt           *time.Time `json:"completed_at,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
+}
+
+func (PausedExecutionModel) TableName() string { return "paused_executions" }

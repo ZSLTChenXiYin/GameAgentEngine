@@ -1,11 +1,13 @@
 package action
 
 import (
+	"encoding/json"
 	"fmt"
-	
 	"sync"
 
 	"github.com/google/uuid"
+
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
 // Registry 负责注册动作实现并跟踪异步回调状态。
@@ -85,41 +87,103 @@ func (r *Registry) ExecuteSync(actionID string, args map[string]any) (any, error
 	return a.Execute(args)
 }
 
+type CallbackMetadata struct {
+	NodeID            string
+	WorldID           string
+	RequestID         string
+	ResumeExecutionID string
+}
+
 // CreateCallback 为异步动作生成回调记录并返回回调 ID。
 func (r *Registry) CreateCallback(actionID string, args map[string]any) string {
+	return r.CreateCallbackWithMetadata(actionID, args, CallbackMetadata{})
+}
+
+// CreateCallbackWithMetadata generates a callback record and persists it.
+func (r *Registry) CreateCallbackWithMetadata(actionID string, args map[string]any, meta CallbackMetadata) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	cb := &ActionCallRecord{
-		CallbackID: uuid.NewString(),
-		ActionID:   actionID,
-		Args:       args,
-		Status:     "pending",
+		CallbackID:        uuid.NewString(),
+		ActionID:          actionID,
+		NodeID:            meta.NodeID,
+		WorldID:           meta.WorldID,
+		RequestID:         meta.RequestID,
+		ResumeExecutionID: meta.ResumeExecutionID,
+		Args:              args,
+		Status:            "pending",
 	}
 	r.pending[cb.CallbackID] = cb
+	argsJSON := marshalJSON(args)
+	if err := store.CreateAsyncCallbackRecord(&store.AsyncCallbackRecordModel{
+		CallbackID:        cb.CallbackID,
+		ActionID:          actionID,
+		Status:            "pending",
+		NodeUUID:          meta.NodeID,
+		WorldUUID:         meta.WorldID,
+		RequestID:         meta.RequestID,
+		ResumeExecutionID: meta.ResumeExecutionID,
+		ArgsJSON:          argsJSON,
+	}); err != nil {
+		// Keep the in-memory path alive even if persistence fails.
+	}
 	return cb.CallbackID
 }
 
 // HandleCallback 处理游戏侧上报的异步动作执行结果。
-func (r *Registry) HandleCallback(callbackID string, status string, result any) error {
+func (r *Registry) HandleCallback(callbackID string, status string, result any) (*ActionCallRecord, error) {
 	r.mu.Lock()
 	rec, ok := r.pending[callbackID]
-	if !ok {
-		r.mu.Unlock()
-		return fmt.Errorf("callback %s not found", callbackID)
+	if ok {
+		delete(r.pending, callbackID)
 	}
-	delete(r.pending, callbackID)
 	r.mu.Unlock()
+
+	if !ok {
+		model, err := store.GetAsyncCallbackRecord(callbackID)
+		if err != nil {
+			return nil, fmt.Errorf("callback %s not found", callbackID)
+		}
+		var args map[string]any
+		if model.ArgsJSON != "" {
+			_ = json.Unmarshal([]byte(model.ArgsJSON), &args)
+		}
+		rec = &ActionCallRecord{
+			CallbackID:        model.CallbackID,
+			ActionID:          model.ActionID,
+			NodeID:            model.NodeUUID,
+			WorldID:           model.WorldUUID,
+			RequestID:         model.RequestID,
+			ResumeExecutionID: model.ResumeExecutionID,
+			Args:              args,
+			Status:            model.Status,
+		}
+	}
 
 	rec.Status = status
 	rec.Result = result
+	resultJSON := marshalJSON(result)
+	errMsg := ""
+	if status == "failed" {
+		if s, ok := result.(string); ok {
+			errMsg = s
+		} else {
+			errMsg = resultJSON
+		}
+	}
+	if err := store.CompleteAsyncCallbackRecord(callbackID, status, resultJSON, errMsg); err != nil {
+		return nil, err
+	}
 
 	r.mu.RLock()
 	a, ok := r.asyncActs[rec.ActionID]
 	r.mu.RUnlock()
 	if ok {
-		return a.OnResult(callbackID, status, result)
+		if err := a.OnResult(callbackID, status, result); err != nil {
+			return nil, err
+		}
 	}
-	return nil
+	return rec, nil
 }
 
 // List 返回当前注册表中所有动作的标识列表。
@@ -134,5 +198,16 @@ func (r *Registry) List() []string {
 		ids = append(ids, id+"(async)")
 	}
 	return ids
+}
+
+func marshalJSON(value any) string {
+	if value == nil {
+		return ""
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprintf("%v", value)
+	}
+	return string(data)
 }
 

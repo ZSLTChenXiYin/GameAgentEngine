@@ -53,11 +53,16 @@ func MakeActionCallbackHandler(p *engine.Pipeline) http.HandlerFunc {
 			errorJSON(w, 400, "callback_id and status required")
 			return
 		}
-		if err := p.ActionRegistry().HandleCallback(req.CallbackID, req.Status, req.Result); err != nil {
+		rec, err := p.ActionRegistry().HandleCallback(req.CallbackID, req.Status, req.Result)
+		if err != nil {
 			errorJSON(w, 404, err.Error())
 			return
 		}
-		writeJSON(w, 200, map[string]string{"status": "ok"})
+		resp := map[string]any{"status": "ok"}
+		if rec != nil && rec.ResumeExecutionID != "" {
+			resp["resume_execution_id"] = rec.ResumeExecutionID
+		}
+		writeJSON(w, 200, resp)
 	}
 }
 

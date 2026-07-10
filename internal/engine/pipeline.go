@@ -383,14 +383,55 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 	}
 }
 
+// ResumePausedExecution restores a persisted paused execution snapshot and returns the decoded state.
+// The actual round continuation is implemented separately so the callback path can reuse the same snapshot.
+func (p *Pipeline) ResumePausedExecution(callbackID string, result any) (*store.PausedExecutionModel, *InvokeRequest, *BuiltContext, *RoundState, *executionConfig, *DataRequest, ExecutionMode, int, error) {
+	paused, err := store.GetPausedExecutionByCallbackID(callbackID)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, ModeProduction, 0, err
+	}
+	resumeJSON, err := json.Marshal(result)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, ModeProduction, 0, err
+	}
+	if err := store.MarkPausedExecutionResumed(paused.ExecutionID, string(resumeJSON)); err != nil {
+		return nil, nil, nil, nil, nil, nil, ModeProduction, 0, err
+	}
+	req, ctx, state, runtime, dr, executionMode, pausedRound, err := decodePausedExecutionSnapshot(paused)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, ModeProduction, 0, err
+	}
+	return paused, req, ctx, state, runtime, dr, executionMode, pausedRound, nil
+}
+
 type RoundState struct {
 	Context             *BuiltContext
 	Tree                *TaskTree
+	TreeContext         string
 	SystemPrompt        string
 	Messages            []ChatMessage
 	TargetNodeID        string
 	MaxRounds           int
 	SupplementalContext []string
+}
+
+type pausedExecutionRuntime struct {
+	ConfiguredPipelineMode string `json:"configured_pipeline_mode"`
+	EffectivePipelineMode  string `json:"effective_pipeline_mode"`
+	MaxRounds              int    `json:"max_rounds"`
+	SubTaskRetries         int    `json:"sub_task_retries"`
+	SubTaskTimeout         int    `json:"sub_task_timeout"`
+	MemoryLimit            int    `json:"memory_limit"`
+	ExecutionMode          string `json:"execution_mode"`
+}
+
+type pausedExecutionSnapshot struct {
+	RoundState   *RoundState           `json:"round_state"`
+	Runtime      pausedExecutionRuntime `json:"runtime"`
+	DataRequest  *DataRequest          `json:"data_request,omitempty"`
+	PausedRound  int                   `json:"paused_round"`
+	CallbackID   string                `json:"callback_id"`
+	ExecutionID  string                `json:"execution_id"`
 }
 
 func (s *RoundState) buildPrompt(base string) string {
@@ -412,6 +453,178 @@ func mergeBaseAndTreeContext(baseContext, treeContext string) string {
 	return strings.TrimSpace(baseContext + "\n\n任务树分析：\n" + treeContext)
 }
 
+func buildRoundStateTreeContext(state *RoundState) string {
+	if state == nil {
+		return ""
+	}
+	if strings.TrimSpace(state.TreeContext) != "" {
+		return state.TreeContext
+	}
+	if state.Tree != nil {
+		return state.Tree.BuildLLMContext()
+	}
+	return ""
+}
+
+func appendRoundStateTreeEntry(state *RoundState, round int, parsed *llmParsedOutput, resolvedData string) {
+	if state == nil {
+		return
+	}
+	var parts []string
+	parts = append(parts, fmt.Sprintf("[round_%d]", round))
+	if parsed != nil && strings.TrimSpace(parsed.Reply) != "" {
+		parts = append(parts, "  [分析] "+truncateForContext(parsed.Reply, 500))
+	}
+	if parsed != nil && strings.TrimSpace(parsed.RawActionCalls) != "" {
+		parts = append(parts, "  [动作] "+truncateForContext(parsed.RawActionCalls, 500))
+	}
+	if strings.TrimSpace(resolvedData) != "" {
+		parts = append(parts, "  [数据查询] "+truncateForContext(resolvedData, 1500))
+	}
+	entry := strings.Join(parts, "\n")
+	if strings.TrimSpace(entry) == "" {
+		return
+	}
+	if strings.TrimSpace(state.TreeContext) == "" {
+		state.TreeContext = entry
+		return
+	}
+	state.TreeContext = strings.TrimSpace(state.TreeContext + "\n" + entry)
+}
+
+func buildPausedExecutionRuntime(runtime *executionConfig, executionMode ExecutionMode) pausedExecutionRuntime {
+	if runtime == nil {
+		return pausedExecutionRuntime{ExecutionMode: string(executionMode)}
+	}
+	return pausedExecutionRuntime{
+		ConfiguredPipelineMode: string(runtime.configuredPipelineMode),
+		EffectivePipelineMode:  string(runtime.pipelineMode),
+		MaxRounds:              runtime.maxRounds,
+		SubTaskRetries:         runtime.subTaskRetries,
+		SubTaskTimeout:         runtime.subTaskTimeout,
+		MemoryLimit:            runtime.memoryLimit,
+		ExecutionMode:          string(executionMode),
+	}
+}
+
+func restoreExecutionRuntime(snapshot pausedExecutionRuntime) *executionConfig {
+	configured := PipelineMode(snapshot.ConfiguredPipelineMode)
+	if configured == "" {
+		configured = PipelineFull
+	}
+	effective := PipelineMode(snapshot.EffectivePipelineMode)
+	if effective == "" {
+		effective = configured
+	}
+	return &executionConfig{
+		memoryLimit:            snapshot.MemoryLimit,
+		maxRounds:              snapshot.MaxRounds,
+		subTaskRetries:         snapshot.SubTaskRetries,
+		subTaskTimeout:         snapshot.SubTaskTimeout,
+		configuredPipelineMode: configured,
+		pipelineMode:           effective,
+	}
+}
+
+func decodePausedExecutionSnapshot(model *store.PausedExecutionModel) (*InvokeRequest, *BuiltContext, *RoundState, *executionConfig, *DataRequest, ExecutionMode, int, error) {
+	if model == nil {
+		return nil, nil, nil, nil, nil, ModeProduction, 0, fmt.Errorf("paused execution is nil")
+	}
+	var req InvokeRequest
+	if err := json.Unmarshal([]byte(model.OriginalRequestJSON), &req); err != nil {
+		return nil, nil, nil, nil, nil, ModeProduction, 0, fmt.Errorf("decode original request: %w", err)
+	}
+	var ctx BuiltContext
+	if err := json.Unmarshal([]byte(model.BuiltContextJSON), &ctx); err != nil {
+		return nil, nil, nil, nil, nil, ModeProduction, 0, fmt.Errorf("decode built context: %w", err)
+	}
+	var state RoundState
+	if err := json.Unmarshal([]byte(model.RoundStateJSON), &state); err != nil {
+		return nil, nil, nil, nil, nil, ModeProduction, 0, fmt.Errorf("decode round state: %w", err)
+	}
+	state.Context = &ctx
+	state.Tree = nil
+	var runtimeSnapshot pausedExecutionRuntime
+	if err := json.Unmarshal([]byte(model.RuntimeJSON), &runtimeSnapshot); err != nil {
+		return nil, nil, nil, nil, nil, ModeProduction, 0, fmt.Errorf("decode runtime: %w", err)
+	}
+	runtime := restoreExecutionRuntime(runtimeSnapshot)
+	runtime.policyEngine = planner.NewPolicyEngine()
+	runtime.policyEngine = (&Pipeline{}).loadWorldPolicy(req.WorldID)
+	var dataRequest *DataRequest
+	if strings.TrimSpace(model.PendingDataRequestJSON) != "" {
+		var dr DataRequest
+		if err := json.Unmarshal([]byte(model.PendingDataRequestJSON), &dr); err != nil {
+			return nil, nil, nil, nil, nil, ModeProduction, 0, fmt.Errorf("decode pending data request: %w", err)
+		}
+		dataRequest = &dr
+	}
+	executionMode := ModeProduction
+	switch runtimeSnapshot.ExecutionMode {
+	case string(ModeDebug):
+		executionMode = ModeDebug
+	case string(ModeReview):
+		executionMode = ModeReview
+	}
+	return &req, &ctx, &state, runtime, dataRequest, executionMode, model.PausedRound, nil
+}
+
+func (p *Pipeline) persistPausedExecution(req *InvokeRequest, ctx *BuiltContext, state *RoundState, runtime *executionConfig, executionMode ExecutionMode, requestID string, pausedRound int, dr *DataRequest, callbackID string) (string, error) {
+	executionID := uuid.NewString()
+	if state != nil {
+		state.Tree = nil
+		state.Context = nil
+		state.TreeContext = buildRoundStateTreeContext(state)
+	}
+	originalReqJSON, err := json.Marshal(req)
+	if err != nil {
+		return "", err
+	}
+	builtContextJSON, err := json.Marshal(ctx)
+	if err != nil {
+		return "", err
+	}
+	roundStateJSON, err := json.Marshal(state)
+	if err != nil {
+		return "", err
+	}
+	runtimeJSON, err := json.Marshal(buildPausedExecutionRuntime(runtime, executionMode))
+	if err != nil {
+		return "", err
+	}
+	dataRequestJSON := ""
+	if dr != nil {
+		if data, err := json.Marshal(dr); err == nil {
+			dataRequestJSON = string(data)
+		}
+	}
+	model := &store.PausedExecutionModel{
+		ExecutionID:            executionID,
+		RequestID:              requestID,
+		WorldUUID:              req.WorldID,
+		NodeUUID:               req.NodeID,
+		TaskType:               string(req.TaskType),
+		ExecutionMode:          string(executionMode),
+		ConfiguredPipelineMode: configuredPipelineMode(runtime),
+		EffectivePipelineMode:  effectivePipelineMode(runtime),
+		Status:                 "paused",
+		PausedRound:            pausedRound,
+		MaxRounds:              runtime.maxRounds,
+		TargetNodeID:           state.TargetNodeID,
+		PauseReason:            "game_client_request_data",
+		CallbackID:             callbackID,
+		OriginalRequestJSON:    string(originalReqJSON),
+		BuiltContextJSON:       string(builtContextJSON),
+		RuntimeJSON:            string(runtimeJSON),
+		RoundStateJSON:         string(roundStateJSON),
+		PendingDataRequestJSON: dataRequestJSON,
+	}
+	if err := store.CreatePausedExecution(model); err != nil {
+		return "", err
+	}
+	return executionID, nil
+}
+
 func (p *Pipeline) executeMultiTurnLoop(
 	req *InvokeRequest,
 	ctx *BuiltContext,
@@ -427,6 +640,7 @@ func (p *Pipeline) executeMultiTurnLoop(
 	state := &RoundState{
 		Context:      ctx,
 		Tree:         taskTree,
+		TreeContext:  "",
 		Messages:     sanitizeRoles(req.Messages),
 		TargetNodeID: targetNodeID,
 		MaxRounds:    runtime.maxRounds,
@@ -437,7 +651,7 @@ func (p *Pipeline) executeMultiTurnLoop(
 		var promptSeed string
 		if state.Tree != nil {
 			roundNode = state.Tree.NewRound(fmt.Sprintf("round_%d", round+1))
-			promptSeed = state.Tree.BuildLLMContext()
+			promptSeed = buildRoundStateTreeContext(state)
 			state.SystemPrompt = taskPromptFn(promptSeed, req, targetNodeID, round)
 			roundNode.Prompt = state.SystemPrompt
 		} else {
@@ -508,14 +722,27 @@ func (p *Pipeline) executeMultiTurnLoop(
 				})
 				switch dr.Target {
 				case "game_client":
+					callbackID := p.actionReg.CreateCallbackWithMetadata("data_request", map[string]any{"label": dr.Label, "queries": dr.Queries}, action.CallbackMetadata{
+						NodeID:    req.NodeID,
+						WorldID:   req.WorldID,
+						RequestID: requestID,
+					})
+					executionID, err := p.persistPausedExecution(req, ctx, state, runtime, executionMode, requestID, round+1, &dr, callbackID)
+					if err != nil {
+						return nil, fmt.Errorf("persist paused execution: %w", err)
+					}
+					if err := store.UpdateAsyncCallbackRecord(callbackID, map[string]any{"resume_execution_id": executionID}); err != nil {
+						return nil, fmt.Errorf("link callback to paused execution: %w", err)
+					}
 					resp := &InvokeResponse{
 						RequestID:   requestID,
+						ExecutionMode: executionMode,
 						TaskType:    req.TaskType,
 						DataRequest: &dr,
 						ActionCalls: []ActionCall{{
 							ActionID:   "data_request",
 							Mode:       "async",
-							CallbackID: p.actionReg.CreateCallback("data_request", map[string]any{"label": dr.Label, "queries": dr.Queries}),
+							CallbackID: callbackID,
 							Args:       map[string]any{"data_request": dr},
 						}},
 						Metadata: buildResponseMeta(runtime, p.llmProvider.ModelName(), llmResp.Tokens, start, round+1),
@@ -547,6 +774,7 @@ func (p *Pipeline) executeMultiTurnLoop(
 					} else {
 						state.SupplementalContext = append(state.SupplementalContext, "[数据查询] "+dr.Label, result)
 					}
+					appendRoundStateTreeEntry(state, round+1, parsed, result)
 					continue
 				}
 			}
@@ -558,6 +786,7 @@ func (p *Pipeline) executeMultiTurnLoop(
 				roundNode.Decision = fmt.Sprintf("动作: %s", truncateForContext(parsed.RawActionCalls, 100))
 			}
 		}
+		appendRoundStateTreeEntry(state, round+1, parsed, "")
 
 		resp := &InvokeResponse{
 			RequestID:     requestID,
