@@ -1,8 +1,10 @@
 package store
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -50,6 +52,15 @@ func CreateRuntimeTask(m *RuntimeTaskModel) error {
 func GetRuntimeTask(taskID string) (*RuntimeTaskModel, error) {
 	var m RuntimeTaskModel
 	err := DB.Where("task_id = ?", taskID).First(&m).Error
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+func GetRuntimeTaskByCallbackID(callbackID string) (*RuntimeTaskModel, error) {
+	var m RuntimeTaskModel
+	err := DB.Where("callback_id = ?", callbackID).First(&m).Error
 	if err != nil {
 		return nil, err
 	}
@@ -178,4 +189,58 @@ func ReleaseRuntimeTask(taskID string, leaseToken string, retryDelay time.Durati
 		return nil, err
 	}
 	return GetRuntimeTask(taskID)
+}
+
+func CompleteRuntimeTaskByCallbackID(callbackID string, status string, result any) error {
+	if callbackID == "" {
+		return nil
+	}
+	mappedStatus, errMsg := normalizeRuntimeTaskCompletionStatus(status, result)
+	resultJSON := marshalRuntimeTaskJSON(result)
+	now := time.Now()
+	return Write(func(db *gorm.DB) error {
+		updates := map[string]any{
+			"status":            mappedStatus,
+			"result_json":       resultJSON,
+			"error_message":     errMsg,
+			"lease_owner":       "",
+			"lease_token":       "",
+			"completed_at":      &now,
+			"last_heartbeat_at": &now,
+		}
+		return db.Model(&RuntimeTaskModel{}).
+			Where("callback_id = ?", callbackID).
+			Where("status IN ?", []string{RuntimeTaskStatusPending, RuntimeTaskStatusClaimed, RuntimeTaskStatusRunning, RuntimeTaskStatusReleased}).
+			Updates(updates).Error
+	})
+}
+
+func normalizeRuntimeTaskCompletionStatus(status string, result any) (string, string) {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	switch normalized {
+	case "success", "completed", "ok":
+		return RuntimeTaskStatusSucceeded, ""
+	case "cancelled", "canceled":
+		return RuntimeTaskStatusCancelled, marshalRuntimeTaskJSON(result)
+	default:
+		errMsg := marshalRuntimeTaskJSON(result)
+		if text, ok := result.(string); ok {
+			errMsg = text
+		}
+		if errMsg == "" {
+			errMsg = normalized
+		}
+		return RuntimeTaskStatusFailed, errMsg
+	}
+}
+
+func marshalRuntimeTaskJSON(value any) string {
+	if value == nil {
+		return ""
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprintf("%v", value)
+	}
+	return string(data)
 }

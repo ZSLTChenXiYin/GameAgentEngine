@@ -58,6 +58,10 @@ func MakeActionCallbackHandler(p *engine.Pipeline) http.HandlerFunc {
 			errorJSON(w, 404, err.Error())
 			return
 		}
+		if err := store.CompleteRuntimeTaskByCallbackID(req.CallbackID, req.Status, req.Result); err != nil {
+			errorJSON(w, 500, err.Error())
+			return
+		}
 		resp := map[string]any{"status": "ok"}
 		if rec != nil && rec.ResumeExecutionID != "" {
 			resp["resume_execution_id"] = rec.ResumeExecutionID

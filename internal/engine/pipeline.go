@@ -673,6 +673,47 @@ func (p *Pipeline) persistPausedExecution(req *InvokeRequest, ctx *BuiltContext,
 	return executionID, nil
 }
 
+func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID string, executionID string, requestID string) string {
+	payload := map[string]any{
+		"task_type":             req.TaskType,
+		"world_id":              req.WorldID,
+		"node_id":               req.NodeID,
+		"request_id":            requestID,
+		"callback_id":           callbackID,
+		"resume_execution_id":   executionID,
+		"resume_policy":         "resume_paused_execution",
+		"external_interface":    "game_client_request_data",
+		"external_interaction":  "external_query",
+		"request_data":          dr,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
+}
+
+func enqueueGameClientRuntimeTask(req *InvokeRequest, dr *DataRequest, callbackID string, executionID string, requestID string) (*store.RuntimeTaskModel, error) {
+	item := &store.RuntimeTaskModel{
+		Category:          "external_query",
+		InterfaceName:     "game_client_request_data",
+		DeliveryMode:      "pull",
+		Consumer:          "game_client",
+		WorldUUID:         req.WorldID,
+		NodeUUID:          req.NodeID,
+		RequestID:         requestID,
+		CallbackID:        callbackID,
+		ResumeExecutionID: executionID,
+		Status:            store.RuntimeTaskStatusPending,
+		Priority:          100,
+		PayloadJSON:       buildRuntimeTaskPayload(req, dr, callbackID, executionID, requestID),
+	}
+	if err := store.CreateRuntimeTask(item); err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
 func (p *Pipeline) executeMultiTurnLoop(
 	req *InvokeRequest,
 	ctx *BuiltContext,
@@ -899,6 +940,9 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 					}
 					if err := store.UpdateAsyncCallbackRecord(callbackID, map[string]any{"resume_execution_id": executionID}); err != nil {
 						return nil, fmt.Errorf("link callback to paused execution: %w", err)
+					}
+					if _, err := enqueueGameClientRuntimeTask(req, &dr, callbackID, executionID, requestID); err != nil {
+						return nil, fmt.Errorf("enqueue runtime task: %w", err)
 					}
 					resp := &InvokeResponse{
 						RequestID:     requestID,

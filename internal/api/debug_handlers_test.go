@@ -97,6 +97,13 @@ func TestMakeActionCallbackHandlerAutoResumesPausedExecution(t *testing.T) {
 		t.Fatalf("execute: %v", err)
 	}
 	callbackID := first.ActionCalls[0].CallbackID
+	runtimeTask, err := store.GetRuntimeTaskByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get runtime task: %v", err)
+	}
+	if runtimeTask.Status != store.RuntimeTaskStatusPending {
+		t.Fatalf("expected pending runtime task before callback, got %q", runtimeTask.Status)
+	}
 	h := MakeActionCallbackHandler(pipeline)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/actions/callback", strings.NewReader(`{"callback_id":"`+callbackID+`","status":"success","result":{"scene":"tavern"}}`))
 	w := httptest.NewRecorder()
@@ -114,5 +121,15 @@ func TestMakeActionCallbackHandlerAutoResumesPausedExecution(t *testing.T) {
 	}
 	if resumed["reply"] != "resumed-final" {
 		t.Fatalf("unexpected resumed reply: %+v", resumed)
+	}
+	runtimeTask, err = store.GetRuntimeTaskByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get runtime task after callback: %v", err)
+	}
+	if runtimeTask.Status != store.RuntimeTaskStatusSucceeded {
+		t.Fatalf("expected succeeded runtime task, got %q", runtimeTask.Status)
+	}
+	if runtimeTask.ResultJSON == "" {
+		t.Fatalf("expected runtime task result payload, got %+v", runtimeTask)
 	}
 }

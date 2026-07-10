@@ -535,6 +535,16 @@ func TestResumePausedExecutionContinuesAfterGameClientCallback(t *testing.T) {
 		t.Fatalf("expected callback action, got %+v", first.ActionCalls)
 	}
 	callbackID := first.ActionCalls[0].CallbackID
+	runtimeTask, err := store.GetRuntimeTaskByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get runtime task by callback: %v", err)
+	}
+	if runtimeTask.Status != store.RuntimeTaskStatusPending {
+		t.Fatalf("expected pending runtime task, got %q", runtimeTask.Status)
+	}
+	if runtimeTask.Consumer != "game_client" || runtimeTask.InterfaceName != "game_client_request_data" {
+		t.Fatalf("unexpected runtime task routing: %+v", runtimeTask)
+	}
 
 	resumed, err := pipeline.ResumePausedExecution(callbackID, map[string]any{"scene": "tavern"})
 	if err != nil {

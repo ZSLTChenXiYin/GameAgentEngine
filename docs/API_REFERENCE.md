@@ -65,6 +65,7 @@
 
 - 对普通异步动作：更新 callback 记录，并将结果交给对应 action 的 `OnResult(...)`。
 - 对由 `request_data.target = "game_client"` 触发的暂停执行：Engine 会自动恢复原始多轮推理，并在响应中返回 `resumed` 字段，携带恢复后的最终推理结果。
+- 如果该 callback 对应某个 `runtime task`，Engine 还会同步将该任务标记为 `succeeded`、`failed` 或 `cancelled`，写回完成结果。
 
 ### `GET /api/v1/runtime/tasks/pending`
 
@@ -76,6 +77,8 @@
 - `limit` - 可选，默认 `20`，最大 `200`
 
 当前返回的任务来自统一 `runtime_tasks` 队列，只包含状态为 `pending` 或 `released` 且已经到达可领取时间的任务。
+
+当前 `game_client request_data` 已经接入该队列：当多轮推理因为请求游戏端数据而暂停时，Engine 会自动生成对应的 pull task，供游戏端或 bridge 领取执行。
 
 ### `POST /api/v1/runtime/tasks/claim`
 
