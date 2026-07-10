@@ -125,6 +125,16 @@ func TestInitRejectsUnsupportedDriver(t *testing.T) {
 	}
 }
 
+func TestRunMigrationsCanBeDisabled(t *testing.T) {
+	ConfigureMigrationsEnabled(false)
+	t.Cleanup(func() {
+		ConfigureMigrationsEnabled(true)
+	})
+	if err := RunMigrations(nil); err != nil {
+		t.Fatalf("expected disabled migrations to short-circuit, got %v", err)
+	}
+}
+
 func TestMigrateInferenceLogsToLogsCopiesLegacyRows(t *testing.T) {
 	dsn := filepath.Join(t.TempDir(), fmt.Sprintf("%s-%d.db", t.Name(), time.Now().UnixNano()))
 	db, err := gorm.Open(sqlite.New(sqlite.Config{DSN: dsn, DriverName: "sqlite"}), &gorm.Config{})

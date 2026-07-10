@@ -394,3 +394,49 @@ func TestWithWorldLockAllowsDifferentWorldConcurrency(t *testing.T) {
 		t.Fatalf("expected different worlds to overlap, max active=%d", maxActive)
 	}
 }
+
+func TestWithWorldLockCanBeDisabled(t *testing.T) {
+	ConfigureWorldLocks(false)
+	t.Cleanup(func() {
+		ConfigureWorldLocks(true)
+	})
+	enteredCh := make(chan string, 2)
+	releaseCh := make(chan struct{}, 1)
+	errCh := make(chan error, 2)
+	run := func(label string) {
+		errCh <- withWorldLock("same-world", func() error {
+			enteredCh <- label
+			if label == "first" {
+				<-releaseCh
+			}
+			return nil
+		})
+	}
+
+	go run("first")
+	select {
+	case <-enteredCh:
+	case <-time.After(3 * time.Second):
+		t.Fatal("first operation did not enter")
+	}
+	go run("second")
+	select {
+	case got := <-enteredCh:
+		if got != "second" {
+			t.Fatalf("expected second operation to bypass lock when disabled, got %q", got)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("expected second operation to bypass lock when disabled")
+	}
+	releaseCh <- struct{}{}
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errCh:
+			if err != nil {
+				t.Fatalf("withWorldLock failed: %v", err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("disabled world lock operation did not finish")
+		}
+	}
+}

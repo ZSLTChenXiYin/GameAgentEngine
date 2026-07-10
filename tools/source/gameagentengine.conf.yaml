@@ -17,6 +17,8 @@ database:
   driver: "sqlite"
   # SQLite：文件名；MySQL：user:pass@tcp(host:port)/dbname?charset=utf8
   dsn: "gameagentengine.db"
+  # 是否在初始化时执行 schema/data migrations
+  migrations_enabled: true
   # 是否启用短暂写冲突自动重试
   write_retry_enabled: true
   # 写冲突自动重试最大尝试次数
@@ -55,6 +57,8 @@ engine:
   #   review     — 高危动作需确认
   #   production — 自动执行，仅记录日志
   execution_mode: "debug"
+  # 是否启用世界级重操作互斥锁
+  world_lock_enabled: true
   # 默认世界 ID，留空则由用户首次操作时指定
   # 后台自主行为调度器是服务级静态开关，默认关闭；节点是否参与由数据库中的 autonomous 组件决定
   autonomous_scheduler_enabled: true

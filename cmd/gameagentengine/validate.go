@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/service"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
@@ -29,6 +30,8 @@ var validateCmd = &cobra.Command{
 			BaseDelay:   time.Duration(config.Global.Database.WriteRetryBaseDelayMs) * time.Millisecond,
 			MaxDelay:    time.Duration(config.Global.Database.WriteRetryMaxDelayMs) * time.Millisecond,
 		})
+		store.ConfigureMigrationsEnabled(config.Global.Database.MigrationsEnabled)
+		service.ConfigureWorldLocks(config.Global.Engine.WorldLockEnabled)
 		log.Print("config OK")
 		if err := store.Init(config.Global.Database.Driver, config.Global.Database.DSN); err != nil {
 			log.Fatalf("db error: %v", err)

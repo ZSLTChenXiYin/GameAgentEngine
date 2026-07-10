@@ -2,9 +2,20 @@ package store
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"gorm.io/gorm"
 )
+
+var migrationsEnabled atomic.Bool
+
+func init() {
+	migrationsEnabled.Store(true)
+}
+
+func ConfigureMigrationsEnabled(enabled bool) {
+	migrationsEnabled.Store(enabled)
+}
 
 type MigrationStep struct {
 	Name string
@@ -41,6 +52,9 @@ func (r *MigrationRunner) Run(db *gorm.DB) error {
 }
 
 func RunMigrations(db *gorm.DB) error {
+	if !migrationsEnabled.Load() {
+		return nil
+	}
 	return NewMigrationRunner().Run(db)
 }
 

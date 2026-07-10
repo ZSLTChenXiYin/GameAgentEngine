@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/service"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
@@ -54,6 +55,8 @@ var importCmd = &cobra.Command{
 			BaseDelay:   time.Duration(config.Global.Database.WriteRetryBaseDelayMs) * time.Millisecond,
 			MaxDelay:    time.Duration(config.Global.Database.WriteRetryMaxDelayMs) * time.Millisecond,
 		})
+		store.ConfigureMigrationsEnabled(config.Global.Database.MigrationsEnabled)
+		service.ConfigureWorldLocks(config.Global.Engine.WorldLockEnabled)
 		store.Init(config.Global.Database.Driver, config.Global.Database.DSN)
 		defer store.CloseLogSink()
 		data, _ := os.ReadFile(args[0])

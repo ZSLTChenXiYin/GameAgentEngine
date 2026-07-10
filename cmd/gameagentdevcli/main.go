@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/service"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
@@ -57,6 +58,8 @@ func initLocalStore() error {
 		BaseDelay:   time.Duration(config.Global.Database.WriteRetryBaseDelayMs) * time.Millisecond,
 		MaxDelay:    time.Duration(config.Global.Database.WriteRetryMaxDelayMs) * time.Millisecond,
 	})
+	store.ConfigureMigrationsEnabled(config.Global.Database.MigrationsEnabled)
+	service.ConfigureWorldLocks(config.Global.Engine.WorldLockEnabled)
 	dsn := config.Global.Database.DSN
 	if !filepath.IsAbs(dsn) {
 		dsn = filepath.Join(filepath.Dir(localConfigPath), dsn)

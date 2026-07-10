@@ -29,6 +29,7 @@ type ServerConfig struct {
 type DatabaseConfig struct {
 	Driver                string `mapstructure:"driver"`
 	DSN                   string `mapstructure:"dsn"`
+	MigrationsEnabled     bool   `mapstructure:"migrations_enabled"`
 	WriteRetryEnabled     bool   `mapstructure:"write_retry_enabled"`
 	WriteRetryMaxAttempts int    `mapstructure:"write_retry_max_attempts"`
 	WriteRetryBaseDelayMs int    `mapstructure:"write_retry_base_delay_ms"`
@@ -55,6 +56,7 @@ type LLMConfig struct {
 // EngineConfig 定义推理引擎运行参数。
 type EngineConfig struct {
 	ExecutionMode                       string `mapstructure:"execution_mode"`
+	WorldLockEnabled                    bool   `mapstructure:"world_lock_enabled"`
 	AutonomousSchedulerEnabled          bool   `mapstructure:"autonomous_scheduler_enabled"`
 	AutonomousSchedulerIntervalSeconds  int    `mapstructure:"autonomous_scheduler_interval_seconds"`
 	AutonomousSchedulerMaxNodesPerWorld int    `mapstructure:"autonomous_scheduler_max_nodes_per_world"`
@@ -78,6 +80,7 @@ func Init(configPath string) error {
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "gameagentengine.db")
+	v.SetDefault("database.migrations_enabled", true)
 	v.SetDefault("database.write_retry_enabled", true)
 	v.SetDefault("database.write_retry_max_attempts", 3)
 	v.SetDefault("database.write_retry_base_delay_ms", 40)
@@ -92,6 +95,7 @@ func Init(configPath string) error {
 	v.SetDefault("llm.api_key", "")
 	v.SetDefault("llm.base_url", "https://api.openai.com/v1")
 	v.SetDefault("engine.execution_mode", "full")
+	v.SetDefault("engine.world_lock_enabled", true)
 	v.SetDefault("engine.autonomous_scheduler_enabled", false)
 	v.SetDefault("engine.autonomous_scheduler_interval_seconds", 300)
 	v.SetDefault("engine.autonomous_scheduler_max_nodes_per_world", 10)

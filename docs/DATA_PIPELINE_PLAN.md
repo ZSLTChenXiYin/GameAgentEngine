@@ -198,10 +198,11 @@ Acceptance:
 9. Database migrations now run through a dedicated shared runner instead of being embedded ad hoc in initialization flow.
 10. PostgreSQL now initializes through the same adapter entrypoints, validating that the shared pipeline can absorb a new backend without business-layer changes.
 11. Lightweight pipeline observability is now queryable through structured stats instead of relying only on ad hoc logs.
+12. Major pipeline capabilities now have explicit feature flags so risky rollout pieces can be disabled without reverting shared business-layer code.
 
 ### In Progress
 
-1. Feature flags and fallback controls.
+1. Durable plan tracking in repository.
 
 ### Pending After Current Phase
 
@@ -271,12 +272,17 @@ Every phase must include:
 3. `GET /api/v1/pipeline/stats` now provides a stable diagnostics surface for load testing and troubleshooting.
 4. Store, API, service, and engine regression tests passed after the addition.
 
+### Phase 13 Evidence
+
+1. Database migrations, write retries, log batching, and world locks now have explicit configuration-backed fallback controls.
+2. Startup wiring applies the feature flags consistently across serve, validate, import, and local DevCli flows.
+3. Tests verify disabled migrations short-circuit safely and disabled world locks bypass serialization when requested.
+4. Store, API, service, and engine regression tests passed after the feature-flag layer was added.
+
 ## Current Next Action
 
-Implement Phase 13.
+Plan implementation complete.
 
 Concrete targets:
-1. Add feature flags for major pipeline capabilities.
-2. Make risky enhancements degradable without reverting business-layer code.
-3. Keep the safe defaults aligned with the completed rollout.
-4. Commit the phase.
+1. Keep this document updated as the living source of truth for follow-up tuning, load testing, and future adapters.
+2. Use the new stats and flags during staged rollout and production verification.

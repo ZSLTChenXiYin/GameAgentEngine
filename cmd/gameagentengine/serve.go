@@ -17,6 +17,7 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/llm"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/service"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
@@ -39,6 +40,8 @@ var serveCmd = &cobra.Command{
 			BaseDelay:   time.Duration(config.Global.Database.WriteRetryBaseDelayMs) * time.Millisecond,
 			MaxDelay:    time.Duration(config.Global.Database.WriteRetryMaxDelayMs) * time.Millisecond,
 		})
+		store.ConfigureMigrationsEnabled(config.Global.Database.MigrationsEnabled)
+		service.ConfigureWorldLocks(config.Global.Engine.WorldLockEnabled)
 		if err := store.Init(config.Global.Database.Driver, config.Global.Database.DSN); err != nil {
 			log.Fatalf("db: %v", err)
 		}
