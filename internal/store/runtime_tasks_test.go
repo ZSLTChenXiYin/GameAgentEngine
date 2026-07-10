@@ -46,10 +46,11 @@ func TestListPendingRuntimeTasksFiltersByConsumerAndAvailability(t *testing.T) {
 func TestListRuntimeTasksSupportsExtendedFilters(t *testing.T) {
 	initRuntimeTaskTestDB(t)
 	now := time.Now()
+	oldDispatch := now.Add(-10 * time.Minute)
 	rows := []RuntimeTaskModel{
 		{TaskID: "filter-1", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", WorldUUID: "world-a", Status: RuntimeTaskStatusPending, PayloadJSON: `{}`, AvailableAt: &now},
 		{TaskID: "filter-2", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", WorldUUID: "world-b", Status: RuntimeTaskStatusPending, PayloadJSON: `{}`, AvailableAt: &now},
-		{TaskID: "filter-3", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", WorldUUID: "world-a", Status: RuntimeTaskStatusDispatched, PayloadJSON: `{}`, AvailableAt: &now},
+		{TaskID: "filter-3", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", WorldUUID: "world-a", Status: RuntimeTaskStatusDispatched, PayloadJSON: `{}`, AvailableAt: &now, AttemptCount: 3, MaxAttempts: 3, LastDispatchFailureClass: "upstream_5xx", LastDispatchDecision: "pending_retry", LastTransitionReason: "push_dispatch_failed_pending_retry", DispatchedAt: &oldDispatch, HeartbeatTimeoutCount: 2},
 	}
 	for i := range rows {
 		if err := CreateRuntimeTask(&rows[i]); err != nil {
@@ -70,6 +71,22 @@ func TestListRuntimeTasksSupportsExtendedFilters(t *testing.T) {
 	if len(items) != 1 || items[0].TaskID != "filter-1" {
 		t.Fatalf("unexpected filtered tasks: %+v", items)
 	}
+	diagnosticItems, err := ListRuntimeTasks(RuntimeTaskListQuery{
+		DeliveryMode:              "push",
+		DispatchFailureClass:      "upstream_5xx",
+		DispatchDecision:          "pending_retry",
+		TransitionReason:          "push_dispatch_failed_pending_retry",
+		RetryExhaustedOnly:        true,
+		RepeatedHeartbeatTimeouts: 2,
+		DispatchedBefore:          &now,
+		Limit:                     10,
+	})
+	if err != nil {
+		t.Fatalf("list diagnostic runtime tasks: %v", err)
+	}
+	if len(diagnosticItems) != 1 || diagnosticItems[0].TaskID != "filter-3" {
+		t.Fatalf("unexpected diagnostic filtered tasks: %+v", diagnosticItems)
+	}
 }
 
 func TestGetRuntimeTaskStatsReturnsStructuredCounts(t *testing.T) {
@@ -78,9 +95,9 @@ func TestGetRuntimeTaskStatsReturnsStructuredCounts(t *testing.T) {
 	old := now.Add(-5 * time.Minute)
 	rows := []RuntimeTaskModel{
 		{TaskID: "stats-1", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", Status: RuntimeTaskStatusPending, PayloadJSON: `{}`, AvailableAt: &now, CreatedAt: old},
-		{TaskID: "stats-2", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "hybrid", Consumer: "bridge", Transport: "game_http", Status: RuntimeTaskStatusReleased, PayloadJSON: `{}`, AvailableAt: &now, LastDispatchError: "fallback", CreatedAt: now},
-		{TaskID: "stats-3", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", Status: RuntimeTaskStatusDispatched, PayloadJSON: `{}`},
-		{TaskID: "stats-4", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Transport: "task_pull", Status: RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`},
+		{TaskID: "stats-2", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "hybrid", Consumer: "bridge", Transport: "game_http", Status: RuntimeTaskStatusReleased, PayloadJSON: `{}`, AvailableAt: &now, LastDispatchError: "fallback", LastDispatchFailureClass: "upstream_5xx", LastDispatchDecision: "fallback_to_pull", CreatedAt: now, AttemptCount: 3, MaxAttempts: 3},
+		{TaskID: "stats-3", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", Status: RuntimeTaskStatusDispatched, PayloadJSON: `{}`, DispatchedAt: &old},
+		{TaskID: "stats-4", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Transport: "task_pull", Status: RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`, HeartbeatTimeoutCount: 2},
 		{TaskID: "stats-5", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", Status: RuntimeTaskStatusSucceeded, PayloadJSON: `{}`},
 	}
 	for i := range rows {
@@ -110,14 +127,35 @@ func TestGetRuntimeTaskStatsReturnsStructuredCounts(t *testing.T) {
 	if stats.DispatchErrorTasks != 1 {
 		t.Fatalf("expected dispatch error tasks 1, got %d", stats.DispatchErrorTasks)
 	}
+	if stats.RetryExhaustedTasks != 1 {
+		t.Fatalf("expected retry exhausted tasks 1, got %d", stats.RetryExhaustedTasks)
+	}
+	if stats.DispatchedWithoutCallback != 1 {
+		t.Fatalf("expected dispatched without callback 1, got %d", stats.DispatchedWithoutCallback)
+	}
+	if stats.RepeatedHeartbeatTimeouts != 1 {
+		t.Fatalf("expected repeated heartbeat timeouts 1, got %d", stats.RepeatedHeartbeatTimeouts)
+	}
 	if stats.ByStatus[RuntimeTaskStatusPending] != 1 || stats.ByStatus[RuntimeTaskStatusReleased] != 1 {
 		t.Fatalf("unexpected by_status: %+v", stats.ByStatus)
 	}
 	if stats.ByInterface["spawn_item"] != 2 {
 		t.Fatalf("unexpected by_interface: %+v", stats.ByInterface)
 	}
+	if stats.ByDispatchFailureClass["upstream_5xx"] != 1 {
+		t.Fatalf("unexpected by_dispatch_failure_class: %+v", stats.ByDispatchFailureClass)
+	}
+	if stats.ByDispatchDecision["fallback_to_pull"] != 1 {
+		t.Fatalf("unexpected by_dispatch_decision: %+v", stats.ByDispatchDecision)
+	}
+	if stats.ByHeartbeatTimeoutCount["2"] != 1 {
+		t.Fatalf("unexpected by_heartbeat_timeout_count: %+v", stats.ByHeartbeatTimeoutCount)
+	}
 	if stats.OldestReadyTaskAgeSecs <= 0 {
 		t.Fatalf("expected oldest ready task age > 0, got %d", stats.OldestReadyTaskAgeSecs)
+	}
+	if stats.OldestDispatchedAgeSecs <= 0 {
+		t.Fatalf("expected oldest dispatched age > 0, got %d", stats.OldestDispatchedAgeSecs)
 	}
 }
 
@@ -375,6 +413,9 @@ func TestMarkRuntimeTasksHeartbeatTimeoutMarksStaleClaimedAndRunningTasks(t *tes
 	}
 	if staleClaimed.Status != RuntimeTaskStatusHeartbeatTimeout {
 		t.Fatalf("expected heartbeat_timeout, got %q", staleClaimed.Status)
+	}
+	if staleClaimed.HeartbeatTimeoutCount != 1 {
+		t.Fatalf("expected heartbeat timeout count incremented, got %+v", staleClaimed)
 	}
 	if staleClaimed.LeaseToken != "" || staleClaimed.LeaseOwner != "" {
 		t.Fatalf("expected lease cleared after timeout, got %+v", staleClaimed)

@@ -29,31 +29,45 @@ var (
 )
 
 type RuntimeTaskListQuery struct {
-	Consumer        string
-	Category        string
-	InterfaceName   string
-	Transport       string
-	WorldUUID       string
-	Statuses        []string
-	Limit           int
-	AvailableBefore *time.Time
+	Consumer                  string
+	Category                  string
+	InterfaceName             string
+	DeliveryMode              string
+	Transport                 string
+	WorldUUID                 string
+	Statuses                  []string
+	DispatchFailureClass      string
+	DispatchDecision          string
+	TransitionReason          string
+	RetryExhaustedOnly        bool
+	RepeatedHeartbeatTimeouts int
+	DispatchedBefore          *time.Time
+	Limit                     int
+	AvailableBefore           *time.Time
 }
 
 type RuntimeTaskStats struct {
-	GeneratedAt            time.Time        `json:"generated_at"`
-	Total                  int64            `json:"total"`
-	ReadyPull              int64            `json:"ready_pull"`
-	InFlight               int64            `json:"in_flight"`
-	Terminal               int64            `json:"terminal"`
-	HeartbeatTimeout       int64            `json:"heartbeat_timeout"`
-	DispatchErrorTasks     int64            `json:"dispatch_error_tasks"`
-	ByStatus               map[string]int64 `json:"by_status"`
-	ByCategory             map[string]int64 `json:"by_category"`
-	ByConsumer             map[string]int64 `json:"by_consumer"`
-	ByDeliveryMode         map[string]int64 `json:"by_delivery_mode"`
-	ByTransport            map[string]int64 `json:"by_transport"`
-	ByInterface            map[string]int64 `json:"by_interface"`
-	OldestReadyTaskAgeSecs int64            `json:"oldest_ready_task_age_secs"`
+	GeneratedAt               time.Time        `json:"generated_at"`
+	Total                     int64            `json:"total"`
+	ReadyPull                 int64            `json:"ready_pull"`
+	InFlight                  int64            `json:"in_flight"`
+	Terminal                  int64            `json:"terminal"`
+	HeartbeatTimeout          int64            `json:"heartbeat_timeout"`
+	DispatchErrorTasks        int64            `json:"dispatch_error_tasks"`
+	RetryExhaustedTasks       int64            `json:"retry_exhausted_tasks"`
+	DispatchedWithoutCallback int64            `json:"dispatched_without_callback"`
+	RepeatedHeartbeatTimeouts int64            `json:"repeated_heartbeat_timeouts"`
+	OldestDispatchedAgeSecs   int64            `json:"oldest_dispatched_age_secs"`
+	ByStatus                  map[string]int64 `json:"by_status"`
+	ByCategory                map[string]int64 `json:"by_category"`
+	ByConsumer                map[string]int64 `json:"by_consumer"`
+	ByDeliveryMode            map[string]int64 `json:"by_delivery_mode"`
+	ByTransport               map[string]int64 `json:"by_transport"`
+	ByInterface               map[string]int64 `json:"by_interface"`
+	ByDispatchFailureClass    map[string]int64 `json:"by_dispatch_failure_class"`
+	ByDispatchDecision        map[string]int64 `json:"by_dispatch_decision"`
+	ByHeartbeatTimeoutCount   map[string]int64 `json:"by_heartbeat_timeout_count"`
+	OldestReadyTaskAgeSecs    int64            `json:"oldest_ready_task_age_secs"`
 }
 
 type RuntimeTaskDispatchMetadata struct {
@@ -119,6 +133,9 @@ func ListRuntimeTasks(query RuntimeTaskListQuery) ([]RuntimeTaskModel, error) {
 	if query.InterfaceName != "" {
 		qb = qb.Where("interface_name = ?", query.InterfaceName)
 	}
+	if query.DeliveryMode != "" {
+		qb = qb.Where("delivery_mode = ?", query.DeliveryMode)
+	}
 	if query.Transport != "" {
 		qb = qb.Where("transport = ?", query.Transport)
 	}
@@ -127,6 +144,24 @@ func ListRuntimeTasks(query RuntimeTaskListQuery) ([]RuntimeTaskModel, error) {
 	}
 	if len(query.Statuses) > 0 {
 		qb = qb.Where("status IN ?", query.Statuses)
+	}
+	if query.DispatchFailureClass != "" {
+		qb = qb.Where("last_dispatch_failure_class = ?", query.DispatchFailureClass)
+	}
+	if query.DispatchDecision != "" {
+		qb = qb.Where("last_dispatch_decision = ?", query.DispatchDecision)
+	}
+	if query.TransitionReason != "" {
+		qb = qb.Where("last_transition_reason = ?", query.TransitionReason)
+	}
+	if query.RetryExhaustedOnly {
+		qb = qb.Where("max_attempts > 0").Where("attempt_count >= max_attempts")
+	}
+	if query.RepeatedHeartbeatTimeouts > 0 {
+		qb = qb.Where("heartbeat_timeout_count >= ?", query.RepeatedHeartbeatTimeouts)
+	}
+	if query.DispatchedBefore != nil {
+		qb = qb.Where("status = ?", RuntimeTaskStatusDispatched).Where("dispatched_at IS NOT NULL AND dispatched_at <= ?", *query.DispatchedBefore)
 	}
 	if query.AvailableBefore != nil {
 		qb = qb.Where("available_at IS NULL OR available_at <= ?", *query.AvailableBefore)
@@ -138,13 +173,16 @@ func ListRuntimeTasks(query RuntimeTaskListQuery) ([]RuntimeTaskModel, error) {
 
 func GetRuntimeTaskStats() (*RuntimeTaskStats, error) {
 	stats := &RuntimeTaskStats{
-		GeneratedAt:    time.Now(),
-		ByStatus:       map[string]int64{},
-		ByCategory:     map[string]int64{},
-		ByConsumer:     map[string]int64{},
-		ByDeliveryMode: map[string]int64{},
-		ByTransport:    map[string]int64{},
-		ByInterface:    map[string]int64{},
+		GeneratedAt:             time.Now(),
+		ByStatus:                map[string]int64{},
+		ByCategory:              map[string]int64{},
+		ByConsumer:              map[string]int64{},
+		ByDeliveryMode:          map[string]int64{},
+		ByTransport:             map[string]int64{},
+		ByInterface:             map[string]int64{},
+		ByDispatchFailureClass:  map[string]int64{},
+		ByDispatchDecision:      map[string]int64{},
+		ByHeartbeatTimeoutCount: map[string]int64{},
 	}
 	if err := DB.Model(&RuntimeTaskModel{}).Count(&stats.Total).Error; err != nil {
 		return nil, err
@@ -166,6 +204,15 @@ func GetRuntimeTaskStats() (*RuntimeTaskStats, error) {
 		return nil, err
 	}
 	if stats.ByInterface, err = aggregateRuntimeTaskCounts("interface_name"); err != nil {
+		return nil, err
+	}
+	if stats.ByDispatchFailureClass, err = aggregateRuntimeTaskCounts("last_dispatch_failure_class"); err != nil {
+		return nil, err
+	}
+	if stats.ByDispatchDecision, err = aggregateRuntimeTaskCounts("last_dispatch_decision"); err != nil {
+		return nil, err
+	}
+	if stats.ByHeartbeatTimeoutCount, err = aggregateRuntimeTaskCountsExpr("CAST(heartbeat_timeout_count AS TEXT)"); err != nil {
 		return nil, err
 	}
 	now := time.Now()
@@ -196,6 +243,22 @@ func GetRuntimeTaskStats() (*RuntimeTaskStats, error) {
 		Count(&stats.DispatchErrorTasks).Error; err != nil {
 		return nil, err
 	}
+	if err := DB.Model(&RuntimeTaskModel{}).
+		Where("max_attempts > 0").
+		Where("attempt_count >= max_attempts").
+		Count(&stats.RetryExhaustedTasks).Error; err != nil {
+		return nil, err
+	}
+	if err := DB.Model(&RuntimeTaskModel{}).
+		Where("status = ?", RuntimeTaskStatusDispatched).
+		Count(&stats.DispatchedWithoutCallback).Error; err != nil {
+		return nil, err
+	}
+	if err := DB.Model(&RuntimeTaskModel{}).
+		Where("heartbeat_timeout_count >= ?", 2).
+		Count(&stats.RepeatedHeartbeatTimeouts).Error; err != nil {
+		return nil, err
+	}
 	var oldest RuntimeTaskModel
 	err = DB.Model(&RuntimeTaskModel{}).
 		Where("status IN ?", []string{RuntimeTaskStatusPending, RuntimeTaskStatusReleased}).
@@ -207,18 +270,33 @@ func GetRuntimeTaskStats() (*RuntimeTaskStats, error) {
 	} else if !IsRecordNotFound(err) {
 		return nil, err
 	}
+	var oldestDispatched RuntimeTaskModel
+	err = DB.Model(&RuntimeTaskModel{}).
+		Where("status = ?", RuntimeTaskStatusDispatched).
+		Where("dispatched_at IS NOT NULL").
+		Order("dispatched_at ASC").
+		First(&oldestDispatched).Error
+	if err == nil && oldestDispatched.DispatchedAt != nil {
+		stats.OldestDispatchedAgeSecs = int64(now.Sub(*oldestDispatched.DispatchedAt).Seconds())
+	} else if err != nil && !IsRecordNotFound(err) {
+		return nil, err
+	}
 	return stats, nil
 }
 
 func aggregateRuntimeTaskCounts(field string) (map[string]int64, error) {
+	return aggregateRuntimeTaskCountsExpr(field)
+}
+
+func aggregateRuntimeTaskCountsExpr(expr string) (map[string]int64, error) {
 	type row struct {
 		Key   string `gorm:"column:key"`
 		Count int64  `gorm:"column:count"`
 	}
 	var rows []row
 	err := DB.Model(&RuntimeTaskModel{}).
-		Select(field + " AS key, COUNT(*) AS count").
-		Group(field).
+		Select(expr + " AS key, COUNT(*) AS count").
+		Group(expr).
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -518,11 +596,12 @@ func MarkRuntimeTasksHeartbeatTimeout(timeout time.Duration) (int64, error) {
 			Where("status IN ?", []string{RuntimeTaskStatusClaimed, RuntimeTaskStatusRunning}).
 			Where("last_heartbeat_at IS NOT NULL AND last_heartbeat_at < ?", deadline).
 			Updates(map[string]any{
-				"status":               RuntimeTaskStatusHeartbeatTimeout,
-				"heartbeat_timeout_at": &now,
-				"lease_owner":          "",
-				"lease_token":          "",
-				"error_message":        "heartbeat timeout",
+				"status":                  RuntimeTaskStatusHeartbeatTimeout,
+				"heartbeat_timeout_at":    &now,
+				"heartbeat_timeout_count": gorm.Expr("heartbeat_timeout_count + 1"),
+				"lease_owner":             "",
+				"lease_token":             "",
+				"error_message":           "heartbeat timeout",
 			})
 		if result.Error != nil {
 			return result.Error

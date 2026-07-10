@@ -19,6 +19,8 @@ func initRuntimeTaskAPITestDB(t *testing.T) {
 	}
 }
 
+func ptrTime(v time.Time) *time.Time { return &v }
+
 func TestMakeListPendingRuntimeTasksHandlerFiltersTasks(t *testing.T) {
 	initRuntimeTaskAPITestDB(t)
 	now := time.Now()
@@ -57,10 +59,11 @@ func TestMakeListPendingRuntimeTasksHandlerFiltersTasks(t *testing.T) {
 func TestMakeListRuntimeTasksHandlerSupportsStructuredQuery(t *testing.T) {
 	initRuntimeTaskAPITestDB(t)
 	now := time.Now()
+	oldDispatch := now.Add(-10 * time.Minute)
 	seed := []store.RuntimeTaskModel{
 		{TaskID: "all-1", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", WorldUUID: "world-a", Status: store.RuntimeTaskStatusPending, PayloadJSON: `{}`, AvailableAt: &now},
 		{TaskID: "all-2", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", WorldUUID: "world-b", Status: store.RuntimeTaskStatusPending, PayloadJSON: `{}`, AvailableAt: &now},
-		{TaskID: "all-3", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", WorldUUID: "world-a", Status: store.RuntimeTaskStatusDispatched, PayloadJSON: `{}`, AvailableAt: &now},
+		{TaskID: "all-3", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", WorldUUID: "world-a", Status: store.RuntimeTaskStatusDispatched, PayloadJSON: `{}`, AvailableAt: &now, LastDispatchFailureClass: "upstream_5xx", LastDispatchDecision: "pending_retry", LastTransitionReason: "push_dispatch_failed_pending_retry", AttemptCount: 3, MaxAttempts: 3, DispatchedAt: &oldDispatch, HeartbeatTimeoutCount: 2},
 	}
 	for i := range seed {
 		if err := store.CreateRuntimeTask(&seed[i]); err != nil {
@@ -83,6 +86,22 @@ func TestMakeListRuntimeTasksHandlerSupportsStructuredQuery(t *testing.T) {
 	}
 	if body.Count != 1 || len(body.Tasks) != 1 || body.Tasks[0].TaskID != "all-1" {
 		t.Fatalf("unexpected runtime task list body: %+v", body)
+	}
+	w2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/runtime/tasks?diagnostic_view=stale_dispatched&delivery_mode=push&dispatch_failure_class=upstream_5xx&dispatch_decision=pending_retry&transition_reason=push_dispatch_failed_pending_retry&retry_exhausted_only=true&min_heartbeat_timeout_count=2&limit=5", nil)
+	h(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200 for diagnostic query, got %d body=%s", w2.Code, w2.Body.String())
+	}
+	var body2 struct {
+		Tasks []store.RuntimeTaskModel `json:"tasks"`
+		Count int                      `json:"count"`
+	}
+	if err := json.Unmarshal(w2.Body.Bytes(), &body2); err != nil {
+		t.Fatalf("unmarshal diagnostic response: %v", err)
+	}
+	if body2.Count != 1 || len(body2.Tasks) != 1 || body2.Tasks[0].TaskID != "all-3" {
+		t.Fatalf("unexpected diagnostic runtime task list body: %+v", body2)
 	}
 }
 
@@ -116,7 +135,8 @@ func TestMakeRuntimeTaskStatsHandlerReturnsAggregates(t *testing.T) {
 	now := time.Now()
 	seed := []store.RuntimeTaskModel{
 		{TaskID: "stats-api-1", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", Status: store.RuntimeTaskStatusPending, PayloadJSON: `{}`, AvailableAt: &now},
-		{TaskID: "stats-api-2", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", Status: store.RuntimeTaskStatusDispatched, PayloadJSON: `{}`},
+		{TaskID: "stats-api-2", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", Status: store.RuntimeTaskStatusDispatched, PayloadJSON: `{}`, DispatchedAt: ptrTime(now.Add(-5 * time.Minute)), AttemptCount: 3, MaxAttempts: 3, LastDispatchFailureClass: "upstream_5xx", LastDispatchDecision: "pending_retry"},
+		{TaskID: "stats-api-3", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Transport: "task_pull", Status: store.RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`, HeartbeatTimeoutCount: 2},
 	}
 	for i := range seed {
 		if err := store.CreateRuntimeTask(&seed[i]); err != nil {
@@ -136,8 +156,14 @@ func TestMakeRuntimeTaskStatsHandlerReturnsAggregates(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
-	if body.Stats.Total != 2 || body.Stats.ReadyPull != 1 || body.Stats.InFlight != 1 {
+	if body.Stats.Total != 3 || body.Stats.ReadyPull != 1 || body.Stats.InFlight != 1 {
 		t.Fatalf("unexpected stats body: %+v", body.Stats)
+	}
+	if body.Stats.RetryExhaustedTasks != 1 || body.Stats.DispatchedWithoutCallback != 1 || body.Stats.RepeatedHeartbeatTimeouts != 1 {
+		t.Fatalf("expected diagnostic stats to be populated, got %+v", body.Stats)
+	}
+	if body.Stats.ByDispatchFailureClass["upstream_5xx"] != 1 || body.Stats.ByDispatchDecision["pending_retry"] != 1 {
+		t.Fatalf("expected dispatch diagnostic stats, got %+v", body.Stats)
 	}
 }
 

@@ -180,6 +180,8 @@ external_interfaces:
 | 已完成 | runtime task `max_attempts` 终态阈值基础版 | 已支持 claim 次数上限，超限后 release / timeout requeue 进入 `failed` |
 | 已完成 | hybrid dispatch 失败分类与回退决策持久化基础版 | 已支持记录 dispatch failure class、decision、transition reason 与 fallback source |
 | 已完成 | task 级 heartbeat timeout 策略快照 | 已支持把接口级 auto requeue 策略固化进 task payload，由 governor 按任务创建时策略执行差异化治理 |
+| 已完成 | runtime task 管理面诊断视图基础版 | 已支持按 dispatch failure class / decision、重试耗尽、长时间 dispatched 未 callback、多次 heartbeat timeout 做筛选与统计 |
+| 已完成 | heartbeat timeout 次数持久化 | 已支持记录每个 task 的 `heartbeat_timeout_count`，用于治理与管理面排查 |
 
 ### 3.2 当前真实边界
 
@@ -192,6 +194,7 @@ external_interfaces:
 | 部分完成 | 定时调度下主动出站调用 | 已具备基础 push 派发能力与接口级正式路由，但尚未完成全部自主行动类型统一接线 |
 | 部分完成 | 普通异步 action 的 richer business resume | 已有统一 callback 后处理基础版，进一步的多阶段业务编排仍未完成 |
 | 部分完成 | 差异化治理策略 | 已支持按 interface 快照化 `heartbeat_timeout` auto requeue 策略，按 `consumer` / `category` 的更细粒度治理仍未完成 |
+| 部分完成 | 管理面增强 | 已支持核心诊断视图与统计字段，但更细粒度批量干预流与安全分级仍未完成 |
 
 当前还需要特别注意两个边界：
 
@@ -346,7 +349,7 @@ external_interfaces:
 | callback / task claim 鉴权模型 | 已完成基础版 |
 | 幂等键与防重放 | 已完成 callback 基础版 |
 | external task metrics | 已完成基础版 |
-| admin / management endpoints | 已完成基础版 |
+| admin / management endpoints | 已完成增强版，当前已支持诊断筛选与扩展统计 |
 | 故障注入与测试矩阵 | 部分完成，已补 push/pull/hybrid/max_attempts 组合测试矩阵 |
 | 开发者文档与示例 | 已完成基础版，已提供外部交互接入示例文档 |
 
@@ -383,6 +386,7 @@ external_interfaces:
 | 普通 async action callback 后处理 | 已支持基础配置化编排，并按 runtime task payload 快照执行 |
 | hybrid dispatch failure observability | 已支持 `last_dispatch_failure_class`、`last_dispatch_decision`、`fallback_from_transport`、`last_transition_reason` |
 | task-scoped heartbeat timeout governance | 已支持按 runtime task payload 快照执行 `auto_requeue`、`requeue_delay_ms`、`reason` |
+| runtime task diagnostics surface | 已支持 `retry_exhausted`、`stale_dispatched`、`repeated_timeout` 视图，以及 `heartbeat_timeout_count` / dispatch 诊断统计 |
 | scheduled 自主行动真实出站派发 | 已具备基础能力，后续需继续扩大到全部 external interface 场景 |
 | hybrid 策略与 consumer 路由 | 已支持基础配置化路由与 push 失败回落 |
 
@@ -415,7 +419,7 @@ external_interfaces:
 - 在普通 async action 已有统一 callback 后处理基础版的前提下，继续扩展 richer post-processing / multi-stage resume 编排
 - 为 hybrid 补更完整的 fallback state machine，例如重试后再降级、降级后回切与治理策略
 - 为 runtime task 管理面补更细粒度安全边界，例如 callback / claim / admin 操作分级鉴权与 token 生命周期管理
-- 为管理面补更多诊断与治理视图，例如按 dispatch failure class / decision、重试耗尽、长时间 dispatched 未 callback、重复 heartbeat timeout 做筛选与人工干预流
+- 为管理面补更多批量人工干预流，例如按诊断视图直接 requeue / fail / 标注处理意见，以及更细粒度的治理权限边界
 - 为 callback replay 保护补 TTL、签名或 nonce 策略，而不只依赖请求 ID 首占
 
 当前普通 async action 的 consumer 路由已经支持 `external_interfaces` 正式配置层：默认读取同名 `action_id` 配置，也允许通过动作参数显式覆盖；后续主要要补的是更完整的后处理与策略编排，而不是基础路由接线。

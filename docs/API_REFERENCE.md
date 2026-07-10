@@ -127,13 +127,27 @@
 - `consumer` - 可选
 - `category` - 可选，例如 `external_query`、`external_action`
 - `interface_name` - 可选
+- `delivery_mode` - 可选，例如 `push`、`pull`、`hybrid`
 - `transport` - 可选，例如 `game_http`、`task_pull`
 - `world_id` - 可选
 - `status` - 可选，逗号分隔，例如 `pending,released`
+- `dispatch_failure_class` - 可选，例如 `upstream_5xx`、`network_error`
+- `dispatch_decision` - 可选，例如 `fallback_to_pull`、`pending_retry`
+- `transition_reason` - 可选，例如 `push_dispatch_failed_then_fallback`
+- `retry_exhausted_only` - 可选，传 `true` 时只看已达到 `max_attempts` 阈值的任务
+- `min_heartbeat_timeout_count` - 可选，只返回 timeout 次数大于等于该值的任务
+- `dispatched_before_seconds` - 可选，只返回已处于 `dispatched` 且派发时间早于当前阈值秒数的任务
+- `diagnostic_view` - 可选，当前支持 `retry_exhausted`、`stale_dispatched`、`repeated_timeout`
 - `available_only` - 可选，传 `true` 时只返回已经到达可领取时间的任务
 - `limit` - 可选，默认 `20`，最大 `200`
 
 该接口用于运维排查和管理面查询，不替代 `pending` 拉取接口。
+
+当前已内置三类常用诊断视图：
+
+- `retry_exhausted`：筛出已达到领取重试上限并处于失败/timeout 诊断范围内的任务
+- `stale_dispatched`：筛出长时间停留在 `dispatched` 的任务，用于排查 push 已发出但迟迟没有 callback 的链路
+- `repeated_timeout`：筛出多次进入 `heartbeat_timeout` 的任务，用于定位反复领取后又失联的 consumer
 
 ### `GET /api/v1/runtime/tasks/{task_id}`
 
@@ -149,8 +163,13 @@
 - ready pull / in flight / terminal 数量
 - `heartbeat_timeout` 数量
 - 存在 `last_dispatch_error` 的任务数量
+- 达到 `max_attempts` 阈值的任务数量
+- 当前仍停留在 `dispatched` 的任务数量
+- 重复进入 `heartbeat_timeout` 的任务数量
 - 按 `status`、`category`、`consumer`、`delivery_mode`、`transport`、`interface_name` 聚合的计数
+- 按 `last_dispatch_failure_class`、`last_dispatch_decision`、`heartbeat_timeout_count` 聚合的计数
 - 最老 ready pull 任务的等待秒数
+- 最老 `dispatched` 任务的滞留秒数
 
 ### `POST /api/v1/runtime/tasks/claim`
 

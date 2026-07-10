@@ -204,7 +204,7 @@ engine:
 - 当前 `heartbeat_timeout_*` 策略也已接入 task payload 快照：当 governor 运行时，会按任务创建时的接口策略决定是否自动 requeue、延迟多久、原因写什么，而不是只看最新全局配置
 - 当前 `hybrid` push 失败后还会把失败分类与回退决策写入 task 字段，例如 `last_dispatch_failure_class`、`last_dispatch_decision`、`fallback_from_transport`、`last_transition_reason`，方便后续治理与排查
 - 普通 async action 当前已经支持统一 callback 后处理基础版；Engine 会把 `callback_post_process` 策略快照写入 runtime task payload，再由 callback handler 按持久化快照执行后处理，避免配置漂移或上下文压缩导致行为变化
-- 当前已经提供基础 runtime task 管理面，包括聚合统计、条件查询、单任务详情和 `heartbeat_timeout` sweep 入口，方便运维排查与后续自动治理接线
+- 当前已经提供增强版 runtime task 管理面，包括聚合统计、条件查询、单任务详情和 `heartbeat_timeout` sweep 入口；管理查询现已支持按 dispatch failure class / decision、重试耗尽、长时间 dispatched 未 callback、多次 heartbeat timeout 做筛选与诊断
 
 `rpc_adapter` 当前最小实现约束：
 

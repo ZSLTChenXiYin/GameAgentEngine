@@ -26,8 +26,50 @@ func parseRuntimeTaskStatuses(raw string) []string {
 	return result
 }
 
+func parseBoolQueryFlag(raw string) bool {
+	raw = strings.TrimSpace(strings.ToLower(raw))
+	return raw == "1" || raw == "true" || raw == "yes"
+}
+
+func parsePositiveIntQuery(raw string) (int, bool, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, false, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 0, false, errors.New("must be a positive integer")
+	}
+	return value, true, nil
+}
+
+func applyRuntimeTaskDiagnosticView(query *store.RuntimeTaskListQuery, view string, now time.Time) error {
+	if query == nil {
+		return nil
+	}
+	switch strings.TrimSpace(view) {
+	case "", "all":
+		return nil
+	case "retry_exhausted":
+		query.RetryExhaustedOnly = true
+		query.Statuses = []string{store.RuntimeTaskStatusFailed, store.RuntimeTaskStatusHeartbeatTimeout}
+		return nil
+	case "stale_dispatched":
+		cutoff := now.Add(-5 * time.Minute)
+		query.DispatchedBefore = &cutoff
+		query.Statuses = []string{store.RuntimeTaskStatusDispatched}
+		return nil
+	case "repeated_timeout":
+		query.RepeatedHeartbeatTimeouts = 2
+		return nil
+	default:
+		return errors.New("unknown diagnostic view")
+	}
+}
+
 func MakeListRuntimeTasksHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		now := time.Now()
 		limit := 20
 		if raw := r.URL.Query().Get("limit"); raw != "" {
 			parsed, err := strconv.Atoi(raw)
@@ -38,16 +80,38 @@ func MakeListRuntimeTasksHandler() http.HandlerFunc {
 			limit = parsed
 		}
 		query := store.RuntimeTaskListQuery{
-			Consumer:      strings.TrimSpace(r.URL.Query().Get("consumer")),
-			Category:      strings.TrimSpace(r.URL.Query().Get("category")),
-			InterfaceName: strings.TrimSpace(r.URL.Query().Get("interface_name")),
-			Transport:     strings.TrimSpace(r.URL.Query().Get("transport")),
-			WorldUUID:     strings.TrimSpace(r.URL.Query().Get("world_id")),
-			Statuses:      parseRuntimeTaskStatuses(r.URL.Query().Get("status")),
-			Limit:         limit,
+			Consumer:             strings.TrimSpace(r.URL.Query().Get("consumer")),
+			Category:             strings.TrimSpace(r.URL.Query().Get("category")),
+			InterfaceName:        strings.TrimSpace(r.URL.Query().Get("interface_name")),
+			DeliveryMode:         strings.TrimSpace(r.URL.Query().Get("delivery_mode")),
+			Transport:            strings.TrimSpace(r.URL.Query().Get("transport")),
+			WorldUUID:            strings.TrimSpace(r.URL.Query().Get("world_id")),
+			Statuses:             parseRuntimeTaskStatuses(r.URL.Query().Get("status")),
+			DispatchFailureClass: strings.TrimSpace(r.URL.Query().Get("dispatch_failure_class")),
+			DispatchDecision:     strings.TrimSpace(r.URL.Query().Get("dispatch_decision")),
+			TransitionReason:     strings.TrimSpace(r.URL.Query().Get("transition_reason")),
+			RetryExhaustedOnly:   parseBoolQueryFlag(r.URL.Query().Get("retry_exhausted_only")),
+			Limit:                limit,
+		}
+		if count, ok, err := parsePositiveIntQuery(r.URL.Query().Get("min_heartbeat_timeout_count")); err != nil {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_min_heartbeat_timeout_count", err.Error())
+			return
+		} else if ok {
+			query.RepeatedHeartbeatTimeouts = count
+		}
+		if secs, ok, err := parsePositiveIntQuery(r.URL.Query().Get("dispatched_before_seconds")); err != nil {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_dispatched_before_seconds", err.Error())
+			return
+		} else if ok {
+			cutoff := now.Add(-time.Duration(secs) * time.Second)
+			query.DispatchedBefore = &cutoff
+		}
+		view := strings.TrimSpace(r.URL.Query().Get("diagnostic_view"))
+		if err := applyRuntimeTaskDiagnosticView(&query, view, now); err != nil {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_diagnostic_view", err.Error())
+			return
 		}
 		if raw := strings.TrimSpace(r.URL.Query().Get("available_only")); raw != "" && raw != "false" && raw != "0" {
-			now := time.Now()
 			query.AvailableBefore = &now
 		}
 		items, err := store.ListRuntimeTasks(query)
@@ -56,9 +120,10 @@ func MakeListRuntimeTasksHandler() http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"tasks": items,
-			"count": len(items),
-			"query": query,
+			"tasks":           items,
+			"count":           len(items),
+			"query":           query,
+			"diagnostic_view": view,
 		})
 	}
 }
