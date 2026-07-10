@@ -117,6 +117,9 @@ external_interfaces:
 | 已完成 | 普通异步 action 回调处理 | 普通异步动作会更新 callback 记录并触发 `OnResult(...)` |
 | 已完成 | 恢复链路测试 | 覆盖 engine 层与 API 层自动恢复测试 |
 | 已完成 | callback / pipeline 文档 | 现有 API、SDK、Pipeline 文档已覆盖恢复行为 |
+| 已完成 | runtime task 持久化模型 | 已引入统一 `runtime_tasks` 队列模型 |
+| 已完成 | pull 基础 API | 已提供 `pending / claim / heartbeat / release` 四个接口 |
+| 已完成 | pull 基础测试 | 覆盖 store 层与 API 层的核心领取链路 |
 
 ### 3.2 当前真实边界
 
@@ -124,7 +127,7 @@ external_interfaces:
 |---|---|---|
 | 部分完成 | callback 作为入站完成机制 | 已实现 |
 | 未完成 | `push` 出站投递到游戏端 | 还没有内建 `http_adapter` / `websocket_adapter` / `rpc_adapter` |
-| 未完成 | `pull` 任务拉取接口 | 还没有统一 runtime task queue API |
+| 部分完成 | `pull` 任务拉取接口 | 已有统一 runtime task queue API，但尚未接入真实任务生产与完成态闭环 |
 | 未完成 | `hybrid` 自动降级 | 还没有策略编排 |
 | 未完成 | 定时调度下主动出站调用 | 当前只完成暂停/恢复基础链路，未完成实际出站派发 |
 | 未完成 | 普通异步 action 的 richer business resume | 目前主要是 `OnResult(...)`，还没有统一的后续编排策略 |
@@ -219,13 +222,15 @@ external_interfaces:
 
 | 子项 | 状态 |
 |---|---|
-| runtime task 数据模型 | 进行中 |
-| 任务持久化 store 能力 | 进行中 |
-| `GET /api/v1/runtime/tasks/pending` | 未开始 |
-| `POST /api/v1/runtime/tasks/claim` | 未开始 |
-| `POST /api/v1/runtime/tasks/heartbeat` | 未开始 |
-| `POST /api/v1/runtime/tasks/release` | 未开始 |
-| pull 基础测试 | 未开始 |
+| runtime task 数据模型 | 已完成 |
+| 任务持久化 store 能力 | 已完成 |
+| `GET /api/v1/runtime/tasks/pending` | 已完成 |
+| `POST /api/v1/runtime/tasks/claim` | 已完成 |
+| `POST /api/v1/runtime/tasks/heartbeat` | 已完成 |
+| `POST /api/v1/runtime/tasks/release` | 已完成 |
+| pull 基础测试 | 已完成 |
+| runtime task 与真实外部任务生产对接 | 未开始 |
+| task 成功/失败完成态闭环 | 未开始 |
 
 ### 阶段 P2：内建 push adapter
 
@@ -300,7 +305,7 @@ external_interfaces:
 | `game_client` 数据请求暂停 | 已支持 |
 | callback 入站结果回填 | 已支持 |
 | paused execution 自动恢复 | 已支持 |
-| runtime task queue | 尚未支持 |
+| runtime task queue | 已支持基础队列与拉取接口 |
 | built-in push adapter | 尚未支持 |
 | scheduled 自主行动真实出站派发 | 尚未支持 |
 | hybrid 策略与 consumer 路由 | 尚未支持 |
@@ -324,6 +329,8 @@ external_interfaces:
 5. 若该调用属于 paused execution，则 Engine 自动恢复。
 
 所以，定时调度并不会阻止 callback；它只会改变“任务如何离开 Engine”的上游投递方式。
+
+当前这一阶段已经具备第 2、3 步所需的基础队列与领取协议；后续还需要把真实的自主行为/外部接口任务生产接到 runtime task queue 上，并补齐成功、失败、取消等完整状态迁移。
 
 ---
 

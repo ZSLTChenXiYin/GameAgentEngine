@@ -66,6 +66,76 @@
 - 对普通异步动作：更新 callback 记录，并将结果交给对应 action 的 `OnResult(...)`。
 - 对由 `request_data.target = "game_client"` 触发的暂停执行：Engine 会自动恢复原始多轮推理，并在响应中返回 `resumed` 字段，携带恢复后的最终推理结果。
 
+### `GET /api/v1/runtime/tasks/pending`
+
+列出当前可被 `pull` consumer 领取的 runtime task。
+
+查询参数：
+
+- `consumer` - 可选，例如 `bridge`、`game_client`
+- `limit` - 可选，默认 `20`，最大 `200`
+
+当前返回的任务来自统一 `runtime_tasks` 队列，只包含状态为 `pending` 或 `released` 且已经到达可领取时间的任务。
+
+### `POST /api/v1/runtime/tasks/claim`
+
+领取一个 runtime task。
+
+典型请求体：
+
+```json
+{
+  "task_id": "task-id",
+  "consumer": "game_client",
+  "lease_owner": "client-1"
+}
+```
+
+当前行为：
+
+- 只有 `pending` / `released` 且已到达可领取时间的任务可以被 claim。
+- claim 成功后，任务状态会变成 `claimed`，并生成 `lease_token`。
+- 如果任务已被其他 consumer 领取，会返回 `409`，错误码 `runtime_task_not_claimable`。
+
+### `POST /api/v1/runtime/tasks/heartbeat`
+
+为已 claim 的 runtime task 上报心跳。
+
+典型请求体：
+
+```json
+{
+  "task_id": "task-id",
+  "lease_token": "lease-token"
+}
+```
+
+当前行为：
+
+- 只有 `claimed` 且 `lease_token` 匹配的任务可以更新心跳。
+- lease 不匹配时返回 `409`，错误码 `runtime_task_lease_mismatch`。
+
+### `POST /api/v1/runtime/tasks/release`
+
+释放一个已 claim 的 runtime task，并可选地延迟重新入队。
+
+典型请求体：
+
+```json
+{
+  "task_id": "task-id",
+  "lease_token": "lease-token",
+  "retry_delay_ms": 2500,
+  "error_message": "temporary failure"
+}
+```
+
+当前行为：
+
+- release 成功后，任务状态会变成 `released`。
+- `retry_delay_ms` 可控制任务何时再次出现在 pending 列表里。
+- lease 不匹配时返回 `409`，错误码 `runtime_task_lease_mismatch`。
+
 ### `GET /api/v1/plans/pending`
 
 列出处于人工审核等待中的计划。
