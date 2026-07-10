@@ -74,11 +74,26 @@ var serveCmd = &cobra.Command{
 		pipeline := engine.NewPipeline(provider)
 		schedulerCtx, stopScheduler := context.WithCancel(context.Background())
 		defer stopScheduler()
+		governorCtx, stopGovernor := context.WithCancel(context.Background())
+		defer stopGovernor()
 		if config.Global.Engine.AutonomousSchedulerEnabled {
 			interval := time.Duration(config.Global.Engine.AutonomousSchedulerIntervalSeconds) * time.Second
 			limit := config.Global.Engine.AutonomousSchedulerMaxNodesPerWorld
 			log.Printf("autonomous scheduler enabled: interval=%s limit=%d", interval, limit)
 			go agent.NewScheduler(pipeline, interval, limit).Start(schedulerCtx)
+		}
+		governanceInterval := time.Duration(config.Global.Engine.RuntimeTaskGovernanceIntervalSeconds) * time.Second
+		heartbeatTimeout := time.Duration(config.Global.Engine.RuntimeTaskHeartbeatTimeoutSeconds) * time.Second
+		if governanceInterval > 0 && heartbeatTimeout > 0 {
+			governor := service.NewRuntimeTaskGovernor(governanceInterval, service.RuntimeTaskGovernanceOptions{
+				HeartbeatTimeout:  heartbeatTimeout,
+				AutoRequeue:       config.Global.Engine.RuntimeTaskAutoRequeueEnabled,
+				AutoRequeueLimit:  config.Global.Engine.RuntimeTaskAutoRequeueLimit,
+				AutoRequeueDelay:  time.Duration(config.Global.Engine.RuntimeTaskAutoRequeueDelayMs) * time.Millisecond,
+				AutoRequeueReason: "auto requeue after heartbeat timeout",
+			})
+			log.Printf("runtime task governor enabled: interval=%s heartbeat_timeout=%s auto_requeue=%t", governanceInterval, heartbeatTimeout, config.Global.Engine.RuntimeTaskAutoRequeueEnabled)
+			go governor.Start(governorCtx)
 		}
 		mux := api.NewRouter(pipeline)
 
@@ -97,6 +112,7 @@ var serveCmd = &cobra.Command{
 			<-stop
 			log.Print("shutting down...")
 			stopScheduler()
+			stopGovernor()
 			srv.Close()
 		}()
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

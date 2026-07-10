@@ -68,6 +68,16 @@ engine:
   autonomous_scheduler_interval_seconds: 300
   # 每次扫描每个世界最多触发的 scheduled 自主节点数
   autonomous_scheduler_max_nodes_per_world: 10
+  # runtime task 自动治理循环间隔秒数
+  runtime_task_governance_interval_seconds: 30
+  # 判定 claimed/running task 心跳超时的秒数
+  runtime_task_heartbeat_timeout_seconds: 300
+  # 是否在标记 heartbeat_timeout 后自动批量 requeue
+  runtime_task_auto_requeue_enabled: false
+  # 每轮自动 requeue 的最大任务数
+  runtime_task_auto_requeue_limit: 100
+  # 自动 requeue 后任务重新可领取前的延迟毫秒数
+  runtime_task_auto_requeue_delay_ms: 1000
 
 external_integrations:
   # 可选：Engine 内建 push 适配时使用的外部接入点

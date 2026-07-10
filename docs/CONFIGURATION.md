@@ -68,6 +68,11 @@ engine:
   autonomous_scheduler_enabled: false
   autonomous_scheduler_interval_seconds: 300
   autonomous_scheduler_max_nodes_per_world: 10
+  runtime_task_governance_interval_seconds: 30
+  runtime_task_heartbeat_timeout_seconds: 300
+  runtime_task_auto_requeue_enabled: false
+  runtime_task_auto_requeue_limit: 100
+  runtime_task_auto_requeue_delay_ms: 1000
 
 external_integrations:
   game_http:
@@ -220,6 +225,26 @@ engine:
 ### `engine.autonomous_scheduler_enabled`
 
 控制服务级后台自主行为调度器。当前推荐默认值是 `false`。
+
+### `engine.runtime_task_governance_interval_seconds`
+
+控制后台 runtime task governor 的扫描间隔。大于 `0` 时，Engine 会周期性处理 heartbeat timeout 治理逻辑。
+
+### `engine.runtime_task_heartbeat_timeout_seconds`
+
+控制将 `claimed` / `running` task 判定为 `heartbeat_timeout` 的阈值秒数。
+
+### `engine.runtime_task_auto_requeue_enabled`
+
+控制 governor 在标记 `heartbeat_timeout` 后，是否继续自动批量 requeue 这些任务。
+
+### `engine.runtime_task_auto_requeue_limit`
+
+控制每轮自动 requeue 的最大任务数，避免一次性回收过多任务。
+
+### `engine.runtime_task_auto_requeue_delay_ms`
+
+控制自动 requeue 后，任务重新出现在 pending 列表前的延迟。
 
 ---
 

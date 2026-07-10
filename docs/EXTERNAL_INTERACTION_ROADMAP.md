@@ -143,6 +143,7 @@ external_interfaces:
 | 已完成 | callback / task claim 鉴权模型基础版 | 已支持 callback token 与 runtime task token 两类专用入口鉴权 |
 | 已完成 | callback 防重放基础版 | 已支持基于 `X-Callback-Request-Id` 的请求级 replay 保护 |
 | 已完成 | `heartbeat_timeout` 批量 requeue 管理入口 | 已支持按条件批量把 timeout task 重新放回队列 |
+| 已完成 | `heartbeat_timeout` 自动治理基础版 | 已支持后台 governor 周期性标记 timeout，并可按配置自动批量 requeue |
 
 ### 3.2 当前真实边界
 
@@ -264,7 +265,7 @@ external_interfaces:
 | 普通 async action 接入 runtime task queue | 已完成 |
 | 更细粒度 task 状态迁移（如 running / heartbeat_timeout） | 已完成基础能力 |
 | heartbeat_timeout 后续回收/重派策略 | 已完成基础能力 |
-| heartbeat_timeout 自动化治理策略 | 已完成批量治理入口，自动策略未开始 |
+| heartbeat_timeout 自动化治理策略 | 已完成基础自动治理，细粒度策略未开始 |
 
 ### 阶段 P2：内建 push adapter
 
@@ -368,7 +369,7 @@ external_interfaces:
 
 后续还需要继续补的内容是：
 
-- 为 `heartbeat_timeout` 补自动化治理策略，例如自动重派阈值、死信策略或人工介入规则
+- 为 `heartbeat_timeout` 补更细粒度自动化治理策略，例如死信阈值、按 consumer/category 分流和人工介入规则
 - 在 scheduled 自主行为里把更多外部交互统一走 `external_interfaces` 配置层，而不是只覆盖当前已接线入口
 - 为普通 async action 补 richer post-processing / resume 编排，让 callback 结果不只停留在 `OnResult(...)`
 - 为 hybrid 补更完整的 fallback state machine，例如重试后再降级、降级后回切与治理策略

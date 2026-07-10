@@ -60,11 +60,16 @@ type LLMConfig struct {
 
 // EngineConfig 定义推理引擎运行参数。
 type EngineConfig struct {
-	ExecutionMode                       string `mapstructure:"execution_mode"`
-	WorldLockEnabled                    bool   `mapstructure:"world_lock_enabled"`
-	AutonomousSchedulerEnabled          bool   `mapstructure:"autonomous_scheduler_enabled"`
-	AutonomousSchedulerIntervalSeconds  int    `mapstructure:"autonomous_scheduler_interval_seconds"`
-	AutonomousSchedulerMaxNodesPerWorld int    `mapstructure:"autonomous_scheduler_max_nodes_per_world"`
+	ExecutionMode                        string `mapstructure:"execution_mode"`
+	WorldLockEnabled                     bool   `mapstructure:"world_lock_enabled"`
+	AutonomousSchedulerEnabled           bool   `mapstructure:"autonomous_scheduler_enabled"`
+	AutonomousSchedulerIntervalSeconds   int    `mapstructure:"autonomous_scheduler_interval_seconds"`
+	AutonomousSchedulerMaxNodesPerWorld  int    `mapstructure:"autonomous_scheduler_max_nodes_per_world"`
+	RuntimeTaskGovernanceIntervalSeconds int    `mapstructure:"runtime_task_governance_interval_seconds"`
+	RuntimeTaskHeartbeatTimeoutSeconds   int    `mapstructure:"runtime_task_heartbeat_timeout_seconds"`
+	RuntimeTaskAutoRequeueEnabled        bool   `mapstructure:"runtime_task_auto_requeue_enabled"`
+	RuntimeTaskAutoRequeueLimit          int    `mapstructure:"runtime_task_auto_requeue_limit"`
+	RuntimeTaskAutoRequeueDelayMs        int    `mapstructure:"runtime_task_auto_requeue_delay_ms"`
 }
 
 // ExternalIntegrationConfig 定义一个可被 Engine 主动调用的外部接入点。
@@ -138,6 +143,11 @@ func Init(configPath string) error {
 	v.SetDefault("engine.autonomous_scheduler_enabled", false)
 	v.SetDefault("engine.autonomous_scheduler_interval_seconds", 300)
 	v.SetDefault("engine.autonomous_scheduler_max_nodes_per_world", 10)
+	v.SetDefault("engine.runtime_task_governance_interval_seconds", 30)
+	v.SetDefault("engine.runtime_task_heartbeat_timeout_seconds", 300)
+	v.SetDefault("engine.runtime_task_auto_requeue_enabled", false)
+	v.SetDefault("engine.runtime_task_auto_requeue_limit", 100)
+	v.SetDefault("engine.runtime_task_auto_requeue_delay_ms", 1000)
 	v.AutomaticEnv()
 
 	if err := v.ReadInConfig(); err != nil {
