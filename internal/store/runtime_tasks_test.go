@@ -358,4 +358,47 @@ func TestRequeueHeartbeatTimeoutTaskMovesTaskBackToReleased(t *testing.T) {
 	}
 }
 
+func TestRequeueHeartbeatTimeoutTasksBatchFiltersAndReleasesTasks(t *testing.T) {
+	initRuntimeTaskTestDB(t)
+	now := time.Now()
+	rows := []RuntimeTaskModel{
+		{TaskID: "batch-timeout-1", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Transport: "task_pull", Status: RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`, HeartbeatTimeoutAt: &now},
+		{TaskID: "batch-timeout-2", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Transport: "task_pull", Status: RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`, HeartbeatTimeoutAt: &now},
+		{TaskID: "batch-timeout-3", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", Status: RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`, HeartbeatTimeoutAt: &now},
+	}
+	for i := range rows {
+		if err := CreateRuntimeTask(&rows[i]); err != nil {
+			t.Fatalf("create task %d: %v", i, err)
+		}
+	}
+	affected, err := RequeueHeartbeatTimeoutTasksBatch("bridge", "external_action", "task_pull", time.Second, "batch requeue", 1)
+	if err != nil {
+		t.Fatalf("batch requeue: %v", err)
+	}
+	if affected != 1 {
+		t.Fatalf("expected 1 affected task, got %d", affected)
+	}
+	first, err := GetRuntimeTask("batch-timeout-1")
+	if err != nil {
+		t.Fatalf("get first task: %v", err)
+	}
+	second, err := GetRuntimeTask("batch-timeout-2")
+	if err != nil {
+		t.Fatalf("get second task: %v", err)
+	}
+	third, err := GetRuntimeTask("batch-timeout-3")
+	if err != nil {
+		t.Fatalf("get third task: %v", err)
+	}
+	if first.Status != RuntimeTaskStatusReleased {
+		t.Fatalf("expected first task released, got %+v", first)
+	}
+	if second.Status != RuntimeTaskStatusHeartbeatTimeout {
+		t.Fatalf("expected second task untouched due to limit, got %+v", second)
+	}
+	if third.Status != RuntimeTaskStatusHeartbeatTimeout {
+		t.Fatalf("expected third task untouched by filter, got %+v", third)
+	}
+}
+
 func ptrTime(v time.Time) *time.Time { return &v }

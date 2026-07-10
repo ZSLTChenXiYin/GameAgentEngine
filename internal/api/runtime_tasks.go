@@ -120,6 +120,45 @@ func MakeSweepRuntimeTaskHeartbeatTimeoutHandler() http.HandlerFunc {
 	}
 }
 
+func MakeBatchRequeueHeartbeatTimeoutRuntimeTasksHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Consumer     string `json:"consumer,omitempty"`
+			Category     string `json:"category,omitempty"`
+			Transport    string `json:"transport,omitempty"`
+			RetryDelayMs int    `json:"retry_delay_ms,omitempty"`
+			Limit        int    `json:"limit,omitempty"`
+			ErrorMessage string `json:"error_message,omitempty"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			errorJSON(w, http.StatusBadRequest, "invalid json: "+err.Error())
+			return
+		}
+		if req.RetryDelayMs < 0 {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_retry_delay_ms", "retry_delay_ms must be >= 0")
+			return
+		}
+		if req.Limit < 0 || req.Limit > 500 {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_limit", "limit must be between 0 and 500")
+			return
+		}
+		affected, err := store.RequeueHeartbeatTimeoutTasksBatch(req.Consumer, req.Category, req.Transport, time.Duration(req.RetryDelayMs)*time.Millisecond, req.ErrorMessage, req.Limit)
+		if err != nil {
+			errorJSON(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":         "ok",
+			"affected":       affected,
+			"consumer":       req.Consumer,
+			"category":       req.Category,
+			"transport":      req.Transport,
+			"retry_delay_ms": req.RetryDelayMs,
+			"limit":          req.Limit,
+		})
+	}
+}
+
 func MakeListPendingRuntimeTasksHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		limit := 20

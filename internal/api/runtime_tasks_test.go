@@ -173,6 +173,51 @@ func TestMakeSweepRuntimeTaskHeartbeatTimeoutHandlerMarksStaleTasks(t *testing.T
 	}
 }
 
+func TestMakeBatchRequeueHeartbeatTimeoutRuntimeTasksHandlerRequeuesFilteredTasks(t *testing.T) {
+	initRuntimeTaskAPITestDB(t)
+	now := time.Now()
+	seed := []store.RuntimeTaskModel{
+		{TaskID: "batch-api-1", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Transport: "task_pull", Status: store.RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`, HeartbeatTimeoutAt: &now},
+		{TaskID: "batch-api-2", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Transport: "task_pull", Status: store.RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`, HeartbeatTimeoutAt: &now},
+		{TaskID: "batch-api-3", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", Status: store.RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`, HeartbeatTimeoutAt: &now},
+	}
+	for i := range seed {
+		if err := store.CreateRuntimeTask(&seed[i]); err != nil {
+			t.Fatalf("seed task %d: %v", i, err)
+		}
+	}
+	h := MakeBatchRequeueHeartbeatTimeoutRuntimeTasksHandler()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runtime/tasks/heartbeat-timeout/requeue", strings.NewReader(`{"consumer":"bridge","category":"external_action","transport":"task_pull","retry_delay_ms":500,"limit":1,"error_message":"auto requeue"}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Affected int64 `json:"affected"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if body.Affected != 1 {
+		t.Fatalf("expected affected 1, got %+v", body)
+	}
+	first, err := store.GetRuntimeTask("batch-api-1")
+	if err != nil {
+		t.Fatalf("get first task: %v", err)
+	}
+	second, err := store.GetRuntimeTask("batch-api-2")
+	if err != nil {
+		t.Fatalf("get second task: %v", err)
+	}
+	if first.Status != store.RuntimeTaskStatusReleased {
+		t.Fatalf("expected first task released, got %+v", first)
+	}
+	if second.Status != store.RuntimeTaskStatusHeartbeatTimeout {
+		t.Fatalf("expected second task unchanged due to limit, got %+v", second)
+	}
+}
+
 func TestMakeClaimRuntimeTaskHandlerClaimsAndRejectsDoubleClaim(t *testing.T) {
 	initRuntimeTaskAPITestDB(t)
 	row := &store.RuntimeTaskModel{TaskID: "claim-api", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Status: store.RuntimeTaskStatusPending, PayloadJSON: `{"npc":"merchant"}`}

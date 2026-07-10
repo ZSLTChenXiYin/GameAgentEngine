@@ -257,6 +257,30 @@
 - 成功后返回本次 sweep 影响的任务数量
 - 这是最小管理入口，后续还会继续补自动治理与批量 requeue 策略
 
+### `POST /api/v1/runtime/tasks/heartbeat-timeout/requeue`
+
+按筛选条件批量将 `heartbeat_timeout` 任务重新放回队列。
+
+典型请求体：
+
+```json
+{
+  "consumer": "bridge",
+  "category": "external_action",
+  "transport": "task_pull",
+  "retry_delay_ms": 500,
+  "limit": 100,
+  "error_message": "auto requeue"
+}
+```
+
+当前行为：
+
+- 可按 `consumer`、`category`、`transport` 过滤批量目标
+- `limit` 最大 `500`，默认按最早创建的 timeout task 优先处理
+- requeue 后任务会回到 `released`，并清理 timeout/lease 状态
+- 这是 `heartbeat_timeout` 自动治理前的批量运维入口，后续还会继续补策略化自动回收能力
+
 ### `GET /api/v1/plans/pending`
 
 列出处于人工审核等待中的计划。

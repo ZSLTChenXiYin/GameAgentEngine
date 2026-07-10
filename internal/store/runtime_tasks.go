@@ -511,6 +511,71 @@ func RequeueHeartbeatTimeoutTask(taskID string, retryDelay time.Duration, errMsg
 	return GetRuntimeTask(taskID)
 }
 
+func RequeueHeartbeatTimeoutTasksBatch(consumer string, category string, transport string, retryDelay time.Duration, errMsg string, limit int) (int64, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	query := DB.Model(&RuntimeTaskModel{}).
+		Select("task_id").
+		Where("status = ?", RuntimeTaskStatusHeartbeatTimeout).
+		Order("created_at ASC").
+		Limit(limit)
+	if strings.TrimSpace(consumer) != "" {
+		query = query.Where("consumer = ?", strings.TrimSpace(consumer))
+	}
+	if strings.TrimSpace(category) != "" {
+		query = query.Where("category = ?", strings.TrimSpace(category))
+	}
+	if strings.TrimSpace(transport) != "" {
+		query = query.Where("transport = ?", strings.TrimSpace(transport))
+	}
+	type taskRef struct {
+		TaskID string `gorm:"column:task_id"`
+	}
+	var refs []taskRef
+	if err := query.Scan(&refs).Error; err != nil {
+		return 0, err
+	}
+	if len(refs) == 0 {
+		return 0, nil
+	}
+	ids := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		if strings.TrimSpace(ref.TaskID) != "" {
+			ids = append(ids, ref.TaskID)
+		}
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	availableAt := time.Now().Add(retryDelay)
+	var affected int64
+	err := Write(func(db *gorm.DB) error {
+		result := db.Model(&RuntimeTaskModel{}).
+			Where("task_id IN ? AND status = ?", ids, RuntimeTaskStatusHeartbeatTimeout).
+			Updates(map[string]any{
+				"status":               RuntimeTaskStatusReleased,
+				"available_at":         &availableAt,
+				"lease_owner":          "",
+				"lease_token":          "",
+				"heartbeat_timeout_at": nil,
+				"error_message":        errMsg,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		affected = result.RowsAffected
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return affected, nil
+}
+
 func CompleteRuntimeTaskByCallbackID(callbackID string, status string, result any) error {
 	if callbackID == "" {
 		return nil

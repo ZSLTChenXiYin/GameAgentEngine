@@ -23,6 +23,7 @@ func NewRouter(p *engine.Pipeline) *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/runtime/tasks/start", MakeStartRuntimeTaskHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/heartbeat", MakeHeartbeatRuntimeTaskHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/heartbeat-timeout/sweep", MakeSweepRuntimeTaskHeartbeatTimeoutHandler())
+	mux.HandleFunc("POST /api/v1/runtime/tasks/heartbeat-timeout/requeue", MakeBatchRequeueHeartbeatTimeoutRuntimeTasksHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/release", MakeReleaseRuntimeTaskHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/requeue", MakeRequeueRuntimeTaskHandler())
 

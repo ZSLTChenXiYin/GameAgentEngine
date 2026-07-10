@@ -142,6 +142,7 @@ external_interfaces:
 | 已完成 | admin / management endpoints 基础版 | 已支持 runtime task 列表、详情与 `heartbeat_timeout` sweep 管理入口 |
 | 已完成 | callback / task claim 鉴权模型基础版 | 已支持 callback token 与 runtime task token 两类专用入口鉴权 |
 | 已完成 | callback 防重放基础版 | 已支持基于 `X-Callback-Request-Id` 的请求级 replay 保护 |
+| 已完成 | `heartbeat_timeout` 批量 requeue 管理入口 | 已支持按条件批量把 timeout task 重新放回队列 |
 
 ### 3.2 当前真实边界
 
@@ -263,7 +264,7 @@ external_interfaces:
 | 普通 async action 接入 runtime task queue | 已完成 |
 | 更细粒度 task 状态迁移（如 running / heartbeat_timeout） | 已完成基础能力 |
 | heartbeat_timeout 后续回收/重派策略 | 已完成基础能力 |
-| heartbeat_timeout 自动化治理策略 | 未开始 |
+| heartbeat_timeout 自动化治理策略 | 已完成批量治理入口，自动策略未开始 |
 
 ### 阶段 P2：内建 push adapter
 
