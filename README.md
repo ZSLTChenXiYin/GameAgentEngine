@@ -92,6 +92,7 @@ go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key inspec
 - [架构说明](./docs/ARCHITECTURE.md)
 - [核心概念](./docs/CORE_CONCEPTS.md)
 - [API 参考](./docs/API_REFERENCE.md)
+- [外部交互路线图](./docs/EXTERNAL_INTERACTION_ROADMAP.md)
 - [GameAgentDevCli 指南](./docs/GUIDE_GAMEAGENTDEVCLI.md)
 - [GameAgentCreator 指南](./docs/GUIDE_GAMEAGENTCREATOR.md)
 - [SDK 参考](./docs/SDK_REFERENCE.md)
