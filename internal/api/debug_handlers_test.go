@@ -293,6 +293,125 @@ func TestMakeActionCallbackHandlerRunsConfiguredAsyncActionPostProcessFromPayloa
 	}
 }
 
+func TestMakeActionCallbackHandlerUsesResumePolicySnapshotAfterConfigDrift(t *testing.T) {
+	if err := store.Init("sqlite", "file:callback_resume_policy_snapshot?mode=memory&cache=shared"); err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	world := &store.NodeModel{UUID: store.NewUUID(), Name: "World", NodeType: "world"}
+	if err := store.CreateNode(world); err != nil {
+		t.Fatalf("create world: %v", err)
+	}
+	if err := store.DB.Model(world).Update("world_id", world.ID).Error; err != nil {
+		t.Fatalf("set world id: %v", err)
+	}
+	node := &store.NodeModel{UUID: store.NewUUID(), Name: "NPC", NodeType: "npc", WorldID: world.ID}
+	if err := store.CreateNode(node); err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	previousInterfaces := config.Global.ExternalInterfaces
+	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
+		"game_client_request_data": {Category: "external_query", DeliveryMode: "pull", Consumer: "game_client", ResumePolicy: "resume_paused_execution"},
+	}
+	defer func() { config.Global.ExternalInterfaces = previousInterfaces }()
+	provider := &callbackSequenceProvider{responses: []string{
+		`{"reply":"wait","request_data":{"label":"fetch-client","target":"game_client","queries":[{"type":"node_detail","node_id":"` + node.UUID + `"}]}}`,
+		`{"reply":"resumed-from-snapshot","action_calls":[],"memory_updates":[]}`,
+	}}
+	pipeline := engine.NewPipeline(provider)
+	first, err := pipeline.Execute(&engine.InvokeRequest{WorldID: world.UUID, NodeID: node.UUID, TaskType: engine.TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	callbackID := first.ActionCalls[0].CallbackID
+	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
+		"game_client_request_data": {Category: "external_query", DeliveryMode: "pull", Consumer: "game_client", ResumePolicy: "none"},
+	}
+	h := MakeActionCallbackHandler(pipeline)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/actions/callback", strings.NewReader(`{"callback_id":"`+callbackID+`","status":"success","result":{"scene":"tavern"}}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	resumed, ok := body["resumed"].(map[string]any)
+	if !ok || resumed["reply"] != "resumed-from-snapshot" {
+		t.Fatalf("expected resumed payload from snapshot, got %+v", body)
+	}
+	if provider.calls != 2 {
+		t.Fatalf("expected resumed LLM call to still happen, got %d", provider.calls)
+	}
+	paused, err := store.GetPausedExecutionByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get paused execution: %v", err)
+	}
+	if paused.Status != "completed" {
+		t.Fatalf("expected paused execution completed, got %q", paused.Status)
+	}
+}
+
+func TestMakeActionCallbackHandlerReplayDoesNotDuplicateResume(t *testing.T) {
+	if err := store.Init("sqlite", "file:callback_replay_resume_api?mode=memory&cache=shared"); err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	previousAuth := config.Global.Auth
+	config.Global.Auth = config.AuthConfig{}
+	defer func() { config.Global.Auth = previousAuth }()
+	world := &store.NodeModel{UUID: store.NewUUID(), Name: "World", NodeType: "world"}
+	if err := store.CreateNode(world); err != nil {
+		t.Fatalf("create world: %v", err)
+	}
+	if err := store.DB.Model(world).Update("world_id", world.ID).Error; err != nil {
+		t.Fatalf("set world id: %v", err)
+	}
+	node := &store.NodeModel{UUID: store.NewUUID(), Name: "NPC", NodeType: "npc", WorldID: world.ID}
+	if err := store.CreateNode(node); err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	provider := &callbackSequenceProvider{responses: []string{
+		`{"reply":"wait","request_data":{"label":"fetch-client","target":"game_client","queries":[{"type":"node_detail","node_id":"` + node.UUID + `"}]}}`,
+		`{"reply":"resumed-once","action_calls":[],"memory_updates":[]}`,
+	}}
+	pipeline := engine.NewPipeline(provider)
+	first, err := pipeline.Execute(&engine.InvokeRequest{WorldID: world.UUID, NodeID: node.UUID, TaskType: engine.TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	callbackID := first.ActionCalls[0].CallbackID
+	h := CallbackReplayMiddleware(MakeActionCallbackHandler(pipeline))
+	body := `{"callback_id":"` + callbackID + `","status":"success","result":{"scene":"tavern"}}`
+	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/actions/callback", strings.NewReader(body))
+	req1.Header.Set("X-Callback-Request-Id", "resume-rid-1")
+	w1 := httptest.NewRecorder()
+	h(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("expected first callback 200, got %d body=%s", w1.Code, w1.Body.String())
+	}
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/actions/callback", strings.NewReader(body))
+	req2.Header.Set("X-Callback-Request-Id", "resume-rid-1")
+	w2 := httptest.NewRecorder()
+	h(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected replay callback 200, got %d body=%s", w2.Code, w2.Body.String())
+	}
+	if replayed := w2.Header().Get("X-Callback-Replayed"); replayed != "true" {
+		t.Fatalf("expected replay header, got %q", replayed)
+	}
+	if provider.calls != 2 {
+		t.Fatalf("expected resume to execute only once, got %d llm calls", provider.calls)
+	}
+	paused, err := store.GetPausedExecutionByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get paused execution: %v", err)
+	}
+	if paused.Status != "completed" {
+		t.Fatalf("expected paused execution completed, got %q", paused.Status)
+	}
+}
+
 func TestMakeActionCallbackHandlerSkipsAutoResumeWhenResumePolicyIsNone(t *testing.T) {
 	if err := store.Init("sqlite", "file:callback_resume_policy_none?mode=memory&cache=shared"); err != nil {
 		t.Fatalf("init db: %v", err)

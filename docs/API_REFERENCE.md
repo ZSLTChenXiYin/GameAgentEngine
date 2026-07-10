@@ -15,6 +15,8 @@
 
 如果你要看完整接入样例，而不是逐个接口查字段，建议同时阅读 [外部交互接入示例](./EXTERNAL_INTERACTION_EXAMPLES.md)。
 
+如果你要确认这些接口路径当前有哪些自动化保障，可以继续看 [外部交互测试矩阵](./EXTERNAL_INTERACTION_TEST_MATRIX.md)。
+
 ---
 
 ## 健康检查与版本

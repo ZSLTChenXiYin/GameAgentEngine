@@ -429,6 +429,45 @@ func TestMarkRuntimeTasksHeartbeatTimeoutMarksStaleClaimedAndRunningTasks(t *tes
 	}
 }
 
+func TestHeartbeatTimeoutCountAccumulatesAcrossRequeueCycles(t *testing.T) {
+	initRuntimeTaskTestDB(t)
+	old := time.Now().Add(-10 * time.Minute)
+	row := &RuntimeTaskModel{TaskID: "timeout-cycle", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Status: RuntimeTaskStatusClaimed, LeaseOwner: "bridge-1", LeaseToken: "tok-1", PayloadJSON: `{}`, LastHeartbeatAt: &old}
+	if err := CreateRuntimeTask(row); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	if _, err := MarkRuntimeTasksHeartbeatTimeout(2 * time.Minute); err != nil {
+		t.Fatalf("first timeout: %v", err)
+	}
+	requeued, err := RequeueHeartbeatTimeoutTask("timeout-cycle", 0, "retry cycle")
+	if err != nil {
+		t.Fatalf("requeue after first timeout: %v", err)
+	}
+	if requeued.Status != RuntimeTaskStatusReleased {
+		t.Fatalf("expected released after requeue, got %+v", requeued)
+	}
+	claimed, err := ClaimRuntimeTask("timeout-cycle", "bridge", "bridge-2")
+	if err != nil {
+		t.Fatalf("claim requeued task: %v", err)
+	}
+	if err := DB.Model(&RuntimeTaskModel{}).Where("task_id = ?", claimed.TaskID).Update("last_heartbeat_at", old).Error; err != nil {
+		t.Fatalf("reset heartbeat for second cycle: %v", err)
+	}
+	if _, err := MarkRuntimeTasksHeartbeatTimeout(2 * time.Minute); err != nil {
+		t.Fatalf("second timeout: %v", err)
+	}
+	updated, err := GetRuntimeTask("timeout-cycle")
+	if err != nil {
+		t.Fatalf("get updated task: %v", err)
+	}
+	if updated.HeartbeatTimeoutCount != 2 {
+		t.Fatalf("expected timeout count 2 after second cycle, got %+v", updated)
+	}
+	if updated.Status != RuntimeTaskStatusHeartbeatTimeout {
+		t.Fatalf("expected heartbeat_timeout after second cycle, got %+v", updated)
+	}
+}
+
 func TestRequeueHeartbeatTimeoutTaskMovesTaskBackToReleased(t *testing.T) {
 	initRuntimeTaskTestDB(t)
 	now := time.Now()
