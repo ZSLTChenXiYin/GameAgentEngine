@@ -11,19 +11,21 @@ import (
 )
 
 const (
-	RuntimeTaskStatusPending   = "pending"
-	RuntimeTaskStatusClaimed   = "claimed"
-	RuntimeTaskStatusRunning   = "running"
+	RuntimeTaskStatusPending          = "pending"
+	RuntimeTaskStatusDispatched       = "dispatched"
+	RuntimeTaskStatusClaimed          = "claimed"
+	RuntimeTaskStatusRunning          = "running"
 	RuntimeTaskStatusHeartbeatTimeout = "heartbeat_timeout"
-	RuntimeTaskStatusReleased  = "released"
-	RuntimeTaskStatusSucceeded = "succeeded"
-	RuntimeTaskStatusFailed    = "failed"
-	RuntimeTaskStatusCancelled = "cancelled"
+	RuntimeTaskStatusReleased         = "released"
+	RuntimeTaskStatusSucceeded        = "succeeded"
+	RuntimeTaskStatusFailed           = "failed"
+	RuntimeTaskStatusCancelled        = "cancelled"
 )
 
 var (
-	ErrRuntimeTaskNotClaimable = errors.New("runtime task not claimable")
-	ErrRuntimeTaskLeaseMismatch = errors.New("runtime task lease mismatch")
+	ErrRuntimeTaskNotClaimable    = errors.New("runtime task not claimable")
+	ErrRuntimeTaskLeaseMismatch   = errors.New("runtime task lease mismatch")
+	ErrRuntimeTaskNotDispatchable = errors.New("runtime task not dispatchable")
 )
 
 type RuntimeTaskListQuery struct {
@@ -108,13 +110,13 @@ func ClaimRuntimeTask(taskID string, consumer string, leaseOwner string) (*Runti
 	leaseToken := NewUUID()
 	now := time.Now()
 	updates := map[string]any{
-		"status":              RuntimeTaskStatusClaimed,
-		"lease_owner":         leaseOwner,
-		"lease_token":         leaseToken,
-		"claimed_at":          &now,
-		"last_heartbeat_at":   &now,
-		"attempt_count":       gorm.Expr("attempt_count + 1"),
-		"error_message":       "",
+		"status":            RuntimeTaskStatusClaimed,
+		"lease_owner":       leaseOwner,
+		"lease_token":       leaseToken,
+		"claimed_at":        &now,
+		"last_heartbeat_at": &now,
+		"attempt_count":     gorm.Expr("attempt_count + 1"),
+		"error_message":     "",
 	}
 	err := WriteTransaction(func(tx *gorm.DB) error {
 		qb := tx.Model(&RuntimeTaskModel{}).
@@ -188,6 +190,64 @@ func StartRuntimeTask(taskID string, leaseToken string) (*RuntimeTaskModel, erro
 	return GetRuntimeTask(taskID)
 }
 
+func MarkRuntimeTaskDispatched(taskID string, transport string, result any) (*RuntimeTaskModel, error) {
+	if taskID == "" {
+		return nil, fmt.Errorf("task id required")
+	}
+	now := time.Now()
+	err := Write(func(db *gorm.DB) error {
+		resultDB := db.Model(&RuntimeTaskModel{}).
+			Where("task_id = ? AND status IN ?", taskID, []string{RuntimeTaskStatusPending, RuntimeTaskStatusReleased}).
+			Updates(map[string]any{
+				"status":        RuntimeTaskStatusDispatched,
+				"transport":     transport,
+				"dispatched_at": &now,
+				"result_json":   marshalRuntimeTaskJSON(result),
+				"error_message": "",
+			})
+		if resultDB.Error != nil {
+			return resultDB.Error
+		}
+		if resultDB.RowsAffected == 0 {
+			return ErrRuntimeTaskNotDispatchable
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return GetRuntimeTask(taskID)
+}
+
+func RecordRuntimeTaskDispatchFailure(taskID string, keepPending bool, errMsg string) (*RuntimeTaskModel, error) {
+	if taskID == "" {
+		return nil, fmt.Errorf("task id required")
+	}
+	status := RuntimeTaskStatusFailed
+	if keepPending {
+		status = RuntimeTaskStatusPending
+	}
+	err := Write(func(db *gorm.DB) error {
+		resultDB := db.Model(&RuntimeTaskModel{}).
+			Where("task_id = ? AND status IN ?", taskID, []string{RuntimeTaskStatusPending, RuntimeTaskStatusReleased}).
+			Updates(map[string]any{
+				"status":        status,
+				"error_message": errMsg,
+			})
+		if resultDB.Error != nil {
+			return resultDB.Error
+		}
+		if resultDB.RowsAffected == 0 {
+			return ErrRuntimeTaskNotDispatchable
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return GetRuntimeTask(taskID)
+}
+
 func ReleaseRuntimeTask(taskID string, leaseToken string, retryDelay time.Duration, errMsg string) (*RuntimeTaskModel, error) {
 	if taskID == "" || leaseToken == "" {
 		return nil, fmt.Errorf("task id and lease token required")
@@ -195,7 +255,7 @@ func ReleaseRuntimeTask(taskID string, leaseToken string, retryDelay time.Durati
 	availableAt := time.Now().Add(retryDelay)
 	err := Write(func(db *gorm.DB) error {
 		result := db.Model(&RuntimeTaskModel{}).
-			Where("task_id = ? AND status = ? AND lease_token = ?", taskID, RuntimeTaskStatusClaimed, leaseToken).
+			Where("task_id = ? AND status IN ? AND lease_token = ?", taskID, []string{RuntimeTaskStatusClaimed, RuntimeTaskStatusRunning}, leaseToken).
 			Updates(map[string]any{
 				"status":            RuntimeTaskStatusReleased,
 				"lease_owner":       "",
@@ -287,19 +347,36 @@ func CompleteRuntimeTaskByCallbackID(callbackID string, status string, result an
 	now := time.Now()
 	return Write(func(db *gorm.DB) error {
 		updates := map[string]any{
-			"status":            mappedStatus,
-			"result_json":       resultJSON,
-			"error_message":     errMsg,
-			"lease_owner":       "",
-			"lease_token":       "",
-			"completed_at":      &now,
-			"last_heartbeat_at": &now,
+			"status":               mappedStatus,
+			"result_json":          resultJSON,
+			"error_message":        errMsg,
+			"lease_owner":          "",
+			"lease_token":          "",
+			"completed_at":         &now,
+			"last_heartbeat_at":    &now,
 			"heartbeat_timeout_at": nil,
 		}
 		return db.Model(&RuntimeTaskModel{}).
 			Where("callback_id = ?", callbackID).
-			Where("status IN ?", []string{RuntimeTaskStatusPending, RuntimeTaskStatusClaimed, RuntimeTaskStatusRunning, RuntimeTaskStatusReleased, RuntimeTaskStatusHeartbeatTimeout}).
+			Where("status IN ?", []string{RuntimeTaskStatusPending, RuntimeTaskStatusDispatched, RuntimeTaskStatusClaimed, RuntimeTaskStatusRunning, RuntimeTaskStatusReleased, RuntimeTaskStatusHeartbeatTimeout}).
 			Updates(updates).Error
+	})
+}
+
+func UpdateRuntimeTaskTerminalCallbackFailure(callbackID string, errMsg string) error {
+	if callbackID == "" {
+		return nil
+	}
+	now := time.Now()
+	return Write(func(db *gorm.DB) error {
+		return db.Model(&RuntimeTaskModel{}).
+			Where("callback_id = ?", callbackID).
+			Where("status IN ?", []string{RuntimeTaskStatusPending, RuntimeTaskStatusDispatched, RuntimeTaskStatusReleased}).
+			Updates(map[string]any{
+				"status":        RuntimeTaskStatusFailed,
+				"error_message": errMsg,
+				"completed_at":  &now,
+			}).Error
 	})
 }
 

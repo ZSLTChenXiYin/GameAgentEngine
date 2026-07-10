@@ -12,11 +12,12 @@ import (
 
 // Config 是应用的总配置对象。
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Auth     AuthConfig     `mapstructure:"auth"`
-	LLM      LLMConfig      `mapstructure:"llm"`
-	Engine   EngineConfig   `mapstructure:"engine"`
+	Server               ServerConfig                         `mapstructure:"server"`
+	Database             DatabaseConfig                       `mapstructure:"database"`
+	Auth                 AuthConfig                           `mapstructure:"auth"`
+	LLM                  LLMConfig                            `mapstructure:"llm"`
+	Engine               EngineConfig                         `mapstructure:"engine"`
+	ExternalIntegrations map[string]ExternalIntegrationConfig `mapstructure:"external_integrations"`
 }
 
 // ServerConfig 定义 HTTP 服务监听参数。
@@ -60,6 +61,23 @@ type EngineConfig struct {
 	AutonomousSchedulerEnabled          bool   `mapstructure:"autonomous_scheduler_enabled"`
 	AutonomousSchedulerIntervalSeconds  int    `mapstructure:"autonomous_scheduler_interval_seconds"`
 	AutonomousSchedulerMaxNodesPerWorld int    `mapstructure:"autonomous_scheduler_max_nodes_per_world"`
+}
+
+// ExternalIntegrationConfig 定义一个可被 Engine 主动调用的外部接入点。
+type ExternalIntegrationConfig struct {
+	Type      string                        `mapstructure:"type"`
+	BaseURL   string                        `mapstructure:"base_url"`
+	Path      string                        `mapstructure:"path"`
+	TimeoutMs int                           `mapstructure:"timeout_ms"`
+	Headers   map[string]string             `mapstructure:"headers"`
+	Auth      ExternalIntegrationAuthConfig `mapstructure:"auth"`
+}
+
+// ExternalIntegrationAuthConfig 定义外部接入点的认证方式。
+type ExternalIntegrationAuthConfig struct {
+	Mode       string `mapstructure:"mode"`
+	Token      string `mapstructure:"token"`
+	HeaderName string `mapstructure:"header_name"`
 }
 
 var Global Config

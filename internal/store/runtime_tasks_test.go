@@ -142,6 +142,70 @@ func TestStartRuntimeTaskTransitionsClaimedToRunningAndHeartbeatKeepsItAlive(t *
 	}
 }
 
+func TestMarkRuntimeTaskDispatchedTransitionsPendingTask(t *testing.T) {
+	initRuntimeTaskTestDB(t)
+	row := &RuntimeTaskModel{TaskID: "dispatch-task", Category: "external_query", InterfaceName: "game_client_request_data", DeliveryMode: "push", Consumer: "game_client", Transport: "game_http", Status: RuntimeTaskStatusPending, PayloadJSON: `{}`}
+	if err := CreateRuntimeTask(row); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	dispatched, err := MarkRuntimeTaskDispatched("dispatch-task", "game_http", map[string]any{"status": "accepted"})
+	if err != nil {
+		t.Fatalf("mark dispatched: %v", err)
+	}
+	if dispatched.Status != RuntimeTaskStatusDispatched {
+		t.Fatalf("expected dispatched status, got %q", dispatched.Status)
+	}
+	if dispatched.Transport != "game_http" {
+		t.Fatalf("expected transport game_http, got %q", dispatched.Transport)
+	}
+	if dispatched.DispatchedAt == nil {
+		t.Fatal("expected dispatched_at to be set")
+	}
+	if dispatched.ResultJSON == "" {
+		t.Fatal("expected dispatch result to be recorded")
+	}
+}
+
+func TestCompleteRuntimeTaskByCallbackIDAllowsDispatchedTasks(t *testing.T) {
+	initRuntimeTaskTestDB(t)
+	row := &RuntimeTaskModel{TaskID: "dispatch-callback-task", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", CallbackID: "cb-1", Status: RuntimeTaskStatusDispatched, PayloadJSON: `{}`}
+	if err := CreateRuntimeTask(row); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	if err := CompleteRuntimeTaskByCallbackID("cb-1", "success", map[string]any{"ok": true}); err != nil {
+		t.Fatalf("complete task: %v", err)
+	}
+	completed, err := GetRuntimeTask("dispatch-callback-task")
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	if completed.Status != RuntimeTaskStatusSucceeded {
+		t.Fatalf("expected succeeded status, got %q", completed.Status)
+	}
+}
+
+func TestReleaseRuntimeTaskAllowsRunningTasks(t *testing.T) {
+	initRuntimeTaskTestDB(t)
+	row := &RuntimeTaskModel{TaskID: "running-release", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Status: RuntimeTaskStatusPending, PayloadJSON: `{}`}
+	if err := CreateRuntimeTask(row); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	claimed, err := ClaimRuntimeTask("running-release", "bridge", "bridge-1")
+	if err != nil {
+		t.Fatalf("claim task: %v", err)
+	}
+	if _, err := StartRuntimeTask("running-release", claimed.LeaseToken); err != nil {
+		t.Fatalf("start task: %v", err)
+	}
+	released, err := ReleaseRuntimeTask("running-release", claimed.LeaseToken, time.Second, "worker restart")
+	if err != nil {
+		t.Fatalf("release task: %v", err)
+	}
+	if released.Status != RuntimeTaskStatusReleased {
+		t.Fatalf("expected released status, got %q", released.Status)
+	}
+}
+
 func TestMarkRuntimeTasksHeartbeatTimeoutMarksStaleClaimedAndRunningTasks(t *testing.T) {
 	initRuntimeTaskTestDB(t)
 	old := time.Now().Add(-10 * time.Minute)

@@ -259,33 +259,35 @@ func (PausedExecutionModel) TableName() string { return "paused_executions" }
 
 // RuntimeTaskModel stores pull-delivered external interaction tasks.
 type RuntimeTaskModel struct {
-	ID                int64      `gorm:"primaryKey;autoIncrement" json:"-"`
-	TaskID            string     `gorm:"uniqueIndex;size:64;not null" json:"task_id"`
-	Category          string     `gorm:"size:50;not null;index" json:"category"`
-	InterfaceName     string     `gorm:"size:100;not null;index" json:"interface_name"`
-	DeliveryMode      string     `gorm:"size:20;not null;index" json:"delivery_mode"`
-	Consumer          string     `gorm:"size:50;index" json:"consumer,omitempty"`
-	WorldUUID         string     `gorm:"size:36;index" json:"world_id,omitempty"`
-	NodeUUID          string     `gorm:"size:36;index" json:"node_id,omitempty"`
-	RequestID         string     `gorm:"size:36;index" json:"request_id,omitempty"`
-	CallbackID        string     `gorm:"size:64;index" json:"callback_id,omitempty"`
-	ResumeExecutionID string     `gorm:"size:64;index" json:"resume_execution_id,omitempty"`
-	Status            string     `gorm:"size:20;not null;index" json:"status"`
-	LeaseOwner        string     `gorm:"size:100;index" json:"lease_owner,omitempty"`
-	LeaseToken        string     `gorm:"size:64;index" json:"lease_token,omitempty"`
-	AttemptCount      int        `gorm:"default:0" json:"attempt_count"`
-	MaxAttempts       int        `gorm:"default:0" json:"max_attempts"`
-	Priority          int        `gorm:"default:0;index" json:"priority"`
-	PayloadJSON       string     `gorm:"type:text;not null" json:"payload_json"`
-	ResultJSON        string     `gorm:"type:text" json:"result_json,omitempty"`
-	ErrorMessage      string     `gorm:"type:text" json:"error_message,omitempty"`
-	AvailableAt       *time.Time `gorm:"index" json:"available_at,omitempty"`
-	ClaimedAt         *time.Time `json:"claimed_at,omitempty"`
-	LastHeartbeatAt   *time.Time `json:"last_heartbeat_at,omitempty"`
+	ID                 int64      `gorm:"primaryKey;autoIncrement" json:"-"`
+	TaskID             string     `gorm:"uniqueIndex;size:64;not null" json:"task_id"`
+	Category           string     `gorm:"size:50;not null;index" json:"category"`
+	InterfaceName      string     `gorm:"size:100;not null;index" json:"interface_name"`
+	DeliveryMode       string     `gorm:"size:20;not null;index" json:"delivery_mode"`
+	Consumer           string     `gorm:"size:50;index" json:"consumer,omitempty"`
+	Transport          string     `gorm:"size:100;index" json:"transport,omitempty"`
+	WorldUUID          string     `gorm:"size:36;index" json:"world_id,omitempty"`
+	NodeUUID           string     `gorm:"size:36;index" json:"node_id,omitempty"`
+	RequestID          string     `gorm:"size:36;index" json:"request_id,omitempty"`
+	CallbackID         string     `gorm:"size:64;index" json:"callback_id,omitempty"`
+	ResumeExecutionID  string     `gorm:"size:64;index" json:"resume_execution_id,omitempty"`
+	Status             string     `gorm:"size:20;not null;index" json:"status"`
+	LeaseOwner         string     `gorm:"size:100;index" json:"lease_owner,omitempty"`
+	LeaseToken         string     `gorm:"size:64;index" json:"lease_token,omitempty"`
+	AttemptCount       int        `gorm:"default:0" json:"attempt_count"`
+	MaxAttempts        int        `gorm:"default:0" json:"max_attempts"`
+	Priority           int        `gorm:"default:0;index" json:"priority"`
+	PayloadJSON        string     `gorm:"type:text;not null" json:"payload_json"`
+	ResultJSON         string     `gorm:"type:text" json:"result_json,omitempty"`
+	ErrorMessage       string     `gorm:"type:text" json:"error_message,omitempty"`
+	AvailableAt        *time.Time `gorm:"index" json:"available_at,omitempty"`
+	DispatchedAt       *time.Time `json:"dispatched_at,omitempty"`
+	ClaimedAt          *time.Time `json:"claimed_at,omitempty"`
+	LastHeartbeatAt    *time.Time `json:"last_heartbeat_at,omitempty"`
 	HeartbeatTimeoutAt *time.Time `json:"heartbeat_timeout_at,omitempty"`
-	CompletedAt       *time.Time `json:"completed_at,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	CompletedAt        *time.Time `json:"completed_at,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 func (RuntimeTaskModel) TableName() string { return "runtime_tasks" }

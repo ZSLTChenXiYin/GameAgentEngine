@@ -181,9 +181,13 @@ type DataQuery struct {
 
 // DataRequest 是 LLM 在响应中嵌入的数据请求，管线据此加载更多数据后继续推理。
 type DataRequest struct {
-	Label   string      `json:"label"`             // 数据标签，用于在任务树中标识该次查询
-	Target  string      `json:"target"`            // "store"（本地存储）或 "game_client"（游戏客户端）
-	Queries []DataQuery `json:"queries,omitempty"` // 要查询的数据列表
+	Label            string      `json:"label"`                       // 数据标签，用于在任务树中标识该次查询
+	Target           string      `json:"target"`                      // "store"（本地存储）或 "game_client"（游戏客户端）
+	DeliveryMode     string      `json:"delivery_mode,omitempty"`     // 可选: push / pull / hybrid
+	PrimaryTransport string      `json:"primary_transport,omitempty"` // 可选: 例如 game_http
+	Consumer         string      `json:"consumer,omitempty"`          // 可选: 例如 game_client / bridge
+	TimeoutMs        int         `json:"timeout_ms,omitempty"`        // 可选: 外部调用超时
+	Queries          []DataQuery `json:"queries,omitempty"`           // 要查询的数据列表
 }
 
 // ExecutionMode 表示世界变更计划的执行模式。

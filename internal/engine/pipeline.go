@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/action"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/external"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/planner"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
@@ -181,6 +183,7 @@ type Pipeline struct {
 	ctxBuilder  *ContextBuilder
 	llmProvider LLMProvider
 	actionReg   *action.Registry
+	dispatcher  *external.Dispatcher
 }
 
 type executionConfig struct {
@@ -232,9 +235,17 @@ func NewPipeline(llmProvider LLMProvider) *Pipeline {
 		ctxBuilder:  NewContextBuilder(),
 		llmProvider: llmProvider,
 		actionReg:   action.NewRegistry(),
+		dispatcher:  external.NewDispatcher(),
 	}
 	p.registerBuiltinActions()
 	return p
+}
+
+func (p *Pipeline) externalDispatcher() *external.Dispatcher {
+	if p.dispatcher == nil {
+		p.dispatcher = external.NewDispatcher()
+	}
+	return p.dispatcher
 }
 
 func (p *Pipeline) registerBuiltinActions() {
@@ -673,18 +684,32 @@ func (p *Pipeline) persistPausedExecution(req *InvokeRequest, ctx *BuiltContext,
 	return executionID, nil
 }
 
-func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID string, executionID string, requestID string) string {
+func gameClientRouteFromDataRequest(dr *DataRequest) external.Route {
+	if dr == nil {
+		return external.NormalizeRoute("pull", "", "game_client", 0)
+	}
+	consumer := strings.TrimSpace(dr.Consumer)
+	if consumer == "" {
+		consumer = "game_client"
+	}
+	return external.NormalizeRoute(dr.DeliveryMode, dr.PrimaryTransport, consumer, dr.TimeoutMs)
+}
+
+func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID string, executionID string, requestID string, route external.Route) string {
 	payload := map[string]any{
-		"task_type":             req.TaskType,
-		"world_id":              req.WorldID,
-		"node_id":               req.NodeID,
-		"request_id":            requestID,
-		"callback_id":           callbackID,
-		"resume_execution_id":   executionID,
-		"resume_policy":         "resume_paused_execution",
-		"external_interface":    "game_client_request_data",
-		"external_interaction":  "external_query",
-		"request_data":          dr,
+		"task_type":            req.TaskType,
+		"world_id":             req.WorldID,
+		"node_id":              req.NodeID,
+		"request_id":           requestID,
+		"callback_id":          callbackID,
+		"resume_execution_id":  executionID,
+		"resume_policy":        "resume_paused_execution",
+		"external_interface":   "game_client_request_data",
+		"external_interaction": "external_query",
+		"delivery_mode":        route.DeliveryMode,
+		"primary_transport":    route.PrimaryTransport,
+		"consumer":             route.Consumer,
+		"request_data":         dr,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -693,12 +718,13 @@ func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID str
 	return string(data)
 }
 
-func enqueueGameClientRuntimeTask(req *InvokeRequest, dr *DataRequest, callbackID string, executionID string, requestID string) (*store.RuntimeTaskModel, error) {
+func enqueueGameClientRuntimeTask(req *InvokeRequest, dr *DataRequest, callbackID string, executionID string, requestID string, route external.Route) (*store.RuntimeTaskModel, error) {
 	item := &store.RuntimeTaskModel{
 		Category:          "external_query",
 		InterfaceName:     "game_client_request_data",
-		DeliveryMode:      "pull",
-		Consumer:          "game_client",
+		DeliveryMode:      route.DeliveryMode,
+		Consumer:          route.Consumer,
+		Transport:         route.PrimaryTransport,
 		WorldUUID:         req.WorldID,
 		NodeUUID:          req.NodeID,
 		RequestID:         requestID,
@@ -706,12 +732,43 @@ func enqueueGameClientRuntimeTask(req *InvokeRequest, dr *DataRequest, callbackI
 		ResumeExecutionID: executionID,
 		Status:            store.RuntimeTaskStatusPending,
 		Priority:          100,
-		PayloadJSON:       buildRuntimeTaskPayload(req, dr, callbackID, executionID, requestID),
+		PayloadJSON:       buildRuntimeTaskPayload(req, dr, callbackID, executionID, requestID, route),
 	}
 	if err := store.CreateRuntimeTask(item); err != nil {
 		return nil, err
 	}
 	return item, nil
+}
+
+func (p *Pipeline) dispatchGameClientRuntimeTask(task *store.RuntimeTaskModel, req *InvokeRequest, dr *DataRequest, route external.Route) error {
+	if task == nil || !route.ShouldPush() {
+		return nil
+	}
+	dispatchReq := external.DispatchRequest{
+		TaskID:            task.TaskID,
+		Category:          task.Category,
+		InterfaceName:     task.InterfaceName,
+		DeliveryMode:      route.DeliveryMode,
+		PrimaryTransport:  route.PrimaryTransport,
+		Consumer:          route.Consumer,
+		WorldID:           req.WorldID,
+		NodeID:            req.NodeID,
+		RequestID:         task.RequestID,
+		CallbackID:        task.CallbackID,
+		ResumeExecutionID: task.ResumeExecutionID,
+		ResumePolicy:      "resume_paused_execution",
+		Payload: map[string]any{
+			"request_data": dr,
+		},
+		RawPayloadJSON: task.PayloadJSON,
+	}
+	result, err := p.externalDispatcher().Dispatch(context.Background(), route, dispatchReq)
+	if err != nil {
+		_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), err.Error())
+		return err
+	}
+	_, err = store.MarkRuntimeTaskDispatched(task.TaskID, route.PrimaryTransport, result)
+	return err
 }
 
 func (p *Pipeline) executeMultiTurnLoop(
@@ -941,8 +998,25 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 					if err := store.UpdateAsyncCallbackRecord(callbackID, map[string]any{"resume_execution_id": executionID}); err != nil {
 						return nil, fmt.Errorf("link callback to paused execution: %w", err)
 					}
-					if _, err := enqueueGameClientRuntimeTask(req, &dr, callbackID, executionID, requestID); err != nil {
+					route := gameClientRouteFromDataRequest(&dr)
+					task, err := enqueueGameClientRuntimeTask(req, &dr, callbackID, executionID, requestID, route)
+					if err != nil {
 						return nil, fmt.Errorf("enqueue runtime task: %w", err)
+					}
+					if err := p.dispatchGameClientRuntimeTask(task, req, &dr, route); err != nil {
+						if route.IsStrictPush() {
+							_ = store.CompleteAsyncCallbackRecord(callbackID, "failed", "", err.Error())
+							_ = store.MarkPausedExecutionFailed(executionID, err.Error())
+							return nil, fmt.Errorf("dispatch game client request: %w", err)
+						}
+						p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+							Category:   "pipeline_round",
+							EventName:  "data_request_dispatch_failed",
+							LogLevel:   "error",
+							Message:    err.Error(),
+							Round:      round + 1,
+							DetailData: marshalLogDetail(map[string]any{"callback_id": callbackID, "delivery_mode": route.DeliveryMode, "primary_transport": route.PrimaryTransport}),
+						})
 					}
 					resp := &InvokeResponse{
 						RequestID:     requestID,

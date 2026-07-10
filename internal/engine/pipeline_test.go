@@ -1,7 +1,10 @@
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -1044,5 +1047,86 @@ func TestExecuteWorldTickIncludesHighValueRelationSummary(t *testing.T) {
 	}
 	if strings.Contains(provider.lastPrompt, string(RelAlly)) {
 		t.Fatalf("did not expect social relation names in world tick summary, got %s", provider.lastPrompt)
+	}
+}
+
+func TestExecutePushesGameClientRequestDataThroughHTTPAdapter(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		_, _ = w.Write([]byte(`{"status":"accepted"}`))
+	}))
+	defer server.Close()
+
+	previousIntegrations := config.Global.ExternalIntegrations
+	config.Global.ExternalIntegrations = map[string]config.ExternalIntegrationConfig{
+		"game_http": {Type: "http_adapter", BaseURL: server.URL, Path: "/dispatch"},
+	}
+	defer func() { config.Global.ExternalIntegrations = previousIntegrations }()
+
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"need-client","request_data":{"label":"fetch-scene","target":"game_client","delivery_mode":"push","primary_transport":"game_http","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp == nil || len(resp.ActionCalls) != 1 || resp.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected async callback response, got %+v", resp)
+	}
+	task, err := store.GetRuntimeTaskByCallbackID(resp.ActionCalls[0].CallbackID)
+	if err != nil {
+		t.Fatalf("get runtime task by callback id: %v", err)
+	}
+	if task.Status != store.RuntimeTaskStatusDispatched {
+		t.Fatalf("expected dispatched task status, got %q", task.Status)
+	}
+	if gotBody["task_id"] == "" {
+		t.Fatalf("expected task_id in dispatched payload, got %+v", gotBody)
+	}
+	if gotBody["interface_name"] != "game_client_request_data" {
+		t.Fatalf("unexpected interface_name in payload: %+v", gotBody)
+	}
+}
+
+func TestExecuteAsyncActionHybridFallsBackToPendingTaskWhenPushFails(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "upstream unavailable", http.StatusBadGateway)
+	}))
+	defer server.Close()
+
+	previousIntegrations := config.Global.ExternalIntegrations
+	config.Global.ExternalIntegrations = map[string]config.ExternalIntegrationConfig{
+		"game_http": {Type: "http_adapter", BaseURL: server.URL, Path: "/dispatch"},
+	}
+	defer func() { config.Global.ExternalIntegrations = previousIntegrations }()
+
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[{"action_id":"spawn_item","args":{"delivery_mode":"hybrid","primary_transport":"game_http","consumer":"bridge","item_name":"apple"}}],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp == nil || len(resp.ActionCalls) != 1 || resp.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected async action call, got %+v", resp)
+	}
+	task, err := store.GetRuntimeTaskByCallbackID(resp.ActionCalls[0].CallbackID)
+	if err != nil {
+		t.Fatalf("get runtime task by callback id: %v", err)
+	}
+	if task.Status != store.RuntimeTaskStatusPending {
+		t.Fatalf("expected hybrid dispatch failure to keep pending task, got %q", task.Status)
+	}
+	if !strings.Contains(task.ErrorMessage, "status 502") {
+		t.Fatalf("expected dispatch failure to be recorded, got %q", task.ErrorMessage)
 	}
 }

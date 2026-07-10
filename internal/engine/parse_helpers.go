@@ -1,12 +1,14 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/action"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/external"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/planner"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
@@ -21,6 +23,64 @@ func runtimeTaskConsumerFromArgs(args map[string]any) string {
 	return "bridge"
 }
 
+func runtimeTaskDeliveryModeFromArgs(args map[string]any) string {
+	if args == nil {
+		return "pull"
+	}
+	for _, key := range []string{"delivery_mode", "mode"} {
+		if mode, ok := args[key].(string); ok && strings.TrimSpace(mode) != "" {
+			return strings.TrimSpace(mode)
+		}
+	}
+	if integration := runtimeTaskTransportFromArgs(args); integration != "" {
+		return "push"
+	}
+	return "pull"
+}
+
+func runtimeTaskTransportFromArgs(args map[string]any) string {
+	if args == nil {
+		return ""
+	}
+	for _, key := range []string{"primary_transport", "integration", "transport"} {
+		if value, ok := args[key].(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func runtimeTaskTimeoutFromArgs(args map[string]any) int {
+	if args == nil {
+		return 0
+	}
+	if raw, ok := args["timeout_ms"]; ok {
+		switch value := raw.(type) {
+		case int:
+			return value
+		case float64:
+			return int(value)
+		}
+	}
+	return 0
+}
+
+func sanitizeExternalActionArgs(args map[string]any) map[string]any {
+	if len(args) == 0 {
+		return map[string]any{}
+	}
+	result := make(map[string]any, len(args))
+	for k, v := range args {
+		switch k {
+		case "delivery_mode", "mode", "primary_transport", "integration", "transport", "timeout_ms", "consumer":
+			continue
+		default:
+			result[k] = v
+		}
+	}
+	return result
+}
+
 func runtimeTaskInterfaceNameForAction(actionID string) string {
 	if strings.TrimSpace(actionID) == "" {
 		return "async_action"
@@ -29,6 +89,7 @@ func runtimeTaskInterfaceNameForAction(actionID string) string {
 }
 
 func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, args map[string]any, callbackID string) string {
+	route := buildAsyncActionRoute(args)
 	payload := map[string]any{
 		"task_type":            req.TaskType,
 		"world_id":             req.WorldID,
@@ -38,7 +99,10 @@ func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, arg
 		"external_interface":   runtimeTaskInterfaceNameForAction(actionID),
 		"external_interaction": "external_action",
 		"action_id":            actionID,
-		"args":                 args,
+		"delivery_mode":        route.DeliveryMode,
+		"primary_transport":    route.PrimaryTransport,
+		"consumer":             route.Consumer,
+		"args":                 sanitizeExternalActionArgs(args),
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -47,12 +111,17 @@ func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, arg
 	return string(data)
 }
 
-func enqueueAsyncActionRuntimeTask(req *InvokeRequest, actionID string, args map[string]any, callbackID string) error {
+func buildAsyncActionRoute(args map[string]any) external.Route {
+	return external.NormalizeRoute(runtimeTaskDeliveryModeFromArgs(args), runtimeTaskTransportFromArgs(args), runtimeTaskConsumerFromArgs(args), runtimeTaskTimeoutFromArgs(args))
+}
+
+func enqueueAsyncActionRuntimeTask(req *InvokeRequest, actionID string, args map[string]any, callbackID string, route external.Route) (*store.RuntimeTaskModel, error) {
 	item := &store.RuntimeTaskModel{
 		Category:      "external_action",
 		InterfaceName: runtimeTaskInterfaceNameForAction(actionID),
-		DeliveryMode:  "pull",
-		Consumer:      runtimeTaskConsumerFromArgs(args),
+		DeliveryMode:  route.DeliveryMode,
+		Consumer:      route.Consumer,
+		Transport:     route.PrimaryTransport,
 		WorldUUID:     req.WorldID,
 		NodeUUID:      req.NodeID,
 		CallbackID:    callbackID,
@@ -60,7 +129,45 @@ func enqueueAsyncActionRuntimeTask(req *InvokeRequest, actionID string, args map
 		Priority:      80,
 		PayloadJSON:   buildAsyncActionRuntimeTaskPayload(req, actionID, args, callbackID),
 	}
-	return store.CreateRuntimeTask(item)
+	if err := store.CreateRuntimeTask(item); err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
+func (p *Pipeline) dispatchAsyncActionRuntimeTask(task *store.RuntimeTaskModel, req *InvokeRequest, actionID string, args map[string]any, route external.Route) error {
+	if task == nil || !route.ShouldPush() {
+		return nil
+	}
+	dispatchReq := external.DispatchRequest{
+		TaskID:           task.TaskID,
+		Category:         task.Category,
+		InterfaceName:    task.InterfaceName,
+		DeliveryMode:     route.DeliveryMode,
+		PrimaryTransport: route.PrimaryTransport,
+		Consumer:         route.Consumer,
+		WorldID:          req.WorldID,
+		NodeID:           req.NodeID,
+		CallbackID:       task.CallbackID,
+		ResumePolicy:     "none",
+		Payload: map[string]any{
+			"action_id": actionID,
+			"args":      sanitizeExternalActionArgs(args),
+		},
+		RawPayloadJSON: task.PayloadJSON,
+	}
+	result, err := p.externalDispatcher().Dispatch(context.Background(), route, dispatchReq)
+	if err != nil {
+		_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), err.Error())
+		if route.IsStrictPush() {
+			_ = store.CompleteAsyncCallbackRecord(task.CallbackID, "failed", "", err.Error())
+			_ = store.UpdateRuntimeTaskTerminalCallbackFailure(task.CallbackID, err.Error())
+			return err
+		}
+		return nil
+	}
+	_, err = store.MarkRuntimeTaskDispatched(task.TaskID, route.PrimaryTransport, result)
+	return err
 }
 
 type llmParsedOutput struct {
@@ -214,15 +321,22 @@ func (p *Pipeline) executeActions(req *InvokeRequest, runtime *executionConfig, 
 				WorldID:   req.WorldID,
 				RequestID: "",
 			})
-			if err := enqueueAsyncActionRuntimeTask(req, actionID, args, cbID); err != nil {
+			route := buildAsyncActionRoute(args)
+			task, err := enqueueAsyncActionRuntimeTask(req, actionID, args, cbID, route)
+			if err != nil {
 				p.emitExecutionEvent(req, runtime, executionMode, "action_async_enqueue_failed", actionID, map[string]any{"action_id": actionID, "args": args, "callback_id": cbID, "error": err.Error()})
 				log.Printf("[action:async] %s enqueue failed callback=%s err=%v", actionID, cbID, err)
+				continue
+			}
+			if err := p.dispatchAsyncActionRuntimeTask(task, req, actionID, args, route); err != nil {
+				p.emitExecutionEvent(req, runtime, executionMode, "action_async_dispatch_failed", actionID, map[string]any{"action_id": actionID, "args": args, "callback_id": cbID, "error": err.Error(), "delivery_mode": route.DeliveryMode, "primary_transport": route.PrimaryTransport})
+				log.Printf("[action:async] %s dispatch failed callback=%s err=%v", actionID, cbID, err)
 				continue
 			}
 			call.Mode = "async"
 			call.CallbackID = cbID
 			result = append(result, call)
-			p.emitExecutionEvent(req, runtime, executionMode, "action_async_enqueued", actionID, map[string]any{"action_id": actionID, "args": args, "callback_id": cbID})
+			p.emitExecutionEvent(req, runtime, executionMode, "action_async_enqueued", actionID, map[string]any{"action_id": actionID, "args": args, "callback_id": cbID, "delivery_mode": route.DeliveryMode, "primary_transport": route.PrimaryTransport})
 			log.Printf("[action:async] %s callback=%s", actionID, cbID)
 		} else {
 			call.Mode = "async"

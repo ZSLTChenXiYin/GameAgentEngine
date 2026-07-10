@@ -62,3 +62,14 @@ engine:
   autonomous_scheduler_interval_seconds: 300
   # 每次扫描每个世界最多触发的 scheduled 自主节点数
   autonomous_scheduler_max_nodes_per_world: 10
+
+external_integrations:
+  # 可选：Engine 内建 push 适配时使用的外部接入点
+  game_http:
+    type: "http_adapter"
+    base_url: "http://127.0.0.1:9000"
+    path: "/api/v1/runtime/dispatch"
+    timeout_ms: 5000
+    auth:
+      mode: "bearer"
+      token: "replace-me"
