@@ -1101,6 +1101,9 @@ func TestExecutePushesGameClientRequestDataThroughHTTPAdapter(t *testing.T) {
 	if attempts != 2 || task.DispatchAttempts != 2 {
 		t.Fatalf("expected 2 dispatch attempts, got server=%d task=%d", attempts, task.DispatchAttempts)
 	}
+	if task.LastDispatchDecision != "dispatched" || task.LastTransitionReason != "push_dispatch_succeeded" {
+		t.Fatalf("expected dispatched decision metadata, got %+v", task)
+	}
 	if task.IdempotencyKey == "" {
 		t.Fatalf("expected idempotency key to be recorded, got %+v", task)
 	}
@@ -1142,6 +1145,9 @@ func TestExecuteAsyncActionHybridFallsBackToPendingTaskWhenPushFails(t *testing.
 	}
 	if task.Status != store.RuntimeTaskStatusPending {
 		t.Fatalf("expected hybrid dispatch failure to keep pending task, got %q", task.Status)
+	}
+	if task.LastDispatchDecision != "pending_retry" || task.LastDispatchFailureClass != "upstream_5xx" {
+		t.Fatalf("expected pending_retry decision metadata, got %+v", task)
 	}
 	if !strings.Contains(task.ErrorMessage, "status 502") {
 		t.Fatalf("expected dispatch failure to be recorded, got %q", task.ErrorMessage)
@@ -1431,6 +1437,12 @@ func TestExecuteHybridFallbackTransportMovesAsyncTaskToReleased(t *testing.T) {
 	}
 	if task.Transport != "task_pull" {
 		t.Fatalf("expected fallback transport task_pull, got %q", task.Transport)
+	}
+	if task.LastDispatchDecision != "fallback_to_pull" || task.LastDispatchFailureClass != "upstream_5xx" {
+		t.Fatalf("expected fallback decision metadata, got %+v", task)
+	}
+	if task.FallbackFromTransport != "game_http" || task.LastTransitionReason != "push_dispatch_failed_then_fallback" {
+		t.Fatalf("expected fallback transition metadata, got %+v", task)
 	}
 }
 

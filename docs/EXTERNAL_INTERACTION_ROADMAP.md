@@ -4,6 +4,38 @@
 
 本文档固化 Engine 在“异步接口、游戏端交互、定时调度、自主行动恢复链路”上的统一架构目标、当前实现进度与后续开发阶段。
 
+当前仓库执行遵循以下完整实施计划，且要求在上下文压缩后仍不丢失：
+
+1. 阶段 1：Hybrid 完整状态机
+   目标：把 `hybrid` 从“基础回退”补到“可解释、可观测、可治理”的完整状态机。
+   范围：明确 push 失败分类、补回退原因和最后一次 dispatch 决策持久化、区分哪些失败应直接终态失败、哪些失败允许进入 pull fallback。
+   验收：同一个 `hybrid` task 在 push 失败、pull 领取、release、timeout、callback 完成之间的迁移可预测且可观测。
+
+2. 阶段 2：差异化治理策略
+   目标：把当前统一的 `max_attempts` 扩展到按 `consumer`、`category`、`interface` 可配置的治理策略。
+   范围：按任务类别差异化超时/重派策略、人工介入优先模式、轻量 dead-letter 风格失败原因。
+   验收：不同类型任务在相同故障下可按策略表现出不同治理结果。
+
+3. 阶段 3：管理面增强
+   目标：让运维和开发者能直接看清任务卡在哪一段链路。
+   范围：管理接口补更多筛选/诊断字段，支持按“重试耗尽”“长时间 dispatched 未 callback”“多次 timeout”等视图排查。
+   验收：不依赖数据库直查即可定位主要卡点。
+
+4. 阶段 4：故障注入与测试矩阵
+   目标：把关键链路从零散测试补到系统化矩阵。
+   范围：覆盖 `push`、`pull`、`hybrid`、`callback`、`max_attempts`、`heartbeat_timeout`、配置漂移、重入和恢复路径。
+   验收：主成功路径、失败路径、恢复路径都有自动化回归。
+
+5. 阶段 5：开发者接入示例
+   目标：让新开发者只看文档就能接好一条外部交互链路。
+   范围：补 bridge / 游戏端 worker 最小接入样例、定时调度 + 外部交互推荐接线、push/pull/hybrid 推荐配置。
+   验收：文档可直接指导最小接入。
+
+6. 阶段 6：最终收口
+   目标：统一路线图、配置、API 和示例文档，明确“已完成”和“未来增强”的边界。
+   范围：全量文档对齐、全量测试、最终状态核对。
+   验收：路线图可以独立作为后续压缩恢复的唯一真相源。
+
 目标是同时支持以下两大能力，并允许开发者按场景自由选择：
 
 - Engine 内建 game client adapter，Engine 直接向游戏端发起 `HTTP` / `WebSocket` / `RPC` 请求。
@@ -146,6 +178,7 @@ external_interfaces:
 | 已完成 | `heartbeat_timeout` 批量 requeue 管理入口 | 已支持按条件批量把 timeout task 重新放回队列 |
 | 已完成 | `heartbeat_timeout` 自动治理基础版 | 已支持后台 governor 周期性标记 timeout，并可按配置自动批量 requeue |
 | 已完成 | runtime task `max_attempts` 终态阈值基础版 | 已支持 claim 次数上限，超限后 release / timeout requeue 进入 `failed` |
+| 已完成 | hybrid dispatch 失败分类与回退决策持久化基础版 | 已支持记录 dispatch failure class、decision、transition reason 与 fallback source |
 
 ### 3.2 当前真实边界
 
@@ -154,13 +187,13 @@ external_interfaces:
 | 部分完成 | callback 作为入站完成机制 | 已实现 |
 | 已完成 | `push` 出站投递到游戏端 | 已完成 `http_adapter`、`websocket_adapter` 与 `rpc_adapter` |
 | 部分完成 | `pull` 任务拉取接口 | 已有统一 runtime task queue API，并已接入 game_client request_data 与普通 async action 的真实生产及 callback 完成态闭环 |
-| 部分完成 | `hybrid` 自动降级 | 已有 push 失败后保留 pull task 的最小闭环，并已接入正式接口级路由配置，尚未完成完整策略编排 |
+| 部分完成 | `hybrid` 自动降级 | 已有 push 失败后的 failure class、dispatch decision 与 fallback source 持久化，仍未完成多阶段完整策略编排 |
 | 部分完成 | 定时调度下主动出站调用 | 已具备基础 push 派发能力与接口级正式路由，但尚未完成全部自主行动类型统一接线 |
 | 部分完成 | 普通异步 action 的 richer business resume | 已有统一 callback 后处理基础版，进一步的多阶段业务编排仍未完成 |
 
 当前还需要特别注意两个边界：
 
-- `fallback_transport` 当前表示“push 失败后，任务回落为 pull 可消费状态时写入的 transport 标签”，并不会自动再触发第二次 outbound adapter 派发。
+- `fallback_transport` 当前表示“push 失败后，任务回落为 pull 可消费状态时写入的 transport 标签”，并不会自动再触发第二次 outbound adapter 派发；不过当前已经会持久化 `last_dispatch_decision`、`last_dispatch_failure_class` 和 `fallback_from_transport`，便于后续治理和管理面筛选。
 - 当 `game_client request_data` 使用 `resume_policy: none` 时，callback 成功后会完成 callback/task 记录，但原 paused execution 会保持 `paused`，等待显式恢复或后续编排能力接入。
 - `max_attempts` 当前只约束 pull/hybrid 阶段的领取重试上限；它还不是完整 dead-letter 队列，也还没有按 consumer/category 的差异化阈值策略。
 
@@ -294,11 +327,11 @@ external_interfaces:
 
 | 子项 | 状态 |
 |---|---|
-| `delivery_mode` / `primary_transport` / `fallback_transport` | 已完成基础配置模型，`fallback_transport` 编排仍未完成 |
+| `delivery_mode` / `primary_transport` / `fallback_transport` | 已完成基础配置模型，并已补 dispatch failure class / decision 持久化，`fallback_transport` 完整编排仍未完成 |
 | `consumer` 路由策略 | 已完成基础配置驱动路由 |
 | `resume_policy` 扩展 | 已完成基础能力，当前已接入 callback 自动恢复控制 |
 | 普通 async action 的统一后处理编排 | 已完成基础版，当前支持 `record_only` / `write_memory` |
-| hybrid fallback 状态迁移 | 已完成最小闭环，完整策略编排未完成 |
+| hybrid fallback 状态迁移 | 已完成最小闭环，并已补可观测决策字段，完整策略编排未完成 |
 
 ### 阶段 P4：安全、观测、管理能力
 
@@ -346,6 +379,7 @@ external_interfaces:
 | runtime task queue | 已支持基础队列、拉取接口，以及 game_client request_data / 普通 async action 真实任务生产 |
 | built-in push adapter | 已支持 `http_adapter`、`websocket_adapter`、`rpc_adapter` |
 | 普通 async action callback 后处理 | 已支持基础配置化编排，并按 runtime task payload 快照执行 |
+| hybrid dispatch failure observability | 已支持 `last_dispatch_failure_class`、`last_dispatch_decision`、`fallback_from_transport`、`last_transition_reason` |
 | scheduled 自主行动真实出站派发 | 已具备基础能力，后续需继续扩大到全部 external interface 场景 |
 | hybrid 策略与 consumer 路由 | 已支持基础配置化路由与 push 失败回落 |
 

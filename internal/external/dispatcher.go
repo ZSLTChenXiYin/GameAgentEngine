@@ -154,3 +154,38 @@ func (r Route) ShouldQueuePullTask() bool {
 func (r Route) IsStrictPush() bool {
 	return r.DeliveryMode == "push"
 }
+
+func ClassifyDispatchFailure(result *DispatchResult, err error) string {
+	if result != nil {
+		switch {
+		case result.Status == 401 || result.Status == 403:
+			return "auth_rejected"
+		case result.Status == 408:
+			return "upstream_timeout"
+		case result.Status >= 400 && result.Status < 500:
+			return "upstream_4xx"
+		case result.Status >= 500:
+			return "upstream_5xx"
+		}
+	}
+	msg := strings.ToLower(strings.TrimSpace(errorString(err)))
+	switch {
+	case msg == "":
+		return "unknown"
+	case strings.Contains(msg, "primary transport required"), strings.Contains(msg, "external integration"), strings.Contains(msg, "unsupported"), strings.Contains(msg, "base_url required"):
+		return "config_error"
+	case strings.Contains(msg, "deadline exceeded"), strings.Contains(msg, "timeout"):
+		return "timeout"
+	case strings.Contains(msg, "connection refused"), strings.Contains(msg, "broken pipe"), strings.Contains(msg, "reset by peer"), strings.Contains(msg, "dial "), strings.Contains(msg, "eof"):
+		return "network_error"
+	default:
+		return "unknown"
+	}
+}
+
+func errorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}

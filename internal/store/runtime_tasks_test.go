@@ -227,7 +227,7 @@ func TestMarkRuntimeTaskDispatchedTransitionsPendingTask(t *testing.T) {
 	if err := CreateRuntimeTask(row); err != nil {
 		t.Fatalf("create task: %v", err)
 	}
-	dispatched, err := MarkRuntimeTaskDispatched("dispatch-task", "game_http", "task-key-1", 1, map[string]any{"status": "accepted"})
+	dispatched, err := MarkRuntimeTaskDispatched("dispatch-task", RuntimeTaskDispatchMetadata{Transport: "game_http", IdempotencyKey: "task-key-1", DispatchAttempts: 1, Result: map[string]any{"status": "accepted"}, StatusCode: 200, Decision: "dispatched", TransitionReason: "push_dispatch_succeeded"})
 	if err != nil {
 		t.Fatalf("mark dispatched: %v", err)
 	}
@@ -248,6 +248,36 @@ func TestMarkRuntimeTaskDispatchedTransitionsPendingTask(t *testing.T) {
 	}
 	if dispatched.ResultJSON == "" {
 		t.Fatal("expected dispatch result to be recorded")
+	}
+	if dispatched.LastDispatchDecision != "dispatched" || dispatched.LastTransitionReason != "push_dispatch_succeeded" {
+		t.Fatalf("expected dispatch decision metadata, got %+v", dispatched)
+	}
+}
+
+func TestRecordRuntimeTaskDispatchFallbackPersistsFailureClassification(t *testing.T) {
+	initRuntimeTaskTestDB(t)
+	row := &RuntimeTaskModel{TaskID: "dispatch-fallback", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "hybrid", Consumer: "bridge", Transport: "game_http", Status: RuntimeTaskStatusPending, PayloadJSON: `{}`}
+	if err := CreateRuntimeTask(row); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	updated, err := RecordRuntimeTaskDispatchFallback("dispatch-fallback", RuntimeTaskDispatchMetadata{Transport: "game_http", FallbackTransport: "task_pull", FallbackFromTransport: "game_http", IdempotencyKey: "task-key-2", DispatchAttempts: 2, ErrorMessage: "dispatch http request returned status 502", StatusCode: 502, FailureClass: "upstream_5xx", Decision: "fallback_to_pull", TransitionReason: "push_dispatch_failed_then_fallback"})
+	if err != nil {
+		t.Fatalf("record fallback: %v", err)
+	}
+	if updated.Status != RuntimeTaskStatusReleased || updated.Transport != "task_pull" {
+		t.Fatalf("expected released fallback task, got %+v", updated)
+	}
+	if updated.LastDispatchFailureClass != "upstream_5xx" {
+		t.Fatalf("expected failure class upstream_5xx, got %+v", updated)
+	}
+	if updated.LastDispatchDecision != "fallback_to_pull" {
+		t.Fatalf("expected fallback decision, got %+v", updated)
+	}
+	if updated.FallbackFromTransport != "game_http" {
+		t.Fatalf("expected fallback_from_transport game_http, got %+v", updated)
+	}
+	if updated.LastTransitionReason != "push_dispatch_failed_then_fallback" {
+		t.Fatalf("expected transition reason, got %+v", updated)
 	}
 }
 

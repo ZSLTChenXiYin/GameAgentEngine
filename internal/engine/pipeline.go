@@ -771,14 +771,40 @@ func (p *Pipeline) dispatchGameClientRuntimeTask(task *store.RuntimeTaskModel, r
 	result, err := p.externalDispatcher().Dispatch(context.Background(), route, dispatchReq)
 	if err != nil {
 		attempts := dispatchAttemptsFromResult(result)
+		failureClass := external.ClassifyDispatchFailure(result, err)
+		meta := store.RuntimeTaskDispatchMetadata{
+			Transport:             route.PrimaryTransport,
+			FallbackTransport:     route.FallbackTransport,
+			FallbackFromTransport: route.PrimaryTransport,
+			IdempotencyKey:        idempotencyKey,
+			DispatchAttempts:      attempts,
+			ErrorMessage:          err.Error(),
+			StatusCode:            dispatchStatusCodeFromResult(result),
+			FailureClass:          failureClass,
+		}
 		if route.ShouldQueuePullTask() && route.FallbackTransport != "" {
-			_, _ = store.RecordRuntimeTaskDispatchFallback(task.TaskID, route.FallbackTransport, idempotencyKey, attempts, err.Error())
+			meta.Decision = "fallback_to_pull"
+			meta.TransitionReason = "push_dispatch_failed_then_fallback"
+			_, _ = store.RecordRuntimeTaskDispatchFallback(task.TaskID, meta)
 		} else {
-			_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), idempotencyKey, attempts, err.Error())
+			meta.Decision = "failed_terminal"
+			meta.TransitionReason = "push_dispatch_failed"
+			if route.ShouldQueuePullTask() {
+				meta.Decision = "pending_retry"
+			}
+			_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), meta)
 		}
 		return err
 	}
-	_, err = store.MarkRuntimeTaskDispatched(task.TaskID, route.PrimaryTransport, idempotencyKey, dispatchAttemptsFromResult(result), result)
+	_, err = store.MarkRuntimeTaskDispatched(task.TaskID, store.RuntimeTaskDispatchMetadata{
+		Transport:        route.PrimaryTransport,
+		IdempotencyKey:   idempotencyKey,
+		DispatchAttempts: dispatchAttemptsFromResult(result),
+		Result:           result,
+		StatusCode:       dispatchStatusCodeFromResult(result),
+		Decision:         "dispatched",
+		TransitionReason: "push_dispatch_succeeded",
+	})
 	return err
 }
 

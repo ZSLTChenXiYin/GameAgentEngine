@@ -56,6 +56,20 @@ type RuntimeTaskStats struct {
 	OldestReadyTaskAgeSecs int64            `json:"oldest_ready_task_age_secs"`
 }
 
+type RuntimeTaskDispatchMetadata struct {
+	Transport             string
+	FallbackTransport     string
+	FallbackFromTransport string
+	IdempotencyKey        string
+	DispatchAttempts      int
+	Result                any
+	ErrorMessage          string
+	StatusCode            int
+	FailureClass          string
+	Decision              string
+	TransitionReason      string
+}
+
 func CreateRuntimeTask(m *RuntimeTaskModel) error {
 	if m.TaskID == "" {
 		m.TaskID = NewUUID()
@@ -313,27 +327,32 @@ func StartRuntimeTask(taskID string, leaseToken string) (*RuntimeTaskModel, erro
 	return GetRuntimeTask(taskID)
 }
 
-func MarkRuntimeTaskDispatched(taskID string, transport string, idempotencyKey string, dispatchAttempts int, result any) (*RuntimeTaskModel, error) {
+func MarkRuntimeTaskDispatched(taskID string, meta RuntimeTaskDispatchMetadata) (*RuntimeTaskModel, error) {
 	if taskID == "" {
 		return nil, fmt.Errorf("task id required")
 	}
-	if dispatchAttempts <= 0 {
-		dispatchAttempts = 1
+	if meta.DispatchAttempts <= 0 {
+		meta.DispatchAttempts = 1
 	}
 	now := time.Now()
 	err := Write(func(db *gorm.DB) error {
 		resultDB := db.Model(&RuntimeTaskModel{}).
 			Where("task_id = ? AND status IN ?", taskID, []string{RuntimeTaskStatusPending, RuntimeTaskStatusReleased}).
 			Updates(map[string]any{
-				"status":              RuntimeTaskStatusDispatched,
-				"transport":           transport,
-				"idempotency_key":     idempotencyKey,
-				"dispatched_at":       &now,
-				"last_dispatch_at":    &now,
-				"dispatch_attempts":   gorm.Expr("dispatch_attempts + ?", dispatchAttempts),
-				"last_dispatch_error": "",
-				"result_json":         marshalRuntimeTaskJSON(result),
-				"error_message":       "",
+				"status":                      RuntimeTaskStatusDispatched,
+				"transport":                   meta.Transport,
+				"idempotency_key":             meta.IdempotencyKey,
+				"dispatched_at":               &now,
+				"last_dispatch_at":            &now,
+				"dispatch_attempts":           gorm.Expr("dispatch_attempts + ?", meta.DispatchAttempts),
+				"last_dispatch_status_code":   meta.StatusCode,
+				"last_dispatch_error":         "",
+				"last_dispatch_failure_class": "",
+				"last_dispatch_decision":      firstNonEmptyRuntimeTaskValue(meta.Decision, "dispatched"),
+				"fallback_from_transport":     "",
+				"last_transition_reason":      firstNonEmptyRuntimeTaskValue(meta.TransitionReason, "push_dispatch_succeeded"),
+				"result_json":                 marshalRuntimeTaskJSON(meta.Result),
+				"error_message":               "",
 			})
 		if resultDB.Error != nil {
 			return resultDB.Error
@@ -349,12 +368,12 @@ func MarkRuntimeTaskDispatched(taskID string, transport string, idempotencyKey s
 	return GetRuntimeTask(taskID)
 }
 
-func RecordRuntimeTaskDispatchFailure(taskID string, keepPending bool, idempotencyKey string, dispatchAttempts int, errMsg string) (*RuntimeTaskModel, error) {
+func RecordRuntimeTaskDispatchFailure(taskID string, keepPending bool, meta RuntimeTaskDispatchMetadata) (*RuntimeTaskModel, error) {
 	if taskID == "" {
 		return nil, fmt.Errorf("task id required")
 	}
-	if dispatchAttempts <= 0 {
-		dispatchAttempts = 1
+	if meta.DispatchAttempts <= 0 {
+		meta.DispatchAttempts = 1
 	}
 	status := RuntimeTaskStatusFailed
 	if keepPending {
@@ -365,12 +384,16 @@ func RecordRuntimeTaskDispatchFailure(taskID string, keepPending bool, idempoten
 		resultDB := db.Model(&RuntimeTaskModel{}).
 			Where("task_id = ? AND status IN ?", taskID, []string{RuntimeTaskStatusPending, RuntimeTaskStatusReleased}).
 			Updates(map[string]any{
-				"status":              status,
-				"idempotency_key":     idempotencyKey,
-				"last_dispatch_at":    &now,
-				"dispatch_attempts":   gorm.Expr("dispatch_attempts + ?", dispatchAttempts),
-				"last_dispatch_error": errMsg,
-				"error_message":       errMsg,
+				"status":                      status,
+				"idempotency_key":             meta.IdempotencyKey,
+				"last_dispatch_at":            &now,
+				"dispatch_attempts":           gorm.Expr("dispatch_attempts + ?", meta.DispatchAttempts),
+				"last_dispatch_status_code":   meta.StatusCode,
+				"last_dispatch_error":         meta.ErrorMessage,
+				"last_dispatch_failure_class": firstNonEmptyRuntimeTaskValue(meta.FailureClass, "unknown"),
+				"last_dispatch_decision":      firstNonEmptyRuntimeTaskValue(meta.Decision, ternaryRuntimeTaskDecision(keepPending, "pending_retry", "failed_terminal")),
+				"last_transition_reason":      firstNonEmptyRuntimeTaskValue(meta.TransitionReason, "push_dispatch_failed"),
+				"error_message":               meta.ErrorMessage,
 			})
 		if resultDB.Error != nil {
 			return resultDB.Error
@@ -386,26 +409,31 @@ func RecordRuntimeTaskDispatchFailure(taskID string, keepPending bool, idempoten
 	return GetRuntimeTask(taskID)
 }
 
-func RecordRuntimeTaskDispatchFallback(taskID string, fallbackTransport string, idempotencyKey string, dispatchAttempts int, errMsg string) (*RuntimeTaskModel, error) {
+func RecordRuntimeTaskDispatchFallback(taskID string, meta RuntimeTaskDispatchMetadata) (*RuntimeTaskModel, error) {
 	if taskID == "" {
 		return nil, fmt.Errorf("task id required")
 	}
-	if dispatchAttempts <= 0 {
-		dispatchAttempts = 1
+	if meta.DispatchAttempts <= 0 {
+		meta.DispatchAttempts = 1
 	}
 	now := time.Now()
 	err := Write(func(db *gorm.DB) error {
 		resultDB := db.Model(&RuntimeTaskModel{}).
 			Where("task_id = ? AND status IN ?", taskID, []string{RuntimeTaskStatusPending, RuntimeTaskStatusReleased}).
 			Updates(map[string]any{
-				"status":              RuntimeTaskStatusReleased,
-				"transport":           fallbackTransport,
-				"available_at":        &now,
-				"idempotency_key":     idempotencyKey,
-				"last_dispatch_at":    &now,
-				"dispatch_attempts":   gorm.Expr("dispatch_attempts + ?", dispatchAttempts),
-				"last_dispatch_error": errMsg,
-				"error_message":       errMsg,
+				"status":                      RuntimeTaskStatusReleased,
+				"transport":                   meta.FallbackTransport,
+				"available_at":                &now,
+				"idempotency_key":             meta.IdempotencyKey,
+				"last_dispatch_at":            &now,
+				"dispatch_attempts":           gorm.Expr("dispatch_attempts + ?", meta.DispatchAttempts),
+				"last_dispatch_status_code":   meta.StatusCode,
+				"last_dispatch_error":         meta.ErrorMessage,
+				"last_dispatch_failure_class": firstNonEmptyRuntimeTaskValue(meta.FailureClass, "unknown"),
+				"last_dispatch_decision":      firstNonEmptyRuntimeTaskValue(meta.Decision, "fallback_to_pull"),
+				"fallback_from_transport":     meta.FallbackFromTransport,
+				"last_transition_reason":      firstNonEmptyRuntimeTaskValue(meta.TransitionReason, "push_dispatch_failed_then_fallback"),
+				"error_message":               meta.ErrorMessage,
 			})
 		if resultDB.Error != nil {
 			return resultDB.Error
@@ -662,6 +690,22 @@ func normalizeRuntimeTaskCompletionStatus(status string, result any) (string, st
 		}
 		return RuntimeTaskStatusFailed, errMsg
 	}
+}
+
+func firstNonEmptyRuntimeTaskValue(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func ternaryRuntimeTaskDecision(cond bool, whenTrue string, whenFalse string) string {
+	if cond {
+		return whenTrue
+	}
+	return whenFalse
 }
 
 func marshalRuntimeTaskJSON(value any) string {

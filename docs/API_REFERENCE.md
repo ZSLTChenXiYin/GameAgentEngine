@@ -113,6 +113,7 @@
 - 可按 integration 配置执行基础重试
 - 会为每个 runtime task 生成稳定幂等键并向支持头部的外部协议透传
 - 任务侧会记录 dispatch 尝试次数与最近一次派发错误
+- 对 `hybrid` 路径，任务侧还会记录 `last_dispatch_failure_class`、`last_dispatch_decision`、`fallback_from_transport`、`last_transition_reason`
 - 当 `hybrid` task 的 push 失败且路由配置了 `fallback_transport` 时，任务会被显式转为 `released`，后续重新出现在 pending 列表里，供 pull consumer 继续消费
 
 ### `GET /api/v1/runtime/tasks`
