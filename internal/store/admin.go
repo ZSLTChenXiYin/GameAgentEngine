@@ -12,6 +12,9 @@ func ResetAll() error {
 	return WriteTransaction(func(tx *gorm.DB) error {
 		models := []any{
 			&IdempotencyKeyModel{},
+			&RuntimeTaskModel{},
+			&PausedExecutionModel{},
+			&AsyncCallbackRecordModel{},
 			&InferenceLogModel{},
 			&TimelineModel{},
 			&RelationModel{},
