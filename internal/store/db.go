@@ -105,23 +105,8 @@ func Init(driver, dsn string) error {
 	readSQLDB.SetConnMaxLifetime(time.Hour)
 	writerSQLDB.SetConnMaxLifetime(time.Hour)
 
-	if err := Writer().AutoMigrate(
-		&NodeModel{},
-		&ComponentModel{},
-		&RelationModel{},
-		&MemoryModel{},
-		&TimelineModel{},
-		&InferenceLogModel{},
-		&IdempotencyKeyModel{},
-		&WorldSnapshotModel{},
-		&WorldPolicyModel{},
-		&WorldSettingsModel{},
-		&PropagationChainModel{},
-	); err != nil {
-		return fmt.Errorf("migrate: %w", err)
-	}
-	if err := migrateInferenceLogsToLogs(Writer()); err != nil {
-		return fmt.Errorf("migrate logs: %w", err)
+	if err := RunMigrations(Writer()); err != nil {
+		return fmt.Errorf("run migrations: %w", err)
 	}
 	initLogSink()
 	return nil

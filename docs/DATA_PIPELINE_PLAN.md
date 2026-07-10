@@ -195,6 +195,7 @@ Acceptance:
 6. Batched propagation target persistence for environment and organization style fan-out paths.
 7. World-level exclusion now guards heavy same-world service operations while allowing different worlds to proceed independently.
 8. Shared write retry handling now covers SQLite lock conflicts and MySQL-style deadlock or lock wait failures on centralized write paths.
+9. Database migrations now run through a dedicated shared runner instead of being embedded ad hoc in initialization flow.
 
 ### In Progress
 
@@ -202,9 +203,8 @@ Acceptance:
 
 ### Pending After Current Phase
 
-1. Migration control consolidation.
-2. PostgreSQL adapter.
-3. Load testing and observability expansion.
+1. PostgreSQL adapter.
+2. Load testing and observability expansion.
 
 ## Verification Rules
 
@@ -249,12 +249,19 @@ Every phase must include:
 3. Batched log persistence now retries through the same shared write retry layer.
 4. Store retry tests plus store, service, and engine regression tests passed after the change.
 
+### Phase 10 Evidence
+
+1. Schema and data migration steps now run through `MigrationRunner` and `RunMigrations` instead of being hard-coded inline inside `Init()`.
+2. The migration runner supports ordered reusable steps, which future adapters can share.
+3. Migration runner tests verify ordered execution and step-name error reporting.
+4. Store, service, and engine regression tests passed after the refactor.
+
 ## Current Next Action
 
-Implement Phase 10.
+Implement Phase 11.
 
 Concrete targets:
-1. Centralize migration entrypoints instead of coupling schema work directly to startup side effects.
-2. Keep migration execution reusable across SQLite, MySQL, and future adapters.
-3. Add verification around migration runner behavior.
+1. Add a PostgreSQL adapter to validate the abstraction quality.
+2. Reuse the same unified read, write, retry, and migration entrypoints.
+3. Verify PostgreSQL initialization does not regress SQLite or MySQL behavior.
 4. Commit the phase.

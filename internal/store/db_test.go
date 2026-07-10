@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,6 +72,42 @@ func TestWithWriteRetryStopsOnNonRetriableError(t *testing.T) {
 	}
 	if attempts != 1 {
 		t.Fatalf("expected non-retriable error to stop after 1 attempt, got %d", attempts)
+	}
+}
+
+func TestMigrationRunnerRunsStepsInOrder(t *testing.T) {
+	var sequence []string
+	runner := NewMigrationRunnerWithSteps([]MigrationStep{
+		{Name: "one", Run: func(db *gorm.DB) error {
+			sequence = append(sequence, "one")
+			return nil
+		}},
+		{Name: "two", Run: func(db *gorm.DB) error {
+			sequence = append(sequence, "two")
+			return nil
+		}},
+	})
+	if err := runner.Run(&gorm.DB{}); err != nil {
+		t.Fatalf("run migrations: %v", err)
+	}
+	if len(sequence) != 2 || sequence[0] != "one" || sequence[1] != "two" {
+		t.Fatalf("unexpected migration order: %#v", sequence)
+	}
+}
+
+func TestMigrationRunnerReturnsStepNameOnFailure(t *testing.T) {
+	runner := NewMigrationRunnerWithSteps([]MigrationStep{{
+		Name: "failing_step",
+		Run: func(db *gorm.DB) error {
+			return errors.New("boom")
+		},
+	}})
+	err := runner.Run(&gorm.DB{})
+	if err == nil {
+		t.Fatal("expected migration failure")
+	}
+	if !strings.Contains(err.Error(), "failing_step") {
+		t.Fatalf("expected step name in error, got %v", err)
 	}
 }
 
