@@ -75,6 +75,12 @@ external_integrations:
     auth:
       mode: "bearer"
       token: "replace-me"
+
+  game_ws:
+    type: "websocket_adapter"
+    base_url: "ws://127.0.0.1:9001"
+    path: "/ws/runtime/dispatch"
+    timeout_ms: 5000
 ```
 
 代码级缺省值中，还包括这些重要字段：
@@ -101,9 +107,9 @@ engine:
 
 已支持字段：
 
-- `type`：当前首个实现是 `http_adapter`
+- `type`：当前支持 `http_adapter`、`websocket_adapter`
 - `base_url`：外部服务基础地址
-- `path`：推送路径，缺省为 `/api/v1/runtime/dispatch`
+- `path`：推送路径；`http_adapter` 缺省为 `/api/v1/runtime/dispatch`，`websocket_adapter` 缺省为 `/ws/runtime/dispatch`
 - `timeout_ms`：HTTP 请求超时
 - `headers`：附加请求头
 - `auth.mode`：当前支持 `bearer`、`header`
@@ -112,7 +118,7 @@ engine:
 
 当前实现边界：
 
-- `game_client request_data` 可以通过 `delivery_mode: push|hybrid` + `primary_transport` 使用内建 `http_adapter`
+- `game_client request_data` 可以通过 `delivery_mode: push|hybrid` + `primary_transport` 使用内建 `http_adapter` 或 `websocket_adapter`
 - 普通 async action 也可以通过动作参数中的 `delivery_mode` / `primary_transport` 走相同 push 链路
 - `external_interfaces` 的完整双层业务配置模型仍在后续阶段继续补齐；当前属于过渡期可用实现
 

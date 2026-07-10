@@ -49,7 +49,8 @@ type Dispatcher struct {
 
 func NewDispatcher() *Dispatcher {
 	return &Dispatcher{adapters: map[string]Adapter{
-		"http_adapter": &HTTPAdapter{},
+		"http_adapter":      &HTTPAdapter{},
+		"websocket_adapter": &WebSocketAdapter{},
 	}}
 }
 

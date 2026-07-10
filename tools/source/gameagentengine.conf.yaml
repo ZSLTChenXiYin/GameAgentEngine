@@ -73,3 +73,9 @@ external_integrations:
     auth:
       mode: "bearer"
       token: "replace-me"
+
+  game_ws:
+    type: "websocket_adapter"
+    base_url: "ws://127.0.0.1:9001"
+    path: "/ws/runtime/dispatch"
+    timeout_ms: 5000

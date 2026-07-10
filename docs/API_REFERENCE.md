@@ -82,7 +82,7 @@
 
 普通 async action 也已经接入该队列：当模型输出异步动作调用时，Engine 会为对应 callback 同步生成 `external_action` 类型的 runtime task，默认由 `bridge` 消费；如果动作参数中显式提供 `consumer`，则按该值路由。
 
-当前如果外部交互配置为 `push` 或 `hybrid`，Engine 也可能先通过内建 adapter 主动派发；此时任务状态会进入 `dispatched`，不再出现在 pending 列表里，等待后续 callback 完成。
+当前如果外部交互配置为 `push` 或 `hybrid`，Engine 也可能先通过内建 adapter 主动派发；当前已支持 `http_adapter` 与 `websocket_adapter`。此时任务状态会进入 `dispatched`，不再出现在 pending 列表里，等待后续 callback 完成。
 
 ### `POST /api/v1/runtime/tasks/claim`
 

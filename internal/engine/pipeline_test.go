@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
@@ -1128,5 +1130,56 @@ func TestExecuteAsyncActionHybridFallsBackToPendingTaskWhenPushFails(t *testing.
 	}
 	if !strings.Contains(task.ErrorMessage, "status 502") {
 		t.Fatalf("expected dispatch failure to be recorded, got %q", task.ErrorMessage)
+	}
+}
+
+func TestExecutePushesGameClientRequestDataThroughWebSocketAdapter(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	var gotBody map[string]any
+	upgrader := websocket.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("upgrade websocket: %v", err)
+		}
+		defer conn.Close()
+		if err := conn.ReadJSON(&gotBody); err != nil {
+			t.Fatalf("read websocket dispatch payload: %v", err)
+		}
+		if err := conn.WriteJSON(map[string]any{"status": 200, "accepted": true}); err != nil {
+			t.Fatalf("write websocket response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + server.URL[len("http"):]
+	previousIntegrations := config.Global.ExternalIntegrations
+	config.Global.ExternalIntegrations = map[string]config.ExternalIntegrationConfig{
+		"game_ws": {Type: "websocket_adapter", BaseURL: wsURL, Path: "/dispatch"},
+	}
+	defer func() { config.Global.ExternalIntegrations = previousIntegrations }()
+
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"need-client","request_data":{"label":"fetch-scene","target":"game_client","delivery_mode":"push","primary_transport":"game_ws","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp == nil || len(resp.ActionCalls) != 1 || resp.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected async callback response, got %+v", resp)
+	}
+	task, err := store.GetRuntimeTaskByCallbackID(resp.ActionCalls[0].CallbackID)
+	if err != nil {
+		t.Fatalf("get runtime task by callback id: %v", err)
+	}
+	if task.Status != store.RuntimeTaskStatusDispatched {
+		t.Fatalf("expected dispatched task status, got %q", task.Status)
+	}
+	if gotBody["primary_transport"] != "game_ws" {
+		t.Fatalf("unexpected primary_transport in payload: %+v", gotBody)
 	}
 }
