@@ -191,11 +191,12 @@ Acceptance:
 3. SQLite writer strategy with WAL and tuned connection policy.
 4. Log batch pipeline with queue, timed flush, size-based flush, fallback direct writes,
    explicit flush before reads, and sink close on reinit/shutdown.
+5. Memory batch helpers for direct pipeline memory writes.
+6. Batched propagation target persistence for environment and organization style fan-out paths.
 
 ### In Progress
 
 1. Durable plan tracking in repository.
-2. Memory and propagation batch pipeline design and implementation.
 
 ### Pending After Current Phase
 
@@ -228,13 +229,18 @@ Every phase must include:
 3. Reinitialization closes any previous sink.
 4. Store, service, and engine regression tests passed.
 
+### Phase 7 Evidence
+
+1. Direct pipeline memory writes now go through a batch persistence helper.
+2. Propagation target writes for grouped target sets now use batched inserts with dedupe filtering.
+3. Behavior-preserving engine and service regression tests passed after the refactor.
+
 ## Current Next Action
 
-Implement Phase 7.
+Implement Phase 8.
 
 Concrete targets:
-1. Introduce batch persistence helpers for memory writes.
-2. Integrate direct pipeline memory writes into a grouped write path.
-3. Refactor propagation target writes to reduce fragmented inserts.
-4. Preserve current behavior and existing response semantics.
-5. Add tests, then commit the phase.
+1. Introduce world-level mutual exclusion for critical operations.
+2. Apply the lock only to heavy or consistency-sensitive flows.
+3. Preserve MySQL concurrent writes outside those guarded operations.
+4. Add tests, then commit the phase.

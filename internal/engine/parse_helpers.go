@@ -226,6 +226,8 @@ func (p *Pipeline) parseMemoryUpdates(rawJSON string) []MemoryUpdate {
 }
 
 func (p *Pipeline) writeMemories(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, updates []MemoryUpdate) {
+	batch := make([]memoryWriteRequest, 0, len(updates))
+	validUpdates := make([]MemoryUpdate, 0, len(updates))
 	for _, mu := range updates {
 		nodeID := store.ResolveNodeUUID(mu.NodeID)
 		if nodeID == 0 {
@@ -233,17 +235,23 @@ func (p *Pipeline) writeMemories(req *InvokeRequest, runtime *executionConfig, e
 			log.Printf("[warn] write memory: unknown node UUID %s", mu.NodeID)
 			continue
 		}
-		mm := store.MemoryModel{
-			NodeID:  nodeID,
-			Content: mu.Content,
-			Level:   string(mu.Level),
-			Tags:    mu.Tags,
-		}
-		if err := store.CreateMemory(&mm); err != nil {
+		batch = append(batch, memoryWriteRequest{
+			NodeUUID: mu.NodeID,
+			NodeID:   nodeID,
+			Content:  mu.Content,
+			Level:    mu.Level,
+			Tags:     mu.Tags,
+		})
+		validUpdates = append(validUpdates, mu)
+	}
+	if err := persistMemoryBatch(batch); err != nil {
+		for _, mu := range validUpdates {
 			p.emitExecutionEvent(req, runtime, executionMode, "memory_write_failed", mu.Content, map[string]any{"node_id": mu.NodeID, "level": mu.Level, "tags": mu.Tags, "error": err.Error()})
-			log.Printf("write memory: %v", err)
-			continue
 		}
+		logMemoryBatchFailure("write memory batch", err)
+		return
+	}
+	for _, mu := range validUpdates {
 		p.emitExecutionEvent(req, runtime, executionMode, "memory_written", mu.Content, map[string]any{"node_id": mu.NodeID, "level": mu.Level, "tags": mu.Tags})
 	}
 }

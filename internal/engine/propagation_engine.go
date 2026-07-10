@@ -349,22 +349,29 @@ func appendResolvedTarget(targets *[]propagationTarget, seen map[string]bool, ta
 }
 
 func (p *Pipeline) propagateToResolvedTargets(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, targets []propagationTarget, content string, level MemoryLevel, mode string) {
+	batch := make([]memoryWriteRequest, 0, len(targets))
+	filteredTargets := make([]propagationTarget, 0, len(targets))
 	for _, target := range targets {
-		if hasPropagatedMemory(target.NodeUUID, content) {
-			continue
-		}
-		m := &store.MemoryModel{
-			NodeID:  target.NodeID,
-			Content: content,
-			Level:   string(target.Level),
-			Tags:    "propagated," + mode,
-		}
-		if err := store.CreateMemory(m); err != nil {
+		batch = append(batch, memoryWriteRequest{
+			NodeUUID: target.NodeUUID,
+			NodeID:   target.NodeID,
+			Content:  content,
+			Level:    target.Level,
+			Tags:     "propagated," + mode,
+		})
+	}
+	for _, item := range filterNewPropagationTargets(batch) {
+		filteredTargets = append(filteredTargets, propagationTarget{NodeUUID: item.NodeUUID, NodeID: item.NodeID, Level: item.Level})
+	}
+	if err := persistMemoryBatch(filterNewPropagationTargets(batch)); err != nil {
+		for _, target := range targets {
 			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", content, map[string]any{"target_node_id": target.NodeUUID, "mode": mode, "error": err.Error()})
-			log.Printf("propagate %s to %s: %v", mode, target.NodeUUID, err)
-		} else {
-			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", content, map[string]any{"target_node_id": target.NodeUUID, "mode": mode, "level": target.Level})
 		}
+		logMemoryBatchFailure("propagate "+mode, err)
+		return
+	}
+	for _, target := range filteredTargets {
+		p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", content, map[string]any{"target_node_id": target.NodeUUID, "mode": mode, "level": target.Level})
 	}
 }
 
