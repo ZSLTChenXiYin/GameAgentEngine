@@ -92,6 +92,40 @@
 - 任务侧会记录 dispatch 尝试次数与最近一次派发错误
 - 当 `hybrid` task 的 push 失败且路由配置了 `fallback_transport` 时，任务会被显式转为 `released`，后续重新出现在 pending 列表里，供 pull consumer 继续消费
 
+### `GET /api/v1/runtime/tasks`
+
+按条件查询 runtime task 管理视图。
+
+查询参数：
+
+- `consumer` - 可选
+- `category` - 可选，例如 `external_query`、`external_action`
+- `interface_name` - 可选
+- `transport` - 可选，例如 `game_http`、`task_pull`
+- `world_id` - 可选
+- `status` - 可选，逗号分隔，例如 `pending,released`
+- `available_only` - 可选，传 `true` 时只返回已经到达可领取时间的任务
+- `limit` - 可选，默认 `20`，最大 `200`
+
+该接口用于运维排查和管理面查询，不替代 `pending` 拉取接口。
+
+### `GET /api/v1/runtime/tasks/{task_id}`
+
+读取单个 runtime task 详情。
+
+### `GET /api/v1/runtime/tasks/stats`
+
+读取 runtime task 聚合统计。
+
+当前包括：
+
+- 总任务数
+- ready pull / in flight / terminal 数量
+- `heartbeat_timeout` 数量
+- 存在 `last_dispatch_error` 的任务数量
+- 按 `status`、`category`、`consumer`、`delivery_mode`、`transport`、`interface_name` 聚合的计数
+- 最老 ready pull 任务的等待秒数
+
 ### `POST /api/v1/runtime/tasks/claim`
 
 领取一个 runtime task。
@@ -191,6 +225,24 @@
 - requeue 成功后，任务状态会变成 `released`，并清除超时标记与租约。
 - `retry_delay_ms` 可控制任务何时重新进入 pending 列表。
 - 非 `heartbeat_timeout` 任务会返回 `409`，错误码 `runtime_task_not_requeueable`。
+
+### `POST /api/v1/runtime/tasks/heartbeat-timeout/sweep`
+
+按给定超时阈值，将长时间无心跳的 `claimed` / `running` 任务批量标记为 `heartbeat_timeout`。
+
+典型请求体：
+
+```json
+{
+  "timeout_seconds": 60
+}
+```
+
+当前行为：
+
+- `timeout_seconds` 必须大于 `0`
+- 成功后返回本次 sweep 影响的任务数量
+- 这是最小管理入口，后续还会继续补自动治理与批量 requeue 策略
 
 ### `GET /api/v1/plans/pending`
 

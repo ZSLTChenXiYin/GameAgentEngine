@@ -5,10 +5,120 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
+
+func parseRuntimeTaskStatuses(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+func MakeListRuntimeTasksHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		limit := 20
+		if raw := r.URL.Query().Get("limit"); raw != "" {
+			parsed, err := strconv.Atoi(raw)
+			if err != nil || parsed <= 0 || parsed > 200 {
+				errorJSONCode(w, http.StatusBadRequest, "invalid_limit", "limit must be between 1 and 200")
+				return
+			}
+			limit = parsed
+		}
+		query := store.RuntimeTaskListQuery{
+			Consumer:      strings.TrimSpace(r.URL.Query().Get("consumer")),
+			Category:      strings.TrimSpace(r.URL.Query().Get("category")),
+			InterfaceName: strings.TrimSpace(r.URL.Query().Get("interface_name")),
+			Transport:     strings.TrimSpace(r.URL.Query().Get("transport")),
+			WorldUUID:     strings.TrimSpace(r.URL.Query().Get("world_id")),
+			Statuses:      parseRuntimeTaskStatuses(r.URL.Query().Get("status")),
+			Limit:         limit,
+		}
+		if raw := strings.TrimSpace(r.URL.Query().Get("available_only")); raw != "" && raw != "false" && raw != "0" {
+			now := time.Now()
+			query.AvailableBefore = &now
+		}
+		items, err := store.ListRuntimeTasks(query)
+		if err != nil {
+			errorJSON(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"tasks": items,
+			"count": len(items),
+			"query": query,
+		})
+	}
+}
+
+func MakeGetRuntimeTaskHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		taskID := strings.TrimSpace(r.PathValue("task_id"))
+		if taskID == "" {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_runtime_task_id", "task_id required")
+			return
+		}
+		item, err := store.GetRuntimeTask(taskID)
+		if err != nil {
+			if store.IsRecordNotFound(err) {
+				errorJSONCode(w, http.StatusNotFound, "runtime_task_not_found", "runtime task not found")
+				return
+			}
+			errorJSON(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"task": item})
+	}
+}
+
+func MakeRuntimeTaskStatsHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		stats, err := store.GetRuntimeTaskStats()
+		if err != nil {
+			errorJSON(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"stats": stats})
+	}
+}
+
+func MakeSweepRuntimeTaskHeartbeatTimeoutHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			TimeoutSeconds int `json:"timeout_seconds"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			errorJSON(w, http.StatusBadRequest, "invalid json: "+err.Error())
+			return
+		}
+		if req.TimeoutSeconds <= 0 {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_timeout_seconds", "timeout_seconds must be > 0")
+			return
+		}
+		affected, err := store.MarkRuntimeTasksHeartbeatTimeout(time.Duration(req.TimeoutSeconds) * time.Second)
+		if err != nil {
+			errorJSON(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":          "ok",
+			"affected":        affected,
+			"timeout_seconds": req.TimeoutSeconds,
+		})
+	}
+}
 
 func MakeListPendingRuntimeTasksHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

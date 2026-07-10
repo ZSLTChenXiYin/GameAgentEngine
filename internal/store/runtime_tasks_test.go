@@ -42,6 +42,84 @@ func TestListPendingRuntimeTasksFiltersByConsumerAndAvailability(t *testing.T) {
 	}
 }
 
+func TestListRuntimeTasksSupportsExtendedFilters(t *testing.T) {
+	initRuntimeTaskTestDB(t)
+	now := time.Now()
+	rows := []RuntimeTaskModel{
+		{TaskID: "filter-1", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", WorldUUID: "world-a", Status: RuntimeTaskStatusPending, PayloadJSON: `{}`, AvailableAt: &now},
+		{TaskID: "filter-2", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", WorldUUID: "world-b", Status: RuntimeTaskStatusPending, PayloadJSON: `{}`, AvailableAt: &now},
+		{TaskID: "filter-3", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", WorldUUID: "world-a", Status: RuntimeTaskStatusDispatched, PayloadJSON: `{}`, AvailableAt: &now},
+	}
+	for i := range rows {
+		if err := CreateRuntimeTask(&rows[i]); err != nil {
+			t.Fatalf("create task %d: %v", i, err)
+		}
+	}
+	items, err := ListRuntimeTasks(RuntimeTaskListQuery{
+		Category:      "external_query",
+		InterfaceName: "fetch_scene",
+		Transport:     "task_pull",
+		WorldUUID:     "world-a",
+		Statuses:      []string{RuntimeTaskStatusPending},
+		Limit:         10,
+	})
+	if err != nil {
+		t.Fatalf("list runtime tasks: %v", err)
+	}
+	if len(items) != 1 || items[0].TaskID != "filter-1" {
+		t.Fatalf("unexpected filtered tasks: %+v", items)
+	}
+}
+
+func TestGetRuntimeTaskStatsReturnsStructuredCounts(t *testing.T) {
+	initRuntimeTaskTestDB(t)
+	now := time.Now()
+	old := now.Add(-5 * time.Minute)
+	rows := []RuntimeTaskModel{
+		{TaskID: "stats-1", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", Status: RuntimeTaskStatusPending, PayloadJSON: `{}`, AvailableAt: &now, CreatedAt: old},
+		{TaskID: "stats-2", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "hybrid", Consumer: "bridge", Transport: "game_http", Status: RuntimeTaskStatusReleased, PayloadJSON: `{}`, AvailableAt: &now, LastDispatchError: "fallback", CreatedAt: now},
+		{TaskID: "stats-3", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", Status: RuntimeTaskStatusDispatched, PayloadJSON: `{}`},
+		{TaskID: "stats-4", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Transport: "task_pull", Status: RuntimeTaskStatusHeartbeatTimeout, PayloadJSON: `{}`},
+		{TaskID: "stats-5", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", Status: RuntimeTaskStatusSucceeded, PayloadJSON: `{}`},
+	}
+	for i := range rows {
+		if err := CreateRuntimeTask(&rows[i]); err != nil {
+			t.Fatalf("create task %d: %v", i, err)
+		}
+	}
+	stats, err := GetRuntimeTaskStats()
+	if err != nil {
+		t.Fatalf("get runtime task stats: %v", err)
+	}
+	if stats.Total != 5 {
+		t.Fatalf("expected total 5, got %d", stats.Total)
+	}
+	if stats.ReadyPull != 2 {
+		t.Fatalf("expected ready pull 2, got %d", stats.ReadyPull)
+	}
+	if stats.InFlight != 1 {
+		t.Fatalf("expected in flight 1, got %d", stats.InFlight)
+	}
+	if stats.Terminal != 1 {
+		t.Fatalf("expected terminal 1, got %d", stats.Terminal)
+	}
+	if stats.HeartbeatTimeout != 1 {
+		t.Fatalf("expected heartbeat timeout 1, got %d", stats.HeartbeatTimeout)
+	}
+	if stats.DispatchErrorTasks != 1 {
+		t.Fatalf("expected dispatch error tasks 1, got %d", stats.DispatchErrorTasks)
+	}
+	if stats.ByStatus[RuntimeTaskStatusPending] != 1 || stats.ByStatus[RuntimeTaskStatusReleased] != 1 {
+		t.Fatalf("unexpected by_status: %+v", stats.ByStatus)
+	}
+	if stats.ByInterface["spawn_item"] != 2 {
+		t.Fatalf("unexpected by_interface: %+v", stats.ByInterface)
+	}
+	if stats.OldestReadyTaskAgeSecs <= 0 {
+		t.Fatalf("expected oldest ready task age > 0, got %d", stats.OldestReadyTaskAgeSecs)
+	}
+}
+
 func TestClaimRuntimeTaskMarksLeaseAndPreventsDoubleClaim(t *testing.T) {
 	initRuntimeTaskTestDB(t)
 	row := &RuntimeTaskModel{TaskID: "claim-me", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Status: RuntimeTaskStatusPending, PayloadJSON: `{"scene":"tavern"}`}

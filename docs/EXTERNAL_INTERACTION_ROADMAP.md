@@ -138,6 +138,8 @@ external_interfaces:
 | 已完成 | 普通 async action push/hybrid 派发 | 已可按动作参数走 push，并在 hybrid 下保留 pull 回退 |
 | 已完成 | hybrid fallback 基础状态迁移 | push 失败且配置 `fallback_transport` 时，runtime task 会显式转为 `released` 并切换到 fallback transport |
 | 已完成 | `resume_policy` 基础恢复控制 | callback 自动恢复现在受 task payload 中的 `resume_policy` 控制 |
+| 已完成 | external task metrics 基础版 | 已支持 runtime task 聚合统计接口 |
+| 已完成 | admin / management endpoints 基础版 | 已支持 runtime task 列表、详情与 `heartbeat_timeout` sweep 管理入口 |
 
 ### 3.2 当前真实边界
 
@@ -300,8 +302,8 @@ external_interfaces:
 |---|---|
 | callback / task claim 鉴权模型 | 未开始 |
 | 幂等键与防重放 | 未开始 |
-| external task metrics | 未开始 |
-| admin / management endpoints | 未开始 |
+| external task metrics | 已完成基础版 |
+| admin / management endpoints | 已完成基础版 |
 | 故障注入与测试矩阵 | 未开始 |
 | 开发者文档与示例 | 未开始 |
 
@@ -367,6 +369,8 @@ external_interfaces:
 - 在 scheduled 自主行为里把更多外部交互统一走 `external_interfaces` 配置层，而不是只覆盖当前已接线入口
 - 为普通 async action 补 richer post-processing / resume 编排，让 callback 结果不只停留在 `OnResult(...)`
 - 为 hybrid 补更完整的 fallback state machine，例如重试后再降级、降级后回切与治理策略
+- 为 runtime task 管理面补更细粒度安全边界，例如 callback / claim / admin 操作分级鉴权
+- 为管理面补更多批量治理能力，例如 heartbeat timeout 自动 requeue、失败任务筛选与人工干预流
 
 当前普通 async action 的 consumer 路由已经支持 `external_interfaces` 正式配置层：默认读取同名 `action_id` 配置，也允许通过动作参数显式覆盖；后续主要要补的是更完整的后处理与策略编排，而不是基础路由接线。
 

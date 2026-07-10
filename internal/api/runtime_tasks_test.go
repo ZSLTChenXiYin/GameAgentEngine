@@ -54,6 +54,125 @@ func TestMakeListPendingRuntimeTasksHandlerFiltersTasks(t *testing.T) {
 	}
 }
 
+func TestMakeListRuntimeTasksHandlerSupportsStructuredQuery(t *testing.T) {
+	initRuntimeTaskAPITestDB(t)
+	now := time.Now()
+	seed := []store.RuntimeTaskModel{
+		{TaskID: "all-1", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", WorldUUID: "world-a", Status: store.RuntimeTaskStatusPending, PayloadJSON: `{}`, AvailableAt: &now},
+		{TaskID: "all-2", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", WorldUUID: "world-b", Status: store.RuntimeTaskStatusPending, PayloadJSON: `{}`, AvailableAt: &now},
+		{TaskID: "all-3", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", WorldUUID: "world-a", Status: store.RuntimeTaskStatusDispatched, PayloadJSON: `{}`, AvailableAt: &now},
+	}
+	for i := range seed {
+		if err := store.CreateRuntimeTask(&seed[i]); err != nil {
+			t.Fatalf("seed task %d: %v", i, err)
+		}
+	}
+	h := MakeListRuntimeTasksHandler()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/runtime/tasks?category=external_query&interface_name=fetch_scene&transport=task_pull&world_id=world-a&status=pending&available_only=true&limit=5", nil)
+	w := httptest.NewRecorder()
+	h(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Tasks []store.RuntimeTaskModel `json:"tasks"`
+		Count int                      `json:"count"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if body.Count != 1 || len(body.Tasks) != 1 || body.Tasks[0].TaskID != "all-1" {
+		t.Fatalf("unexpected runtime task list body: %+v", body)
+	}
+}
+
+func TestMakeGetRuntimeTaskHandlerReturnsTaskByID(t *testing.T) {
+	initRuntimeTaskAPITestDB(t)
+	row := &store.RuntimeTaskModel{TaskID: "detail-api", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Status: store.RuntimeTaskStatusPending, PayloadJSON: `{}`}
+	if err := store.CreateRuntimeTask(row); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	h := MakeGetRuntimeTaskHandler()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/runtime/tasks/detail-api", nil)
+	req.SetPathValue("task_id", "detail-api")
+	w := httptest.NewRecorder()
+	h(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Task store.RuntimeTaskModel `json:"task"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if body.Task.TaskID != "detail-api" {
+		t.Fatalf("unexpected task detail: %+v", body.Task)
+	}
+}
+
+func TestMakeRuntimeTaskStatsHandlerReturnsAggregates(t *testing.T) {
+	initRuntimeTaskAPITestDB(t)
+	now := time.Now()
+	seed := []store.RuntimeTaskModel{
+		{TaskID: "stats-api-1", Category: "external_query", InterfaceName: "fetch_scene", DeliveryMode: "pull", Consumer: "game_client", Transport: "task_pull", Status: store.RuntimeTaskStatusPending, PayloadJSON: `{}`, AvailableAt: &now},
+		{TaskID: "stats-api-2", Category: "external_action", InterfaceName: "spawn_item", DeliveryMode: "push", Consumer: "bridge", Transport: "game_http", Status: store.RuntimeTaskStatusDispatched, PayloadJSON: `{}`},
+	}
+	for i := range seed {
+		if err := store.CreateRuntimeTask(&seed[i]); err != nil {
+			t.Fatalf("seed task %d: %v", i, err)
+		}
+	}
+	h := MakeRuntimeTaskStatsHandler()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/runtime/tasks/stats", nil)
+	w := httptest.NewRecorder()
+	h(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Stats store.RuntimeTaskStats `json:"stats"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if body.Stats.Total != 2 || body.Stats.ReadyPull != 1 || body.Stats.InFlight != 1 {
+		t.Fatalf("unexpected stats body: %+v", body.Stats)
+	}
+}
+
+func TestMakeSweepRuntimeTaskHeartbeatTimeoutHandlerMarksStaleTasks(t *testing.T) {
+	initRuntimeTaskAPITestDB(t)
+	old := time.Now().Add(-10 * time.Minute)
+	row := &store.RuntimeTaskModel{TaskID: "sweep-api", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Status: store.RuntimeTaskStatusClaimed, LeaseOwner: "bridge-1", LeaseToken: "tok-1", PayloadJSON: `{}`, LastHeartbeatAt: &old}
+	if err := store.CreateRuntimeTask(row); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	h := MakeSweepRuntimeTaskHeartbeatTimeoutHandler()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runtime/tasks/heartbeat-timeout/sweep", strings.NewReader(`{"timeout_seconds":60}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Affected int64 `json:"affected"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if body.Affected != 1 {
+		t.Fatalf("expected affected 1, got %+v", body)
+	}
+	item, err := store.GetRuntimeTask("sweep-api")
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	if item.Status != store.RuntimeTaskStatusHeartbeatTimeout {
+		t.Fatalf("expected heartbeat timeout status, got %+v", item)
+	}
+}
+
 func TestMakeClaimRuntimeTaskHandlerClaimsAndRejectsDoubleClaim(t *testing.T) {
 	initRuntimeTaskAPITestDB(t)
 	row := &store.RuntimeTaskModel{TaskID: "claim-api", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Status: store.RuntimeTaskStatusPending, PayloadJSON: `{"npc":"merchant"}`}

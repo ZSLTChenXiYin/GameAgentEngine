@@ -15,10 +15,14 @@ func NewRouter(p *engine.Pipeline) *http.ServeMux {
 
 	mux.HandleFunc("POST /api/v1/invoke", MakeInvokeHandler(p))
 	mux.HandleFunc("POST /api/v1/actions/callback", MakeActionCallbackHandler(p))
+	mux.HandleFunc("GET /api/v1/runtime/tasks", MakeListRuntimeTasksHandler())
+	mux.HandleFunc("GET /api/v1/runtime/tasks/stats", MakeRuntimeTaskStatsHandler())
 	mux.HandleFunc("GET /api/v1/runtime/tasks/pending", MakeListPendingRuntimeTasksHandler())
+	mux.HandleFunc("GET /api/v1/runtime/tasks/{task_id}", MakeGetRuntimeTaskHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/claim", MakeClaimRuntimeTaskHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/start", MakeStartRuntimeTaskHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/heartbeat", MakeHeartbeatRuntimeTaskHandler())
+	mux.HandleFunc("POST /api/v1/runtime/tasks/heartbeat-timeout/sweep", MakeSweepRuntimeTaskHeartbeatTimeoutHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/release", MakeReleaseRuntimeTaskHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/requeue", MakeRequeueRuntimeTaskHandler())
 
