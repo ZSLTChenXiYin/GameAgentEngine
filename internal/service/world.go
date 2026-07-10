@@ -54,6 +54,21 @@ func marshalWorldServiceDetail(detail any, mode string) string {
 
 // AdvanceWorldTickWithAutonomous 推进世界刻，并按请求级限制触发 world_tick_sync 自主节点。
 func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameTime string, requestedTicks *int, autonomousLimit *int) (*store.TimelineModel, *engine.InvokeResponse, *engine.WorldTimeStateComponent, []engine.AutonomousRunResult, error) {
+	var (
+		tick           *store.TimelineModel
+		resp           *engine.InvokeResponse
+		worldTimeState *engine.WorldTimeStateComponent
+		autonomousRuns []engine.AutonomousRunResult
+	)
+	err := withWorldLock(worldID, func() error {
+		var innerErr error
+		tick, resp, worldTimeState, autonomousRuns, innerErr = advanceWorldTickWithAutonomousUnlocked(p, worldID, tickType, gameTime, requestedTicks, autonomousLimit)
+		return innerErr
+	})
+	return tick, resp, worldTimeState, autonomousRuns, err
+}
+
+func advanceWorldTickWithAutonomousUnlocked(p *engine.Pipeline, worldID, tickType, gameTime string, requestedTicks *int, autonomousLimit *int) (*store.TimelineModel, *engine.InvokeResponse, *engine.WorldTimeStateComponent, []engine.AutonomousRunResult, error) {
 	if tickType == "" {
 		tickType = "scheduled"
 	}
@@ -96,7 +111,7 @@ func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameT
 	}
 	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_persisted", tick.Summary, tick)
 
-	autonomousRuns := RunWorldTickAutonomous(p, worldID, autonomousLimit)
+	autonomousRuns := runWorldTickAutonomousUnlocked(p, worldID, autonomousLimit)
 	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_autonomous_completed", "autonomous runs completed", autonomousRuns)
 	return tick, resp, worldTimeState, autonomousRuns, nil
 }
@@ -662,6 +677,12 @@ func truncateWorldTickText(value string, limit int) string {
 
 // RunAutonomousNode 手动触发一个节点的自主行为周期。
 func RunAutonomousNode(p *engine.Pipeline, worldID, nodeID string) (*engine.InvokeResponse, error) {
+	return withWorldLockValue(worldID, func() (*engine.InvokeResponse, error) {
+		return runAutonomousNodeUnlocked(p, worldID, nodeID)
+	})
+}
+
+func runAutonomousNodeUnlocked(p *engine.Pipeline, worldID, nodeID string) (*engine.InvokeResponse, error) {
 	if _, err := ensureWorldNodeTx(store.DB, worldID); err != nil {
 		return nil, err
 	}
@@ -673,15 +694,33 @@ func RunAutonomousNode(p *engine.Pipeline, worldID, nodeID string) (*engine.Invo
 
 // RunWorldTickAutonomous 触发同世界中声明为 world_tick_sync 的自主节点。
 func RunWorldTickAutonomous(p *engine.Pipeline, worldID string, limit *int) []engine.AutonomousRunResult {
-	return runAutonomousByTrigger(p, worldID, engine.AutonomousTriggerWorldTickSync, limit)
+	return withWorldLockAutonomous(worldID, func() []engine.AutonomousRunResult {
+		return runWorldTickAutonomousUnlocked(p, worldID, limit)
+	})
 }
 
 // RunScheduledAutonomous 触发同世界中到期的 scheduled 自主节点。
 func RunScheduledAutonomous(p *engine.Pipeline, worldID string, limit *int, now time.Time) []engine.AutonomousRunResult {
-	return runAutonomousByTrigger(p, worldID, engine.AutonomousTriggerScheduled, limit, now)
+	return withWorldLockAutonomous(worldID, func() []engine.AutonomousRunResult {
+		return runScheduledAutonomousUnlocked(p, worldID, limit, now)
+	})
 }
 
-func runAutonomousByTrigger(p *engine.Pipeline, worldID string, trigger string, limit *int, nowOpt ...time.Time) []engine.AutonomousRunResult {
+func runWorldTickAutonomousUnlocked(p *engine.Pipeline, worldID string, limit *int) []engine.AutonomousRunResult {
+	return runAutonomousByTriggerUnlocked(p, worldID, engine.AutonomousTriggerWorldTickSync, limit)
+}
+
+func runScheduledAutonomousUnlocked(p *engine.Pipeline, worldID string, limit *int, now time.Time) []engine.AutonomousRunResult {
+	return runAutonomousByTriggerUnlocked(p, worldID, engine.AutonomousTriggerScheduled, limit, now)
+}
+
+func withWorldLockAutonomous(worldID string, fn func() []engine.AutonomousRunResult) []engine.AutonomousRunResult {
+	LockWorld(worldID)
+	defer UnlockWorld(worldID)
+	return fn()
+}
+
+func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger string, limit *int, nowOpt ...time.Time) []engine.AutonomousRunResult {
 	maxRuns := defaultAutonomousTickLimit
 	if limit != nil {
 		maxRuns = *limit
@@ -728,7 +767,7 @@ func runAutonomousByTrigger(p *engine.Pipeline, worldID string, trigger string, 
 		}
 		emitWorldServiceLog(worldID, nodeUUID, engine.TaskAutonomousAct, "autonomous_node_started", trigger, map[string]any{"node_id": nodeUUID})
 
-		resp, err := RunAutonomousNode(p, worldID, nodeUUID)
+		resp, err := runAutonomousNodeUnlocked(p, worldID, nodeUUID)
 		if err != nil {
 			emitWorldServiceLog(worldID, nodeUUID, engine.TaskAutonomousAct, "autonomous_node_failed", trigger, map[string]any{"node_id": nodeUUID, "error": err.Error()})
 			results = append(results, engine.AutonomousRunResult{NodeID: nodeUUID, Error: err.Error()})

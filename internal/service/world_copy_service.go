@@ -66,10 +66,10 @@ func RestoreWorld(snapshotWorldID, newName string, lockWorld bool) (*store.NodeM
 
 func duplicateWorld(worldID, newName string, lockWorld bool, mode worldCopyMode, beforeCopy func(tx *gorm.DB, sourceWorld *store.NodeModel) error) (*store.NodeModel, error) {
 	started := time.Now()
-	if lockWorld {
-		LockWorld(worldID)
-		defer UnlockWorld(worldID)
-	}
+	// Phase 8 enforces world-level exclusion for heavy copy flows even if older callers
+	// omit lockWorld, while keeping the parameter for API compatibility.
+	LockWorld(worldID)
+	defer UnlockWorld(worldID)
 
 	var created *store.NodeModel
 	err := store.WriteTransaction(func(tx *gorm.DB) error {
@@ -182,7 +182,7 @@ func duplicateWorld(worldID, newName string, lockWorld bool, mode worldCopyMode,
 		return nil
 	})
 	if err == nil {
-		log.Printf("[world-copy] reason=%s source=%s target=%s lock=%t duration_ms=%d", mode.reason, worldID, created.UUID, lockWorld, time.Since(started).Milliseconds())
+		log.Printf("[world-copy] reason=%s source=%s target=%s requested_lock=%t effective_lock=%t duration_ms=%d", mode.reason, worldID, created.UUID, lockWorld, true, time.Since(started).Milliseconds())
 	}
 	return created, err
 }

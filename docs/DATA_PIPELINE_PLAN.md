@@ -193,6 +193,7 @@ Acceptance:
    explicit flush before reads, and sink close on reinit/shutdown.
 5. Memory batch helpers for direct pipeline memory writes.
 6. Batched propagation target persistence for environment and organization style fan-out paths.
+7. World-level exclusion now guards heavy same-world service operations while allowing different worlds to proceed independently.
 
 ### In Progress
 
@@ -200,11 +201,10 @@ Acceptance:
 
 ### Pending After Current Phase
 
-1. Business-level world locks for heavy operations.
-2. Retry policy layer.
-3. Migration control consolidation.
-4. PostgreSQL adapter.
-5. Load testing and observability expansion.
+1. Retry policy layer.
+2. Migration control consolidation.
+3. PostgreSQL adapter.
+4. Load testing and observability expansion.
 
 ## Verification Rules
 
@@ -235,12 +235,19 @@ Every phase must include:
 2. Propagation target writes for grouped target sets now use batched inserts with dedupe filtering.
 3. Behavior-preserving engine and service regression tests passed after the refactor.
 
+### Phase 8 Evidence
+
+1. `AdvanceWorldTickWithAutonomous`, `RunAutonomousNode`, `RunScheduledAutonomous`, world copy flows, and snapshot deletion now share world-level exclusion boundaries.
+2. World copy and restore operations now enforce the same-world lock even when older callers omit the legacy `lock_world` flag.
+3. World lock tests verify same-world serialization and different-world concurrency.
+4. Store, service, and engine regression tests passed after the change.
+
 ## Current Next Action
 
-Implement Phase 8.
+Implement Phase 9.
 
 Concrete targets:
-1. Introduce world-level mutual exclusion for critical operations.
-2. Apply the lock only to heavy or consistency-sensitive flows.
-3. Preserve MySQL concurrent writes outside those guarded operations.
+1. Normalize retriable SQLite and MySQL lock or deadlock errors.
+2. Add a shared retry helper around safe write transactions and batch flushes.
+3. Keep retries bounded and observable.
 4. Add tests, then commit the phase.

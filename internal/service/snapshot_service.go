@@ -486,21 +486,23 @@ func ListWorldSnapshots(sourceWorldID string) ([]WorldSnapshotInfo, error) {
 
 // DeleteWorldSnapshot deletes a saved snapshot world and its persisted data.
 func DeleteWorldSnapshot(snapshotWorldID string) error {
-	snapshotMeta, err := store.GetWorldSnapshotBySnapshotWorld(snapshotWorldID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errorf(ErrorNotFound, "snapshot metadata not found for world: %s", snapshotWorldID)
+	return withWorldLock(snapshotWorldID, func() error {
+		snapshotMeta, err := store.GetWorldSnapshotBySnapshotWorld(snapshotWorldID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errorf(ErrorNotFound, "snapshot metadata not found for world: %s", snapshotWorldID)
+			}
+			return err
 		}
-		return err
-	}
-	if snapshotMeta.Reason != worldCopyReasonSnapshot {
-		return codedErrorf(ErrorInvalid, snapshotValidationCodeReasonInvalid, "world %s is not a save snapshot", snapshotWorldID)
-	}
-	if err := store.WriteTransaction(func(tx *gorm.DB) error {
-		return deleteWorldGraphTx(tx, snapshotWorldID)
-	}); err != nil {
-		return err
-	}
-	log.Printf("[snapshot-delete] snapshot=%s source=%s name=%q", snapshotWorldID, snapshotMeta.SourceWorldUUID, snapshotMeta.SnapshotName)
-	return nil
+		if snapshotMeta.Reason != worldCopyReasonSnapshot {
+			return codedErrorf(ErrorInvalid, snapshotValidationCodeReasonInvalid, "world %s is not a save snapshot", snapshotWorldID)
+		}
+		if err := store.WriteTransaction(func(tx *gorm.DB) error {
+			return deleteWorldGraphTx(tx, snapshotWorldID)
+		}); err != nil {
+			return err
+		}
+		log.Printf("[snapshot-delete] snapshot=%s source=%s name=%q", snapshotWorldID, snapshotMeta.SourceWorldUUID, snapshotMeta.SnapshotName)
+		return nil
+	})
 }

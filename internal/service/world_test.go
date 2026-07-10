@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
@@ -289,5 +291,106 @@ func TestNormalizeCanonicalFactRejectsGenericPhrases(t *testing.T) {
 		if fact := normalizeCanonicalFact(value); fact == "" {
 			t.Fatalf("expected %q to be retained", value)
 		}
+	}
+}
+
+func TestWithWorldLockSerializesSameWorld(t *testing.T) {
+	enteredCh := make(chan string, 2)
+	releaseCh := make(chan struct{}, 2)
+	errCh := make(chan error, 2)
+	run := func(label string) {
+		errCh <- withWorldLock("same-world", func() error {
+			enteredCh <- label
+			<-releaseCh
+			return nil
+		})
+	}
+
+	go run("first")
+	select {
+	case got := <-enteredCh:
+		if got != "first" {
+			t.Fatalf("expected first lock holder, got %q", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("first lock holder did not enter")
+	}
+	go run("second")
+	select {
+	case got := <-enteredCh:
+		t.Fatalf("second same-world operation entered too early: %q", got)
+	case <-time.After(200 * time.Millisecond):
+	}
+	releaseCh <- struct{}{}
+	select {
+	case got := <-enteredCh:
+		if got != "second" {
+			t.Fatalf("expected second lock holder after release, got %q", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("second lock holder did not enter after release")
+	}
+	releaseCh <- struct{}{}
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errCh:
+			if err != nil {
+				t.Fatalf("withWorldLock failed: %v", err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("locked operation did not finish")
+		}
+	}
+}
+
+func TestWithWorldLockAllowsDifferentWorldConcurrency(t *testing.T) {
+	enteredCh := make(chan string, 2)
+	releaseCh := make(chan struct{}, 2)
+	errCh := make(chan error, 2)
+	activeMu := sync.Mutex{}
+	active := 0
+	maxActive := 0
+	run := func(worldID string) {
+		errCh <- withWorldLock(worldID, func() error {
+			activeMu.Lock()
+			active++
+			if active > maxActive {
+				maxActive = active
+			}
+			activeMu.Unlock()
+			enteredCh <- worldID
+			<-releaseCh
+			activeMu.Lock()
+			active--
+			activeMu.Unlock()
+			return nil
+		})
+	}
+
+	go run("world-a")
+	go run("world-b")
+	seen := map[string]bool{}
+	for len(seen) < 2 {
+		select {
+		case worldID := <-enteredCh:
+			seen[worldID] = true
+		case <-time.After(3 * time.Second):
+			t.Fatal("expected both different-world operations to enter")
+		}
+	}
+	releaseCh <- struct{}{}
+	releaseCh <- struct{}{}
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errCh:
+			if err != nil {
+				t.Fatalf("withWorldLock failed: %v", err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("locked operation did not finish")
+		}
+	}
+	if maxActive < 2 {
+		t.Fatalf("expected different worlds to overlap, max active=%d", maxActive)
 	}
 }
