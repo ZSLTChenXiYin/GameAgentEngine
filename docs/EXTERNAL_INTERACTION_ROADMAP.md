@@ -136,6 +136,8 @@ external_interfaces:
 | 已完成 | game_client / async action 正式配置路由接线 | 已支持从 `external_interfaces` 读取正式路由策略 |
 | 已完成 | `game_client request_data` push/hybrid 派发 | 已可按 `delivery_mode` + `primary_transport` 走 push |
 | 已完成 | 普通 async action push/hybrid 派发 | 已可按动作参数走 push，并在 hybrid 下保留 pull 回退 |
+| 已完成 | hybrid fallback 基础状态迁移 | push 失败且配置 `fallback_transport` 时，runtime task 会显式转为 `released` 并切换到 fallback transport |
+| 已完成 | `resume_policy` 基础恢复控制 | callback 自动恢复现在受 task payload 中的 `resume_policy` 控制 |
 
 ### 3.2 当前真实边界
 
@@ -145,8 +147,13 @@ external_interfaces:
 | 已完成 | `push` 出站投递到游戏端 | 已完成 `http_adapter`、`websocket_adapter` 与 `rpc_adapter` |
 | 部分完成 | `pull` 任务拉取接口 | 已有统一 runtime task queue API，并已接入 game_client request_data 与普通 async action 的真实生产及 callback 完成态闭环 |
 | 部分完成 | `hybrid` 自动降级 | 已有 push 失败后保留 pull task 的最小闭环，并已接入正式接口级路由配置，尚未完成完整策略编排 |
-| 部分完成 | 定时调度下主动出站调用 | 已具备基础 push 派发能力，但尚未完成全量 external interface 配置化 |
+| 部分完成 | 定时调度下主动出站调用 | 已具备基础 push 派发能力与接口级正式路由，但尚未完成全部自主行动类型统一接线 |
 | 未完成 | 普通异步 action 的 richer business resume | 目前主要是 `OnResult(...)`，还没有统一的后续编排策略 |
+
+当前还需要特别注意两个边界：
+
+- `fallback_transport` 当前表示“push 失败后，任务回落为 pull 可消费状态时写入的 transport 标签”，并不会自动再触发第二次 outbound adapter 派发。
+- 当 `game_client request_data` 使用 `resume_policy: none` 时，callback 成功后会完成 callback/task 记录，但原 paused execution 会保持 `paused`，等待显式恢复或后续编排能力接入。
 
 这意味着当前系统已经具备“结果回填并恢复推理”的下半段能力，但还缺“如何把任务稳定送到游戏端或 bridge”的上半段能力。
 
@@ -279,9 +286,9 @@ external_interfaces:
 |---|---|
 | `delivery_mode` / `primary_transport` / `fallback_transport` | 已完成基础配置模型，`fallback_transport` 编排仍未完成 |
 | `consumer` 路由策略 | 已完成基础配置驱动路由 |
-| `resume_policy` 扩展 | 未开始 |
+| `resume_policy` 扩展 | 已完成基础能力，当前已接入 callback 自动恢复控制 |
 | 普通 async action 的统一后处理编排 | 未开始 |
-| hybrid fallback 状态迁移 | 未开始 |
+| hybrid fallback 状态迁移 | 已完成最小闭环，完整策略编排未完成 |
 
 ### 阶段 P4：安全、观测、管理能力
 
@@ -304,10 +311,10 @@ external_interfaces:
 
 基于当前代码状态，推荐按以下顺序继续实施：
 
-1. 先完成 `pull` 任务队列与 API 基础设施。
-2. 再补首个内建 `push` 实现，优先 `http_adapter`。
-3. 再把配置层升级到 `external_integrations` + `external_interfaces` 双层模型。
-4. 最后补 `hybrid` 自动降级、安全、观测和管理接口。
+1. 先补齐 `hybrid` 的完整策略编排，包括 fallback 自动治理与 richer 后处理能力。
+2. 再补 callback / task claim 鉴权、防重放与幂等安全边界。
+3. 再补 external task metrics、admin / management endpoints 与故障注入能力。
+4. 最后补开发者示例与端到端接入文档，收口生产化落地体验。
 
 这样排序的原因：
 
@@ -328,9 +335,9 @@ external_interfaces:
 | callback 入站结果回填 | 已支持 |
 | paused execution 自动恢复 | 已支持 |
 | runtime task queue | 已支持基础队列、拉取接口，以及 game_client request_data / 普通 async action 真实任务生产 |
-| built-in push adapter | 尚未支持 |
-| scheduled 自主行动真实出站派发 | 尚未支持 |
-| hybrid 策略与 consumer 路由 | 尚未支持 |
+| built-in push adapter | 已支持 `http_adapter`、`websocket_adapter`、`rpc_adapter` |
+| scheduled 自主行动真实出站派发 | 已具备基础能力，后续需继续扩大到全部 external interface 场景 |
+| hybrid 策略与 consumer 路由 | 已支持基础配置化路由与 push 失败回落 |
 
 因此，定时调度模式下如果未来要触发异步游戏接口，完整链路应该是以下两种之一：
 
@@ -357,9 +364,11 @@ external_interfaces:
 后续还需要继续补的内容是：
 
 - 为 `heartbeat_timeout` 补自动化治理策略，例如自动重派阈值、死信策略或人工介入规则
-- 在 scheduled 自主行为里把更多外部交互统一走 external interface 配置层，而不是只覆盖当前的 `game_client request_data`
+- 在 scheduled 自主行为里把更多外部交互统一走 `external_interfaces` 配置层，而不是只覆盖当前已接线入口
+- 为普通 async action 补 richer post-processing / resume 编排，让 callback 结果不只停留在 `OnResult(...)`
+- 为 hybrid 补更完整的 fallback state machine，例如重试后再降级、降级后回切与治理策略
 
-当前普通 async action 的 consumer 路由仍然是过渡方案：默认使用 `bridge`，并允许通过动作参数显式覆盖；后续仍需要升级到 `external_interfaces` 配置层驱动的正式路由策略。
+当前普通 async action 的 consumer 路由已经支持 `external_interfaces` 正式配置层：默认读取同名 `action_id` 配置，也允许通过动作参数显式覆盖；后续主要要补的是更完整的后处理与策略编排，而不是基础路由接线。
 
 ---
 

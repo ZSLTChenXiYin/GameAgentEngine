@@ -29,7 +29,7 @@ func resolveGameClientRoute(dr *DataRequest) external.Route {
 		base = cfg
 	}
 	if dr == nil {
-		return external.NormalizeRoute(base.DeliveryMode, base.PrimaryTransport, base.Consumer, base.TimeoutMs)
+		return external.NormalizeRouteWithOptions(base.DeliveryMode, base.PrimaryTransport, base.FallbackTransport, base.Consumer, base.ResumePolicy, base.TimeoutMs)
 	}
 	deliveryMode := firstNonEmpty(dr.DeliveryMode, base.DeliveryMode)
 	primaryTransport := firstNonEmpty(dr.PrimaryTransport, base.PrimaryTransport)
@@ -38,7 +38,7 @@ func resolveGameClientRoute(dr *DataRequest) external.Route {
 	if timeoutMs <= 0 {
 		timeoutMs = base.TimeoutMs
 	}
-	return external.NormalizeRoute(deliveryMode, primaryTransport, consumer, timeoutMs)
+	return external.NormalizeRouteWithOptions(deliveryMode, primaryTransport, base.FallbackTransport, consumer, base.ResumePolicy, timeoutMs)
 }
 
 func asyncActionInterfaceName(actionID string, args map[string]any) string {
@@ -66,7 +66,7 @@ func resolveAsyncActionRoute(actionID string, args map[string]any) external.Rout
 	if timeoutMs <= 0 {
 		timeoutMs = base.TimeoutMs
 	}
-	return external.NormalizeRoute(deliveryMode, primaryTransport, consumer, timeoutMs)
+	return external.NormalizeRouteWithOptions(deliveryMode, primaryTransport, base.FallbackTransport, consumer, base.ResumePolicy, timeoutMs)
 }
 
 func firstNonEmpty(values ...string) string {

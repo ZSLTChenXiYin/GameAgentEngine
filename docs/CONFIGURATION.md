@@ -145,10 +145,25 @@ engine:
 - `auth.token`：认证令牌
 - `auth.header_name`：当 `mode = header` 时使用的请求头名
 
+`external_interfaces` 当前已支持这些关键字段：
+
+- `category`：`external_query` 或 `external_action`
+- `delivery_mode`：`push`、`pull`、`hybrid`
+- `primary_transport`：主通道 integration 名称
+- `fallback_transport`：`hybrid` 下 push 失败后的回退 transport 标签
+- `consumer`：pull/hybrid 下默认消费方
+- `resume_policy`：当前支持 `none`、`resume_paused_execution`
+- `timeout_ms`：接口级默认超时
+
 当前实现边界：
 
 - `game_client request_data` 可以通过 `delivery_mode: push|hybrid` + `primary_transport` 使用内建 `http_adapter`、`websocket_adapter` 或 `rpc_adapter`
 - 普通 async action 也可以通过动作参数中的 `delivery_mode` / `primary_transport` 走相同 push 链路
+- `game_client request_data` 默认读取 `game_client_request_data` 接口配置，也可以通过 `request_data.external_interface` 显式指定
+- 普通 async action 默认读取同名 `action_id` 接口配置，也可以通过动作参数 `external_interface` 显式改绑
+- callback 自动恢复当前会读取 runtime task payload 中的 `resume_policy`；为空或 `resume_paused_execution` 时自动恢复，`none` 时只回填结果不自动恢复
+- `hybrid` 下如果 push 派发失败且配置了 `fallback_transport`，runtime task 会转为 `released`，并把 `transport` 写成该 fallback 值，供 pull consumer 后续领取
+- 当前 `fallback_transport` 还不是“自动切到第二个 push adapter 再发一次”的意思，而是“明确进入 pull 风格回退态”的持久化语义
 
 `rpc_adapter` 当前最小实现约束：
 
@@ -159,10 +174,12 @@ engine:
 - 当前 push 链路已经支持基础重试与幂等透传；runtime task 会记录 `idempotency_key`、`dispatch_attempts`、`last_dispatch_at`、`last_dispatch_error`
 - `external_interfaces` 的完整双层业务配置模型仍在后续阶段继续补齐；当前属于过渡期可用实现
 
-`external_interfaces` 当前已接线的正式入口：
+`resume_policy` 当前需要特别注意：
 
-- `game_client request_data`：默认读取 `game_client_request_data`，也可以通过 `request_data.external_interface` 显式指定其他接口名
-- 普通 async action：默认读取同名 `action_id` 对应配置，也可以通过动作参数 `external_interface` 显式改绑
+- `resume_paused_execution`：callback 成功后会尝试自动恢复原 paused execution
+- `none`：callback 只更新 callback/runtime task 结果，不自动恢复
+- 对普通 async action 而言，当前 dispatch request 会固定以 `none` 语义投递；其后处理仍主要依赖 action 的 `OnResult(...)`
+- 对 `game_client request_data` 而言，若配置为 `none`，当前 paused execution 会保持 `paused`，这是现阶段刻意保留的边界，后续还会补显式恢复或统一后处理能力
 
 ---
 

@@ -4,11 +4,27 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/service"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
+
+func shouldResumeRuntimeTask(callbackID string) bool {
+	task, err := store.GetRuntimeTaskByCallbackID(callbackID)
+	if err != nil || task == nil || strings.TrimSpace(task.PayloadJSON) == "" {
+		return true
+	}
+	var payload struct {
+		ResumePolicy string `json:"resume_policy"`
+	}
+	if err := json.Unmarshal([]byte(task.PayloadJSON), &payload); err != nil {
+		return true
+	}
+	policy := strings.TrimSpace(strings.ToLower(payload.ResumePolicy))
+	return policy == "" || policy == "resume_paused_execution"
+}
 
 // MakeInvokeHandler 返回统一推理入口的处理函数。
 // 处理函数会解析请求、调用引擎管线并返回推理结果。
@@ -65,7 +81,7 @@ func MakeActionCallbackHandler(p *engine.Pipeline) http.HandlerFunc {
 		resp := map[string]any{"status": "ok"}
 		if rec != nil && rec.ResumeExecutionID != "" {
 			resp["resume_execution_id"] = rec.ResumeExecutionID
-			if req.Status == "success" || req.Status == "completed" || req.Status == "ok" {
+			if (req.Status == "success" || req.Status == "completed" || req.Status == "ok") && shouldResumeRuntimeTask(req.CallbackID) {
 				resumed, err := p.ResumePausedExecution(req.CallbackID, req.Result)
 				if err != nil {
 					errorJSON(w, 500, err.Error())

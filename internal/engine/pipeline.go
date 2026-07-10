@@ -692,11 +692,12 @@ func buildRuntimeTaskPayload(req *InvokeRequest, dr *DataRequest, callbackID str
 		"request_id":           requestID,
 		"callback_id":          callbackID,
 		"resume_execution_id":  executionID,
-		"resume_policy":        "resume_paused_execution",
+		"resume_policy":        firstNonEmpty(route.ResumePolicy, "resume_paused_execution"),
 		"external_interface":   gameClientInterfaceName(dr),
 		"external_interaction": "external_query",
 		"delivery_mode":        route.DeliveryMode,
 		"primary_transport":    route.PrimaryTransport,
+		"fallback_transport":   route.FallbackTransport,
 		"consumer":             route.Consumer,
 		"request_data":         dr,
 	}
@@ -747,7 +748,7 @@ func (p *Pipeline) dispatchGameClientRuntimeTask(task *store.RuntimeTaskModel, r
 		RequestID:         task.RequestID,
 		CallbackID:        task.CallbackID,
 		ResumeExecutionID: task.ResumeExecutionID,
-		ResumePolicy:      "resume_paused_execution",
+		ResumePolicy:      firstNonEmpty(route.ResumePolicy, "resume_paused_execution"),
 		Payload: map[string]any{
 			"request_data": dr,
 		},
@@ -755,7 +756,12 @@ func (p *Pipeline) dispatchGameClientRuntimeTask(task *store.RuntimeTaskModel, r
 	}
 	result, err := p.externalDispatcher().Dispatch(context.Background(), route, dispatchReq)
 	if err != nil {
-		_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), idempotencyKey, dispatchAttemptsFromResult(result), err.Error())
+		attempts := dispatchAttemptsFromResult(result)
+		if route.ShouldQueuePullTask() && route.FallbackTransport != "" {
+			_, _ = store.RecordRuntimeTaskDispatchFallback(task.TaskID, route.FallbackTransport, idempotencyKey, attempts, err.Error())
+		} else {
+			_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), idempotencyKey, attempts, err.Error())
+		}
 		return err
 	}
 	_, err = store.MarkRuntimeTaskDispatched(task.TaskID, route.PrimaryTransport, idempotencyKey, dispatchAttemptsFromResult(result), result)

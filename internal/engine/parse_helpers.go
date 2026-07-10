@@ -111,12 +111,13 @@ func buildAsyncActionRuntimeTaskPayload(req *InvokeRequest, actionID string, arg
 		"world_id":             req.WorldID,
 		"node_id":              req.NodeID,
 		"callback_id":          callbackID,
-		"resume_policy":        "none",
+		"resume_policy":        firstNonEmpty(route.ResumePolicy, "none"),
 		"external_interface":   asyncActionInterfaceName(actionID, args),
 		"external_interaction": "external_action",
 		"action_id":            actionID,
 		"delivery_mode":        route.DeliveryMode,
 		"primary_transport":    route.PrimaryTransport,
+		"fallback_transport":   route.FallbackTransport,
 		"consumer":             route.Consumer,
 		"args":                 sanitizeExternalActionArgs(args),
 	}
@@ -172,7 +173,12 @@ func (p *Pipeline) dispatchAsyncActionRuntimeTask(task *store.RuntimeTaskModel, 
 	}
 	result, err := p.externalDispatcher().Dispatch(context.Background(), route, dispatchReq)
 	if err != nil {
-		_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), idempotencyKey, dispatchAttemptsFromResult(result), err.Error())
+		attempts := dispatchAttemptsFromResult(result)
+		if route.ShouldQueuePullTask() && route.FallbackTransport != "" {
+			_, _ = store.RecordRuntimeTaskDispatchFallback(task.TaskID, route.FallbackTransport, idempotencyKey, attempts, err.Error())
+		} else {
+			_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), idempotencyKey, attempts, err.Error())
+		}
 		if route.IsStrictPush() {
 			_ = store.CompleteAsyncCallbackRecord(task.CallbackID, "failed", "", err.Error())
 			_ = store.UpdateRuntimeTaskTerminalCallbackFailure(task.CallbackID, err.Error())

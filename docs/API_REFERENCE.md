@@ -64,7 +64,8 @@
 当前行为：
 
 - 对普通异步动作：更新 callback 记录，并将结果交给对应 action 的 `OnResult(...)`。
-- 对由 `request_data.target = "game_client"` 触发的暂停执行：Engine 会自动恢复原始多轮推理，并在响应中返回 `resumed` 字段，携带恢复后的最终推理结果。
+- 对由 `request_data.target = "game_client"` 触发的暂停执行：当该 task payload 的 `resume_policy` 为空或 `resume_paused_execution` 时，Engine 会自动恢复原始多轮推理，并在响应中返回 `resumed` 字段，携带恢复后的最终推理结果。
+- 如果该 paused execution 对应的 `resume_policy = none`，当前 callback 只会回填结果，不会自动恢复，原执行会继续保持 `paused`。
 - 如果该 callback 对应某个 `runtime task`，Engine 还会同步将该任务标记为 `succeeded`、`failed` 或 `cancelled`，写回完成结果。
 
 ### `GET /api/v1/runtime/tasks/pending`
@@ -89,6 +90,7 @@
 - 可按 integration 配置执行基础重试
 - 会为每个 runtime task 生成稳定幂等键并向支持头部的外部协议透传
 - 任务侧会记录 dispatch 尝试次数与最近一次派发错误
+- 当 `hybrid` task 的 push 失败且路由配置了 `fallback_transport` 时，任务会被显式转为 `released`，后续重新出现在 pending 列表里，供 pull consumer 继续消费
 
 ### `POST /api/v1/runtime/tasks/claim`
 

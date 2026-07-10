@@ -263,6 +263,41 @@ func RecordRuntimeTaskDispatchFailure(taskID string, keepPending bool, idempoten
 	return GetRuntimeTask(taskID)
 }
 
+func RecordRuntimeTaskDispatchFallback(taskID string, fallbackTransport string, idempotencyKey string, dispatchAttempts int, errMsg string) (*RuntimeTaskModel, error) {
+	if taskID == "" {
+		return nil, fmt.Errorf("task id required")
+	}
+	if dispatchAttempts <= 0 {
+		dispatchAttempts = 1
+	}
+	now := time.Now()
+	err := Write(func(db *gorm.DB) error {
+		resultDB := db.Model(&RuntimeTaskModel{}).
+			Where("task_id = ? AND status IN ?", taskID, []string{RuntimeTaskStatusPending, RuntimeTaskStatusReleased}).
+			Updates(map[string]any{
+				"status":              RuntimeTaskStatusReleased,
+				"transport":           fallbackTransport,
+				"available_at":        &now,
+				"idempotency_key":     idempotencyKey,
+				"last_dispatch_at":    &now,
+				"dispatch_attempts":   gorm.Expr("dispatch_attempts + ?", dispatchAttempts),
+				"last_dispatch_error": errMsg,
+				"error_message":       errMsg,
+			})
+		if resultDB.Error != nil {
+			return resultDB.Error
+		}
+		if resultDB.RowsAffected == 0 {
+			return ErrRuntimeTaskNotDispatchable
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return GetRuntimeTask(taskID)
+}
+
 func ReleaseRuntimeTask(taskID string, leaseToken string, retryDelay time.Duration, errMsg string) (*RuntimeTaskModel, error) {
 	if taskID == "" || leaseToken == "" {
 		return nil, fmt.Errorf("task id and lease token required")

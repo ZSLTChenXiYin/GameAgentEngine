@@ -1367,3 +1367,43 @@ func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
 		t.Fatalf("unexpected async dispatch payload: %+v", gotBody)
 	}
 }
+
+func TestExecuteHybridFallbackTransportMovesAsyncTaskToReleased(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "upstream unavailable", http.StatusBadGateway)
+	}))
+	defer server.Close()
+
+	previousIntegrations := config.Global.ExternalIntegrations
+	previousInterfaces := config.Global.ExternalInterfaces
+	config.Global.ExternalIntegrations = map[string]config.ExternalIntegrationConfig{
+		"game_http": {Type: "http_adapter", BaseURL: server.URL, Path: "/dispatch"},
+	}
+	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
+		"spawn_item": {Category: "external_action", DeliveryMode: "hybrid", PrimaryTransport: "game_http", FallbackTransport: "task_pull", Consumer: "bridge", ResumePolicy: "none"},
+	}
+	defer func() {
+		config.Global.ExternalIntegrations = previousIntegrations
+		config.Global.ExternalInterfaces = previousInterfaces
+	}()
+
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[{"action_id":"spawn_item","args":{"item_name":"apple"}}],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	task, err := store.GetRuntimeTaskByCallbackID(resp.ActionCalls[0].CallbackID)
+	if err != nil {
+		t.Fatalf("get runtime task: %v", err)
+	}
+	if task.Status != store.RuntimeTaskStatusReleased {
+		t.Fatalf("expected released fallback task, got %q", task.Status)
+	}
+	if task.Transport != "task_pull" {
+		t.Fatalf("expected fallback transport task_pull, got %q", task.Transport)
+	}
+}

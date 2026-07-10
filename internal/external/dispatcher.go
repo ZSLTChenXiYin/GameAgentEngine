@@ -10,10 +10,12 @@ import (
 )
 
 type Route struct {
-	DeliveryMode     string
-	PrimaryTransport string
-	Consumer         string
-	TimeoutMs        int
+	DeliveryMode      string
+	PrimaryTransport  string
+	FallbackTransport string
+	Consumer          string
+	ResumePolicy      string
+	TimeoutMs         int
 }
 
 type DispatchRequest struct {
@@ -117,6 +119,10 @@ func (d *Dispatcher) Dispatch(ctx context.Context, route Route, req DispatchRequ
 }
 
 func NormalizeRoute(deliveryMode string, primaryTransport string, consumer string, timeoutMs int) Route {
+	return NormalizeRouteWithOptions(deliveryMode, primaryTransport, "", consumer, "", timeoutMs)
+}
+
+func NormalizeRouteWithOptions(deliveryMode string, primaryTransport string, fallbackTransport string, consumer string, resumePolicy string, timeoutMs int) Route {
 	mode := strings.ToLower(strings.TrimSpace(deliveryMode))
 	switch mode {
 	case "push", "pull", "hybrid":
@@ -128,10 +134,12 @@ func NormalizeRoute(deliveryMode string, primaryTransport string, consumer strin
 		}
 	}
 	return Route{
-		DeliveryMode:     mode,
-		PrimaryTransport: strings.TrimSpace(primaryTransport),
-		Consumer:         strings.TrimSpace(consumer),
-		TimeoutMs:        timeoutMs,
+		DeliveryMode:      mode,
+		PrimaryTransport:  strings.TrimSpace(primaryTransport),
+		FallbackTransport: strings.TrimSpace(fallbackTransport),
+		Consumer:          strings.TrimSpace(consumer),
+		ResumePolicy:      strings.TrimSpace(resumePolicy),
+		TimeoutMs:         timeoutMs,
 	}
 }
 
