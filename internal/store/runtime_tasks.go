@@ -14,6 +14,7 @@ const (
 	RuntimeTaskStatusPending   = "pending"
 	RuntimeTaskStatusClaimed   = "claimed"
 	RuntimeTaskStatusRunning   = "running"
+	RuntimeTaskStatusHeartbeatTimeout = "heartbeat_timeout"
 	RuntimeTaskStatusReleased  = "released"
 	RuntimeTaskStatusSucceeded = "succeeded"
 	RuntimeTaskStatusFailed    = "failed"
@@ -145,8 +146,34 @@ func HeartbeatRuntimeTask(taskID string, leaseToken string) (*RuntimeTaskModel, 
 	now := time.Now()
 	err := Write(func(db *gorm.DB) error {
 		result := db.Model(&RuntimeTaskModel{}).
-			Where("task_id = ? AND status = ? AND lease_token = ?", taskID, RuntimeTaskStatusClaimed, leaseToken).
+			Where("task_id = ? AND status IN ? AND lease_token = ?", taskID, []string{RuntimeTaskStatusClaimed, RuntimeTaskStatusRunning}, leaseToken).
 			Updates(map[string]any{"last_heartbeat_at": &now})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrRuntimeTaskLeaseMismatch
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return GetRuntimeTask(taskID)
+}
+
+func StartRuntimeTask(taskID string, leaseToken string) (*RuntimeTaskModel, error) {
+	if taskID == "" || leaseToken == "" {
+		return nil, fmt.Errorf("task id and lease token required")
+	}
+	now := time.Now()
+	err := Write(func(db *gorm.DB) error {
+		result := db.Model(&RuntimeTaskModel{}).
+			Where("task_id = ? AND status = ? AND lease_token = ?", taskID, RuntimeTaskStatusClaimed, leaseToken).
+			Updates(map[string]any{
+				"status":            RuntimeTaskStatusRunning,
+				"last_heartbeat_at": &now,
+			})
 		if result.Error != nil {
 			return result.Error
 		}
@@ -191,6 +218,36 @@ func ReleaseRuntimeTask(taskID string, leaseToken string, retryDelay time.Durati
 	return GetRuntimeTask(taskID)
 }
 
+func MarkRuntimeTasksHeartbeatTimeout(timeout time.Duration) (int64, error) {
+	if timeout <= 0 {
+		return 0, fmt.Errorf("timeout must be > 0")
+	}
+	deadline := time.Now().Add(-timeout)
+	now := time.Now()
+	var affected int64
+	err := Write(func(db *gorm.DB) error {
+		result := db.Model(&RuntimeTaskModel{}).
+			Where("status IN ?", []string{RuntimeTaskStatusClaimed, RuntimeTaskStatusRunning}).
+			Where("last_heartbeat_at IS NOT NULL AND last_heartbeat_at < ?", deadline).
+			Updates(map[string]any{
+				"status":               RuntimeTaskStatusHeartbeatTimeout,
+				"heartbeat_timeout_at": &now,
+				"lease_owner":          "",
+				"lease_token":          "",
+				"error_message":        "heartbeat timeout",
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		affected = result.RowsAffected
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return affected, nil
+}
+
 func CompleteRuntimeTaskByCallbackID(callbackID string, status string, result any) error {
 	if callbackID == "" {
 		return nil
@@ -207,10 +264,11 @@ func CompleteRuntimeTaskByCallbackID(callbackID string, status string, result an
 			"lease_token":       "",
 			"completed_at":      &now,
 			"last_heartbeat_at": &now,
+			"heartbeat_timeout_at": nil,
 		}
 		return db.Model(&RuntimeTaskModel{}).
 			Where("callback_id = ?", callbackID).
-			Where("status IN ?", []string{RuntimeTaskStatusPending, RuntimeTaskStatusClaimed, RuntimeTaskStatusRunning, RuntimeTaskStatusReleased}).
+			Where("status IN ?", []string{RuntimeTaskStatusPending, RuntimeTaskStatusClaimed, RuntimeTaskStatusRunning, RuntimeTaskStatusReleased, RuntimeTaskStatusHeartbeatTimeout}).
 			Updates(updates).Error
 	})
 }

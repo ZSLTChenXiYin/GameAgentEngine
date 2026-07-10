@@ -92,6 +92,34 @@ func MakeHeartbeatRuntimeTaskHandler() http.HandlerFunc {
 	}
 }
 
+func MakeStartRuntimeTaskHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			TaskID     string `json:"task_id"`
+			LeaseToken string `json:"lease_token"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			errorJSON(w, http.StatusBadRequest, "invalid json: "+err.Error())
+			return
+		}
+		if req.TaskID == "" || req.LeaseToken == "" {
+			errorJSONCode(w, http.StatusBadRequest, "invalid_runtime_task_start", "task_id and lease_token required")
+			return
+		}
+		item, err := store.StartRuntimeTask(req.TaskID, req.LeaseToken)
+		if err != nil {
+			switch {
+			case errors.Is(err, store.ErrRuntimeTaskLeaseMismatch):
+				errorJSONCode(w, http.StatusConflict, "runtime_task_lease_mismatch", err.Error())
+			default:
+				errorJSON(w, http.StatusInternalServerError, err.Error())
+			}
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"task": item})
+	}
+}
+
 func MakeReleaseRuntimeTaskHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {

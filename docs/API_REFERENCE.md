@@ -117,7 +117,26 @@
 
 当前行为：
 
-- 只有 `claimed` 且 `lease_token` 匹配的任务可以更新心跳。
+- 只有 `claimed` 或 `running` 且 `lease_token` 匹配的任务可以更新心跳。
+- lease 不匹配时返回 `409`，错误码 `runtime_task_lease_mismatch`。
+
+### `POST /api/v1/runtime/tasks/start`
+
+将一个已 claim 的 runtime task 显式标记为开始执行。
+
+典型请求体：
+
+```json
+{
+  "task_id": "task-id",
+  "lease_token": "lease-token"
+}
+```
+
+当前行为：
+
+- 只有处于 `claimed` 状态且 `lease_token` 匹配的任务可以进入 `running` 状态。
+- start 成功后，任务状态会变成 `running`，并刷新 `last_heartbeat_at`。
 - lease 不匹配时返回 `409`，错误码 `runtime_task_lease_mismatch`。
 
 ### `POST /api/v1/runtime/tasks/release`

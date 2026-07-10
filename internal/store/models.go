@@ -282,6 +282,7 @@ type RuntimeTaskModel struct {
 	AvailableAt       *time.Time `gorm:"index" json:"available_at,omitempty"`
 	ClaimedAt         *time.Time `json:"claimed_at,omitempty"`
 	LastHeartbeatAt   *time.Time `json:"last_heartbeat_at,omitempty"`
+	HeartbeatTimeoutAt *time.Time `json:"heartbeat_timeout_at,omitempty"`
 	CompletedAt       *time.Time `json:"completed_at,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`

@@ -17,6 +17,7 @@ func NewRouter(p *engine.Pipeline) *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/actions/callback", MakeActionCallbackHandler(p))
 	mux.HandleFunc("GET /api/v1/runtime/tasks/pending", MakeListPendingRuntimeTasksHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/claim", MakeClaimRuntimeTaskHandler())
+	mux.HandleFunc("POST /api/v1/runtime/tasks/start", MakeStartRuntimeTaskHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/heartbeat", MakeHeartbeatRuntimeTaskHandler())
 	mux.HandleFunc("POST /api/v1/runtime/tasks/release", MakeReleaseRuntimeTaskHandler())
 

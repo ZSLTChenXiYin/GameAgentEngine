@@ -147,3 +147,31 @@ func TestMakeHeartbeatAndReleaseRuntimeTaskHandlersValidateLease(t *testing.T) {
 		t.Fatalf("expected runtime_task_lease_mismatch, got %s", releaseConflictResp.Body.String())
 	}
 }
+
+func TestMakeStartRuntimeTaskHandlerTransitionsClaimedTaskToRunning(t *testing.T) {
+	initRuntimeTaskAPITestDB(t)
+	row := &store.RuntimeTaskModel{TaskID: "start-api", Category: "external_action", InterfaceName: "spawn_npc", DeliveryMode: "pull", Consumer: "bridge", Status: store.RuntimeTaskStatusPending, PayloadJSON: `{"npc":"merchant"}`}
+	if err := store.CreateRuntimeTask(row); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	claimed, err := store.ClaimRuntimeTask("start-api", "bridge", "bridge-worker-1")
+	if err != nil {
+		t.Fatalf("claim task: %v", err)
+	}
+	h := MakeStartRuntimeTaskHandler()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runtime/tasks/start", strings.NewReader(`{"task_id":"start-api","lease_token":"`+claimed.LeaseToken+`"}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Task store.RuntimeTaskModel `json:"task"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal start response: %v", err)
+	}
+	if body.Task.Status != store.RuntimeTaskStatusRunning {
+		t.Fatalf("expected running status, got %q", body.Task.Status)
+	}
+}
