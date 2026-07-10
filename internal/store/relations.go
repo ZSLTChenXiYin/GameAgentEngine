@@ -1,11 +1,15 @@
 package store
 
+import "gorm.io/gorm"
+
 // CreateRelation 创建一条有向关系记录。
 func CreateRelation(m *RelationModel) error {
 	if m.UUID == "" {
 		m.UUID = NewUUID()
 	}
-	return Writer().Create(m).Error
+	return Write(func(db *gorm.DB) error {
+		return db.Create(m).Error
+	})
 }
 
 // GetAllRelations 获取关系列表，支持分页和按类型过滤。
@@ -48,18 +52,25 @@ func GetRelation(uuid string) (*RelationModel, error) {
 	var m RelationModel
 	err := DB.Where("uuid = ?", uuid).First(&m).Error
 	if err == nil {
-		l2 := []RelationModel{m}; resolveRelationRefs(l2); m.WorldUUID = l2[0].WorldUUID; m.SourceUUID = l2[0].SourceUUID; m.TargetUUID = l2[0].TargetUUID
+		l2 := []RelationModel{m}
+		resolveRelationRefs(l2)
+		m.WorldUUID = l2[0].WorldUUID
+		m.SourceUUID = l2[0].SourceUUID
+		m.TargetUUID = l2[0].TargetUUID
 	}
 	return &m, err
 }
 
 // UpdateRelation 更新关系字段。
 func UpdateRelation(uuid string, updates map[string]any) error {
-	return Writer().Model(&RelationModel{}).Where("uuid = ?", uuid).Updates(updates).Error
+	return Write(func(db *gorm.DB) error {
+		return db.Model(&RelationModel{}).Where("uuid = ?", uuid).Updates(updates).Error
+	})
 }
 
 // DeleteRelation 删除指定关系记录。
 func DeleteRelation(uuid string) error {
-	return Writer().Where("uuid = ?", uuid).Delete(&RelationModel{}).Error
+	return Write(func(db *gorm.DB) error {
+		return db.Where("uuid = ?", uuid).Delete(&RelationModel{}).Error
+	})
 }
-

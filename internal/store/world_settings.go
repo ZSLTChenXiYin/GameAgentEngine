@@ -54,7 +54,9 @@ func GetOrCreateWorldSettings(worldUUID string) (*WorldSettingsModel, error) {
 		SubTaskTimeoutSecs:       60,
 		PipelineMode:             "full",
 	}
-	if err := Writer().Create(s).Error; err != nil {
+	if err := Write(func(db *gorm.DB) error {
+		return db.Create(s).Error
+	}); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -129,7 +131,9 @@ func UpsertWorldSettingsWithMask(worldUUID string, settings *WorldSettingsModel,
 
 	ApplyWorldSettingsUpdate(s, settings, mask)
 
-	if err := Writer().Save(s).Error; err != nil {
+	if err := Write(func(db *gorm.DB) error {
+		return db.Save(s).Error
+	}); err != nil {
 		return nil, err
 	}
 	return s, nil

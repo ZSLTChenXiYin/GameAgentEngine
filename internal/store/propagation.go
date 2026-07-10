@@ -1,5 +1,7 @@
 package store
 
+import "gorm.io/gorm"
+
 // GetPropagationChains 查询指定世界的所有启用规则链。
 func GetPropagationChains(worldUUID string) ([]PropagationChainModel, error) {
 	worldID := ResolveWorldUUID(worldUUID)
@@ -27,15 +29,21 @@ func CreatePropagationChain(m *PropagationChainModel) error {
 	if m.UUID == "" {
 		m.UUID = NewUUID()
 	}
-	return Writer().Create(m).Error
+	return Write(func(db *gorm.DB) error {
+		return db.Create(m).Error
+	})
 }
 
 // UpdatePropagationChain 更新规则链。
 func UpdatePropagationChain(uuid string, updates map[string]any) error {
-	return Writer().Model(&PropagationChainModel{}).Where("uuid = ?", uuid).Updates(updates).Error
+	return Write(func(db *gorm.DB) error {
+		return db.Model(&PropagationChainModel{}).Where("uuid = ?", uuid).Updates(updates).Error
+	})
 }
 
 // DeletePropagationChain 删除规则链。
 func DeletePropagationChain(uuid string) error {
-	return Writer().Where("uuid = ?", uuid).Delete(&PropagationChainModel{}).Error
+	return Write(func(db *gorm.DB) error {
+		return db.Where("uuid = ?", uuid).Delete(&PropagationChainModel{}).Error
+	})
 }

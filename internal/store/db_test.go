@@ -1,14 +1,78 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
 
+	driverMySQL "github.com/go-sql-driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+func TestIsRetriableWriteErrorRecognizesSQLiteAndMySQLConflicts(t *testing.T) {
+	if !isRetriableWriteError("sqlite", errors.New("database is locked")) {
+		t.Fatal("expected sqlite database is locked to be retriable")
+	}
+	if !isRetriableWriteError("sqlite", errors.New("SQLITE_BUSY: database table is locked")) {
+		t.Fatal("expected sqlite busy error to be retriable")
+	}
+	if !isRetriableWriteError("mysql", &driverMySQL.MySQLError{Number: 1213, Message: "Deadlock found"}) {
+		t.Fatal("expected mysql deadlock to be retriable")
+	}
+	if !isRetriableWriteError("mysql", &driverMySQL.MySQLError{Number: 1205, Message: "Lock wait timeout exceeded"}) {
+		t.Fatal("expected mysql lock wait timeout to be retriable")
+	}
+	if isRetriableWriteError("sqlite", errors.New("syntax error")) {
+		t.Fatal("expected non-lock sqlite error to be non-retriable")
+	}
+}
+
+func TestWithWriteRetryRetriesRetriableErrors(t *testing.T) {
+	ConfigureWriteRetry(WriteRetryOptions{Enabled: true, MaxAttempts: 3, BaseDelay: 0, MaxDelay: 0})
+	t.Cleanup(func() {
+		ConfigureWriteRetry(WriteRetryOptions{Enabled: true, MaxAttempts: 3, BaseDelay: 40 * time.Millisecond, MaxDelay: 250 * time.Millisecond})
+	})
+	setCurrentDriver("sqlite")
+
+	attempts := 0
+	err := withWriteRetry("test", func() error {
+		attempts++
+		if attempts < 3 {
+			return errors.New("database is locked")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("expected retry to recover, got %v", err)
+	}
+	if attempts != 3 {
+		t.Fatalf("expected 3 attempts, got %d", attempts)
+	}
+}
+
+func TestWithWriteRetryStopsOnNonRetriableError(t *testing.T) {
+	ConfigureWriteRetry(WriteRetryOptions{Enabled: true, MaxAttempts: 3, BaseDelay: 0, MaxDelay: 0})
+	t.Cleanup(func() {
+		ConfigureWriteRetry(WriteRetryOptions{Enabled: true, MaxAttempts: 3, BaseDelay: 40 * time.Millisecond, MaxDelay: 250 * time.Millisecond})
+	})
+	setCurrentDriver("sqlite")
+
+	attempts := 0
+	wantErr := errors.New("invalid query")
+	err := withWriteRetry("test", func() error {
+		attempts++
+		return wantErr
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected original error, got %v", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("expected non-retriable error to stop after 1 attempt, got %d", attempts)
+	}
+}
 
 func TestMigrateInferenceLogsToLogsCopiesLegacyRows(t *testing.T) {
 	dsn := filepath.Join(t.TempDir(), fmt.Sprintf("%s-%d.db", t.Name(), time.Now().UnixNano()))

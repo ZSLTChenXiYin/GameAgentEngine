@@ -34,7 +34,9 @@ func UpsertWorldPolicy(worldUUID string, blocked, safe []string) (*WorldPolicyMo
 		existing.BlockedActions = string(blockedJSON)
 		existing.SafeActions = string(safeJSON)
 		existing.UpdatedAt = time.Now()
-		if err := Writer().Save(&existing).Error; err != nil {
+		if err := Write(func(db *gorm.DB) error {
+			return db.Save(&existing).Error
+		}); err != nil {
 			return nil, err
 		}
 		return &existing, nil
@@ -46,7 +48,9 @@ func UpsertWorldPolicy(worldUUID string, blocked, safe []string) (*WorldPolicyMo
 		BlockedActions: string(blockedJSON),
 		SafeActions:    string(safeJSON),
 	}
-	if err := Writer().Create(p).Error; err != nil {
+	if err := Write(func(db *gorm.DB) error {
+		return db.Create(p).Error
+	}); err != nil {
 		return nil, err
 	}
 	return p, nil
@@ -65,7 +69,9 @@ func GetOrCreateWorldPolicy(worldUUID string) (*WorldPolicyModel, error) {
 		BlockedActions: "[]",
 		SafeActions:    "[]",
 	}
-	if err := Writer().Create(p).Error; err != nil {
+	if err := Write(func(db *gorm.DB) error {
+		return db.Create(p).Error
+	}); err != nil {
 		return nil, err
 	}
 	return p, nil

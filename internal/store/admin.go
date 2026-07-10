@@ -45,5 +45,7 @@ func IsRecordNotFound(err error) bool {
 
 // SetIdempotencyResult caches the response for an idempotency key.
 func SetIdempotencyResult(key, fingerprint string, statusCode int, result string) error {
-	return Writer().Save(&IdempotencyKeyModel{ID: key, Fingerprint: fingerprint, StatusCode: statusCode, Result: result}).Error
+	return Write(func(db *gorm.DB) error {
+		return db.Save(&IdempotencyKeyModel{ID: key, Fingerprint: fingerprint, StatusCode: statusCode, Result: result}).Error
+	})
 }

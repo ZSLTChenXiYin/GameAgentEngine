@@ -29,12 +29,12 @@ var (
 )
 
 type inferenceLogSink struct {
-	opts   LogSinkOptions
-	queue  chan *InferenceLogModel
-	stopCh chan struct{}
-	doneCh chan struct{}
+	opts    LogSinkOptions
+	queue   chan *InferenceLogModel
+	stopCh  chan struct{}
+	doneCh  chan struct{}
 	flushCh chan chan error
-	wg     sync.WaitGroup
+	wg      sync.WaitGroup
 }
 
 func ConfigureLogSink(opts LogSinkOptions) {
@@ -109,15 +109,17 @@ func persistInferenceLog(model *InferenceLogModel) error {
 	if model == nil {
 		return nil
 	}
-	return Writer().Create(model).Error
+	return Write(func(db *gorm.DB) error {
+		return db.Create(model).Error
+	})
 }
 
 func newInferenceLogSink(opts LogSinkOptions) *inferenceLogSink {
 	s := &inferenceLogSink{
-		opts:   opts,
-		queue:  make(chan *InferenceLogModel, opts.QueueSize),
-		stopCh: make(chan struct{}),
-		doneCh: make(chan struct{}),
+		opts:    opts,
+		queue:   make(chan *InferenceLogModel, opts.QueueSize),
+		stopCh:  make(chan struct{}),
+		doneCh:  make(chan struct{}),
 		flushCh: make(chan chan error),
 	}
 	s.wg.Add(1)
@@ -229,15 +231,19 @@ func persistInferenceLogBatch(batch []*InferenceLogModel) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	err := Writer().Transaction(func(tx *gorm.DB) error {
-		return tx.Create(&rows).Error
+	err := withWriteRetry("log_batch", func() error {
+		return Writer().Transaction(func(tx *gorm.DB) error {
+			return tx.Create(&rows).Error
+		})
 	})
 	if err == nil {
 		return nil
 	}
 	var result error
 	for i := range rows {
-		if singleErr := Writer().Create(&rows[i]).Error; singleErr != nil {
+		if singleErr := Write(func(db *gorm.DB) error {
+			return db.Create(&rows[i]).Error
+		}); singleErr != nil {
 			result = errors.Join(result, fmt.Errorf("persist log %s: %w", rows[i].UUID, singleErr))
 		}
 	}

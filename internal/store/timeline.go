@@ -1,5 +1,7 @@
 package store
 
+import "gorm.io/gorm"
+
 type InferenceLogQuery struct {
 	WorldUUID     string
 	NodeUUID      string
@@ -18,7 +20,9 @@ func CreateTimelineTick(m *TimelineModel) error {
 	if m.UUID == "" {
 		m.UUID = NewUUID()
 	}
-	return Writer().Create(m).Error
+	return Write(func(db *gorm.DB) error {
+		return db.Create(m).Error
+	})
 }
 
 // GetTimelineTicks 获取某个世界最近的时间线刻度。

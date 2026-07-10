@@ -17,6 +17,14 @@ database:
   driver: "sqlite"
   # SQLite：文件名；MySQL：user:pass@tcp(host:port)/dbname?charset=utf8
   dsn: "gameagentengine.db"
+  # 是否启用短暂写冲突自动重试
+  write_retry_enabled: true
+  # 写冲突自动重试最大尝试次数
+  write_retry_max_attempts: 3
+  # 首次重试回退延迟（毫秒）
+  write_retry_base_delay_ms: 40
+  # 重试最大回退延迟（毫秒）
+  write_retry_max_delay_ms: 250
   # 是否启用日志批量写入
   log_batch_enabled: true
   # 单次批量落库的最大日志条数

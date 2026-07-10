@@ -33,6 +33,12 @@ var serveCmd = &cobra.Command{
 			FlushInterval: time.Duration(config.Global.Database.LogBatchFlushMs) * time.Millisecond,
 			QueueSize:     config.Global.Database.LogBatchQueueSize,
 		})
+		store.ConfigureWriteRetry(store.WriteRetryOptions{
+			Enabled:     config.Global.Database.WriteRetryEnabled,
+			MaxAttempts: config.Global.Database.WriteRetryMaxAttempts,
+			BaseDelay:   time.Duration(config.Global.Database.WriteRetryBaseDelayMs) * time.Millisecond,
+			MaxDelay:    time.Duration(config.Global.Database.WriteRetryMaxDelayMs) * time.Millisecond,
+		})
 		if err := store.Init(config.Global.Database.Driver, config.Global.Database.DSN); err != nil {
 			log.Fatalf("db: %v", err)
 		}
@@ -95,4 +101,3 @@ var serveCmd = &cobra.Command{
 		}
 	},
 }
-

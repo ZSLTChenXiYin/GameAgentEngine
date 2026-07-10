@@ -27,12 +27,16 @@ type ServerConfig struct {
 
 // DatabaseConfig 定义数据库驱动和连接串。
 type DatabaseConfig struct {
-	Driver            string `mapstructure:"driver"`
-	DSN               string `mapstructure:"dsn"`
-	LogBatchEnabled   bool   `mapstructure:"log_batch_enabled"`
-	LogBatchSize      int    `mapstructure:"log_batch_size"`
-	LogBatchFlushMs   int    `mapstructure:"log_batch_flush_ms"`
-	LogBatchQueueSize int    `mapstructure:"log_batch_queue_size"`
+	Driver                string `mapstructure:"driver"`
+	DSN                   string `mapstructure:"dsn"`
+	WriteRetryEnabled     bool   `mapstructure:"write_retry_enabled"`
+	WriteRetryMaxAttempts int    `mapstructure:"write_retry_max_attempts"`
+	WriteRetryBaseDelayMs int    `mapstructure:"write_retry_base_delay_ms"`
+	WriteRetryMaxDelayMs  int    `mapstructure:"write_retry_max_delay_ms"`
+	LogBatchEnabled       bool   `mapstructure:"log_batch_enabled"`
+	LogBatchSize          int    `mapstructure:"log_batch_size"`
+	LogBatchFlushMs       int    `mapstructure:"log_batch_flush_ms"`
+	LogBatchQueueSize     int    `mapstructure:"log_batch_queue_size"`
 }
 
 // AuthConfig 定义 API 鉴权配置。
@@ -74,6 +78,10 @@ func Init(configPath string) error {
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "gameagentengine.db")
+	v.SetDefault("database.write_retry_enabled", true)
+	v.SetDefault("database.write_retry_max_attempts", 3)
+	v.SetDefault("database.write_retry_base_delay_ms", 40)
+	v.SetDefault("database.write_retry_max_delay_ms", 250)
 	v.SetDefault("database.log_batch_enabled", true)
 	v.SetDefault("database.log_batch_size", 32)
 	v.SetDefault("database.log_batch_flush_ms", 750)

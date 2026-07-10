@@ -1,8 +1,12 @@
 package store
 
+import "gorm.io/gorm"
+
 // ResolveNodeParentUUID 查询单个节点的父节点 UUID 并填充（供 service 层使用）。
 func ResolveNodeParentUUID(m *NodeModel) {
-	if m == nil || m.ParentID == nil { return }
+	if m == nil || m.ParentID == nil {
+		return
+	}
 	list := []NodeModel{*m}
 	resolveNodeParentUUIDs(list)
 	if list[0].ParentUUID != nil {
@@ -15,7 +19,9 @@ func CreateNode(m *NodeModel) error {
 	if m.UUID == "" {
 		m.UUID = NewUUID()
 	}
-	return Writer().Create(m).Error
+	return Write(func(db *gorm.DB) error {
+		return db.Create(m).Error
+	})
 }
 
 // GetNode 按节点 UUID 查询单个节点。
@@ -80,12 +86,16 @@ func GetWorlds() ([]NodeModel, error) {
 
 // DeleteNode 软删除指定节点。
 func DeleteNode(uuid string) error {
-	return Writer().Where("uuid = ?", uuid).Delete(&NodeModel{}).Error
+	return Write(func(db *gorm.DB) error {
+		return db.Where("uuid = ?", uuid).Delete(&NodeModel{}).Error
+	})
 }
 
 // UpdateNode 按字段映射对节点做局部更新。
 func UpdateNode(uuid string, updates map[string]any) error {
-	return Writer().Model(&NodeModel{}).Where("uuid = ?", uuid).Updates(updates).Error
+	return Write(func(db *gorm.DB) error {
+		return db.Model(&NodeModel{}).Where("uuid = ?", uuid).Updates(updates).Error
+	})
 }
 
 // FindNodesByTags 在指定世界内通过节点名称模糊匹配 tag 查找节点（简化实现）。
@@ -118,4 +128,3 @@ func FindNodesByIDs(uuids []string) ([]NodeModel, error) {
 	}
 	return list, err
 }
-

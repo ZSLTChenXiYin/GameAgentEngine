@@ -51,6 +51,12 @@ func initLocalStore() error {
 		FlushInterval: time.Duration(config.Global.Database.LogBatchFlushMs) * time.Millisecond,
 		QueueSize:     config.Global.Database.LogBatchQueueSize,
 	})
+	store.ConfigureWriteRetry(store.WriteRetryOptions{
+		Enabled:     config.Global.Database.WriteRetryEnabled,
+		MaxAttempts: config.Global.Database.WriteRetryMaxAttempts,
+		BaseDelay:   time.Duration(config.Global.Database.WriteRetryBaseDelayMs) * time.Millisecond,
+		MaxDelay:    time.Duration(config.Global.Database.WriteRetryMaxDelayMs) * time.Millisecond,
+	})
 	dsn := config.Global.Database.DSN
 	if !filepath.IsAbs(dsn) {
 		dsn = filepath.Join(filepath.Dir(localConfigPath), dsn)

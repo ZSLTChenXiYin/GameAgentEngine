@@ -194,6 +194,7 @@ Acceptance:
 5. Memory batch helpers for direct pipeline memory writes.
 6. Batched propagation target persistence for environment and organization style fan-out paths.
 7. World-level exclusion now guards heavy same-world service operations while allowing different worlds to proceed independently.
+8. Shared write retry handling now covers SQLite lock conflicts and MySQL-style deadlock or lock wait failures on centralized write paths.
 
 ### In Progress
 
@@ -201,10 +202,9 @@ Acceptance:
 
 ### Pending After Current Phase
 
-1. Retry policy layer.
-2. Migration control consolidation.
-3. PostgreSQL adapter.
-4. Load testing and observability expansion.
+1. Migration control consolidation.
+2. PostgreSQL adapter.
+3. Load testing and observability expansion.
 
 ## Verification Rules
 
@@ -242,12 +242,19 @@ Every phase must include:
 3. World lock tests verify same-world serialization and different-world concurrency.
 4. Store, service, and engine regression tests passed after the change.
 
+### Phase 9 Evidence
+
+1. Store writes and `WriteTransaction` now share a bounded retry layer instead of each callsite handling transient conflicts ad hoc.
+2. SQLite `database is locked` style failures and MySQL deadlock or lock-wait timeout failures are normalized as retriable write conflicts.
+3. Batched log persistence now retries through the same shared write retry layer.
+4. Store retry tests plus store, service, and engine regression tests passed after the change.
+
 ## Current Next Action
 
-Implement Phase 9.
+Implement Phase 10.
 
 Concrete targets:
-1. Normalize retriable SQLite and MySQL lock or deadlock errors.
-2. Add a shared retry helper around safe write transactions and batch flushes.
-3. Keep retries bounded and observable.
-4. Add tests, then commit the phase.
+1. Centralize migration entrypoints instead of coupling schema work directly to startup side effects.
+2. Keep migration execution reusable across SQLite, MySQL, and future adapters.
+3. Add verification around migration runner behavior.
+4. Commit the phase.
