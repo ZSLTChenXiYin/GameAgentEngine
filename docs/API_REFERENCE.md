@@ -4,6 +4,11 @@
 
 除特别说明外，所有引擎 API 都通过 `X-API-Key` 请求头鉴权。
 
+外部执行面相关接口还有两个可选专用头：
+
+- `X-Callback-Token`：可单独用于 `POST /api/v1/actions/callback`
+- `X-Runtime-Task-Token`：可单独用于 `/api/v1/runtime/tasks/*`
+
 基础前缀：`/api/v1/`
 
 多数写操作接口同时支持 `Idempotency-Key` 请求头，便于对 Tick、复制、导入等长流程做安全重试。
@@ -68,9 +73,17 @@
 - 如果该 paused execution 对应的 `resume_policy = none`，当前 callback 只会回填结果，不会自动恢复，原执行会继续保持 `paused`。
 - 如果该 callback 对应某个 `runtime task`，Engine 还会同步将该任务标记为 `succeeded`、`failed` 或 `cancelled`，写回完成结果。
 
+安全与防重放：
+
+- 如果配置了 `auth.callback_token`，该接口可以使用 `X-Callback-Token` 单独鉴权
+- 如果配置了 `auth.callback_require_request_id`，请求必须携带 `X-Callback-Request-Id`
+- 当携带 `X-Callback-Request-Id` 时，Engine 会把它作为 callback 请求级幂等键处理；相同请求会直接回放结果，不同 payload 复用同一 ID 会返回冲突
+
 ### `GET /api/v1/runtime/tasks/pending`
 
 列出当前可被 `pull` consumer 领取的 runtime task。
+
+如果配置了 `auth.runtime_task_token`，该接口以及其他 `/api/v1/runtime/tasks/*` 接口都可以使用 `X-Runtime-Task-Token` 单独鉴权。
 
 查询参数：
 

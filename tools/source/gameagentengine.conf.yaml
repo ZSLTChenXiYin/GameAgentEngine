@@ -40,6 +40,12 @@ auth:
   # API 鉴权密钥，客户端请求时需要附带 X-API-Key 请求头
   # 开发环境默认值 dev-key，生产环境务必修改
   api_key: "dev-key"
+  # 可选：专供外部执行面回调使用的 token；配置后可用 X-Callback-Token 调用 callback 接口
+  callback_token: ""
+  # 可选：专供 runtime task worker / bridge 使用的 token；配置后可用 X-Runtime-Task-Token 调用 runtime task 接口
+  runtime_task_token: ""
+  # 是否强制 callback 请求携带 X-Callback-Request-Id 以启用防重放
+  callback_require_request_id: false
 
 llm:
   # LLM 提供商：openai（兼容 OpenAI API 格式的供应商也可）

@@ -52,3 +52,29 @@ func SetIdempotencyResult(key, fingerprint string, statusCode int, result string
 		return db.Save(&IdempotencyKeyModel{ID: key, Fingerprint: fingerprint, StatusCode: statusCode, Result: result}).Error
 	})
 }
+
+// AcquireIdempotencyKey reserves an idempotency key for first use, or returns the existing record.
+func AcquireIdempotencyKey(key, fingerprint string) (*IdempotencyKeyModel, bool, error) {
+	var existing IdempotencyKeyModel
+	created := false
+	err := WriteTransaction(func(tx *gorm.DB) error {
+		err := tx.First(&existing, "id = ?", key).Error
+		if err == nil {
+			return nil
+		}
+		if !IsRecordNotFound(err) {
+			return err
+		}
+		model := IdempotencyKeyModel{ID: key, Fingerprint: fingerprint, StatusCode: 0, Result: ""}
+		if err := tx.Create(&model).Error; err != nil {
+			return err
+		}
+		existing = model
+		created = true
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return &existing, created, nil
+}

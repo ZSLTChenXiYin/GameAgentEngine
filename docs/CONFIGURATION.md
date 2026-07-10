@@ -52,6 +52,9 @@ database:
 
 auth:
   api_key: "dev-key"
+  callback_token: ""
+  runtime_task_token: ""
+  callback_require_request_id: false
 
 llm:
   provider: "openai"
@@ -126,6 +129,18 @@ engine:
 ---
 
 ## 外部交互静态配置
+
+`auth` 下面当前除了通用 `api_key` 之外，还支持外部执行面的专用安全字段：
+
+- `callback_token`：配置后，`POST /api/v1/actions/callback` 可以使用 `X-Callback-Token` 单独鉴权
+- `runtime_task_token`：配置后，`/api/v1/runtime/tasks/*` 接口可以使用 `X-Runtime-Task-Token` 单独鉴权
+- `callback_require_request_id`：开启后，callback 请求必须携带 `X-Callback-Request-Id`，用于请求级防重放
+
+当前鉴权优先级是：
+
+- callback 接口：优先接受 `X-Callback-Token`，否则回落到通用 `X-API-Key`
+- runtime task 接口：优先接受 `X-Runtime-Task-Token`，否则回落到通用 `X-API-Key`
+- 其他接口：继续使用通用 `X-API-Key`
 
 当前已经引入 `external_integrations` 作为 Engine 内建 `push` adapter 的静态配置入口。
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
@@ -67,6 +68,77 @@ func TestIdempotencyMiddlewareRejectsConflictingPayload(t *testing.T) {
 	}
 	if !strings.Contains(w2.Body.String(), "idempotency_key_conflict") {
 		t.Fatalf("expected conflict code in body, got %s", w2.Body.String())
+	}
+}
+
+func TestRequestAuthAllowsCallbackTokenOnCallbackEndpoint(t *testing.T) {
+	h := RequestAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}), config.AuthConfig{APIKey: "dev-key", CallbackToken: "cb-token"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/actions/callback", nil)
+	req.Header.Set("X-Callback-Token", "cb-token")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestRequestAuthAllowsRuntimeTaskTokenOnRuntimeTaskEndpoints(t *testing.T) {
+	h := RequestAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}), config.AuthConfig{APIKey: "dev-key", RuntimeTaskToken: "rt-token"})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/runtime/tasks/pending", nil)
+	req.Header.Set("X-Runtime-Task-Token", "rt-token")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestCallbackReplayMiddlewareReplaysMatchingRequestID(t *testing.T) {
+	initMiddlewareTestDB(t)
+	previousAuth := config.Global.Auth
+	config.Global.Auth = config.AuthConfig{}
+	defer func() { config.Global.Auth = previousAuth }()
+	count := 0
+	h := CallbackReplayMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		count++
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": count})
+	})
+	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/actions/callback", strings.NewReader(`{"callback_id":"cb-1","status":"success"}`))
+	req1.Header.Set("X-Callback-Request-Id", "rid-1")
+	w1 := httptest.NewRecorder()
+	h(w1, req1)
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/actions/callback", strings.NewReader(`{"callback_id":"cb-1","status":"success"}`))
+	req2.Header.Set("X-Callback-Request-Id", "rid-1")
+	w2 := httptest.NewRecorder()
+	h(w2, req2)
+	if count != 1 {
+		t.Fatalf("expected handler to run once, got %d", count)
+	}
+	if replayed := w2.Header().Get("X-Callback-Replayed"); replayed != "true" {
+		t.Fatalf("expected callback replay header, got %q", replayed)
+	}
+}
+
+func TestCallbackReplayMiddlewareRequiresRequestIDWhenConfigured(t *testing.T) {
+	initMiddlewareTestDB(t)
+	previousAuth := config.Global.Auth
+	config.Global.Auth = config.AuthConfig{CallbackRequireRequestID: true}
+	defer func() { config.Global.Auth = previousAuth }()
+	h := CallbackReplayMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/actions/callback", strings.NewReader(`{"callback_id":"cb-1","status":"success"}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "invalid_callback_request_id") {
+		t.Fatalf("expected invalid_callback_request_id, got %s", w.Body.String())
 	}
 }
 

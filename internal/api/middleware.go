@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
@@ -46,20 +47,31 @@ func defaultErrorCode(status int) string {
 	}
 }
 
-// APIKeyAuth 校验请求携带的 API Key。
-// 当前仅健康检查接口跳过认证，其余能力统一按 API 访问控制。
-func APIKeyAuth(next http.Handler, validKey string) http.Handler {
+// RequestAuth 校验请求携带的 API key 或外部执行面专用 token。
+func RequestAuth(next http.Handler, auth config.AuthConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
 			next.ServeHTTP(w, r)
 			return
+		}
+		if r.URL.Path == "/api/v1/actions/callback" && auth.CallbackToken != "" {
+			if r.Header.Get("X-Callback-Token") == auth.CallbackToken {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+		if len(r.URL.Path) >= len("/api/v1/runtime/tasks") && r.URL.Path[:len("/api/v1/runtime/tasks")] == "/api/v1/runtime/tasks" && auth.RuntimeTaskToken != "" {
+			if r.Header.Get("X-Runtime-Task-Token") == auth.RuntimeTaskToken {
+				next.ServeHTTP(w, r)
+				return
+			}
 		}
 
 		key := r.Header.Get("X-API-Key")
 		if key == "" {
 			key = r.URL.Query().Get("api_key")
 		}
-		if key != validKey {
+		if key != auth.APIKey {
 			errorJSONCode(w, http.StatusUnauthorized, "invalid_api_key", "invalid api key")
 			return
 		}
@@ -67,12 +79,17 @@ func APIKeyAuth(next http.Handler, validKey string) http.Handler {
 	})
 }
 
+// APIKeyAuth 保留旧接口，内部转调新的 RequestAuth。
+func APIKeyAuth(next http.Handler, validKey string) http.Handler {
+	return RequestAuth(next, config.AuthConfig{APIKey: validKey})
+}
+
 // CORSMiddleware 为前端工具补充跨域响应头。
 func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-API-Key")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-API-Key, Idempotency-Key, X-Callback-Token, X-Callback-Request-Id, X-Runtime-Task-Token")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -157,6 +174,56 @@ func IdempotencyMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		if cw.statusCode >= 200 && cw.statusCode < 300 {
 			if err := store.SetIdempotencyResult(key, fingerprint, cw.statusCode, cw.buf.String()); err != nil {
 				log.Printf("save idempotency result: %v", err)
+			}
+		}
+	}
+}
+
+// CallbackReplayMiddleware protects callback requests from duplicate replay when request IDs are supplied.
+func CallbackReplayMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		requestID := r.Header.Get("X-Callback-Request-Id")
+		if requestID == "" {
+			if config.Global.Auth.CallbackRequireRequestID {
+				errorJSONCode(w, http.StatusBadRequest, "invalid_callback_request_id", "X-Callback-Request-Id required")
+				return
+			}
+			next(w, r)
+			return
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			errorJSON(w, http.StatusBadRequest, "failed to read request body")
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		fingerprint := requestFingerprint(r, body)
+		key := "callback:" + requestID
+		record, created, err := store.AcquireIdempotencyKey(key, fingerprint)
+		if err != nil {
+			errorJSON(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !created {
+			if record.Fingerprint != fingerprint {
+				errorJSONCode(w, http.StatusConflict, "callback_request_conflict", "callback request id reused with different payload")
+				return
+			}
+			if record.StatusCode > 0 {
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("X-Callback-Replayed", "true")
+				w.WriteHeader(record.StatusCode)
+				w.Write([]byte(record.Result))
+				return
+			}
+			errorJSONCode(w, http.StatusConflict, "callback_request_in_progress", "callback request id is already being processed")
+			return
+		}
+		cw := newCaptureWriter(w)
+		next(cw, r)
+		if cw.statusCode >= 200 && cw.statusCode < 300 {
+			if err := store.SetIdempotencyResult(key, fingerprint, cw.statusCode, cw.buf.String()); err != nil {
+				log.Printf("save callback replay result: %v", err)
 			}
 		}
 	}

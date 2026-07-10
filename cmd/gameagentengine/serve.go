@@ -83,7 +83,7 @@ var serveCmd = &cobra.Command{
 		mux := api.NewRouter(pipeline)
 
 		var handler http.Handler = mux
-		handler = api.APIKeyAuth(handler, config.Global.Auth.APIKey)
+		handler = api.RequestAuth(handler, config.Global.Auth)
 		handler = api.CORSMiddleware(handler)
 
 		addr := fmt.Sprintf("%s:%d", config.Global.Server.Host, config.Global.Server.Port)

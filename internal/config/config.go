@@ -44,7 +44,10 @@ type DatabaseConfig struct {
 
 // AuthConfig 定义 API 鉴权配置。
 type AuthConfig struct {
-	APIKey string `mapstructure:"api_key"`
+	APIKey                   string `mapstructure:"api_key"`
+	CallbackToken            string `mapstructure:"callback_token"`
+	RuntimeTaskToken         string `mapstructure:"runtime_task_token"`
+	CallbackRequireRequestID bool   `mapstructure:"callback_require_request_id"`
 }
 
 // LLMConfig 定义大模型提供方接入参数。
@@ -123,6 +126,9 @@ func Init(configPath string) error {
 	v.SetDefault("database.log_batch_flush_ms", 750)
 	v.SetDefault("database.log_batch_queue_size", 1024)
 	v.SetDefault("auth.api_key", "dev-key")
+	v.SetDefault("auth.callback_token", "")
+	v.SetDefault("auth.runtime_task_token", "")
+	v.SetDefault("auth.callback_require_request_id", false)
 	v.SetDefault("llm.provider", "openai")
 	v.SetDefault("llm.model", "gpt-4o-mini")
 	v.SetDefault("llm.api_key", "")
