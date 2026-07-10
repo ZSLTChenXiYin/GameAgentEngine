@@ -422,7 +422,7 @@ func deleteWorldGraphTx(tx *gorm.DB, worldUUID string) error {
 // ValidateWorldSnapshot validates whether a saved snapshot can be safely restored.
 func ValidateWorldSnapshot(snapshotWorldID string) (*SnapshotValidationResult, error) {
 	var result *SnapshotValidationResult
-	if err := store.DB.Transaction(func(tx *gorm.DB) error {
+	if err := store.WriteTransaction(func(tx *gorm.DB) error {
 		snapshotMeta, err := store.GetWorldSnapshotBySnapshotWorldTx(tx, snapshotWorldID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -446,7 +446,7 @@ func ValidateWorldSnapshot(snapshotWorldID string) (*SnapshotValidationResult, e
 // GetWorldSnapshotMetadata returns snapshot metadata for a copied world.
 func GetWorldSnapshotMetadata(snapshotWorldID string) (*WorldSnapshotInfo, error) {
 	var info *WorldSnapshotInfo
-	if err := store.DB.Transaction(func(tx *gorm.DB) error {
+	if err := store.WriteTransaction(func(tx *gorm.DB) error {
 		snapshotMeta, err := store.GetWorldSnapshotBySnapshotWorldTx(tx, snapshotWorldID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -470,7 +470,7 @@ func GetWorldSnapshotMetadata(snapshotWorldID string) (*WorldSnapshotInfo, error
 // ListWorldSnapshots returns save snapshots belonging to a source world.
 func ListWorldSnapshots(sourceWorldID string) ([]WorldSnapshotInfo, error) {
 	var result []WorldSnapshotInfo
-	if err := store.DB.Transaction(func(tx *gorm.DB) error {
+	if err := store.WriteTransaction(func(tx *gorm.DB) error {
 		list, err := store.ListWorldSnapshotsBySourceWorldTx(tx, sourceWorldID, worldCopyReasonSnapshot)
 		if err != nil {
 			return err
@@ -496,7 +496,7 @@ func DeleteWorldSnapshot(snapshotWorldID string) error {
 	if snapshotMeta.Reason != worldCopyReasonSnapshot {
 		return codedErrorf(ErrorInvalid, snapshotValidationCodeReasonInvalid, "world %s is not a save snapshot", snapshotWorldID)
 	}
-	if err := store.DB.Transaction(func(tx *gorm.DB) error {
+	if err := store.WriteTransaction(func(tx *gorm.DB) error {
 		return deleteWorldGraphTx(tx, snapshotWorldID)
 	}); err != nil {
 		return err

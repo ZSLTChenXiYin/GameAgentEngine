@@ -18,7 +18,7 @@ func CreateTimelineTick(m *TimelineModel) error {
 	if m.UUID == "" {
 		m.UUID = NewUUID()
 	}
-	return DB.Create(m).Error
+	return Writer().Create(m).Error
 }
 
 // GetTimelineTicks 获取某个世界最近的时间线刻度。
@@ -62,7 +62,7 @@ func CreateInferenceLog(m *InferenceLogModel) error {
 			m.NodeID = &nodeID
 		}
 	}
-	return DB.Create(m).Error
+	return enqueueInferenceLog(m)
 }
 
 // GetInferenceLogs 获取推理日志列表，支持分页和按类型过滤。
@@ -74,6 +74,9 @@ func GetInferenceLogs(worldUUID string, limit, offset int, taskType string) ([]I
 
 // GetInferenceLogsByQuery 获取推理日志列表，支持按结构化字段组合查询。
 func GetInferenceLogsByQuery(query InferenceLogQuery) ([]InferenceLogModel, error) {
+	if err := FlushLogSink(); err != nil {
+		return nil, err
+	}
 	var list []InferenceLogModel
 	q := DB.Order("created_at DESC")
 	if query.WorldUUID != "" {

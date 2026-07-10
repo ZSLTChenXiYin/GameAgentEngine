@@ -27,8 +27,12 @@ type ServerConfig struct {
 
 // DatabaseConfig 定义数据库驱动和连接串。
 type DatabaseConfig struct {
-	Driver string `mapstructure:"driver"`
-	DSN    string `mapstructure:"dsn"`
+	Driver            string `mapstructure:"driver"`
+	DSN               string `mapstructure:"dsn"`
+	LogBatchEnabled   bool   `mapstructure:"log_batch_enabled"`
+	LogBatchSize      int    `mapstructure:"log_batch_size"`
+	LogBatchFlushMs   int    `mapstructure:"log_batch_flush_ms"`
+	LogBatchQueueSize int    `mapstructure:"log_batch_queue_size"`
 }
 
 // AuthConfig 定义 API 鉴权配置。
@@ -70,6 +74,10 @@ func Init(configPath string) error {
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "gameagentengine.db")
+	v.SetDefault("database.log_batch_enabled", true)
+	v.SetDefault("database.log_batch_size", 32)
+	v.SetDefault("database.log_batch_flush_ms", 750)
+	v.SetDefault("database.log_batch_queue_size", 1024)
 	v.SetDefault("auth.api_key", "dev-key")
 	v.SetDefault("llm.provider", "openai")
 	v.SetDefault("llm.model", "gpt-4o-mini")

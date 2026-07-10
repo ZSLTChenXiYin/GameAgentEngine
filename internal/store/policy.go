@@ -34,7 +34,7 @@ func UpsertWorldPolicy(worldUUID string, blocked, safe []string) (*WorldPolicyMo
 		existing.BlockedActions = string(blockedJSON)
 		existing.SafeActions = string(safeJSON)
 		existing.UpdatedAt = time.Now()
-		if err := DB.Save(&existing).Error; err != nil {
+		if err := Writer().Save(&existing).Error; err != nil {
 			return nil, err
 		}
 		return &existing, nil
@@ -46,7 +46,7 @@ func UpsertWorldPolicy(worldUUID string, blocked, safe []string) (*WorldPolicyMo
 		BlockedActions: string(blockedJSON),
 		SafeActions:    string(safeJSON),
 	}
-	if err := DB.Create(p).Error; err != nil {
+	if err := Writer().Create(p).Error; err != nil {
 		return nil, err
 	}
 	return p, nil
@@ -65,7 +65,7 @@ func GetOrCreateWorldPolicy(worldUUID string) (*WorldPolicyModel, error) {
 		BlockedActions: "[]",
 		SafeActions:    "[]",
 	}
-	if err := DB.Create(p).Error; err != nil {
+	if err := Writer().Create(p).Error; err != nil {
 		return nil, err
 	}
 	return p, nil

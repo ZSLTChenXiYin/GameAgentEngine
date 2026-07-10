@@ -5,7 +5,7 @@ func CreateMemory(m *MemoryModel) error {
 	if m.UUID == "" {
 		m.UUID = NewUUID()
 	}
-	return DB.Create(m).Error
+	return Writer().Create(m).Error
 }
 
 // SearchMemories 按关键词搜索节点的记忆内容（LIKE 模糊匹配）。
@@ -61,12 +61,12 @@ func GetMemory(uuid string) (*MemoryModel, error) {
 
 // UpdateMemory 更新记忆内容、层级或标签。
 func UpdateMemory(uuid string, updates map[string]any) error {
-	return DB.Model(&MemoryModel{}).Where("uuid = ?", uuid).Updates(updates).Error
+	return Writer().Model(&MemoryModel{}).Where("uuid = ?", uuid).Updates(updates).Error
 }
 
 // DeleteMemory 删除指定记忆记录。
 func DeleteMemory(uuid string) error {
-	return DB.Where("uuid = ?", uuid).Delete(&MemoryModel{}).Error
+	return Writer().Where("uuid = ?", uuid).Delete(&MemoryModel{}).Error
 }
 
 // CreateMemoriesBulk 批量创建多条记忆记录。
@@ -76,6 +76,6 @@ func CreateMemoriesBulk(mems []MemoryModel) error {
 			mems[i].UUID = NewUUID()
 		}
 	}
-	return DB.Create(&mems).Error
+	return Writer().Create(&mems).Error
 }
 

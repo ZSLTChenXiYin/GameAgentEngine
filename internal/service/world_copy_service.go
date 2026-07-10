@@ -72,7 +72,7 @@ func duplicateWorld(worldID, newName string, lockWorld bool, mode worldCopyMode,
 	}
 
 	var created *store.NodeModel
-	err := store.DB.Transaction(func(tx *gorm.DB) error {
+	err := store.WriteTransaction(func(tx *gorm.DB) error {
 		sourceWorld, err := getNodeTx(tx, worldID)
 		if err != nil {
 			return err

@@ -15,7 +15,7 @@ func CreateNode(m *NodeModel) error {
 	if m.UUID == "" {
 		m.UUID = NewUUID()
 	}
-	return DB.Create(m).Error
+	return Writer().Create(m).Error
 }
 
 // GetNode 按节点 UUID 查询单个节点。
@@ -80,12 +80,12 @@ func GetWorlds() ([]NodeModel, error) {
 
 // DeleteNode 软删除指定节点。
 func DeleteNode(uuid string) error {
-	return DB.Where("uuid = ?", uuid).Delete(&NodeModel{}).Error
+	return Writer().Where("uuid = ?", uuid).Delete(&NodeModel{}).Error
 }
 
 // UpdateNode 按字段映射对节点做局部更新。
 func UpdateNode(uuid string, updates map[string]any) error {
-	return DB.Model(&NodeModel{}).Where("uuid = ?", uuid).Updates(updates).Error
+	return Writer().Model(&NodeModel{}).Where("uuid = ?", uuid).Updates(updates).Error
 }
 
 // FindNodesByTags 在指定世界内通过节点名称模糊匹配 tag 查找节点（简化实现）。

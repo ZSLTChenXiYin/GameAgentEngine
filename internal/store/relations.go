@@ -5,7 +5,7 @@ func CreateRelation(m *RelationModel) error {
 	if m.UUID == "" {
 		m.UUID = NewUUID()
 	}
-	return DB.Create(m).Error
+	return Writer().Create(m).Error
 }
 
 // GetAllRelations 获取关系列表，支持分页和按类型过滤。
@@ -55,11 +55,11 @@ func GetRelation(uuid string) (*RelationModel, error) {
 
 // UpdateRelation 更新关系字段。
 func UpdateRelation(uuid string, updates map[string]any) error {
-	return DB.Model(&RelationModel{}).Where("uuid = ?", uuid).Updates(updates).Error
+	return Writer().Model(&RelationModel{}).Where("uuid = ?", uuid).Updates(updates).Error
 }
 
 // DeleteRelation 删除指定关系记录。
 func DeleteRelation(uuid string) error {
-	return DB.Where("uuid = ?", uuid).Delete(&RelationModel{}).Error
+	return Writer().Where("uuid = ?", uuid).Delete(&RelationModel{}).Error
 }
 

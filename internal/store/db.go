@@ -1,11 +1,10 @@
-// Package store 提供基于 GORM 的持久化能力。
-// 该包负责数据库连接、模型迁移以及各实体的读写操作。
 package store
 
 import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,38 +17,92 @@ import (
 )
 
 var DB *gorm.DB
+var writeDB *gorm.DB
 
-// Init 根据驱动类型初始化数据库连接并执行自动迁移。
+func Writer() *gorm.DB {
+	if writeDB != nil {
+		return writeDB
+	}
+	return DB
+}
+
+func WriteTransaction(fn func(tx *gorm.DB) error) error {
+	return Writer().Transaction(fn)
+}
+
 func Init(driver, dsn string) error {
+	if err := CloseLogSink(); err != nil {
+		return fmt.Errorf("close previous log sink: %w", err)
+	}
+
 	var dial gorm.Dialector
+	var writeDial gorm.Dialector
+	isSQLite := strings.EqualFold(driver, "sqlite")
+
 	switch driver {
 	case "sqlite":
 		dial = sqlite.New(sqlite.Config{DSN: dsn, DriverName: "sqlite"})
+		writeDial = sqlite.New(sqlite.Config{DSN: dsn, DriverName: "sqlite"})
 	case "mysql":
 		dial = mysql.Open(dsn)
+		writeDial = mysql.Open(dsn)
 	default:
 		return fmt.Errorf("unsupported database driver: %s", driver)
 	}
 
+	gormLogger := logger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), logger.Config{
+		LogLevel:                  logger.Warn,
+		IgnoreRecordNotFoundError: true,
+	})
+
 	var err error
 	DB, err = gorm.Open(dial, &gorm.Config{
-		Logger: logger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), logger.Config{
-			LogLevel:                  logger.Warn,
-			IgnoreRecordNotFoundError: true,
-		}),
+		Logger:                 gormLogger,
+		SkipDefaultTransaction: isSQLite,
 	})
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
-	sqlDB, err := DB.DB()
+
+	writeDB, err = gorm.Open(writeDial, &gorm.Config{
+		Logger:                 gormLogger,
+		SkipDefaultTransaction: isSQLite,
+	})
+	if err != nil {
+		return fmt.Errorf("open write db: %w", err)
+	}
+
+	readSQLDB, err := DB.DB()
 	if err != nil {
 		return fmt.Errorf("get sql db: %w", err)
 	}
-	sqlDB.SetMaxOpenConns(10)
-	sqlDB.SetMaxIdleConns(5)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+	writerSQLDB, err := writeDB.DB()
+	if err != nil {
+		return fmt.Errorf("get write sql db: %w", err)
+	}
 
-	if err := DB.AutoMigrate(
+	if isSQLite {
+		readSQLDB.SetMaxOpenConns(4)
+		readSQLDB.SetMaxIdleConns(4)
+		writerSQLDB.SetMaxOpenConns(1)
+		writerSQLDB.SetMaxIdleConns(1)
+		if err := configureSQLiteHandle(DB); err != nil {
+			return err
+		}
+		if err := configureSQLiteHandle(writeDB); err != nil {
+			return err
+		}
+	} else {
+		readSQLDB.SetMaxOpenConns(10)
+		readSQLDB.SetMaxIdleConns(5)
+		writerSQLDB.SetMaxOpenConns(10)
+		writerSQLDB.SetMaxIdleConns(5)
+	}
+
+	readSQLDB.SetConnMaxLifetime(time.Hour)
+	writerSQLDB.SetConnMaxLifetime(time.Hour)
+
+	if err := Writer().AutoMigrate(
 		&NodeModel{},
 		&ComponentModel{},
 		&RelationModel{},
@@ -64,8 +117,24 @@ func Init(driver, dsn string) error {
 	); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
-	if err := migrateInferenceLogsToLogs(DB); err != nil {
+	if err := migrateInferenceLogsToLogs(Writer()); err != nil {
 		return fmt.Errorf("migrate logs: %w", err)
+	}
+	initLogSink()
+	return nil
+}
+
+func configureSQLiteHandle(db *gorm.DB) error {
+	pragmas := []string{
+		"PRAGMA journal_mode=WAL;",
+		"PRAGMA synchronous=NORMAL;",
+		"PRAGMA busy_timeout=5000;",
+		"PRAGMA foreign_keys=ON;",
+	}
+	for _, pragma := range pragmas {
+		if err := db.Exec(pragma).Error; err != nil {
+			return fmt.Errorf("configure sqlite pragma %q: %w", pragma, err)
+		}
 	}
 	return nil
 }
@@ -126,12 +195,10 @@ func migrateInferenceLogsToLogs(db *gorm.DB) error {
 	return db.Table("logs").Create(&rows).Error
 }
 
-// NewUUID 生成统一使用的 UUID 字符串标识。
 func NewUUID() string {
 	return uuid.NewString()
 }
 
-// ResolveNodeUUID 通过 UUID 查询节点的内部 int64 ID。
 func ResolveNodeUUID(uuid string) int64 {
 	var m NodeModel
 	if err := DB.Select("id").Where("uuid = ?", uuid).First(&m).Error; err != nil {
@@ -140,7 +207,6 @@ func ResolveNodeUUID(uuid string) int64 {
 	return m.ID
 }
 
-// ResolveWorldUUID 通过 UUID 查询世界的内部 int64 ID。
 func ResolveWorldUUID(uuid string) int64 {
 	return ResolveNodeUUID(uuid)
 }

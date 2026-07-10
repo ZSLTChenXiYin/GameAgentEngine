@@ -27,15 +27,15 @@ func CreatePropagationChain(m *PropagationChainModel) error {
 	if m.UUID == "" {
 		m.UUID = NewUUID()
 	}
-	return DB.Create(m).Error
+	return Writer().Create(m).Error
 }
 
 // UpdatePropagationChain 更新规则链。
 func UpdatePropagationChain(uuid string, updates map[string]any) error {
-	return DB.Model(&PropagationChainModel{}).Where("uuid = ?", uuid).Updates(updates).Error
+	return Writer().Model(&PropagationChainModel{}).Where("uuid = ?", uuid).Updates(updates).Error
 }
 
 // DeletePropagationChain 删除规则链。
 func DeletePropagationChain(uuid string) error {
-	return DB.Where("uuid = ?", uuid).Delete(&PropagationChainModel{}).Error
+	return Writer().Where("uuid = ?", uuid).Delete(&PropagationChainModel{}).Error
 }

@@ -24,7 +24,7 @@ func CopyNode(nodeID string, opts CopyNodeOptions) (*store.NodeModel, error) {
 	}
 
 	var copied *store.NodeModel
-	err := store.DB.Transaction(func(tx *gorm.DB) error {
+	err := store.WriteTransaction(func(tx *gorm.DB) error {
 		source, err := getNodeTx(tx, nodeID)
 		if err != nil {
 			return err
@@ -236,7 +236,7 @@ func listNodesByWorldIntTx(tx *gorm.DB, worldID int64) ([]store.NodeModel, error
 // UpdateWorld updates mutable fields on a world root node.
 func UpdateWorld(worldID string, name *string) (*store.NodeModel, error) {
 	var updated *store.NodeModel
-	err := store.DB.Transaction(func(tx *gorm.DB) error {
+	err := store.WriteTransaction(func(tx *gorm.DB) error {
 		world, err := ensureWorldNodeTx(tx, worldID)
 		if err != nil {
 			return err

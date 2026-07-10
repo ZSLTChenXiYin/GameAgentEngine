@@ -7,7 +7,7 @@ func CreateWorldSnapshot(m *WorldSnapshotModel) error {
 	if m.UUID == "" {
 		m.UUID = NewUUID()
 	}
-	return DB.Create(m).Error
+	return Writer().Create(m).Error
 }
 
 // GetWorldSnapshotBySnapshotWorld returns snapshot metadata for a copied world.

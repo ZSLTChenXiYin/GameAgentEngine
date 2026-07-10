@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -41,7 +42,14 @@ var importCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		config.Init(cfgFile)
+		store.ConfigureLogSink(store.LogSinkOptions{
+			Enabled:       config.Global.Database.LogBatchEnabled,
+			BatchSize:     config.Global.Database.LogBatchSize,
+			FlushInterval: time.Duration(config.Global.Database.LogBatchFlushMs) * time.Millisecond,
+			QueueSize:     config.Global.Database.LogBatchQueueSize,
+		})
 		store.Init(config.Global.Database.Driver, config.Global.Database.DSN)
+		defer store.CloseLogSink()
 		data, _ := os.ReadFile(args[0])
 		var cfg impConfig
 		if len(data) > 0 && data[0] == '{' {

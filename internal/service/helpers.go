@@ -17,7 +17,7 @@ func txResolveWorldUUID(tx *gorm.DB, uuid string) int64 {
 }
 
 func deleteByID[T any](model *T, id string, fetch func(*gorm.DB, string) (*T, error)) error {
-	return store.DB.Transaction(func(tx *gorm.DB) error {
+	return store.WriteTransaction(func(tx *gorm.DB) error {
 		if _, err := fetch(tx, id); err != nil {
 			return err
 		}

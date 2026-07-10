@@ -7,7 +7,7 @@ func CreateComponent(m *ComponentModel) error {
 	if m.UUID == "" {
 		m.UUID = NewUUID()
 	}
-	return DB.Create(m).Error
+	return Writer().Create(m).Error
 }
 
 // GetNodeComponents 获取某个节点挂载的全部组件。
@@ -72,7 +72,7 @@ func GetComponent(uuid string) (*ComponentModel, error) {
 
 // UpdateComponent 更新组件类型或数据。
 func UpdateComponent(uuid string, updates map[string]any) error {
-	return DB.Model(&ComponentModel{}).Where("uuid = ?", uuid).Updates(updates).Error
+	return Writer().Model(&ComponentModel{}).Where("uuid = ?", uuid).Updates(updates).Error
 }
 
 // UpsertComponentByType creates or replaces a node-local component by type.

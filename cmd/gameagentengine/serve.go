@@ -27,9 +27,20 @@ var serveCmd = &cobra.Command{
 		if err := config.Init(cfgFile); err != nil {
 			log.Fatalf("config: %v", err)
 		}
+		store.ConfigureLogSink(store.LogSinkOptions{
+			Enabled:       config.Global.Database.LogBatchEnabled,
+			BatchSize:     config.Global.Database.LogBatchSize,
+			FlushInterval: time.Duration(config.Global.Database.LogBatchFlushMs) * time.Millisecond,
+			QueueSize:     config.Global.Database.LogBatchQueueSize,
+		})
 		if err := store.Init(config.Global.Database.Driver, config.Global.Database.DSN); err != nil {
 			log.Fatalf("db: %v", err)
 		}
+		defer func() {
+			if err := store.CloseLogSink(); err != nil {
+				log.Printf("close log sink: %v", err)
+			}
+		}()
 		// Debug 模式下自动启用详细日志
 		if config.ExecutionMode() == "debug" {
 			log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)

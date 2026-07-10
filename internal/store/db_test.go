@@ -65,3 +65,74 @@ func TestMigrateInferenceLogsToLogsCopiesLegacyRows(t *testing.T) {
 		t.Fatalf("expected request/response data to be copied: %#v", rows[0])
 	}
 }
+
+func TestInferenceLogSinkFlushPersistsQueuedRows(t *testing.T) {
+	ConfigureLogSink(LogSinkOptions{
+		Enabled:       true,
+		BatchSize:     8,
+		FlushInterval: time.Hour,
+		QueueSize:     32,
+	})
+	t.Cleanup(func() {
+		_ = CloseLogSink()
+	})
+
+	if err := Init("sqlite", fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())); err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+
+	if err := CreateInferenceLog(&InferenceLogModel{WorldID: 1, TaskType: "world_tick", EventName: "queued_1"}); err != nil {
+		t.Fatalf("enqueue log 1: %v", err)
+	}
+	if err := CreateInferenceLog(&InferenceLogModel{WorldID: 1, TaskType: "world_tick", EventName: "queued_2"}); err != nil {
+		t.Fatalf("enqueue log 2: %v", err)
+	}
+
+	var count int64
+	if err := DB.Model(&InferenceLogModel{}).Where("task_type = ?", "world_tick").Count(&count).Error; err != nil {
+		t.Fatalf("count logs before flush: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected queued logs to stay buffered before flush, got %d", count)
+	}
+
+	if err := FlushLogSink(); err != nil {
+		t.Fatalf("flush log sink: %v", err)
+	}
+
+	logs, err := GetInferenceLogsByQuery(InferenceLogQuery{TaskType: "world_tick", Limit: 10})
+	if err != nil {
+		t.Fatalf("query logs after flush: %v", err)
+	}
+	if len(logs) != 2 {
+		t.Fatalf("expected 2 flushed logs, got %d", len(logs))
+	}
+}
+
+func TestInferenceLogSinkDisabledFallsBackToDirectWrite(t *testing.T) {
+	ConfigureLogSink(LogSinkOptions{
+		Enabled:       false,
+		BatchSize:     8,
+		FlushInterval: time.Hour,
+		QueueSize:     32,
+	})
+	t.Cleanup(func() {
+		_ = CloseLogSink()
+	})
+
+	if err := Init("sqlite", fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())); err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+
+	if err := CreateInferenceLog(&InferenceLogModel{WorldID: 2, TaskType: "custom", EventName: "direct_write"}); err != nil {
+		t.Fatalf("create log: %v", err)
+	}
+
+	logs, err := GetInferenceLogsByQuery(InferenceLogQuery{TaskType: "custom", Limit: 10})
+	if err != nil {
+		t.Fatalf("query logs: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("expected direct write to persist immediately, got %d", len(logs))
+	}
+}

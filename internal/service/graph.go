@@ -10,7 +10,7 @@ import (
 // CreateNode 创建节点并校验世界/父子关系是否合法。
 func CreateNode(worldID, name, nodeType string, parentID *string) (*store.NodeModel, error) {
 	var created *store.NodeModel
-	err := store.DB.Transaction(func(tx *gorm.DB) error {
+	err := store.WriteTransaction(func(tx *gorm.DB) error {
 		var err error
 		created, err = createNodeTx(tx, worldID, name, nodeType, parentID)
 		return err
@@ -24,7 +24,7 @@ func CreateNode(worldID, name, nodeType string, parentID *string) (*store.NodeMo
 // UpdateNode 更新节点，并确保不会制造跨世界父子链或循环父子链。
 func UpdateNode(id string, name, nodeType, parentID *string, parentIDSet bool) (*store.NodeModel, error) {
 	var updated *store.NodeModel
-	err := store.DB.Transaction(func(tx *gorm.DB) error {
+	err := store.WriteTransaction(func(tx *gorm.DB) error {
 		node, err := getNodeTx(tx, id)
 		if err != nil {
 			return err
@@ -78,7 +78,7 @@ func UpdateNode(id string, name, nodeType, parentID *string, parentIDSet bool) (
 
 // DeleteNode 删除一个叶子节点，并清理挂在其上的附属数据。
 func DeleteNode(id string) error {
-	return store.DB.Transaction(func(tx *gorm.DB) error {
+	return store.WriteTransaction(func(tx *gorm.DB) error {
 		node, err := getNodeTx(tx, id)
 		if err != nil {
 			return err
@@ -109,7 +109,7 @@ func DeleteNode(id string) error {
 // CreateComponent 创建组件，并确保目标节点存在。
 func CreateComponent(nodeID, componentType, data string) (*store.ComponentModel, error) {
 	var created *store.ComponentModel
-	err := store.DB.Transaction(func(tx *gorm.DB) error {
+	err := store.WriteTransaction(func(tx *gorm.DB) error {
 		if !engine.IsValidComponentType(componentType) {
 			return errorf(ErrorInvalidComponentType, "invalid component_type: %s", componentType)
 		}
@@ -134,7 +134,7 @@ func CreateComponent(nodeID, componentType, data string) (*store.ComponentModel,
 // UpdateComponent 更新组件内容。
 func UpdateComponent(id string, componentType, data *string) (*store.ComponentModel, error) {
 	var updated *store.ComponentModel
-	err := store.DB.Transaction(func(tx *gorm.DB) error {
+	err := store.WriteTransaction(func(tx *gorm.DB) error {
 		component, err := getComponentTx(tx, id)
 		if err != nil {
 			return err
@@ -178,7 +178,7 @@ func DeleteComponent(id string) error {
 // CreateRelation 创建有向关系，写入两条记录（正向和逆向）。
 func CreateRelation(worldID, sourceID, targetID, relationType string, weight float64, props string) (*store.RelationModel, error) {
 	var created *store.RelationModel
-	err := store.DB.Transaction(func(tx *gorm.DB) error {
+	err := store.WriteTransaction(func(tx *gorm.DB) error {
 		world := txResolveWorldUUID(tx, worldID)
 		if weight == 0 {
 			weight = 1.0
@@ -266,7 +266,7 @@ func ensureNoExternalParentCycleTx(tx *gorm.DB, sourceID, targetID int64) error 
 // UpdateRelation 更新关系的内容。
 func UpdateRelation(id string, sourceID, targetID, relationType *string, weight *float64, props *string) (*store.RelationModel, error) {
 	var updated *store.RelationModel
-	err := store.DB.Transaction(func(tx *gorm.DB) error {
+	err := store.WriteTransaction(func(tx *gorm.DB) error {
 		relation, err := getRelationTx(tx, id)
 		if err != nil {
 			return err
@@ -356,7 +356,7 @@ func DeleteRelation(id string) error {
 // CreateMemory 为节点创建一条记忆记录。
 func CreateMemory(nodeID, content, level, tags string) (*store.MemoryModel, error) {
 	var created *store.MemoryModel
-	err := store.DB.Transaction(func(tx *gorm.DB) error {
+	err := store.WriteTransaction(func(tx *gorm.DB) error {
 		node, err := getNodeTx(tx, nodeID)
 		if err != nil {
 			return err
@@ -382,7 +382,7 @@ func CreateMemory(nodeID, content, level, tags string) (*store.MemoryModel, erro
 // UpdateMemory 更新记忆记录。
 func UpdateMemory(id string, content, level, tags *string) (*store.MemoryModel, error) {
 	var updated *store.MemoryModel
-	err := store.DB.Transaction(func(tx *gorm.DB) error {
+	err := store.WriteTransaction(func(tx *gorm.DB) error {
 		memory, err := getMemoryTx(tx, id)
 		if err != nil {
 			return err

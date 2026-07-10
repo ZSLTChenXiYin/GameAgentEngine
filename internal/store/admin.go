@@ -9,7 +9,7 @@ import (
 // ResetAll 清空当前数据库中的全部业务数据。
 // 该操作主要用于重建演示世界或测试环境初始化。
 func ResetAll() error {
-	return DB.Transaction(func(tx *gorm.DB) error {
+	return WriteTransaction(func(tx *gorm.DB) error {
 		models := []any{
 			&IdempotencyKeyModel{},
 			&InferenceLogModel{},
@@ -45,5 +45,5 @@ func IsRecordNotFound(err error) bool {
 
 // SetIdempotencyResult caches the response for an idempotency key.
 func SetIdempotencyResult(key, fingerprint string, statusCode int, result string) error {
-	return DB.Save(&IdempotencyKeyModel{ID: key, Fingerprint: fingerprint, StatusCode: statusCode, Result: result}).Error
+	return Writer().Save(&IdempotencyKeyModel{ID: key, Fingerprint: fingerprint, StatusCode: statusCode, Result: result}).Error
 }

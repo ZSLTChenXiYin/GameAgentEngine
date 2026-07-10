@@ -104,7 +104,7 @@ func ImportWorld(cfg *sdk.ImportConfig, reset, dryRun bool) (*ImportResult, erro
 	if dryRun {
 		return result, nil
 	}
-	err := store.DB.Transaction(func(tx *gorm.DB) error {
+	err := store.WriteTransaction(func(tx *gorm.DB) error {
 		if reset {
 			if err := resetAllTx(tx); err != nil {
 				return err

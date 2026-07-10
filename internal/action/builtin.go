@@ -44,7 +44,7 @@ func (a *UpdateMood) Execute(args map[string]any) (any, error) {
 	profile["mood_intensity"] = intensity
 
 	data, _ := json.Marshal(profile)
-	store.DB.Model(&comps[0]).Update("data", string(data))
+	store.Writer().Model(&comps[0]).Update("data", string(data))
 
 	nodeIntID := store.ResolveNodeUUID(nodeID)
 	store.CreateMemory(&store.MemoryModel{

@@ -86,7 +86,7 @@ func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameT
 
 	var tick *store.TimelineModel
 	var worldTimeState *engine.WorldTimeStateComponent
-	err = store.DB.Transaction(func(tx *gorm.DB) error {
+	err = store.WriteTransaction(func(tx *gorm.DB) error {
 		var err error
 		tick, worldTimeState, err = persistWorldTickArtifactsTx(tx, worldID, tickType, gameTime, effectiveTicks, resp)
 		return err
@@ -824,7 +824,7 @@ func ReplanWorldTimeline(p *engine.Pipeline, worldID string) (*engine.InvokeResp
 		return nil, err
 	}
 	worldInt := store.ResolveWorldUUID(worldID)
-	if err := store.DB.Model(&store.TimelineModel{}).Where("world_id = ?", worldInt).Update("future_outline", "").Error; err != nil {
+	if err := store.Writer().Model(&store.TimelineModel{}).Where("world_id = ?", worldInt).Update("future_outline", "").Error; err != nil {
 		return nil, err
 	}
 	return p.Execute(&engine.InvokeRequest{WorldID: worldID, TaskType: engine.TaskWorldTick, NodeID: worldID})

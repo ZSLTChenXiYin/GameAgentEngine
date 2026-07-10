@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -44,6 +45,12 @@ func initLocalStore() error {
 	if err := config.Init(localConfigPath); err != nil {
 		return err
 	}
+	store.ConfigureLogSink(store.LogSinkOptions{
+		Enabled:       config.Global.Database.LogBatchEnabled,
+		BatchSize:     config.Global.Database.LogBatchSize,
+		FlushInterval: time.Duration(config.Global.Database.LogBatchFlushMs) * time.Millisecond,
+		QueueSize:     config.Global.Database.LogBatchQueueSize,
+	})
 	dsn := config.Global.Database.DSN
 	if !filepath.IsAbs(dsn) {
 		dsn = filepath.Join(filepath.Dir(localConfigPath), dsn)

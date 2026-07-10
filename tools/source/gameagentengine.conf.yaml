@@ -17,6 +17,14 @@ database:
   driver: "sqlite"
   # SQLite：文件名；MySQL：user:pass@tcp(host:port)/dbname?charset=utf8
   dsn: "gameagentengine.db"
+  # 是否启用日志批量写入
+  log_batch_enabled: true
+  # 单次批量落库的最大日志条数
+  log_batch_size: 32
+  # 日志批量 flush 间隔（毫秒）
+  log_batch_flush_ms: 750
+  # 日志批处理内存队列大小
+  log_batch_queue_size: 1024
 
 auth:
   # API 鉴权密钥，客户端请求时需要附带 X-API-Key 请求头
