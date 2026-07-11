@@ -50,6 +50,12 @@ var serveCmd = &cobra.Command{
 				log.Printf("close log sink: %v", err)
 			}
 		}()
+
+		// Restore pending world change plans from the previous server run
+		if err := engine.GlobalPlanReview.RestorePendingPlansFromDB(); err != nil {
+			log.Printf("[warn] restore pending plans: %v", err)
+		}
+
 		// Debug 模式下自动启用详细日志
 		if config.ExecutionMode() == "debug" {
 			log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)

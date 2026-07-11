@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
 // MakePlanApproveHandler 返回批准计划的 HTTP handler。
@@ -41,6 +42,12 @@ func MakePlanApproveHandler(p *engine.Pipeline) http.HandlerFunc {
 			return
 		}
 
+		// Persist approval status to database
+		if err := store.UpdatePendingPlanStatus(req.PlanID, "approved"); err != nil {
+			errorJSON(w, 500, fmt.Sprintf("persist plan approval: %v", err))
+			return
+		}
+
 		writeJSON(w, 200, map[string]any{
 			"status":  "approved",
 			"plan_id": req.PlanID,
@@ -73,6 +80,12 @@ func MakePlanRejectHandler(p *engine.Pipeline) http.HandlerFunc {
 
 		if err := engine.GlobalPlanReview.Reject(req.PlanID); err != nil {
 			errorJSON(w, 404, err.Error())
+			return
+		}
+
+		// Persist rejection status to database
+		if err := store.UpdatePendingPlanStatus(req.PlanID, "rejected"); err != nil {
+			errorJSON(w, 500, fmt.Sprintf("persist plan rejection: %v", err))
 			return
 		}
 

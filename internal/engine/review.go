@@ -1,11 +1,14 @@
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
 // PendingPlan 表示一条待审批的世界变更计划。
@@ -104,6 +107,32 @@ func NewPendingPlanID() string {
 // 当 impact_level 为 "major" 或 "critical" 时返回 true。
 func IsHighImpact(impactLevel string) bool {
 	return impactLevel == "major" || impactLevel == "critical"
+}
+
+// RestorePendingPlansFromDB loads all pending plans from the database into the
+// in-memory PlanReviewStore. Called at server startup so that plans pending
+// from a previous run can still be approved or rejected.
+func (s *PlanReviewStore) RestorePendingPlansFromDB() error {
+	models, err := store.ListPendingPlans("")
+	if err != nil {
+		return err
+	}
+	for _, m := range models {
+		if m.DataJSON == "" {
+			continue
+		}
+		var plan PendingPlan
+		if err := json.Unmarshal([]byte(m.DataJSON), &plan); err != nil {
+			log.Printf("[warn] restore pending plan %s: %v", m.PlanID, err)
+			continue
+		}
+		plan.Status = m.Status
+		s.Add(&plan)
+	}
+	if len(models) > 0 {
+		log.Printf("[restore] loaded %d pending plans from database", len(models))
+	}
+	return nil
 }
 
 // ApplyPendingPlan executes the action calls and memory updates stored in an approved

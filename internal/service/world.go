@@ -90,6 +90,10 @@ func advanceWorldTickWithAutonomousUnlocked(p *engine.Pipeline, worldID, tickTyp
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
+
+	// Non-blocking continuity validation: check canonical facts against proposed changes
+	ValidateTickContinuity(worldID, resp)
+
 	effectiveTicks, err := resolveEffectiveWorldTicksTx(store.DB, worldID, resolvedTicks, resp)
 	if err != nil {
 		return nil, nil, nil, nil, err
