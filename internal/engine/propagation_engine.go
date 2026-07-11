@@ -369,10 +369,12 @@ func (p *Pipeline) propagateToResolvedTargets(req *InvokeRequest, runtime *execu
 			Tags:     "propagated," + mode,
 		})
 	}
-	for _, item := range filterNewPropagationTargets(batch) {
+	// Filter once and reuse the result: avoid double DB COUNT queries
+	cleanBatch := filterNewPropagationTargets(batch)
+	for _, item := range cleanBatch {
 		filteredTargets = append(filteredTargets, propagationTarget{NodeUUID: item.NodeUUID, NodeID: item.NodeID, Level: item.Level})
 	}
-	if err := persistMemoryBatch(filterNewPropagationTargets(batch)); err != nil {
+	if err := persistMemoryBatch(cleanBatch); err != nil {
 		for _, target := range targets {
 			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", content, map[string]any{"target_node_id": target.NodeUUID, "mode": mode, "error": err.Error()})
 		}

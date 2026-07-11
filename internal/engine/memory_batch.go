@@ -65,6 +65,9 @@ func filterNewPropagationTargets(targets []memoryWriteRequest) []memoryWriteRequ
 			continue
 		}
 		seen[key] = true
+		if hasPropagatedMemory(target.NodeUUID, target.Content) {
+			continue
+		}
 		filtered = append(filtered, target)
 	}
 	return filtered

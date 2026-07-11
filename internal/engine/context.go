@@ -298,15 +298,16 @@ func (b *ContextBuilder) buildEnvironmentPromptBlock(environmentNode *store.Node
 	}
 	nodes := []store.NodeModel{*environmentNode}
 	nodes = append(nodes, environmentAncestors...)
+	dedupedNodes := dedupeNodes(nodes)
 	var parts []string
 	parts = append(parts, "环境信息：")
-	for _, n := range dedupeNodes(nodes) {
+	for _, n := range dedupedNodes {
 		parts = append(parts, fmt.Sprintf("  [环境节点] %s(%s)", n.Name, n.NodeType))
 	}
 	// Batch-load environment node components and memories
-	if envIDs := b.collectNodeIDs(dedupeNodes(nodes)); len(envIDs) > 0 {
+	if envIDs := b.collectNodeIDs(dedupedNodes); len(envIDs) > 0 {
 		if compMap, err := store.GetComponentsByNodeIDs(envIDs); err == nil {
-			for _, n := range dedupeNodes(nodes) {
+			for _, n := range dedupedNodes {
 				if cc, ok := compMap[n.ID]; ok {
 					for _, comp := range cc {
 						parts = append(parts, fmt.Sprintf("    【%s/%s】%s", n.Name, comp.ComponentType, comp.Data))
@@ -315,7 +316,7 @@ func (b *ContextBuilder) buildEnvironmentPromptBlock(environmentNode *store.Node
 			}
 		}
 		if memMap, err := store.GetMemoriesByNodeIDs(envIDs, 5); err == nil {
-			for _, n := range dedupeNodes(nodes) {
+			for _, n := range dedupedNodes {
 				if mm, ok := memMap[n.ID]; ok {
 					for _, mem := range mm {
 						parts = append(parts, fmt.Sprintf("    [环境记忆:%s] %s", mem.Level, mem.Content))
