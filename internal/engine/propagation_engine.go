@@ -92,6 +92,7 @@ func (p *Pipeline) PropagateMemoryByRule(req *InvokeRequest, runtime *executionC
 //
 // 注意：这条路径只适用于稳定主归属链，不能替代 located_at 导航出的环境作用域，也不能自动表达组织控制链。
 func (p *Pipeline) PropagateUpward(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, nodeID, content string, level MemoryLevel, maxDepth int, publishUp bool) {
+	var batch []memoryWriteRequest
 	visited := map[string]bool{}
 	var walk func(nid string, depth int)
 	walk = func(nid string, depth int) {
@@ -125,33 +126,25 @@ func (p *Pipeline) PropagateUpward(req *InvokeRequest, runtime *executionConfig,
 		if parentNodeID == 0 {
 			return
 		}
-		m := &store.MemoryModel{
-			NodeID:  parentNodeID,
-			Content: content,
-			Level:   string(propLevel),
-			Tags:    "propagated",
-		}
-		if err := store.CreateMemory(m); err != nil {
-			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", content, map[string]any{"target_node_id": parentUUID, "mode": "upward", "error": err.Error()})
-			log.Printf("propagate upward: %v", err)
-		} else {
-			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", content, map[string]any{"target_node_id": parentUUID, "mode": "upward", "level": propLevel})
-		}
+		batch = append(batch, memoryWriteRequest{
+			NodeUUID: parentUUID,
+			NodeID:   parentNodeID,
+			Content:  content,
+			Level:    propLevel,
+			Tags:     "propagated",
+		})
+		p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", content, map[string]any{"target_node_id": parentUUID, "mode": "upward", "level": propLevel})
 
 		if publishUp {
 			if node.NodeType == string(NodeTypeWorld) || node.NodeType == string(NodeTypeFaction) {
-				m2 := &store.MemoryModel{
-					NodeID:  parentNodeID,
-					Content: content,
-					Level:   string(MemWorld),
-					Tags:    "propagated,published",
-				}
-				if err := store.CreateMemory(m2); err != nil {
-					p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", content, map[string]any{"target_node_id": parentUUID, "mode": "publish_up", "error": err.Error()})
-					log.Printf("propagate publish: %v", err)
-				} else {
-					p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", content, map[string]any{"target_node_id": parentUUID, "mode": "publish_up", "level": MemWorld})
-				}
+				batch = append(batch, memoryWriteRequest{
+					NodeUUID: parentUUID,
+					NodeID:   parentNodeID,
+					Content:  content,
+					Level:    MemWorld,
+					Tags:     "propagated,published",
+				})
+				p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", content, map[string]any{"target_node_id": parentUUID, "mode": "publish_up", "level": MemWorld})
 				return
 			}
 		}
@@ -163,6 +156,11 @@ func (p *Pipeline) PropagateUpward(req *InvokeRequest, runtime *executionConfig,
 		walk(parentUUID, depth+1)
 	}
 	walk(nodeID, 0)
+	if len(batch) > 0 {
+		if err := persistMemoryBatch(batch); err != nil {
+			logMemoryBatchFailure("propagate upward batch", err)
+		}
+	}
 }
 
 // PropagateEnvironmentScope 沿当前 located_at 环境节点及其主 parent 场景祖先传播。
@@ -190,6 +188,7 @@ func (p *Pipeline) PropagateOrganizationScope(req *InvokeRequest, runtime *execu
 }
 
 func (p *Pipeline) PropagateByTags(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, sourceNodeID string, mem MemoryUpdate, rule *PropagationRule) {
+	var batch []memoryWriteRequest
 	sourceNode, err := store.GetNode(sourceNodeID)
 	if err != nil {
 		p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_failed", mem.Content, map[string]any{"source_node_id": sourceNodeID, "mode": "tag_broadcast", "error": err.Error()})
@@ -214,44 +213,54 @@ func (p *Pipeline) PropagateByTags(req *InvokeRequest, runtime *executionConfig,
 		if n.UUID == sourceNodeID {
 			continue
 		}
-		if hasPropagatedMemory(n.UUID, mem.Content) {
-			continue
-		}
-		m := &store.MemoryModel{
-			NodeID:  n.ID,
-			Content: mem.Content,
-			Level:   string(mem.Level),
-			Tags:    "propagated,broadcast",
-		}
-		if err := store.CreateMemory(m); err != nil {
-			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", mem.Content, map[string]any{"target_node_id": n.UUID, "mode": "tag_broadcast", "error": err.Error()})
-			log.Printf("propagate broadcast to %s: %v", n.UUID, err)
-		} else {
-			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", mem.Content, map[string]any{"target_node_id": n.UUID, "mode": "tag_broadcast", "level": mem.Level})
+		batch = append(batch, memoryWriteRequest{
+			NodeUUID: n.UUID,
+			NodeID:   n.ID,
+			Content:  mem.Content,
+			Level:    mem.Level,
+			Tags:     "propagated,broadcast",
+		})
+		p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", mem.Content, map[string]any{"target_node_id": n.UUID, "mode": "tag_broadcast", "level": mem.Level})
+	}
+	if len(batch) > 0 {
+		if err := persistMemoryBatch(batch); err != nil {
+			logMemoryBatchFailure("propagate broadcast batch", err)
 		}
 	}
 }
 
 func (p *Pipeline) PropagateToTargets(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, mem MemoryUpdate, rule *PropagationRule) {
+	var batch []memoryWriteRequest
+	// Batch-check which targets already have this propagated content
+	propagated := make(map[int64]bool)
+	var allTargetIDs []int64
 	for _, targetUUID := range rule.TargetNodeIDs {
-		if hasPropagatedMemory(targetUUID, mem.Content) {
-			continue
+		if nid := store.ResolveNodeUUID(targetUUID); nid != 0 {
+			allTargetIDs = append(allTargetIDs, nid)
 		}
+	}
+	if counts, err := store.CountMemoriesBatch(allTargetIDs, mem.Content, "%propagated%"); err == nil {
+		for nid := range counts {
+			propagated[nid] = true
+		}
+	}
+	for _, targetUUID := range rule.TargetNodeIDs {
 		targetNodeID := store.ResolveNodeUUID(targetUUID)
-		if targetNodeID == 0 {
+		if targetNodeID == 0 || propagated[targetNodeID] {
 			continue
 		}
-		m := &store.MemoryModel{
-			NodeID:  targetNodeID,
-			Content: mem.Content,
-			Level:   string(mem.Level),
-			Tags:    "propagated,targeted",
-		}
-		if err := store.CreateMemory(m); err != nil {
-			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_write_failed", mem.Content, map[string]any{"target_node_id": targetUUID, "mode": "targeted", "error": err.Error()})
-			log.Printf("propagate targeted to %s: %v", targetUUID, err)
-		} else {
-			p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", mem.Content, map[string]any{"target_node_id": targetUUID, "mode": "targeted", "level": mem.Level})
+		batch = append(batch, memoryWriteRequest{
+			NodeUUID: targetUUID,
+			NodeID:   targetNodeID,
+			Content:  mem.Content,
+			Level:    mem.Level,
+			Tags:     "propagated,targeted",
+		})
+		p.emitExecutionEvent(req, runtime, executionMode, "memory_propagation_written", mem.Content, map[string]any{"target_node_id": targetUUID, "mode": "targeted", "level": mem.Level})
+	}
+	if len(batch) > 0 {
+		if err := persistMemoryBatch(batch); err != nil {
+			logMemoryBatchFailure("propagate targeted batch", err)
 		}
 	}
 }

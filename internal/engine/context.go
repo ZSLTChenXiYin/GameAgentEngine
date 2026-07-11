@@ -55,31 +55,61 @@ func (b *ContextBuilder) Build(taskType TaskType, nodeID string, depth int, memo
 	environmentNode := b.resolveEnvironmentNode(taskType, node, rels)
 	environmentAncestors := b.collectEnvironmentAncestors(environmentNode, depth)
 
-	comps = append(comps, b.collectComponents(identityAncestors)...)
-	mems = append(mems, b.collectMemories(identityAncestors, b.relatedMemoryLimit(memLimit))...)
-	if environmentNode != nil {
-		comps = append(comps, b.collectComponents([]store.NodeModel{*environmentNode})...)
-		mems = append(mems, b.collectMemories([]store.NodeModel{*environmentNode}, b.relatedMemoryLimit(memLimit))...)
+	// Batch-load components and memories for identity ancestors
+	if ids := b.collectNodeIDs(identityAncestors); len(ids) > 0 {
+		if compMap, err := store.GetComponentsByNodeIDs(ids); err == nil {
+			for _, cc := range compMap {
+				comps = append(comps, cc...)
+			}
+		}
+		if memMap, err := store.GetMemoriesByNodeIDs(ids, b.relatedMemoryLimit(memLimit)); err == nil {
+			for _, mm := range memMap {
+				mems = append(mems, mm...)
+			}
+		}
 	}
-	comps = append(comps, b.collectComponents(environmentAncestors)...)
-	mems = append(mems, b.collectMemories(environmentAncestors, b.relatedMemoryLimit(memLimit))...)
-
-	if includeRelated {
-		for _, r := range rels {
-			if !shouldIncludeRelatedRelation(taskType, nodeID, r) {
-				continue
-			}
-			relatedUUID := r.SourceUUID
-			if relatedUUID == nodeID {
-				relatedUUID = r.TargetUUID
-			}
-			if rc, err := store.GetNodeComponents(relatedUUID); err == nil {
-				for _, c := range rc {
-					comps = append(comps, c)
+	if environmentNode != nil {
+		envIDs := b.collectNodeIDs([]store.NodeModel{*environmentNode})
+		if len(envIDs) > 0 {
+			if compMap, err := store.GetComponentsByNodeIDs(envIDs); err == nil {
+				for _, cc := range compMap {
+					comps = append(comps, cc...)
 				}
 			}
-			if rm, err := store.GetNodeMemories(relatedUUID, 5); err == nil {
-				mems = append(mems, rm...)
+			if memMap, err := store.GetMemoriesByNodeIDs(envIDs, b.relatedMemoryLimit(memLimit)); err == nil {
+				for _, mm := range memMap {
+					mems = append(mems, mm...)
+				}
+			}
+		}
+	}
+	// Batch-load for environment ancestors
+	if envIDs := b.collectNodeIDs(environmentAncestors); len(envIDs) > 0 {
+		if compMap, err := store.GetComponentsByNodeIDs(envIDs); err == nil {
+			for _, cc := range compMap {
+				comps = append(comps, cc...)
+			}
+		}
+		if memMap, err := store.GetMemoriesByNodeIDs(envIDs, b.relatedMemoryLimit(memLimit)); err == nil {
+			for _, mm := range memMap {
+				mems = append(mems, mm...)
+			}
+		}
+	}
+
+	if includeRelated {
+		// Batch-load components and memories for related nodes
+		relatedIDs := b.collectRelatedNodeIDs(taskType, nodeID, rels)
+		if len(relatedIDs) > 0 {
+			if compMap, err := store.GetComponentsByNodeIDs(relatedIDs); err == nil {
+				for _, cc := range compMap {
+					comps = append(comps, cc...)
+				}
+			}
+			if memMap, err := store.GetMemoriesByNodeIDs(relatedIDs, 5); err == nil {
+				for _, mm := range memMap {
+					mems = append(mems, mm...)
+				}
 			}
 		}
 	}
@@ -117,27 +147,29 @@ func (b *ContextBuilder) relatedMemoryLimit(memoryLimit int) int {
 	return memoryLimit
 }
 
-func (b *ContextBuilder) collectComponents(nodes []store.NodeModel) []store.ComponentModel {
-	var comps []store.ComponentModel
+func (b *ContextBuilder) collectNodeIDs(nodes []store.NodeModel) []int64 {
+	ids := make([]int64, 0, len(nodes))
 	for _, n := range nodes {
-		if ac, err := store.GetNodeComponents(n.UUID); err == nil {
-			comps = append(comps, ac...)
-		}
+		ids = append(ids, n.ID)
 	}
-	return comps
+	return ids
 }
 
-func (b *ContextBuilder) collectMemories(nodes []store.NodeModel, limit int) []store.MemoryModel {
-	if limit <= 0 {
-		return nil
-	}
-	var mems []store.MemoryModel
-	for _, n := range nodes {
-		if rm, err := store.GetNodeMemories(n.UUID, limit); err == nil {
-			mems = append(mems, rm...)
+func (b *ContextBuilder) collectRelatedNodeIDs(taskType TaskType, nodeID string, rels []store.RelationModel) []int64 {
+	ids := make([]int64, 0, len(rels))
+	for _, r := range rels {
+		if !shouldIncludeRelatedRelation(taskType, nodeID, r) {
+			continue
+		}
+		relatedUUID := r.SourceUUID
+		if relatedUUID == nodeID {
+			relatedUUID = r.TargetUUID
+		}
+		if nid := store.ResolveNodeUUID(relatedUUID); nid != 0 {
+			ids = append(ids, nid)
 		}
 	}
-	return mems
+	return ids
 }
 
 func shouldIncludeRelatedRelation(taskType TaskType, nodeID string, rel store.RelationModel) bool {
@@ -270,14 +302,25 @@ func (b *ContextBuilder) buildEnvironmentPromptBlock(environmentNode *store.Node
 	parts = append(parts, "环境信息：")
 	for _, n := range dedupeNodes(nodes) {
 		parts = append(parts, fmt.Sprintf("  [环境节点] %s(%s)", n.Name, n.NodeType))
-		if comps, err := store.GetNodeComponents(n.UUID); err == nil {
-			for _, comp := range comps {
-				parts = append(parts, fmt.Sprintf("    【%s/%s】%s", n.Name, comp.ComponentType, comp.Data))
+	}
+	// Batch-load environment node components and memories
+	if envIDs := b.collectNodeIDs(dedupeNodes(nodes)); len(envIDs) > 0 {
+		if compMap, err := store.GetComponentsByNodeIDs(envIDs); err == nil {
+			for _, n := range dedupeNodes(nodes) {
+				if cc, ok := compMap[n.ID]; ok {
+					for _, comp := range cc {
+						parts = append(parts, fmt.Sprintf("    【%s/%s】%s", n.Name, comp.ComponentType, comp.Data))
+					}
+				}
 			}
 		}
-		if mems, err := store.GetNodeMemories(n.UUID, 5); err == nil {
-			for _, mem := range mems {
-				parts = append(parts, fmt.Sprintf("    [环境记忆:%s] %s", mem.Level, mem.Content))
+		if memMap, err := store.GetMemoriesByNodeIDs(envIDs, 5); err == nil {
+			for _, n := range dedupeNodes(nodes) {
+				if mm, ok := memMap[n.ID]; ok {
+					for _, mem := range mm {
+						parts = append(parts, fmt.Sprintf("    [环境记忆:%s] %s", mem.Level, mem.Content))
+					}
+				}
 			}
 		}
 	}

@@ -100,3 +100,57 @@ func CountMemoriesByContent(nodeID int64, content string, tagPattern string) (in
 	}
 	return count, nil
 }
+
+// GetMemoriesByNodeIDs batch-loads recent memories for multiple node IDs at once.
+// Returns a map of nodeID -> memories, each node having at most 'limit' entries.
+// The total query fetches up to limit * len(nodeIDs) rows, then truncates per node in memory.
+func GetMemoriesByNodeIDs(nodeIDs []int64, limit int) (map[int64][]MemoryModel, error) {
+	if len(nodeIDs) == 0 {
+		return nil, nil
+	}
+	batchLimit := limit
+	if batchLimit <= 0 {
+		batchLimit = 50
+	}
+	batchLimit = batchLimit * len(nodeIDs)
+	var list []MemoryModel
+	q := DB.Where("node_id IN ?", nodeIDs).Order("created_at DESC").Limit(batchLimit)
+	if err := q.Find(&list).Error; err != nil {
+		return nil, err
+	}
+	result := make(map[int64][]MemoryModel, len(nodeIDs))
+	counts := make(map[int64]int, len(nodeIDs))
+	for _, m := range list {
+		if limit > 0 && counts[m.NodeID] >= limit {
+			continue
+		}
+		result[m.NodeID] = append(result[m.NodeID], m)
+		counts[m.NodeID]++
+	}
+	return result, nil
+}
+
+// CountMemoriesBatch counts propagated memories for multiple nodes in one query.
+// Returns a map of nodeID -> count for nodes that have matching records.
+func CountMemoriesBatch(nodeIDs []int64, content string, tagPattern string) (map[int64]int64, error) {
+	if len(nodeIDs) == 0 {
+		return nil, nil
+	}
+	type countRow struct {
+		NodeID int64
+		Count  int64
+	}
+	var rows []countRow
+	if err := DB.Model(&MemoryModel{}).
+		Select("node_id, COUNT(*) as count").
+		Where("node_id IN ? AND content = ? AND tags LIKE ?", nodeIDs, content, tagPattern).
+		Group("node_id").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	result := make(map[int64]int64, len(rows))
+	for _, r := range rows {
+		result[r.NodeID] = r.Count
+	}
+	return result, nil
+}

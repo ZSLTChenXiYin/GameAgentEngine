@@ -105,3 +105,20 @@ func UpsertComponentByType(nodeUUID string, compType string, data string) (*Comp
 	}
 	return GetComponent(existing.UUID)
 }
+
+// GetComponentsByNodeIDs batch-loads components for multiple node IDs at once.
+// Returns a map of nodeID -> components. Callers must handle nodeUUID resolution.
+func GetComponentsByNodeIDs(nodeIDs []int64) (map[int64][]ComponentModel, error) {
+	if len(nodeIDs) == 0 {
+		return nil, nil
+	}
+	var list []ComponentModel
+	if err := DB.Where("node_id IN ?", nodeIDs).Find(&list).Error; err != nil {
+		return nil, err
+	}
+	result := make(map[int64][]ComponentModel, len(nodeIDs))
+	for _, c := range list {
+		result[c.NodeID] = append(result[c.NodeID], c)
+	}
+	return result, nil
+}
