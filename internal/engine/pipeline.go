@@ -1112,19 +1112,76 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 		}
 		appendRoundStateTreeEntry(state, round+1, parsed, "")
 
+		// Parse action calls and memory updates without executing side effects,
+		// so we can check review status before anything is persisted.
+		parsedActionCalls := p.parseActionCalls(parsed.RawActionCalls, targetNodeID)
+		parsedMemoryUpdates := p.parseMemoryUpdates(parsed.RawMemoryUpdates)
+
+		// Parse world change plan to check if review is needed
+		var parsedWCP *WorldChangePlan
+		if parsed.RawPlan != "" {
+			var wcp WorldChangePlan
+			if err := json.Unmarshal([]byte(parsed.RawPlan), &wcp); err == nil {
+				parsedWCP = &wcp
+			}
+		}
+
+		// When in review mode and the plan has high impact, defer execution
+		// to after human approval instead of applying side effects immediately.
+		if executionMode == ModeReview && parsedWCP != nil && IsHighImpact(parsedWCP.ImpactLevel) {
+			pendingPlan := &PendingPlan{
+				PlanID:          NewPendingPlanID(),
+				WorldID:         req.WorldID,
+				TickNumber:      0,
+				TaskType:        req.TaskType,
+				WorldChangePlan: parsedWCP,
+				ActionCalls:     parsedActionCalls,
+				MemoryUpdates:   parsedMemoryUpdates,
+				CreatedAt:       time.Now(),
+				Status:          "pending",
+			}
+			GlobalPlanReview.Add(pendingPlan)
+
+			// Persist to database for crash recovery
+			planData, _ := store.SerializePendingPlan(pendingPlan)
+			if err := store.CreatePendingPlan(pendingPlan.PlanID, pendingPlan.WorldID, string(pendingPlan.TaskType), pendingPlan.Status, planData, pendingPlan.TickNumber); err != nil {
+				log.Printf("[warn] persist pending plan to DB: %v", err)
+			}
+
+			resp := &InvokeResponse{
+				RequestID:       requestID,
+				TaskType:        req.TaskType,
+				ExecutionMode:   ModeReview,
+				Reply:           "[待审批] 变更计划已挂起，请调用审批 API 确认执行",
+				WorldChangePlan: parsedWCP,
+				ActionCalls:     nil,
+				MemoryUpdates:   nil,
+				Metadata:        buildResponseMeta(runtime, p.llmProvider.ModelName(), llmResp.Tokens, start, round+1),
+			}
+
+			p.emitLog(req, resp, runtime, executionMode, pipelineLogEvent{
+				Category:   "pipeline_review",
+				EventName:  "plan_pending_review",
+				Message:    parsedWCP.Summary,
+				Round:      round + 1,
+				DetailData: marshalLogDetail(pendingPlan),
+			})
+
+			appendResponseLog(resp, req)
+			return resp, nil
+		}
+
+		// Normal execution path: parse and execute side effects
 		resp := &InvokeResponse{
 			RequestID:     requestID,
 			TaskType:      req.TaskType,
 			ExecutionMode: executionMode,
 			Reply:         parsed.Reply,
-			ActionCalls:   p.executeActions(req, runtime, executionMode, runtime.policyEngine, p.parseActionCalls(parsed.RawActionCalls, targetNodeID)),
-			MemoryUpdates: p.parseMemoryUpdates(parsed.RawMemoryUpdates),
+			ActionCalls:   p.executeActions(req, runtime, executionMode, runtime.policyEngine, parsedActionCalls),
+			MemoryUpdates: parsedMemoryUpdates,
 		}
-		if parsed.RawPlan != "" {
-			var wcp WorldChangePlan
-			if err := json.Unmarshal([]byte(parsed.RawPlan), &wcp); err == nil {
-				resp.WorldChangePlan = &wcp
-			}
+		if parsedWCP != nil {
+			resp.WorldChangePlan = parsedWCP
 		}
 		if parsed.RawFutureOutline != "" {
 			resp.FutureOutline = parsed.RawFutureOutline
@@ -1201,36 +1258,8 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 				resp, runtime, round, "",
 			)
 			GlobalTraceRing.Push(trace)
-		case ModeReview:
-			if resp.WorldChangePlan != nil && IsHighImpact(resp.WorldChangePlan.ImpactLevel) {
-				pendingPlan := &PendingPlan{
-					PlanID:          NewPendingPlanID(),
-					WorldID:         req.WorldID,
-					TickNumber:      0,
-					TaskType:        req.TaskType,
-					WorldChangePlan: resp.WorldChangePlan,
-					ActionCalls:     resp.ActionCalls,
-					MemoryUpdates:   resp.MemoryUpdates,
-					CreatedAt:       time.Now(),
-					Status:          "pending",
-				}
-				GlobalPlanReview.Add(pendingPlan)
-				p.emitLog(req, resp, runtime, executionMode, pipelineLogEvent{
-					Category:   "pipeline_review",
-					EventName:  "plan_pending_review",
-					Message:    resp.WorldChangePlan.Summary,
-					Round:      round + 1,
-					DetailData: marshalLogDetail(pendingPlan),
-				})
-				resp.ActionCalls = nil
-				resp.MemoryUpdates = nil
-				resp.ExecutionMode = ModeReview
-			}
 		}
 
-		if executionMode == ModeReview && resp.WorldChangePlan != nil && IsHighImpact(resp.WorldChangePlan.ImpactLevel) {
-			resp.Reply = "[待审批] 变更计划已挂起，请调用审批 API 确认执行"
-		}
 
 		appendResponseLog(resp, req)
 		return resp, nil

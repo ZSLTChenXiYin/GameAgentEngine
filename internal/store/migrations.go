@@ -78,6 +78,7 @@ func defaultMigrationSteps() []MigrationStep {
 					&AsyncCallbackRecordModel{},
 					&PausedExecutionModel{},
 					&RuntimeTaskModel{},
+					&PendingPlanModel{},
 				)
 			},
 		},

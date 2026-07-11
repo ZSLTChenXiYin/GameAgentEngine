@@ -376,13 +376,14 @@ func (p *Pipeline) propagateToResolvedTargets(req *InvokeRequest, runtime *execu
 }
 
 func hasPropagatedMemory(nodeID, content string) bool {
-	var count int64
-	// nodeID is UUID string, query by UUID via store layer
 	node := store.ResolveNodeUUID(nodeID)
 	if node == 0 {
 		return false
 	}
-	store.DB.Model(&store.MemoryModel{}).Where("node_id = ? AND content = ? AND tags LIKE ?", node, content, "%propagated%").Count(&count)
+	count, err := store.CountMemoriesByContent(node, content, "%propagated%")
+	if err != nil {
+		return false
+	}
 	return count > 0
 }
 

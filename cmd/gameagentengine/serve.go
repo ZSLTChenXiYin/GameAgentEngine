@@ -57,6 +57,15 @@ var serveCmd = &cobra.Command{
 		}
 
 		log.Printf("DB: %s (%s)", config.Global.Database.Driver, config.Global.Database.DSN)
+		// Validate external integration configurations at startup
+		for name, intCfg := range config.Global.ExternalIntegrations {
+			knownTypes := map[string]bool{"http_adapter": true, "rpc_adapter": true, "websocket_adapter": true}
+			if !knownTypes[intCfg.Type] {
+				log.Printf("[warn] external integration %q has unsupported type %q", name, intCfg.Type)
+			} else {
+				log.Printf("external integration %q: type=%s", name, intCfg.Type)
+			}
+		}
 
 		var provider engine.LLMProvider
 		if config.Global.LLM.APIKey != "" {

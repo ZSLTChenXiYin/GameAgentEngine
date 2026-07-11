@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
@@ -34,10 +35,17 @@ func MakePlanApproveHandler(p *engine.Pipeline) http.HandlerFunc {
 			return
 		}
 
+		// Execute the approved plan's side effects (memory writes, action calls)
+		if err := p.ApplyPendingPlan(plan); err != nil {
+			errorJSON(w, 500, fmt.Sprintf("apply plan: %v", err))
+			return
+		}
+
 		writeJSON(w, 200, map[string]any{
 			"status":  "approved",
 			"plan_id": req.PlanID,
 			"plan":    plan,
+			"applied": true,
 		})
 	}
 }

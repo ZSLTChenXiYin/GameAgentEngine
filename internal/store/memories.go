@@ -90,3 +90,13 @@ func CreateMemoriesBulk(mems []MemoryModel) error {
 		return db.Create(&mems).Error
 	})
 }
+
+// CountMemoriesByContent counts memory records matching the given node ID, content, and tag pattern.
+// This replaces direct DB access in engine/ code, keeping store access behind the store layer.
+func CountMemoriesByContent(nodeID int64, content string, tagPattern string) (int64, error) {
+	var count int64
+	if err := DB.Model(&MemoryModel{}).Where("node_id = ? AND content = ? AND tags LIKE ?", nodeID, content, tagPattern).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}

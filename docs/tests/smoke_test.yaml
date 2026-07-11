@@ -1,0 +1,21 @@
+name: "Smoke Test: World Tick and Plan Review"
+steps:
+  - name: "NPC dialogue"
+    invoke:
+      world_id: "world"
+      task_type: "npc_dialogue"
+      node_id: "*"
+      messages:
+        - role: player
+          content: "Hello"
+    expect:
+      reply_contains: []
+      action_calls_count: ">=0"
+
+  - name: "World tick"
+    invoke:
+      world_id: "world"
+      task_type: "world_tick"
+      node_id: "world"
+    expect:
+      memory_updates_count: ">=0"

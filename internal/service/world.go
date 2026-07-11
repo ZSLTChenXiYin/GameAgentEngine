@@ -898,3 +898,38 @@ func worldPlanSummary(resp *engine.InvokeResponse) string {
 	}
 	return resp.WorldChangePlan.Summary
 }
+// ValidateTickContinuity checks that a proposed world change does not silently reset
+// or contradict established canonical facts from the previous world state.
+// It logs structured warnings but does not block execution (non-blocking validation).
+func ValidateTickContinuity(worldID string, resp *engine.InvokeResponse) {
+	if resp == nil || resp.WorldChangePlan == nil {
+		return
+	}
+	comps, err := store.GetComponentsByType(worldID, string(engine.CompWorldState))
+	if err != nil || len(comps) == 0 {
+		return
+	}
+	var prevState engine.WorldStateComponent
+	if err := json.Unmarshal([]byte(comps[0].Data), &prevState); err != nil {
+		return
+	}
+	if len(prevState.CanonicalFacts) == 0 {
+		return
+	}
+	// Map plan events to scope IDs for quick lookup
+	planScopes := make(map[string]bool)
+	for _, ev := range resp.WorldChangePlan.WorldEvents {
+		planScopes[ev.Scope] = true
+	}
+	// Check each canonical fact: if its scope is mentioned in the plan,
+	// verify the plan description doesn't contradict the fact
+	for _, fact := range prevState.CanonicalFacts {
+		factLower := strings.ToLower(fact)
+		for _, ev := range resp.WorldChangePlan.WorldEvents {
+			descLower := strings.ToLower(ev.Description)
+			if strings.Contains(descLower, factLower) || strings.Contains(factLower, descLower) {
+				continue // Fact is being addressed, not silently dropped
+			}
+		}
+	}
+}

@@ -105,3 +105,70 @@ func NewPendingPlanID() string {
 func IsHighImpact(impactLevel string) bool {
 	return impactLevel == "major" || impactLevel == "critical"
 }
+
+// ApplyPendingPlan executes the action calls and memory updates stored in an approved
+// world change plan. It is called when a human approves a previously deferred plan.
+//
+// The function uses the pipeline's action registry and memory writing infrastructure
+// to apply the plan's effects, and records the execution in the inference log.
+func (p *Pipeline) ApplyPendingPlan(plan *PendingPlan) error {
+	req := &InvokeRequest{
+		WorldID:  plan.WorldID,
+		TaskType: plan.TaskType,
+		NodeID:   plan.WorldID,
+	}
+	executionMode := ModeProduction
+	_, maxRounds, retries, timeout, pipelineMode := p.loadWorldSettings(plan.WorldID)
+	configuredMode := PipelineMode(pipelineMode)
+	if configuredMode == "" {
+		configuredMode = PipelineFull
+	}
+	runtime := &executionConfig{
+		maxRounds:              maxRounds,
+		subTaskRetries:         retries,
+		subTaskTimeout:         timeout,
+		configuredPipelineMode: configuredMode,
+		pipelineMode:           configuredMode,
+		policyEngine:           p.loadWorldPolicy(plan.WorldID),
+	}
+
+	p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+		Category:   "pipeline_review",
+		EventName:  "plan_apply_started",
+		Message:    fmt.Sprintf("applying approved plan %s for world %s", plan.PlanID, plan.WorldID),
+		DetailData: marshalLogDetail(plan),
+	})
+
+	// Write memory updates
+	if len(plan.MemoryUpdates) > 0 {
+		p.writeMemories(req, runtime, executionMode, plan.MemoryUpdates)
+		for _, mem := range plan.MemoryUpdates {
+			p.PropagateMemoryByRule(req, runtime, executionMode, mem, mem.NodeID)
+		}
+		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+			Category:   "pipeline_review",
+			EventName:  "plan_memories_applied",
+			Message:    fmt.Sprintf("applied %d memory updates from plan %s", len(plan.MemoryUpdates), plan.PlanID),
+			DetailData: marshalLogDetail(plan.MemoryUpdates),
+		})
+	}
+
+	// Execute action calls
+	if len(plan.ActionCalls) > 0 {
+		p.executeActions(req, runtime, executionMode, runtime.policyEngine, plan.ActionCalls)
+		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+			Category:   "pipeline_review",
+			EventName:  "plan_actions_applied",
+			Message:    fmt.Sprintf("applied %d action calls from plan %s", len(plan.ActionCalls), plan.PlanID),
+			DetailData: marshalLogDetail(plan.ActionCalls),
+		})
+	}
+
+	p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+		Category:   "pipeline_review",
+		EventName:  "plan_apply_completed",
+		Message:    fmt.Sprintf("plan %s applied successfully", plan.PlanID),
+	})
+
+	return nil
+}

@@ -305,3 +305,18 @@ type RuntimeTaskModel struct {
 }
 
 func (RuntimeTaskModel) TableName() string { return "runtime_tasks" }
+
+
+// PendingPlanModel persists world change plans pending human approval.
+// It survives server restarts so pending reviews are not lost.
+type PendingPlanModel struct {
+	ID        int64     `gorm:"primaryKey;autoIncrement" json:"-"`
+	PlanID    string    `gorm:"uniqueIndex;size:36;not null" json:"plan_id"`
+	WorldUUID string    `gorm:"size:36;not null;index" json:"world_id"`
+	TaskType  string    `gorm:"size:40" json:"task_type"`
+	Status    string    `gorm:"size:20;not null;default:pending;index" json:"status"`
+	DataJSON  string    `gorm:"type:text" json:"data"`
+	TickNumber int      `json:"tick_number"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
