@@ -1081,7 +1081,7 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 						ResponseData: buildFullResponseLogData(resp),
 						DetailData:   buildResponseOutcomeDetail(resp),
 					})
-					appendResponseLog(resp, req)
+					appendResponseLog(p, resp, req)
 					return resp, nil
 				default:
 					result := p.handleDataRequest(runtime.policyEngine, &dr)
@@ -1167,7 +1167,7 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 				DetailData: marshalLogDetail(pendingPlan),
 			})
 
-			appendResponseLog(resp, req)
+			appendResponseLog(p, resp, req)
 			return resp, nil
 		}
 
@@ -1261,14 +1261,14 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 		}
 
 
-		appendResponseLog(resp, req)
+		appendResponseLog(p, resp, req)
 		return resp, nil
 	}
 
 	return nil, fmt.Errorf("%s exceeded max rounds (%d)", req.TaskType, runtime.maxRounds)
 }
 
-func appendResponseLog(resp *InvokeResponse, req *InvokeRequest) {
+func appendResponseLog(p *Pipeline, resp *InvokeResponse, req *InvokeRequest) {
 	if resp == nil || resp.Metadata == nil {
 		return
 	}
@@ -1281,8 +1281,7 @@ func appendResponseLog(resp *InvokeResponse, req *InvokeRequest) {
 	if mode == "" {
 		mode = ModeProduction
 	}
-	logger := &Pipeline{}
-	logger.emitLog(req, resp, runtime, mode, pipelineLogEvent{
+	p.emitLog(req, resp, runtime, mode, pipelineLogEvent{
 		Category:     "pipeline",
 		EventName:    "response_completed",
 		Message:      resp.Reply,
@@ -1318,7 +1317,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 		} else {
 			resp := &InvokeResponse{RequestID: requestID, TaskType: req.TaskType, Reply: "autonomous component not found or disabled", ExecutionMode: executionMode}
 			resp.Metadata = buildResponseMeta(runtime, p.llmProvider.ModelName(), 0, start, 0)
-			appendResponseLog(resp, req)
+			appendResponseLog(p, resp, req)
 			return resp, nil
 		}
 	default:
@@ -1377,7 +1376,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 		p.PropagateMemoryByRule(req, runtime, executionMode, mem, mem.NodeID)
 	}
 	resp.Metadata = buildResponseMeta(runtime, p.llmProvider.ModelName(), llmResp.Tokens, start, 1)
-	appendResponseLog(resp, req)
+	appendResponseLog(p, resp, req)
 	return resp, nil
 }
 

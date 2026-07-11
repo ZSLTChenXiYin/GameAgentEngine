@@ -10,7 +10,7 @@ import (
 type NodeModel struct {
 	ID         int64          `gorm:"primaryKey;autoIncrement" json:"-"`
 	UUID       string         `gorm:"uniqueIndex;size:36;not null" json:"id"`
-	WorldID    int64          `gorm:"index;not null" json:"-"`
+	WorldID    int64          `gorm:"index:idx_node_world_type,priority:1;index;not null" json:"-"`
 	WorldUUID  string         `gorm:"-" json:"world_id"`
 	Name       string         `gorm:"size:255;not null" json:"name"`
 	NodeType   string         `gorm:"size:50;not null;index" json:"node_type"`
@@ -18,7 +18,7 @@ type NodeModel struct {
 	ParentUUID *string        `gorm:"-" json:"parent_id,omitempty"`
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
-	DeletedAt  gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+	DeletedAt  gorm.DeletedAt `gorm:"index:idx_node_world_type,priority:3;index" json:"deleted_at,omitempty"`
 }
 
 func (NodeModel) TableName() string { return "nodes" }
@@ -43,11 +43,11 @@ type RelationModel struct {
 	UUID         string    `gorm:"uniqueIndex;size:36;not null" json:"id"`
 	WorldID      int64     `gorm:"index;not null" json:"-"`
 	WorldUUID    string    `gorm:"-" json:"world_id"`
-	SourceID     int64     `gorm:"index;not null" json:"-"`
+	SourceID     int64     `gorm:"index:idx_rel_source_type,priority:1;index;not null" json:"-"`
 	SourceUUID   string    `gorm:"-" json:"source_id"`
 	TargetID     int64     `gorm:"index;not null" json:"-"`
 	TargetUUID   string    `gorm:"-" json:"target_id"`
-	RelationType string    `gorm:"size:50;not null;index" json:"relation_type"`
+	RelationType string    `gorm:"size:20;not null;index:idx_rel_source_type,priority:2;index" json:"relation_type"`
 	Weight       int       `gorm:"default:0" json:"weight"`
 	Properties   string    `gorm:"type:text" json:"properties,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
@@ -59,10 +59,10 @@ func (RelationModel) TableName() string { return "relations" }
 type MemoryModel struct {
 	ID        int64     `gorm:"primaryKey;autoIncrement" json:"-"`
 	UUID      string    `gorm:"uniqueIndex;size:36;not null" json:"id"`
-	NodeID    int64     `gorm:"index;not null" json:"-"`
+	NodeID    int64     `gorm:"index:idx_mem_node_level,priority:1;index;not null" json:"-"`
 	NodeUUID  string    `gorm:"-" json:"node_id"`
 	Content   string    `gorm:"type:text;not null" json:"content"`
-	Level     string    `gorm:"size:20;not null;default:long_term" json:"level"`
+	Level     string    `gorm:"size:20;not null;index:idx_mem_node_level,priority:2;default:long_term" json:"level"`
 	Tags      string    `gorm:"size:500" json:"tags,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -270,13 +270,13 @@ type RuntimeTaskModel struct {
 	DeliveryMode             string     `gorm:"size:20;not null;index" json:"delivery_mode"`
 	Consumer                 string     `gorm:"size:50;index" json:"consumer,omitempty"`
 	Transport                string     `gorm:"size:100;index" json:"transport,omitempty"`
-	WorldUUID                string     `gorm:"size:36;index" json:"world_id,omitempty"`
+	WorldUUID                string     `gorm:"size:36;index:idx_task_world_status,priority:1;index" json:"world_id,omitempty"`
 	NodeUUID                 string     `gorm:"size:36;index" json:"node_id,omitempty"`
 	RequestID                string     `gorm:"size:36;index" json:"request_id,omitempty"`
 	CallbackID               string     `gorm:"size:64;index" json:"callback_id,omitempty"`
 	ResumeExecutionID        string     `gorm:"size:64;index" json:"resume_execution_id,omitempty"`
 	IdempotencyKey           string     `gorm:"size:128;index" json:"idempotency_key,omitempty"`
-	Status                   string     `gorm:"size:20;not null;index" json:"status"`
+	Status                   string     `gorm:"size:20;not null;index:idx_task_world_status,priority:2;index" json:"status"`
 	LeaseOwner               string     `gorm:"size:100;index" json:"lease_owner,omitempty"`
 	LeaseToken               string     `gorm:"size:64;index" json:"lease_token,omitempty"`
 	AttemptCount             int        `gorm:"default:0" json:"attempt_count"`

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -192,6 +193,9 @@ func (d *DAGInstance) ExecuteWithRetry(label string, fn func() (*InvokeResponse,
 			log.Printf("[dag] retrying sub-task %s (attempt %d/%d)", label, attempt, d.MaxRetries)
 		}
 
+		ctx, cancel := context.WithTimeout(context.Background(), d.TimeoutDuration)
+		defer cancel()
+
 		done := make(chan struct{}, 1)
 		var resp *InvokeResponse
 		var err error
@@ -203,13 +207,14 @@ func (d *DAGInstance) ExecuteWithRetry(label string, fn func() (*InvokeResponse,
 
 		select {
 		case <-done:
+			cancel()
 			if err != nil {
 				log.Printf("[dag] sub-task %s attempt %d failed: %v", label, attempt+1, err)
 				continue
 			}
 			return resp, true
-		case <-time.After(d.TimeoutDuration):
-			log.Printf("[dag] sub-task %s attempt %d timed out after %v", label, attempt+1, d.TimeoutDuration)
+		case <-ctx.Done():
+			cancel()
 			log.Printf("[dag] sub-task %s attempt %d timed out", label, attempt+1)
 			continue
 		}

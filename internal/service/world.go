@@ -54,18 +54,59 @@ func marshalWorldServiceDetail(detail any, mode string) string {
 
 // AdvanceWorldTickWithAutonomous 推进世界刻，并按请求级限制触发 world_tick_sync 自主节点。
 func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameTime string, requestedTicks *int, autonomousLimit *int) (*store.TimelineModel, *engine.InvokeResponse, *engine.WorldTimeStateComponent, []engine.AutonomousRunResult, error) {
-	var (
-		tick           *store.TimelineModel
-		resp           *engine.InvokeResponse
-		worldTimeState *engine.WorldTimeStateComponent
-		autonomousRuns []engine.AutonomousRunResult
-	)
-	err := withWorldLock(worldID, func() error {
-		var innerErr error
-		tick, resp, worldTimeState, autonomousRuns, innerErr = advanceWorldTickWithAutonomousUnlocked(p, worldID, tickType, gameTime, requestedTicks, autonomousLimit)
-		return innerErr
+	if tickType == "" {
+		tickType = "scheduled"
+	}
+	if _, err := ensureWorldNodeTx(store.DB, worldID); err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	resolvedTicks, err := resolveRequestedWorldTicksTx(store.DB, worldID, requestedTicks)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_requested", tickType, map[string]any{"game_time": gameTime, "requested_ticks": requestedTicks, "resolved_ticks": resolvedTicks, "autonomous_limit": autonomousLimit})
+
+	// LLM inference outside world lock to avoid holding lock during ~60s HTTP call
+	resp, err := p.Execute(&engine.InvokeRequest{
+		WorldID:  worldID,
+		TaskType: engine.TaskWorldTick,
+		NodeID:   worldID,
 	})
-	return tick, resp, worldTimeState, autonomousRuns, err
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	ValidateTickContinuity(worldID, resp)
+
+	effectiveTicks, err := resolveEffectiveWorldTicksTx(store.DB, worldID, resolvedTicks, resp)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if resp != nil {
+		resp.AdvancedTicks = effectiveTicks
+	}
+	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_completed", worldPlanSummary(resp), resp)
+
+	var tick *store.TimelineModel
+	var worldTimeState *engine.WorldTimeStateComponent
+	var autonomousRuns []engine.AutonomousRunResult
+	err = withWorldLock(worldID, func() error {
+		var txErr error
+		tick, worldTimeState, txErr = persistWorldTickArtifactsTx(store.DB, worldID, tickType, gameTime, effectiveTicks, resp)
+		if txErr != nil {
+			return txErr
+		}
+		emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_persisted", tick.Summary, tick)
+		autonomousRuns = runWorldTickAutonomousUnlocked(p, worldID, autonomousLimit)
+		emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_autonomous_completed", "autonomous runs completed", autonomousRuns)
+		return nil
+	})
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	return tick, resp, worldTimeState, autonomousRuns, nil
 }
 
 func advanceWorldTickWithAutonomousUnlocked(p *engine.Pipeline, worldID, tickType, gameTime string, requestedTicks *int, autonomousLimit *int) (*store.TimelineModel, *engine.InvokeResponse, *engine.WorldTimeStateComponent, []engine.AutonomousRunResult, error) {

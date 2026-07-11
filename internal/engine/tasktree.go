@@ -3,6 +3,7 @@ package engine
 
 import (
 	"fmt"
+	"sync/atomic"
 	"strings"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
@@ -44,11 +45,11 @@ func (n *TaskNode) Context(depth int) string {
 	return strings.Join(parts, "\n")
 }
 
-var taskNodeSeq int
+var taskNodeSeq atomic.Int64
 
 func nextNodeID() string {
-	taskNodeSeq++
-	return fmt.Sprintf("n%02d", taskNodeSeq)
+	n := taskNodeSeq.Add(1)
+	return fmt.Sprintf("n%02d", n)
 }
 
 // NewTaskNode 创建一个节点，可选绑定游戏节点 ID 自动加载数据。
@@ -133,7 +134,6 @@ type TaskTree struct {
 
 // NewTaskTree 创建推理 DAG。
 func NewTaskTree(taskType TaskType, worldID, nodeID string) *TaskTree {
-	taskNodeSeq = 0
 	tree := &TaskTree{
 		TaskType:   taskType,
 		WorldID:    worldID,
