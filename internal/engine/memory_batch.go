@@ -39,13 +39,15 @@ func persistMemoryBatch(items []memoryWriteRequest) error {
 		return nil
 	}
 
-	// Fall back to row-by-row writes so one bad insert does not drop the full batch.
+	// Fall back to row-by-row writes, skipping bad rows instead of failing entirely.
+	var lastErr error
 	for i := range models {
 		if err := store.CreateMemory(&models[i]); err != nil {
-			return err
+			logMemoryBatchFailure("persist row "+models[i].NodeUUID, err)
+			lastErr = err
 		}
 	}
-	return nil
+	return lastErr
 }
 
 func filterNewPropagationTargets(targets []memoryWriteRequest) []memoryWriteRequest {

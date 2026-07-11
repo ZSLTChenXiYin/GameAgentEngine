@@ -909,13 +909,6 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 			if len(resp.ActionCalls) == 0 && len(resp.MemoryUpdates) == 0 {
 				memUpdate := MemoryUpdate{NodeID: req.NodeID, Content: "自主行为周期未采取行动。", Level: MemShortTerm, Tags: "autonomous,no_action"}
 				resp.MemoryUpdates = append(resp.MemoryUpdates, memUpdate)
-				nodeID2 := store.ResolveNodeUUID(req.NodeID)
-				if nodeID2 != 0 {
-					mm := store.MemoryModel{NodeID: nodeID2, Content: memUpdate.Content, Level: string(memUpdate.Level), Tags: memUpdate.Tags}
-					if err := store.CreateMemory(&mm); err != nil {
-						log.Printf("write memory: %v", err)
-					}
-				}
 			}
 			return resp
 		}
@@ -1752,15 +1745,6 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 		if len(resp.ActionCalls) == 0 && len(resp.MemoryUpdates) == 0 {
 			memUpdate := MemoryUpdate{NodeID: targetNodeID, Content: "自主行为周期未采取行动。", Level: MemShortTerm, Tags: "autonomous,no_action"}
 			resp.MemoryUpdates = append(resp.MemoryUpdates, memUpdate)
-			nodeID2 := store.ResolveNodeUUID(targetNodeID)
-			if nodeID2 == 0 {
-				log.Printf("[warn] pipeline write memory: unknown node UUID %s", targetNodeID)
-				return resp
-			}
-			mm := store.MemoryModel{NodeID: nodeID2, Content: memUpdate.Content, Level: string(memUpdate.Level), Tags: memUpdate.Tags}
-			if err := store.CreateMemory(&mm); err != nil {
-				log.Printf("write memory: %v", err)
-			}
 		}
 
 		now := time.Now()

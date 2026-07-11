@@ -109,58 +109,6 @@ func AdvanceWorldTickWithAutonomous(p *engine.Pipeline, worldID, tickType, gameT
 	return tick, resp, worldTimeState, autonomousRuns, nil
 }
 
-func advanceWorldTickWithAutonomousUnlocked(p *engine.Pipeline, worldID, tickType, gameTime string, requestedTicks *int, autonomousLimit *int) (*store.TimelineModel, *engine.InvokeResponse, *engine.WorldTimeStateComponent, []engine.AutonomousRunResult, error) {
-	if tickType == "" {
-		tickType = "scheduled"
-	}
-	if _, err := ensureWorldNodeTx(store.DB, worldID); err != nil {
-		return nil, nil, nil, nil, err
-	}
-
-	resolvedTicks, err := resolveRequestedWorldTicksTx(store.DB, worldID, requestedTicks)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_requested", tickType, map[string]any{"game_time": gameTime, "requested_ticks": requestedTicks, "resolved_ticks": resolvedTicks, "autonomous_limit": autonomousLimit})
-
-	resp, err := p.Execute(&engine.InvokeRequest{
-		WorldID:  worldID,
-		TaskType: engine.TaskWorldTick,
-		NodeID:   worldID,
-	})
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-
-	// Non-blocking continuity validation: check canonical facts against proposed changes
-	ValidateTickContinuity(worldID, resp)
-
-	effectiveTicks, err := resolveEffectiveWorldTicksTx(store.DB, worldID, resolvedTicks, resp)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	if resp != nil {
-		resp.AdvancedTicks = effectiveTicks
-	}
-	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_completed", worldPlanSummary(resp), resp)
-
-	var tick *store.TimelineModel
-	var worldTimeState *engine.WorldTimeStateComponent
-	err = store.WriteTransaction(func(tx *gorm.DB) error {
-		var err error
-		tick, worldTimeState, err = persistWorldTickArtifactsTx(tx, worldID, tickType, gameTime, effectiveTicks, resp)
-		return err
-	})
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_persisted", tick.Summary, tick)
-
-	autonomousRuns := runWorldTickAutonomousUnlocked(p, worldID, autonomousLimit)
-	emitWorldServiceLog(worldID, worldID, engine.TaskWorldTick, "world_tick_autonomous_completed", "autonomous runs completed", autonomousRuns)
-	return tick, resp, worldTimeState, autonomousRuns, nil
-}
-
 func resolveRequestedWorldTicksTx(tx *gorm.DB, worldID string, requestedTicks *int) (int, error) {
 	if requestedTicks != nil && *requestedTicks <= 0 {
 		return 0, codedErrorf(ErrorInvalid, "invalid_world_tick_request", "requested_ticks must be greater than 0")
