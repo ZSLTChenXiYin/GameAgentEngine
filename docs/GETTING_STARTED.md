@@ -32,10 +32,13 @@
 ```bash
 git clone <仓库地址>
 cd GameAgentEngine
-go build ./...
+# Windows: tools\scripts\build.bat
+# Linux/macOS: bash tools/scripts/build.sh
+#
+# 如果只是使用打包产物，也可以直接进入解压后的目录，不必重新编译。
 ```
 
-如果你只是使用打包产物，也可以直接进入解压后的目录，不必重新编译。
+如果你只是使用打包产物，跳过本步骤，直接进入解压后的目录即可。
 
 ---
 
@@ -82,7 +85,7 @@ llm:
 ## 第三步：启动 Engine
 
 ```bash
-go run ./cmd/gameagentengine serve
+GameAgentEngine serve
 ```
 
 确认服务正常：
@@ -104,7 +107,7 @@ curl http://127.0.0.1:8080/health
 当前新手流程从直接创建一个世界根节点开始。
 
 ```bash
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node create --type world --name "新世界"
+GameAgentDevCli node create --type world --name "新世界"
 ```
 
 这条命令会直接创建一个 `world` 类型节点，它就是整个世界树的根节点。
@@ -112,7 +115,7 @@ go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node c
 你也可以继续创建子节点，例如：
 
 ```bash
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node create --world <world-id> --type location --name "起始村庄"
+GameAgentDevCli node create --world <world-id> --type location --name "起始村庄"
 ```
 
 ---
@@ -122,7 +125,7 @@ go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node c
 推荐直接用 DevCli 打开：
 
 ```bash
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key inspect
+GameAgentDevCli inspect
 ```
 
 如果你的环境不方便走这个入口，也可以直接打开：

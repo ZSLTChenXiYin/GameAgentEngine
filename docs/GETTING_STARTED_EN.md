@@ -32,10 +32,13 @@ If `llm.api_key` is empty, the engine falls back to the Mock Provider. That is f
 ```bash
 git clone <repo-url>
 cd GameAgentEngine
-go build ./...
+# Windows: tools\scripts\build.bat
+# Linux/macOS: bash tools/scripts/build.sh
+#
+# If you are using a packaged build, skip this step and work directly from the extracted directory.
 ```
 
-If you are using a packaged build, you can work directly from the extracted directory instead of rebuilding.
+If you are using a packaged build, skip this step and work directly from the extracted directory.
 
 ---
 
@@ -82,7 +85,7 @@ If you do not want to call a real model yet, leave `llm.api_key` empty.
 ## Step 3: Start the Engine
 
 ```bash
-go run ./cmd/gameagentengine serve
+GameAgentEngine serve
 ```
 
 Confirm the service is healthy:
@@ -104,7 +107,7 @@ Expected result:
 The beginner flow now starts by creating a world root node directly.
 
 ```bash
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node create --type world --name "New World"
+GameAgentDevCli node create --type world --name "New World"
 ```
 
 This creates a `world` node that acts as the root of the world tree.
@@ -112,7 +115,7 @@ This creates a `world` node that acts as the root of the world tree.
 You can then create child nodes, for example:
 
 ```bash
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node create --world <world-id> --type location --name "Starter Village"
+GameAgentDevCli node create --world <world-id> --type location --name "Starter Village"
 ```
 
 ---
@@ -122,7 +125,7 @@ go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key node c
 The simplest path is through DevCli:
 
 ```bash
-go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key inspect
+GameAgentDevCli inspect
 ```
 
 If that launcher path is inconvenient in your environment, you can also open:
