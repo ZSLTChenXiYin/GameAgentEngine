@@ -1516,3 +1516,34 @@ async function loadTraces(container) {
   }
 }
 
+
+function renderTasksPage(center) {
+  center.appendChild(ce("h2", {}, [txt(tr("Runtime Tasks"))]));
+  const tasks = state.tasks || [];
+  if (tasks.length === 0) {
+    center.appendChild(ce("p", {}, [txt(tr("No tasks found.") + " (" + tr("Click refresh") + ")")]));
+    return;
+  }
+  const table = ce("table", { className: "data-table" }, []);
+  const thead = ce("thead", {}, [ce("tr", {}, [
+    ce("th", {}, [txt("ID")]),
+    ce("th", {}, [txt(tr("Status"))]),
+    ce("th", {}, [txt(tr("Category"))]),
+    ce("th", {}, [txt(tr("Attempts"))]),
+    ce("th", {}, [txt(tr("Created"))])
+  ])]);
+  table.appendChild(thead);
+  const tbody = ce("tbody", {}, []);
+  tasks.forEach(function(t) {
+    const tr = ce("tr", {}, [
+      ce("td", {}, [txt(t.task_id ? t.task_id.slice(0, 8) : "-")]),
+      ce("td", {}, [ce("span", { className: "status-" + (t.status || "unknown") }, [txt(t.status || "-")])]),
+      ce("td", {}, [txt(t.category || "-")]),
+      ce("td", {}, [txt(String(t.attempt_count || 0))]),
+      ce("td", {}, [txt(t.created_at ? t.created_at.slice(0, 19) : "-")])
+    ]);
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  center.appendChild(table);
+}

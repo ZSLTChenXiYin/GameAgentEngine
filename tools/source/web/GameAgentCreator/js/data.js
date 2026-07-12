@@ -29,6 +29,7 @@ async function loadWorlds() {
     if (!selectedExists) {
       state.selectedWorldId = null;
       state.nodes = [];
+state.tasks = [];
       state.relations = [];
       state.selectedNodeId = null;
       state.selectedNodeIds = [];
@@ -2458,3 +2459,19 @@ async function saveAutonomousConfig() { if (!state.selectedNodeId) { toast(tr('P
   } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
 }
 
+
+function loadTasks(silent) {
+  if (!silent) showLoading(true);
+  api("GET", "/api/v1/runtime/tasks?limit=100", null).then(function(data) {
+    try {
+      const parsed = JSON.parse(data);
+      state.tasks = parsed.tasks || [];
+    } catch(e) {
+      state.tasks = [];
+    }
+    if (state.page === "tasks") renderCurrent();
+    if (!silent) { showLoading(false); toast(tr("Tasks refreshed"), "success"); }
+  }).catch(function(err) {
+    if (!silent) { showLoading(false); toast(err.message || "Error", "error"); }
+  });
+}

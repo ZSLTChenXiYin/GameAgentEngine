@@ -1168,3 +1168,84 @@ func (c *Client) GetVersion() (string, string, error) {
 func (c *Client) RawGet(path string) ([]byte, error) {
 	return c.do("GET", path, nil)
 }
+
+// ListRuntimeTasks returns runtime tasks matching the given filters.
+func (c *Client) ListRuntimeTasks(category, status string, limit int) ([]RuntimeTask, error) {
+	q := url.Values{}
+	if category != "" { q.Set("category", category) }
+	if status != "" { q.Set("status", status) }
+	if limit > 0 { q.Set("limit", fmt.Sprintf("%d", limit)) }
+	suffix := ""
+	if len(q) > 0 { suffix = "?" + q.Encode() }
+	data, err := c.do("GET", "/api/v1/runtime/tasks"+suffix, nil)
+	if err != nil { return nil, err }
+	var resp struct {
+		Tasks []RuntimeTask `json:"tasks"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Tasks, nil
+}
+
+// GetRuntimeTask returns details for a single runtime task.
+func (c *Client) GetRuntimeTask(taskID string) (*RuntimeTask, error) {
+	data, err := c.do("GET", "/api/v1/runtime/tasks/"+taskID, nil)
+	if err != nil { return nil, err }
+	var task RuntimeTask
+	if err := json.Unmarshal(data, &task); err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
+// ClaimRuntimeTask claims a pending runtime task for this consumer.
+// Returns the claimed task with a lease token for subsequent operations.
+func (c *Client) ClaimRuntimeTask(taskID, consumer, leaseOwner string) (*RuntimeTask, error) {
+	data, err := c.do("POST", "/api/v1/runtime/tasks/claim", map[string]any{
+		"task_id":     taskID,
+		"consumer":    consumer,
+		"lease_owner": leaseOwner,
+	})
+	if err != nil { return nil, err }
+	var resp struct {
+		Task *RuntimeTask `json:"task"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Task, nil
+}
+
+// StartRuntimeTask marks a claimed runtime task as running.
+func (c *Client) StartRuntimeTask(taskID, leaseToken string) (*RuntimeTask, error) {
+	data, err := c.do("POST", "/api/v1/runtime/tasks/start", map[string]any{
+		"task_id":     taskID,
+		"lease_token": leaseToken,
+	})
+	if err != nil { return nil, err }
+	var task RuntimeTask
+	if err := json.Unmarshal(data, &task); err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
+// HeartbeatRuntimeTask sends a heartbeat for a running runtime task.
+func (c *Client) HeartbeatRuntimeTask(taskID, leaseToken string) error {
+	_, err := c.do("POST", "/api/v1/runtime/tasks/heartbeat", map[string]any{
+		"task_id":     taskID,
+		"lease_token": leaseToken,
+	})
+	return err
+}
+
+// ReleaseRuntimeTask releases a claimed or running task back to pending.
+func (c *Client) ReleaseRuntimeTask(taskID, leaseToken, reason string) error {
+	_, err := c.do("POST", "/api/v1/runtime/tasks/release", map[string]any{
+		"task_id":     taskID,
+		"lease_token": leaseToken,
+		"reason":      reason,
+	})
+	return err
+}

@@ -567,3 +567,24 @@ type SubTaskDeclaration struct {
 	DependsOn []string `json:"depends_on,omitempty"`
 	MergeMode string   `json:"merge_mode,omitempty"`
 }
+
+// RuntimeTask describes a runtime external interaction task.
+// Used in Pull mode for game clients to claim and track tasks.
+type RuntimeTask struct {
+	TaskID       string `json:"task_id"`
+	Category     string `json:"category,omitempty"`
+	Status       string `json:"status"`
+	Consumer     string `json:"consumer,omitempty"`
+	WorldID      string `json:"world_id,omitempty"`
+	NodeID       string `json:"node_id,omitempty"`
+	RequestID    string `json:"request_id,omitempty"`
+	CallbackID   string `json:"callback_id,omitempty"`
+	LeaseToken   string `json:"lease_token,omitempty"`
+	LeaseOwner   string `json:"lease_owner,omitempty"`
+	AttemptCount int    `json:"attempt_count,omitempty"`
+	MaxAttempts  int    `json:"max_attempts,omitempty"`
+	Priority     int    `json:"priority,omitempty"`
+	PayloadJSON  string `json:"payload_json,omitempty"`
+	CreatedAt    string `json:"created_at,omitempty"`
+	UpdatedAt    string `json:"updated_at,omitempty"`
+}

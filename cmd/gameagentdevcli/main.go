@@ -193,6 +193,7 @@ func main() {
 	rootCmd.AddCommand(verifyCmd)
 	rootCmd.AddCommand(devCliVersionCmd)
 	rootCmd.AddCommand(debugCmd)
+	rootCmd.AddCommand(taskCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
