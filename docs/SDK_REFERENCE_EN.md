@@ -105,6 +105,33 @@ bundle, err := client.GetContinuityBundle(worldID, &sdk.ContinuityBundleOptions{
 // bundle.LatestTimeline, bundle.StateComponents, bundle.Logs, bundle.Traces
 ```
 
+### Managing Runtime Tasks
+
+
+```go
+// ListRuntimeTasks returns runtime tasks matching the given filters
+func (c *Client) ListRuntimeTasks(category, status string, limit int) ([]RuntimeTask, error)
+
+// GetRuntimeTask returns details for a single runtime task
+func (c *Client) GetRuntimeTask(taskID string) (*RuntimeTask, error)
+
+// ClaimRuntimeTask claims a pending task, returning the task with a lease token
+func (c *Client) ClaimRuntimeTask(taskID, consumer, leaseOwner string) (*RuntimeTask, error)
+
+// StartRuntimeTask marks a claimed task as running
+func (c *Client) StartRuntimeTask(taskID, leaseToken string) (*RuntimeTask, error)
+
+// HeartbeatRuntimeTask sends a heartbeat for a running task
+func (c *Client) HeartbeatRuntimeTask(taskID, leaseToken string) error
+
+// ReleaseRuntimeTask releases a claimed or running task
+func (c *Client) ReleaseRuntimeTask(taskID, leaseToken, reason string) error
+```
+
+
+Runtime tasks support Push, Pull, and Hybrid delivery modes. In Push mode, the Engine directly dispatches tasks to the game client. In Pull mode, the game client polls for pending tasks and claims them. All modes ultimately report results through `ActionCallback`.
+
+
 ---
 
 ## Client Methods
@@ -196,6 +223,13 @@ bundle, err := client.GetContinuityBundle(worldID, &sdk.ContinuityBundleOptions{
 | `ApprovePlan(worldID, planID string) (*PlanDecisionResponse, error)` | Approve one pending plan |
 | `RejectPlan(worldID, planID string) (*PlanDecisionResponse, error)` | Reject one pending plan |
 
+| `ListRuntimeTasks(category, status string, limit int) ([]RuntimeTask, error)` | List runtime tasks with optional filters |
+| `GetRuntimeTask(taskID string) (*RuntimeTask, error)` | Get a single runtime task |
+| `ClaimRuntimeTask(taskID, consumer, leaseOwner string) (*RuntimeTask, error)` | Claim a pending task |
+| `StartRuntimeTask(taskID, leaseToken string) (*RuntimeTask, error)` | Start executing a claimed task |
+| `HeartbeatRuntimeTask(taskID, leaseToken string) error` | Send a heartbeat for a running task |
+| `ReleaseRuntimeTask(taskID, leaseToken, reason string) error` | Release a claimed or running task |
+
 ### Autonomous Behavior
 
 | Method | Description |
@@ -267,6 +301,29 @@ type TickResponse struct {
     AdvancedTicks  int                   `json:"advanced_ticks,omitempty"`
     WorldTimeState *WorldTimeState       `json:"world_time_state,omitempty"`
     AutonomousRuns []AutonomousRunResult `json:"autonomous_runs,omitempty"`
+}
+```
+
+### `RuntimeTask`
+
+```go
+type RuntimeTask struct {
+    TaskID       string `json:"task_id"`
+    Category     string `json:"category,omitempty"`
+    Status       string `json:"status"`
+    Consumer     string `json:"consumer,omitempty"`
+    WorldID      string `json:"world_id,omitempty"`
+    NodeID       string `json:"node_id,omitempty"`
+    RequestID    string `json:"request_id,omitempty"`
+    CallbackID   string `json:"callback_id,omitempty"`
+    LeaseToken   string `json:"lease_token,omitempty"`
+    LeaseOwner   string `json:"lease_owner,omitempty"`
+    AttemptCount int    `json:"attempt_count,omitempty"`
+    MaxAttempts  int    `json:"max_attempts,omitempty"`
+    Priority     int    `json:"priority,omitempty"`
+    PayloadJSON  string `json:"payload_json,omitempty"`
+    CreatedAt    string `json:"created_at,omitempty"`
+    UpdatedAt    string `json:"updated_at,omitempty"`
 }
 ```
 

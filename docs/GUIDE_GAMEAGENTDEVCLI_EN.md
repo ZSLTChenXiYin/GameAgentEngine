@@ -15,6 +15,7 @@ GameAgentDevCli is the command-line tool for operating GameAgentEngine through t
 - logs, traces, continuity debugging, and node graph debugging
 - snapshot save, validation, restore, and deletion
 - opening Creator
+- task management (`task` commands)
 
 ---
 
@@ -68,4 +69,18 @@ GameAgentDevCli state get <world-id> world_time_state
 GameAgentDevCli timeline latest <world-id>
 GameAgentDevCli timeline list <world-id> --limit 5
 GameAgentDevCli debug continuity <world-id>
+```
+---
+
+## Task Management
+
+Runtime Tasks manage external interactions between the Engine and the game client. Three delivery modes are supported: Push, Pull, and Hybrid. The commands below target Pull mode workflows:
+
+```bash
+GameAgentDevCli task list --status pending --limit 20
+GameAgentDevCli task get <task-id>
+GameAgentDevCli task claim <task-id> --consumer gamer --owner devcli
+GameAgentDevCli task start <task-id> <lease-token>
+GameAgentDevCli task heartbeat <task-id> <lease-token>
+GameAgentDevCli task release <task-id> <lease-token> --reason "completed"
 ```

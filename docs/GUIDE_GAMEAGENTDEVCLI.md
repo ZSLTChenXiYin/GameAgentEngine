@@ -15,6 +15,7 @@ GameAgentDevCli 是通过 HTTP API 操作 GameAgentEngine 的命令行工具。
 - 日志、调试轨迹、连续性调试、节点图调试
 - 快照保存、校验、恢复、删除
 - 打开 Creator
+- 任务管理（task 命令）
 
 ---
 
@@ -88,8 +89,22 @@ GameAgentDevCli debug node-graph <node-id>
 
 ---
 
-## 打开 Creator
+## 任务管理
+
+
+运行时任务（Runtime Task）用于管理 Engine 与游戏端之间的外部交互。支持 Push、Pull、Hybrid 三种投递模式。以下命令主要面向 Pull 模式：
+
 
 ```bash
-GameAgentDevCli inspect
+GameAgentDevCli task list --status pending --limit 20
+GameAgentDevCli task get <task-id>
+GameAgentDevCli task claim <task-id> --consumer gamer --owner devcli
+GameAgentDevCli task start <task-id> <lease-token>
+GameAgentDevCli task heartbeat <task-id> <lease-token>
+GameAgentDevCli task release <task-id> <lease-token> --reason "completed"
 ```
+
+
+---
+
+## 打开 Creator

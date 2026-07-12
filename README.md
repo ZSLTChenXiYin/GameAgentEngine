@@ -62,6 +62,7 @@ go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key inspec
 - 快照保存、校验、恢复、删除
 - 世界设置、世界策略、待审批计划管理
 - 连续性、状态、时间线、日志、调试轨迹查看
+- Tasks 运行时任务查看
 - `world_time_settings` 编辑与 `world_time_state` 查看
 
 ### GameAgentDevCli
@@ -74,6 +75,7 @@ go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key inspec
 - 工作副本、存档快照、恢复、快照校验与快照元数据查询
 - 日志、调试轨迹、连续性调试、节点图调试
 - 调用 Creator 的 `inspect` 入口
+- 任务管理（task 命令）
 
 ### Go SDK
 
@@ -83,6 +85,7 @@ go run ./cmd/gameagentdevcli --server http://127.0.0.1:8080 --key dev-key inspec
 - 世界设置与 `world_time_settings` 的读取和部分更新
 - 连续性状态组件与时间线归档访问
 - 世界 Tick、事件影响、计划审批、快照相关接口
+- 运行时任务管理（ListRuntimeTasks、ClaimRuntimeTask、StartRuntimeTask、HeartbeatRuntimeTask、ReleaseRuntimeTask）
 
 ---
 

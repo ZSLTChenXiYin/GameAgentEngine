@@ -96,6 +96,31 @@ tick, err := client.AdvanceTick(worldID, "scheduled", "第 3 天 - 傍晚")
 
 如果你需要限制本次 Tick 可触发的自主节点数量，可使用 `AdvanceTickWithAutonomousLimit`。
 
+
+### 运行时任务管理
+
+```go
+// ListRuntimeTasks 按分类和状态过滤运行时任务
+func (c *Client) ListRuntimeTasks(category, status string, limit int) ([]RuntimeTask, error)
+
+// GetRuntimeTask 获取单个运行时任务详情
+func (c *Client) GetRuntimeTask(taskID string) (*RuntimeTask, error)
+
+// ClaimRuntimeTask 认领一个待处理任务，返回含 lease_token 的任务
+func (c *Client) ClaimRuntimeTask(taskID, consumer, leaseOwner string) (*RuntimeTask, error)
+
+// StartRuntimeTask 开始执行一个已认领的任务
+func (c *Client) StartRuntimeTask(taskID, leaseToken string) (*RuntimeTask, error)
+
+// HeartbeatRuntimeTask 为运行中的任务发送心跳
+func (c *Client) HeartbeatRuntimeTask(taskID, leaseToken string) error
+
+// ReleaseRuntimeTask 释放一个已认领或运行中的任务
+func (c *Client) ReleaseRuntimeTask(taskID, leaseToken, reason string) error
+```
+
+运行时任务支持 Push、Pull、Hybrid 三种投递模式。Push 模式下 Engine 直接推送任务到游戏端；Pull 模式需要游戏端主动轮询认领。所有模式最终都通过 `ActionCallback` 汇报结果。
+
 ### 评估事件影响
 
 ```go

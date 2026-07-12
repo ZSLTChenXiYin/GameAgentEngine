@@ -20,6 +20,7 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 - `Timelines`
 - `Logs`
 - `Traces`
+- `Tasks`
 
 ---
 
@@ -29,6 +30,7 @@ GameAgentCreator 是 GameAgentEngine 附带的浏览器可视化编辑器。
 - 在 `Settings` 配置世界运行参数和 `world_time_settings`
 - 在 `State` 查看 `world_time_state` 等状态组件
 - 在 `Timelines` 和 `Continuity` 排查时间推进结果
+- 在 `Tasks` 查看运行时任务列表和状态
 
 ---
 

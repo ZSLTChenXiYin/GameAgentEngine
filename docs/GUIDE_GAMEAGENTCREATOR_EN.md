@@ -20,6 +20,7 @@ Creator currently includes these main pages:
 - `Timelines`
 - `Logs`
 - `Traces`
+- `Tasks`
 
 ---
 
