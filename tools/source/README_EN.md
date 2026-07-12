@@ -6,62 +6,61 @@ This README is bundled with packaged builds.
 
 ---
 
-## Core Capabilities
+## Why Games Need Their Own Agent Engine
 
-- **World Graph Model** — Unified world modelling with nodes, components, memories, and relations
-- **LLM Inference Pipeline** — Three pipeline modes (vertical / polling / full), multi-round inference, sub-task DAG, async action callbacks
-- **World Time and Continuity** — Tick advancement, continuity state components, timeline archives, world-time scale system
-- **External Interaction and Runtime Tasks** — Push / Pull / Hybrid async task delivery modes, HTTP / RPC / WebSocket adapters
-- **Memory Propagation** — Five propagation modes (upward / environment_scope / organization_scope / tag_broadcast / targeted)
-- **Working Copies and Snapshots** — Fork, Snapshot, Restore three world-copy semantics
-- **Background Autonomous Scheduling** — Node-level autonomous component with manual, tick-sync, and scheduled triggers
-- **Database Pipeline** — Unified write transactions, batched logging, retriable writes; supports SQLite / MySQL / PostgreSQL
-- **Three Developer Tools** — GameAgentCreator (Web editor), GameAgentDevCli (CLI), Go SDK
+General-purpose LLM Agents do not work well for games:
+
+- **No world persistence** -- every conversation starts from scratch, NPCs have no memory
+- **Uncontrolled actions** -- LLMs say anything; games need validated action boundaries
+- **No world clock** -- games have their own time; agents have no time concept
+- **High integration cost** -- every game engine needs custom push, callback, retry, fallback plumbing
+- **No designer tools** -- most agent frameworks lack a visual editor
+
+GameAgentEngine was designed to solve these problems.
 
 ---
 
-## Shortest Path
+## Core Capabilities
 
-```bash
-# 1. Start the engine
+- **World Graph Model** -- nodes, components, memories, and relations
+- **Controlled Actions** -- capability allowlist validation
+- **World Time and Continuity** -- Tick advancement + continuity state archives
+- **External Interaction** -- Push / Pull / Hybrid async task modes
+- **Three Pipeline Modes** -- vertical / polling / full
+- **Background Autonomous Behavior** -- NPCs act without player interaction
+- **Database Pipeline** -- SQLite / MySQL / PostgreSQL
+
+---
+
+## Quick Start
+
+```
 GameAgentEngine serve
-
-# 2. Create a world
 GameAgentDevCli node create --type world --name "New World"
-
-# 3. Open Creator
 GameAgentDevCli inspect
 ```
 
-> If you want time advancement and worldline reasoning, configure `world_time_settings` first.
+Configure `world_time_settings` in Creator's Settings page before running time advancement.
 
 ---
 
 ## Toolchain
 
-### GameAgentCreator
-
-Web-based graphical editor. Pages: Worlds / Snapshots / Tasks / Plans / Policy / Settings / Continuity / State / Timelines / Logs / Traces
-
-### GameAgentDevCli
-
-CLI development tool: node / component / memory / relation CRUD; world tick, event impact, plan approval, snapshot management; task management (task command); debugging and observability
-
-### Go SDK
-
-Go server-side SDK: full API wrapper including runtime task management, memory propagation, autonomous behavior configuration
+- **GameAgentCreator** -- Visual Web editor (Worlds / Tasks / Plans / Settings / State / Timelines / Logs / Traces)
+- **GameAgentDevCli** -- CLI dev tool (CRUD + task management + debugging)
+- **Go SDK** -- Go server-side SDK (full API wrapper)
 
 ---
 
-## Documents
+## Documentation
 
-All docs are located under the `docs/` directory:
+See the `docs/` directory:
 
 - Getting Started / API Reference / Configuration
 - DevCli Guide / Creator Guide / SDK Reference
+- External Interaction Roadmap / External Interaction Examples
 - Architecture / Core Concepts / Pipeline Internals
-- Autonomous Behavior / World Time Tick Reference / External Interaction Roadmap
-- Build and Deploy
+- Autonomous Behavior / World Time Tick Reference / Build and Deploy
 
 ---
 
