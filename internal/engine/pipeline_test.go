@@ -43,7 +43,7 @@ type sequenceProvider struct {
 	calls     int
 }
 
-func (s *stubProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error) {
+func (s *stubProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
 	s.calls++
 	if s.err != nil {
 		return nil, s.err
@@ -53,7 +53,7 @@ func (s *stubProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMRe
 
 func (s *stubProvider) ModelName() string { return "stub" }
 
-func (b *barrierProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error) {
+func (b *barrierProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
 	b.mu.Lock()
 	b.calls++
 	current := b.calls
@@ -67,15 +67,17 @@ func (b *barrierProvider) Chat(systemPrompt string, messages []ChatMessage) (*LL
 
 func (b *barrierProvider) ModelName() string { return "barrier" }
 
-func (c *captureProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error) {
-	c.lastPrompt = systemPrompt
-	c.lastMsgs = messages
+func (c *captureProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
+	if req != nil {
+		c.lastPrompt = req.SystemPrompt
+		c.lastMsgs = req.Messages
+	}
 	return &LLMResult{Content: c.response, Model: "capture", Tokens: 11}, nil
 }
 
 func (c *captureProvider) ModelName() string { return "capture" }
 
-func (s *sequenceProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error) {
+func (s *sequenceProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
 	if s.calls >= len(s.responses) {
 		return &LLMResult{Content: `{"reply":"done","action_calls":[],"memory_updates":[]}`, Model: "sequence", Tokens: 5}, nil
 	}

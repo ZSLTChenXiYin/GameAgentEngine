@@ -971,7 +971,7 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 		})
 
 		llmStart := time.Now()
-		llmResp, err := p.llmProvider.Chat(state.SystemPrompt, state.Messages)
+		llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: state.SystemPrompt, Messages: state.Messages})
 		if err != nil {
 			p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 				Category:   "pipeline_round",
@@ -1335,7 +1335,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 		systemPrompt = ctxDesc
 	}
 
-	llmResp, err := p.llmProvider.Chat(systemPrompt, sanitizeRoles(req.Messages))
+	llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: systemPrompt, Messages: sanitizeRoles(req.Messages)})
 	if err != nil {
 		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 			Category:   "pipeline_round",
@@ -1428,7 +1428,7 @@ func (p *Pipeline) executeDialogue(req *InvokeRequest, ctx *BuiltContext, start 
 		analysisNode := tree.NewRound("analysis")
 		analysisPrompt := fmt.Sprintf("请分析以下局势数据，并将其中的精确数值转化为模糊量词，整理成后续对话可用的局势摘要。\n\n%s", ctx.SystemPrompt)
 		analysisNode.Prompt = analysisPrompt
-		if analysisResp, err := p.llmProvider.Chat(analysisPrompt, nil); err == nil {
+		if analysisResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: analysisPrompt}); err == nil {
 			analysisNode.LLMResponse = analysisResp.Content
 			analysisNode.Analysis = analysisResp.Content
 			analysisNode.Decision = "局势分析完成"

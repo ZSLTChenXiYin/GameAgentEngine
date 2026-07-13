@@ -69,7 +69,14 @@ type openAIResponse struct {
 }
 
 // Chat 调用远端聊天补全接口并返回统一的 LLM 结果。
-func (p *openAIProvider) Chat(systemPrompt string, messages []engine.ChatMessage) (*engine.LLMResult, error) {
+func (p *openAIProvider) Chat(chatReq *engine.LLMChatRequest) (*engine.LLMResult, error) {
+	systemPrompt := ""
+	var messages []engine.ChatMessage
+	if chatReq != nil {
+		systemPrompt = chatReq.SystemPrompt
+		messages = chatReq.Messages
+	}
+
 	req := openAIRequest{
 		Model: p.model,
 		Messages: []openAIMessage{

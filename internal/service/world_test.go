@@ -18,7 +18,7 @@ type stubProvider struct {
 	err      error
 }
 
-func (s *stubProvider) Chat(systemPrompt string, messages []engine.ChatMessage) (*engine.LLMResult, error) {
+func (s *stubProvider) Chat(req *engine.LLMChatRequest) (*engine.LLMResult, error) {
 	if s.err != nil {
 		return nil, s.err
 	}

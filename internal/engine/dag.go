@@ -263,7 +263,7 @@ func (d *DAGInstance) summarizeResults() string {
 	parts = append(parts, "请根据上述子任务结果生成一个统一的摘要。")
 
 	prompt := strings.Join(parts, "\n")
-	if resp, err := d.llmProvider.Chat(prompt, nil); err == nil {
+	if resp, err := d.llmProvider.Chat(&LLMChatRequest{SystemPrompt: prompt}); err == nil {
 		return resp.Content
 	}
 	return "[summarize] LLM 摘要失败"

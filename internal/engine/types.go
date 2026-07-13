@@ -421,6 +421,20 @@ type ResponseMeta struct {
 	RoundsUsed             int    `json:"rounds_used,omitempty"`
 }
 
+// LLMToolDefinition describes one structured callable tool exposed to the provider.
+type LLMToolDefinition struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	Parameters  map[string]any `json:"parameters,omitempty"`
+}
+
+// LLMChatRequest carries prompt, messages, and optional structured tool definitions.
+type LLMChatRequest struct {
+	SystemPrompt string              `json:"system_prompt"`
+	Messages     []ChatMessage       `json:"messages,omitempty"`
+	Tools        []LLMToolDefinition `json:"tools,omitempty"`
+}
+
 // WorldEvent 描述一个待评估的世界事件。
 type WorldEvent struct {
 	EventType   string `json:"event_type"`
@@ -463,7 +477,7 @@ type WorldTimelineTick struct {
 
 // LLMProvider 是引擎对大模型能力的统一抽象。
 type LLMProvider interface {
-	Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error)
+	Chat(req *LLMChatRequest) (*LLMResult, error)
 	ModelName() string
 }
 

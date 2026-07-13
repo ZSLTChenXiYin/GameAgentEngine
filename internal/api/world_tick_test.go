@@ -13,7 +13,7 @@ import (
 
 type tickStubProvider struct{}
 
-func (tickStubProvider) Chat(systemPrompt string, messages []engine.ChatMessage) (*engine.LLMResult, error) {
+func (tickStubProvider) Chat(req *engine.LLMChatRequest) (*engine.LLMResult, error) {
 	return &engine.LLMResult{Content: `{"reply":"ok","action_calls":[],"memory_updates":[],"world_change_plan":{"impact_level":"minor","summary":"ok","world_events":[],"proposed_actions":[]}}`, Model: "stub", Tokens: 9}, nil
 }
 

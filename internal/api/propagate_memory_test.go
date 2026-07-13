@@ -13,7 +13,7 @@ import (
 
 type propagateStubProvider struct{}
 
-func (propagateStubProvider) Chat(systemPrompt string, messages []engine.ChatMessage) (*engine.LLMResult, error) {
+func (propagateStubProvider) Chat(req *engine.LLMChatRequest) (*engine.LLMResult, error) {
 	return &engine.LLMResult{Content: `{"reply":"ok","action_calls":[],"memory_updates":[]}`, Model: "stub", Tokens: 3}, nil
 }
 
