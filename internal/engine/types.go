@@ -422,10 +422,33 @@ type ResponseMeta struct {
 }
 
 // LLMToolDefinition describes one structured callable tool exposed to the provider.
+type LLMToolInvocationKind string
+
+const (
+	LLMToolInvocationAction      LLMToolInvocationKind = "action"
+	LLMToolInvocationDataRequest LLMToolInvocationKind = "data_request"
+)
+
+// LLMDataRequestTemplate defines fixed request_data fields that a provider should
+// merge with structured tool arguments before returning normalized JSON.
+type LLMDataRequestTemplate struct {
+	Label             string `json:"label,omitempty"`
+	Target            string `json:"target,omitempty"`
+	ExternalInterface string `json:"external_interface,omitempty"`
+	DeliveryMode      string `json:"delivery_mode,omitempty"`
+	PrimaryTransport  string `json:"primary_transport,omitempty"`
+	Consumer          string `json:"consumer,omitempty"`
+	TimeoutMs         int    `json:"timeout_ms,omitempty"`
+}
+
+// LLMToolDefinition describes one structured callable tool exposed to the provider.
 type LLMToolDefinition struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	Parameters  map[string]any `json:"parameters,omitempty"`
+	Name        string                  `json:"name"`
+	Description string                  `json:"description,omitempty"`
+	Parameters  map[string]any          `json:"parameters,omitempty"`
+	Invocation  LLMToolInvocationKind   `json:"-"`
+	ActionID    string                  `json:"-"`
+	DataRequest *LLMDataRequestTemplate `json:"-"`
 }
 
 // LLMChatRequest carries prompt, messages, and optional structured tool definitions.
