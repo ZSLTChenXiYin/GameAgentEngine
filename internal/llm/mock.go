@@ -17,8 +17,15 @@ func NewMockProvider() engine.LLMProvider {
 }
 
 // Chat 根据 prompt 特征返回预设的 JSON 响应。
-func (p *mockProvider) Chat(systemPrompt string, messages []engine.ChatMessage) (*engine.LLMResult, error) {
+func (p *mockProvider) Chat(req *engine.LLMChatRequest) (*engine.LLMResult, error) {
 	time.Sleep(200 * time.Millisecond)
+
+	systemPrompt := ""
+	var messages []engine.ChatMessage
+	if req != nil {
+		systemPrompt = req.SystemPrompt
+		messages = req.Messages
+	}
 
 	var reply string
 	if strings.Contains(systemPrompt, "自主行为决策器") {

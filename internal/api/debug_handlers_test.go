@@ -69,7 +69,7 @@ type singleResponseProvider struct {
 	response string
 }
 
-func (s *callbackSequenceProvider) Chat(systemPrompt string, messages []engine.ChatMessage) (*engine.LLMResult, error) {
+func (s *callbackSequenceProvider) Chat(req *engine.LLMChatRequest) (*engine.LLMResult, error) {
 	resp := s.responses[s.calls]
 	s.calls++
 	return &engine.LLMResult{Content: resp, Model: "callback-seq", Tokens: 6}, nil
@@ -77,7 +77,7 @@ func (s *callbackSequenceProvider) Chat(systemPrompt string, messages []engine.C
 
 func (s *callbackSequenceProvider) ModelName() string { return "callback-seq" }
 
-func (s *singleResponseProvider) Chat(systemPrompt string, messages []engine.ChatMessage) (*engine.LLMResult, error) {
+func (s *singleResponseProvider) Chat(req *engine.LLMChatRequest) (*engine.LLMResult, error) {
 	return &engine.LLMResult{Content: s.response, Model: "single-response", Tokens: 5}, nil
 }
 

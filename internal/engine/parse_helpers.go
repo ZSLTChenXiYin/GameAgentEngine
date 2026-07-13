@@ -14,6 +14,114 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
+func dynamicInterfacesByKind(req *InvokeRequest, kind DynamicInterfaceKind) []DynamicInterface {
+	if req == nil || req.Context == nil || len(req.Context.DynamicInterfaces) == 0 {
+		return nil
+	}
+	var result []DynamicInterface
+	for _, item := range req.Context.DynamicInterfaces {
+		if item.Kind == kind {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func resolveDynamicInterface(req *InvokeRequest, kind DynamicInterfaceKind, reference string) (*DynamicInterface, error) {
+	items := dynamicInterfacesByKind(req, kind)
+	if len(items) == 0 {
+		if req == nil || req.Context == nil || len(req.Context.DynamicInterfaces) == 0 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("no %s interfaces allowed for this request", kind)
+	}
+	ref := strings.TrimSpace(reference)
+	if ref != "" {
+		for _, item := range items {
+			if ref == item.ID || ref == item.ExternalInterface {
+				matched := item
+				return &matched, nil
+			}
+		}
+		return nil, fmt.Errorf("%s interface %q not allowed for this request", kind, ref)
+	}
+	if len(items) == 1 {
+		matched := items[0]
+		return &matched, nil
+	}
+	return nil, fmt.Errorf("multiple %s interfaces allowed; external_interface is required", kind)
+}
+
+func normalizeDynamicDataRequest(req *InvokeRequest, dr *DataRequest) error {
+	if dr == nil || dr.Target != "game_client" {
+		return nil
+	}
+	matched, err := resolveDynamicInterface(req, DynamicInterfaceDataRequest, dr.ExternalInterface)
+	if err != nil {
+		return err
+	}
+	if matched == nil {
+		return nil
+	}
+	if matched.MaxQueries > 0 && len(dr.Queries) > matched.MaxQueries {
+		return fmt.Errorf("data_request exceeds max_queries for interface %q", matched.ID)
+	}
+	allowedQueryTypes := make(map[string]struct{}, len(matched.QueryTypes))
+	for _, queryType := range matched.QueryTypes {
+		allowedQueryTypes[strings.TrimSpace(queryType)] = struct{}{}
+	}
+	for _, query := range dr.Queries {
+		if _, ok := allowedQueryTypes[strings.TrimSpace(query.Type)]; !ok {
+			return fmt.Errorf("data_request query type %q not allowed for interface %q", query.Type, matched.ID)
+		}
+	}
+	dr.ExternalInterface = matched.ExternalInterface
+	return nil
+}
+
+func normalizeDynamicActionCall(req *InvokeRequest, call *ActionCall, actionRegistered bool) (*DynamicInterface, error) {
+	if call == nil {
+		return nil, nil
+	}
+	items := dynamicInterfacesByKind(req, DynamicInterfaceAction)
+	if len(items) == 0 {
+		return nil, nil
+	}
+	ref := ""
+	if call.Args != nil {
+		if raw, ok := call.Args["external_interface"].(string); ok && strings.TrimSpace(raw) != "" {
+			ref = strings.TrimSpace(raw)
+		}
+	}
+	if ref == "" {
+		actionID := strings.TrimSpace(call.ActionID)
+		for _, item := range items {
+			if actionID == item.ID || actionID == item.ExternalInterface {
+				ref = actionID
+				break
+			}
+		}
+	}
+	if ref == "" {
+		if actionRegistered {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("action %q not allowed for this request", strings.TrimSpace(call.ActionID))
+	}
+	matched, err := resolveDynamicInterface(req, DynamicInterfaceAction, ref)
+	if err != nil {
+		return nil, err
+	}
+	if matched == nil {
+		return nil, nil
+	}
+	if call.Args == nil {
+		call.Args = map[string]any{}
+	}
+	call.Args["external_interface"] = matched.ExternalInterface
+	return matched, nil
+}
+
 func runtimeTaskConsumerFromArgs(args map[string]any) string {
 	if args == nil {
 		return ""
@@ -432,10 +540,29 @@ func (p *Pipeline) parseActionCalls(rawJSON string, defaultNodeID string) []Acti
 
 func (p *Pipeline) executeActions(req *InvokeRequest, runtime *executionConfig, executionMode ExecutionMode, policyEngine *planner.PolicyEngine, calls []ActionCall) []ActionCall {
 	var result []ActionCall
+	dynamicActionCounts := map[string]int{}
 
 	for _, call := range calls {
 		actionID := call.ActionID
 		args := call.Args
+		actionRegistered := p.actionReg.Exists(actionID)
+		matchedDynamicInterface, dynamicErr := normalizeDynamicActionCall(req, &call, actionRegistered)
+		if dynamicErr != nil {
+			p.emitExecutionEvent(req, runtime, executionMode, "action_blocked", actionID, map[string]any{"action_id": actionID, "args": args, "reason": dynamicErr.Error()})
+			log.Printf("[dynamic-interface] action %s blocked: %v", actionID, dynamicErr)
+			continue
+		}
+		if matchedDynamicInterface != nil && matchedDynamicInterface.MaxCalls > 0 {
+			dynamicActionCounts[matchedDynamicInterface.ID]++
+			if dynamicActionCounts[matchedDynamicInterface.ID] > matchedDynamicInterface.MaxCalls {
+				reason := fmt.Sprintf("action exceeds max_calls for interface %q", matchedDynamicInterface.ID)
+				p.emitExecutionEvent(req, runtime, executionMode, "action_blocked", actionID, map[string]any{"action_id": actionID, "args": args, "reason": reason})
+				log.Printf("[dynamic-interface] action %s blocked: %s", actionID, reason)
+				continue
+			}
+		}
+		actionID = call.ActionID
+		args = call.Args
 
 		if policyEngine != nil && !policyEngine.IsActionAllowed(actionID) {
 			p.emitExecutionEvent(req, runtime, executionMode, "action_blocked", actionID, map[string]any{"action_id": actionID, "args": args, "reason": "policy_blocked"})
@@ -475,6 +602,29 @@ func (p *Pipeline) executeActions(req *InvokeRequest, runtime *executionConfig, 
 			result = append(result, call)
 			p.emitExecutionEvent(req, runtime, executionMode, "action_async_enqueued", actionID, map[string]any{"action_id": actionID, "args": args, "callback_id": cbID, "delivery_mode": route.DeliveryMode, "primary_transport": route.PrimaryTransport})
 			log.Printf("[action:async] %s callback=%s", actionID, cbID)
+		} else if matchedDynamicInterface != nil {
+			cbID := p.actionReg.CreateCallbackWithMetadata(actionID, args, action.CallbackMetadata{
+				NodeID:    req.NodeID,
+				WorldID:   req.WorldID,
+				RequestID: "",
+			})
+			route := resolveAsyncActionRoute(actionID, args)
+			task, err := enqueueAsyncActionRuntimeTask(req, actionID, args, cbID, route)
+			if err != nil {
+				p.emitExecutionEvent(req, runtime, executionMode, "action_async_enqueue_failed", actionID, map[string]any{"action_id": actionID, "args": args, "callback_id": cbID, "error": err.Error()})
+				log.Printf("[action:dynamic] %s enqueue failed callback=%s err=%v", actionID, cbID, err)
+				continue
+			}
+			if err := p.dispatchAsyncActionRuntimeTask(task, req, actionID, args, route); err != nil {
+				p.emitExecutionEvent(req, runtime, executionMode, "action_async_dispatch_failed", actionID, map[string]any{"action_id": actionID, "args": args, "callback_id": cbID, "error": err.Error(), "delivery_mode": route.DeliveryMode, "primary_transport": route.PrimaryTransport})
+				log.Printf("[action:dynamic] %s dispatch failed callback=%s err=%v", actionID, cbID, err)
+				continue
+			}
+			call.Mode = "async"
+			call.CallbackID = cbID
+			result = append(result, call)
+			p.emitExecutionEvent(req, runtime, executionMode, "action_async_enqueued", actionID, map[string]any{"action_id": actionID, "args": args, "callback_id": cbID, "delivery_mode": route.DeliveryMode, "primary_transport": route.PrimaryTransport, "dynamic_interface_id": matchedDynamicInterface.ID, "external_interface": matchedDynamicInterface.ExternalInterface})
+			log.Printf("[action:dynamic] %s callback=%s interface=%s", actionID, cbID, matchedDynamicInterface.ExternalInterface)
 		} else {
 			call.Mode = "async"
 			result = append(result, call)

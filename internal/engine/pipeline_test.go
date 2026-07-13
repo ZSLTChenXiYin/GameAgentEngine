@@ -36,6 +36,7 @@ type captureProvider struct {
 	response   string
 	lastPrompt string
 	lastMsgs   []ChatMessage
+	lastTools  []LLMToolDefinition
 }
 
 type sequenceProvider struct {
@@ -43,7 +44,7 @@ type sequenceProvider struct {
 	calls     int
 }
 
-func (s *stubProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error) {
+func (s *stubProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
 	s.calls++
 	if s.err != nil {
 		return nil, s.err
@@ -53,7 +54,7 @@ func (s *stubProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMRe
 
 func (s *stubProvider) ModelName() string { return "stub" }
 
-func (b *barrierProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error) {
+func (b *barrierProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
 	b.mu.Lock()
 	b.calls++
 	current := b.calls
@@ -67,15 +68,18 @@ func (b *barrierProvider) Chat(systemPrompt string, messages []ChatMessage) (*LL
 
 func (b *barrierProvider) ModelName() string { return "barrier" }
 
-func (c *captureProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error) {
-	c.lastPrompt = systemPrompt
-	c.lastMsgs = messages
+func (c *captureProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
+	if req != nil {
+		c.lastPrompt = req.SystemPrompt
+		c.lastMsgs = req.Messages
+		c.lastTools = req.Tools
+	}
 	return &LLMResult{Content: c.response, Model: "capture", Tokens: 11}, nil
 }
 
 func (c *captureProvider) ModelName() string { return "capture" }
 
-func (s *sequenceProvider) Chat(systemPrompt string, messages []ChatMessage) (*LLMResult, error) {
+func (s *sequenceProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
 	if s.calls >= len(s.responses) {
 		return &LLMResult{Content: `{"reply":"done","action_calls":[],"memory_updates":[]}`, Model: "sequence", Tokens: 5}, nil
 	}
@@ -469,6 +473,116 @@ func TestExecuteDialogueWithoutLocatedAtDoesNotInjectEnvironmentChain(t *testing
 	}
 	if strings.Contains(provider.lastPrompt, "环境信息：") {
 		t.Fatalf("did not expect environment block in prompt, got %s", provider.lastPrompt)
+	}
+}
+
+func TestExecuteDialogueInjectsDynamicInterfacePromptBlock(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskNPCDialogue,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "scene_facts",
+			Kind:              DynamicInterfaceDataRequest,
+			ExternalInterface: "game_client_request_data",
+			Description:       "Query visible scene state",
+			QueryTypes:        []string{"scene_state", "visible_entities"},
+			MaxQueries:        2,
+		}}},
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	for _, want := range []string{"Dynamic Interfaces", "scene_facts: Query visible scene state", "query_types: scene_state, visible_entities", "max_queries: 2"} {
+		if !strings.Contains(provider.lastPrompt, want) {
+			t.Fatalf("expected prompt to contain %q, got %s", want, provider.lastPrompt)
+		}
+	}
+}
+
+func TestExecuteAutonomousActInjectsDynamicInterfacePromptBlock(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: nodeInt, NodeUUID: nodeID, ComponentType: string(CompAutonomous), Data: `{"enabled":true,"trigger":"manual","capabilities":[{"id":"send_dialogue"}]}`}); err != nil {
+		t.Fatalf("create autonomous component: %v", err)
+	}
+
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskAutonomousAct,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "merchant_ops",
+			Kind:              DynamicInterfaceAction,
+			ExternalInterface: "npc_trade_action",
+			Description:       "Perform trade-related external actions",
+			MaxCalls:          1,
+		}}},
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	for _, want := range []string{"Dynamic Interfaces", "Action interfaces:", "merchant_ops: Perform trade-related external actions", "max_calls: 1"} {
+		if !strings.Contains(provider.lastPrompt, want) {
+			t.Fatalf("expected prompt to contain %q, got %s", want, provider.lastPrompt)
+		}
+	}
+}
+
+func TestExecuteDialogueBuildsStructuredToolsFromDynamicInterfaces(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskNPCDialogue,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{
+			{
+				ID:                "scene_facts",
+				Kind:              DynamicInterfaceDataRequest,
+				ExternalInterface: "game_client_request_data",
+				Description:       "Query visible scene state",
+				QueryTypes:        []string{"node_detail", "visible_entities"},
+				MaxQueries:        2,
+			},
+			{
+				ID:                "merchant_ops",
+				Kind:              DynamicInterfaceAction,
+				ExternalInterface: "npc_trade_action",
+				Description:       "Perform trade-related external actions",
+				ArgsSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"intent": map[string]any{"type": "string"},
+					},
+				},
+				MaxCalls: 1,
+			},
+		}},
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(provider.lastTools) != 2 {
+		t.Fatalf("expected 2 structured tools, got %+v", provider.lastTools)
+	}
+	if provider.lastTools[0].Invocation != LLMToolInvocationDataRequest || provider.lastTools[0].DataRequest == nil {
+		t.Fatalf("expected first tool to be data_request, got %+v", provider.lastTools[0])
+	}
+	if provider.lastTools[0].DataRequest.ExternalInterface != "game_client_request_data" {
+		t.Fatalf("expected normalized external interface, got %+v", provider.lastTools[0].DataRequest)
+	}
+	if provider.lastTools[1].Invocation != LLMToolInvocationAction || provider.lastTools[1].ActionID != "merchant_ops" {
+		t.Fatalf("expected second tool to be action tool, got %+v", provider.lastTools[1])
+	}
+	if provider.lastTools[1].Parameters["type"] != "object" {
+		t.Fatalf("expected action args schema to survive, got %+v", provider.lastTools[1].Parameters)
 	}
 }
 
@@ -1329,6 +1443,106 @@ func TestExecuteUsesExternalInterfaceConfigForGameClientRequest(t *testing.T) {
 	}
 }
 
+func TestExecuteDynamicDataRequestAliasUsesConfiguredInterface(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		_, _ = w.Write([]byte(`{"status":"accepted"}`))
+	}))
+	defer server.Close()
+
+	previousIntegrations := config.Global.ExternalIntegrations
+	previousInterfaces := config.Global.ExternalInterfaces
+	config.Global.ExternalIntegrations = map[string]config.ExternalIntegrationConfig{
+		"game_http": {Type: "http_adapter", BaseURL: server.URL, Path: "/dispatch"},
+	}
+	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
+		"game_client_request_data": {Category: "external_query", DeliveryMode: "push", PrimaryTransport: "game_http", Consumer: "game_client", ResumePolicy: "resume_paused_execution"},
+	}
+	defer func() {
+		config.Global.ExternalIntegrations = previousIntegrations
+		config.Global.ExternalInterfaces = previousInterfaces
+	}()
+
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"need-client","request_data":{"label":"fetch-scene","target":"game_client","external_interface":"scene_facts","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "scene_facts",
+			Kind:              DynamicInterfaceDataRequest,
+			ExternalInterface: "game_client_request_data",
+			Description:       "Query visible scene state",
+			QueryTypes:        []string{"node_detail"},
+			MaxQueries:        1,
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp.DataRequest == nil || resp.DataRequest.ExternalInterface != "game_client_request_data" {
+		t.Fatalf("expected normalized external interface, got %+v", resp.DataRequest)
+	}
+	task, err := store.GetRuntimeTaskByCallbackID(resp.ActionCalls[0].CallbackID)
+	if err != nil {
+		t.Fatalf("get runtime task: %v", err)
+	}
+	if task.InterfaceName != "game_client_request_data" {
+		t.Fatalf("expected task interface game_client_request_data, got %+v", task)
+	}
+	if gotBody["interface_name"] != "game_client_request_data" {
+		t.Fatalf("unexpected dispatch payload: %+v", gotBody)
+	}
+}
+
+func TestExecuteDynamicDataRequestBlocksDisallowedQueryType(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"need-client","request_data":{"label":"fetch-scene","target":"game_client","external_interface":"scene_facts","queries":[{"type":"node_relations","node_id":"` + nodeID + `"}]}}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "scene_facts",
+			Kind:              DynamicInterfaceDataRequest,
+			ExternalInterface: "game_client_request_data",
+			Description:       "Query visible scene state",
+			QueryTypes:        []string{"node_detail"},
+			MaxQueries:        1,
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp.DataRequest != nil {
+		t.Fatalf("expected blocked data request to be dropped, got %+v", resp.DataRequest)
+	}
+	if len(resp.ActionCalls) != 0 {
+		t.Fatalf("expected no async callback action, got %+v", resp.ActionCalls)
+	}
+	tasks, err := store.ListRuntimeTasks(store.RuntimeTaskListQuery{WorldUUID: worldID, Limit: 10})
+	if err != nil {
+		t.Fatalf("list runtime tasks: %v", err)
+	}
+	if len(tasks) != 0 {
+		t.Fatalf("expected no runtime tasks, got %+v", tasks)
+	}
+}
+
 func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
@@ -1406,6 +1620,135 @@ func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
 	dispatchPayload := gotBody["payload"].(map[string]any)
 	if dispatchPayload["action_id"] != "spawn_item" {
 		t.Fatalf("unexpected async dispatch payload: %+v", gotBody)
+	}
+}
+
+func TestExecuteDynamicActionAliasUsesConfiguredInterface(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	previousInterfaces := config.Global.ExternalInterfaces
+	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
+		"npc_trade_action": {Category: "external_action", DeliveryMode: "pull", Consumer: "bridge", ResumePolicy: "none"},
+	}
+	defer func() {
+		config.Global.ExternalInterfaces = previousInterfaces
+	}()
+
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[{"action_id":"merchant_ops","args":{"intent":"quote"}}],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "merchant_ops",
+			Kind:              DynamicInterfaceAction,
+			ExternalInterface: "npc_trade_action",
+			Description:       "Perform trade-related external actions",
+			MaxCalls:          1,
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(resp.ActionCalls) != 1 || resp.ActionCalls[0].Mode != "async" || resp.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected one async dynamic action, got %+v", resp.ActionCalls)
+	}
+	task, err := store.GetRuntimeTaskByCallbackID(resp.ActionCalls[0].CallbackID)
+	if err != nil {
+		t.Fatalf("get runtime task: %v", err)
+	}
+	if task.Category != "external_action" || task.InterfaceName != "npc_trade_action" {
+		t.Fatalf("expected pull runtime task for npc_trade_action, got %+v", task)
+	}
+	var payload struct {
+		ExternalInterface string         `json:"external_interface"`
+		ActionID          string         `json:"action_id"`
+		Args              map[string]any `json:"args"`
+	}
+	if err := json.Unmarshal([]byte(task.PayloadJSON), &payload); err != nil {
+		t.Fatalf("unmarshal runtime task payload: %v", err)
+	}
+	if payload.ExternalInterface != "npc_trade_action" {
+		t.Fatalf("expected payload external interface npc_trade_action, got %+v", payload)
+	}
+	if payload.Args["external_interface"] != "npc_trade_action" {
+		t.Fatalf("expected args.external_interface to be normalized, got %+v", payload.Args)
+	}
+}
+
+func TestExecuteDynamicActionBlocksCallsBeyondMaxCalls(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	previousInterfaces := config.Global.ExternalInterfaces
+	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
+		"npc_trade_action": {Category: "external_action", DeliveryMode: "pull", Consumer: "bridge", ResumePolicy: "none"},
+	}
+	defer func() {
+		config.Global.ExternalInterfaces = previousInterfaces
+	}()
+
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[{"action_id":"merchant_ops","args":{"intent":"quote"}},{"action_id":"merchant_ops","args":{"intent":"buy"}}],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "merchant_ops",
+			Kind:              DynamicInterfaceAction,
+			ExternalInterface: "npc_trade_action",
+			Description:       "Perform trade-related external actions",
+			MaxCalls:          1,
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(resp.ActionCalls) != 1 {
+		t.Fatalf("expected only first dynamic action to pass, got %+v", resp.ActionCalls)
+	}
+	tasks, err := store.ListRuntimeTasks(store.RuntimeTaskListQuery{WorldUUID: worldID, Limit: 10})
+	if err != nil {
+		t.Fatalf("list runtime tasks: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected one runtime task, got %+v", tasks)
+	}
+}
+
+func TestExecuteDynamicActionBlocksUnknownUnapprovedAction(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[{"action_id":"forbidden_ops","args":{"intent":"quote"}}],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "merchant_ops",
+			Kind:              DynamicInterfaceAction,
+			ExternalInterface: "npc_trade_action",
+			Description:       "Perform trade-related external actions",
+			MaxCalls:          1,
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(resp.ActionCalls) != 0 {
+		t.Fatalf("expected blocked dynamic action to be dropped, got %+v", resp.ActionCalls)
+	}
+	tasks, err := store.ListRuntimeTasks(store.RuntimeTaskListQuery{WorldUUID: worldID, Limit: 10})
+	if err != nil {
+		t.Fatalf("list runtime tasks: %v", err)
+	}
+	if len(tasks) != 0 {
+		t.Fatalf("expected no runtime tasks, got %+v", tasks)
 	}
 }
 

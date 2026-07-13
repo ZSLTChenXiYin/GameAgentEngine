@@ -49,10 +49,33 @@
   ],
   "context": {
     "pipeline_mode": "polling",
-    "max_analysis_rounds": 4
+    "max_analysis_rounds": 4,
+    "dynamic_interfaces": [
+      {
+        "id": "scene_facts",
+        "kind": "data_request",
+        "external_interface": "game_client_request_data",
+        "description": "查询当前玩家可见的场景状态",
+        "query_types": ["node_detail", "visible_entities"],
+        "max_queries": 2
+      },
+      {
+        "id": "merchant_ops",
+        "kind": "action",
+        "external_interface": "npc_trade_action",
+        "description": "执行与交易相关的外部动作",
+        "max_calls": 1
+      }
+    ]
   }
 }
 ```
+
+说明：
+
+- `context.dynamic_interfaces` 是请求级的临时接口白名单，适合只在当前回合、当前 NPC 对话或当前场景里生效的能力。
+- 稳定存在的传输、投递、重试、回调治理，仍建议固化在服务端正式 `external_interface` 配置里。
+- 如果要把可调用接口提供给模型，优先放在结构化请求字段中，而不是把函数定义整段塞进提示词。
 
 ### `POST /api/v1/actions/callback`
 

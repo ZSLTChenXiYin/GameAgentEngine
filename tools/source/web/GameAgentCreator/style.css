@@ -375,6 +375,7 @@ input { padding:0 7px; height:26px; }
 
 /* ============= Center Detail Cards ============= */
 .card-hd { display:flex; align-items:center; gap:6px; padding:6px 10px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; color:var(--text-dim); background:var(--bg2); border-bottom:1px solid var(--border); cursor:pointer; }
+.card-hd.no-transform { text-transform:none; }
 .card-hd:hover { background:var(--bg3); }
 .card-hd[aria-expanded="false"] + .card-bd { display:none; }
 .detail-item { padding:6px 10px; border-bottom:1px solid var(--border); }

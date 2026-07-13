@@ -8,10 +8,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 )
+
+var openAIToolNameSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 
 // openAIProvider 是 OpenAI 兼容协议的 Provider 实现。
 type openAIProvider struct {
@@ -44,43 +48,203 @@ func NewOpenAIProvider(apiKey, baseURL, model string) engine.LLMProvider {
 	}
 }
 
-// openAIRequest 是发往聊天补全接口的请求结构。
 type openAIRequest struct {
-	Model    string          `json:"model"`
-	Messages []openAIMessage `json:"messages"`
+	Model      string          `json:"model"`
+	Messages   []openAIMessage `json:"messages"`
+	Tools      []openAITool    `json:"tools,omitempty"`
+	ToolChoice string          `json:"tool_choice,omitempty"`
 }
 
-// openAIMessage 表示聊天消息项。
 type openAIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string           `json:"role"`
+	Content    string           `json:"content,omitempty"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
+	ToolCalls  []openAIToolCall `json:"tool_calls,omitempty"`
 }
 
-// openAIResponse 是聊天补全接口的响应结构。
+type openAITool struct {
+	Type     string             `json:"type"`
+	Function openAIToolFunction `json:"function"`
+}
+
+type openAIToolFunction struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	Parameters  map[string]any `json:"parameters,omitempty"`
+}
+
+type openAIToolCall struct {
+	ID       string                 `json:"id,omitempty"`
+	Type     string                 `json:"type,omitempty"`
+	Function openAIToolCallFunction `json:"function"`
+}
+
+type openAIToolCallFunction struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
 type openAIResponse struct {
 	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
+		Message openAIMessage `json:"message"`
 	} `json:"choices"`
 	Usage struct {
 		TotalTokens int `json:"total_tokens"`
 	} `json:"usage"`
 }
 
-// Chat 调用远端聊天补全接口并返回统一的 LLM 结果。
-func (p *openAIProvider) Chat(systemPrompt string, messages []engine.ChatMessage) (*engine.LLMResult, error) {
-	req := openAIRequest{
-		Model: p.model,
-		Messages: []openAIMessage{
-			{Role: "system", Content: systemPrompt},
-		},
+func sanitizeOpenAIToolName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "tool"
 	}
-	for _, m := range messages {
-		req.Messages = append(req.Messages, openAIMessage{Role: m.Role, Content: m.Content})
+	cleaned := openAIToolNameSanitizer.ReplaceAllString(trimmed, "_")
+	cleaned = strings.Trim(cleaned, "_")
+	if cleaned == "" {
+		return "tool"
+	}
+	if len(cleaned) > 64 {
+		cleaned = cleaned[:64]
+	}
+	return cleaned
+}
+
+func buildOpenAIRequest(model string, chatReq *engine.LLMChatRequest) (openAIRequest, map[string]engine.LLMToolDefinition) {
+	request := openAIRequest{Model: model}
+	toolMap := map[string]engine.LLMToolDefinition{}
+
+	if chatReq == nil {
+		request.Messages = []openAIMessage{{Role: "system"}}
+		return request, toolMap
 	}
 
-	body, err := json.Marshal(req)
+	request.Messages = []openAIMessage{{Role: "system", Content: chatReq.SystemPrompt}}
+	for _, m := range chatReq.Messages {
+		request.Messages = append(request.Messages, openAIMessage{Role: m.Role, Content: m.Content})
+	}
+	if len(chatReq.Tools) == 0 {
+		return request, toolMap
+	}
+
+	request.ToolChoice = "auto"
+	request.Tools = make([]openAITool, 0, len(chatReq.Tools))
+	usedNames := map[string]int{}
+	for _, tool := range chatReq.Tools {
+		name := sanitizeOpenAIToolName(tool.Name)
+		if count := usedNames[name]; count > 0 {
+			name = fmt.Sprintf("%s_%d", name, count+1)
+		}
+		usedNames[sanitizeOpenAIToolName(tool.Name)]++
+		toolMap[name] = tool
+		request.Tools = append(request.Tools, openAITool{
+			Type: "function",
+			Function: openAIToolFunction{
+				Name:        name,
+				Description: strings.TrimSpace(tool.Description),
+				Parameters:  tool.Parameters,
+			},
+		})
+	}
+	return request, toolMap
+}
+
+func normalizeOpenAIToolCalls(message openAIMessage, toolMap map[string]engine.LLMToolDefinition) (string, bool, error) {
+	if len(message.ToolCalls) == 0 {
+		return "", false, nil
+	}
+
+	result := map[string]any{}
+	if strings.TrimSpace(message.Content) != "" {
+		result["reply"] = strings.TrimSpace(message.Content)
+	}
+
+	var actionCalls []map[string]any
+	var dataRequest map[string]any
+
+	for _, call := range message.ToolCalls {
+		if call.Type != "" && call.Type != "function" {
+			continue
+		}
+		tool, ok := toolMap[strings.TrimSpace(call.Function.Name)]
+		if !ok {
+			return "", false, fmt.Errorf("unknown tool call returned by provider: %s", call.Function.Name)
+		}
+		args := map[string]any{}
+		if strings.TrimSpace(call.Function.Arguments) != "" {
+			if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
+				return "", false, fmt.Errorf("decode tool arguments for %s: %w", call.Function.Name, err)
+			}
+		}
+		switch tool.Invocation {
+		case engine.LLMToolInvocationDataRequest:
+			if tool.DataRequest == nil {
+				return "", false, fmt.Errorf("tool %s missing data request template", tool.Name)
+			}
+			merged := map[string]any{}
+			if strings.TrimSpace(tool.DataRequest.Label) != "" {
+				merged["label"] = tool.DataRequest.Label
+			}
+			if strings.TrimSpace(tool.DataRequest.Target) != "" {
+				merged["target"] = tool.DataRequest.Target
+			}
+			if strings.TrimSpace(tool.DataRequest.ExternalInterface) != "" {
+				merged["external_interface"] = tool.DataRequest.ExternalInterface
+			}
+			if strings.TrimSpace(tool.DataRequest.DeliveryMode) != "" {
+				merged["delivery_mode"] = tool.DataRequest.DeliveryMode
+			}
+			if strings.TrimSpace(tool.DataRequest.PrimaryTransport) != "" {
+				merged["primary_transport"] = tool.DataRequest.PrimaryTransport
+			}
+			if strings.TrimSpace(tool.DataRequest.Consumer) != "" {
+				merged["consumer"] = tool.DataRequest.Consumer
+			}
+			if tool.DataRequest.TimeoutMs > 0 {
+				merged["timeout_ms"] = tool.DataRequest.TimeoutMs
+			}
+			for key, value := range args {
+				merged[key] = value
+			}
+			dataRequest = merged
+		case engine.LLMToolInvocationAction:
+			actionID := strings.TrimSpace(tool.ActionID)
+			if actionID == "" {
+				actionID = strings.TrimSpace(tool.Name)
+			}
+			actionCalls = append(actionCalls, map[string]any{"action_id": actionID, "args": args})
+		default:
+			return "", false, fmt.Errorf("unsupported tool invocation kind for %s", tool.Name)
+		}
+	}
+
+	if len(actionCalls) > 0 {
+		result["action_calls"] = actionCalls
+	}
+	if dataRequest != nil {
+		result["request_data"] = dataRequest
+	}
+	if _, ok := result["reply"]; !ok {
+		result["reply"] = ""
+	}
+	if _, ok := result["action_calls"]; !ok {
+		result["action_calls"] = []any{}
+	}
+	if _, ok := result["memory_updates"]; !ok {
+		result["memory_updates"] = []any{}
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		return "", false, fmt.Errorf("marshal normalized tool call payload: %w", err)
+	}
+	return string(data), true, nil
+}
+
+// Chat 调用远端聊天补全接口并返回统一的 LLM 结果。
+func (p *openAIProvider) Chat(chatReq *engine.LLMChatRequest) (*engine.LLMResult, error) {
+	request, toolMap := buildOpenAIRequest(p.model, chatReq)
+
+	body, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("marshal: %w", err)
 	}
@@ -103,7 +267,7 @@ func (p *openAIProvider) Chat(systemPrompt string, messages []engine.ChatMessage
 		return nil, fmt.Errorf("read: %w", err)
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("llm api error %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -115,8 +279,15 @@ func (p *openAIProvider) Chat(systemPrompt string, messages []engine.ChatMessage
 		return nil, fmt.Errorf("no choices")
 	}
 
+	content := result.Choices[0].Message.Content
+	if normalized, ok, err := normalizeOpenAIToolCalls(result.Choices[0].Message, toolMap); err != nil {
+		return nil, err
+	} else if ok {
+		content = normalized
+	}
+
 	return &engine.LLMResult{
-		Content: result.Choices[0].Message.Content,
+		Content: content,
 		Model:   p.model,
 		Tokens:  result.Usage.TotalTokens,
 	}, nil
