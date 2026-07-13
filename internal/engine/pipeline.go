@@ -1017,6 +1017,18 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 		if parsed.RawRequestData != "" {
 			var dr DataRequest
 			if err := json.Unmarshal([]byte(parsed.RawRequestData), &dr); err == nil && len(dr.Queries) > 0 {
+				if err := normalizeDynamicDataRequest(req, &dr); err != nil {
+					p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+						Category:   "pipeline_round",
+						EventName:  "data_request_blocked",
+						LogLevel:   "warn",
+						Message:    err.Error(),
+						Round:      round + 1,
+						DetailData: marshalLogDetail(map[string]any{"request": dr, "error": err.Error()}),
+					})
+					appendRoundStateTreeEntry(state, round+1, parsed, "[dynamic interface blocked] "+err.Error())
+					continue
+				}
 				p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 					Category:   "pipeline_round",
 					EventName:  "data_request_emitted",
