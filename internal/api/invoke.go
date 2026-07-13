@@ -248,6 +248,12 @@ func MakeInvokeHandler(p *engine.Pipeline) http.HandlerFunc {
 			errorJSONCode(w, http.StatusBadRequest, "invalid_pipeline_mode", "context.pipeline_mode must be one of: vertical, polling, full")
 			return
 		}
+		if req.Context != nil {
+			if err := engine.ValidateDynamicInterfaces(req.Context.DynamicInterfaces); err != nil {
+				errorJSONCode(w, http.StatusBadRequest, "invalid_dynamic_interfaces", err.Error())
+				return
+			}
+		}
 		resp, err := p.Execute(&req)
 		if err != nil {
 			errorJSON(w, 500, err.Error())

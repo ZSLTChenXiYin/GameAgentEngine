@@ -1,8 +1,10 @@
 package engine
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -143,6 +145,13 @@ const (
 	AutonomousTriggerManual        = "manual"
 	AutonomousTriggerWorldTickSync = "world_tick_sync"
 	AutonomousTriggerScheduled     = "scheduled"
+)
+
+type DynamicInterfaceKind string
+
+const (
+	DynamicInterfaceDataRequest DynamicInterfaceKind = "data_request"
+	DynamicInterfaceAction      DynamicInterfaceKind = "action"
 )
 
 // AgentCapability 描述某个自主节点被显式授权调用的能力。
@@ -286,14 +295,29 @@ type ChatMessage struct {
 }
 
 // InvokeContext 表示调用方希望追加的上下文约束。
+// DynamicInterface describes one request-scoped external capability exposed to the model.
+// It only carries this invocation's business contract. Delivery, routing, retry, and
+// callback governance remain owned by external_interfaces config.
+type DynamicInterface struct {
+	ID                string               `json:"id"`
+	Kind              DynamicInterfaceKind `json:"kind"`
+	ExternalInterface string               `json:"external_interface"`
+	Description       string               `json:"description,omitempty"`
+	QueryTypes        []string             `json:"query_types,omitempty"`
+	ArgsSchema        map[string]any       `json:"args_schema,omitempty"`
+	MaxQueries        int                  `json:"max_queries,omitempty"`
+	MaxCalls          int                  `json:"max_calls,omitempty"`
+}
+
 type InvokeContext struct {
 	// IncludeRelatedNodes 是受控的关系补充开关，不是“把所有关系边另一端节点全部展开”的许可。
 	// 后续实现应允许它按任务/关系类型/方向/hop 数受限扩图，避免关系噪音淹没主上下文。
-	IncludeRelatedNodes bool         `json:"include_related_nodes,omitempty"`
-	MemoryLimit         int          `json:"memory_limit,omitempty"`
-	MaxDepth            int          `json:"max_depth,omitempty"`
-	MaxAnalysisRounds   int          `json:"max_analysis_rounds,omitempty"`
-	PipelineMode        PipelineMode `json:"pipeline_mode,omitempty"`
+	IncludeRelatedNodes bool               `json:"include_related_nodes,omitempty"`
+	MemoryLimit         int                `json:"memory_limit,omitempty"`
+	MaxDepth            int                `json:"max_depth,omitempty"`
+	MaxAnalysisRounds   int                `json:"max_analysis_rounds,omitempty"`
+	PipelineMode        PipelineMode       `json:"pipeline_mode,omitempty"`
+	DynamicInterfaces   []DynamicInterface `json:"dynamic_interfaces,omitempty"`
 }
 
 // InvokeResponse 是统一的推理响应结构。
@@ -473,6 +497,7 @@ type SubTaskDeclaration struct {
 }
 
 var customComponentTypePattern = regexp.MustCompile(`^[a-z][a-z0-9_:-]{1,63}$`)
+var dynamicInterfaceIDPattern = regexp.MustCompile(`^[a-z][a-z0-9_:-]{1,63}$`)
 
 func IsValidNodeType(nodeType string) bool {
 	return slices.Contains(ValidNodeTypes(), NodeType(nodeType))
@@ -491,4 +516,77 @@ func IsValidComponentType(componentType string) bool {
 		return true
 	}
 	return customComponentTypePattern.MatchString(componentType)
+}
+
+func IsValidDynamicInterfaceKind(kind string) bool {
+	switch DynamicInterfaceKind(kind) {
+	case DynamicInterfaceDataRequest, DynamicInterfaceAction:
+		return true
+	default:
+		return false
+	}
+}
+
+func ValidateDynamicInterfaces(items []DynamicInterface) error {
+	seenIDs := make(map[string]struct{}, len(items))
+	for i, item := range items {
+		id := strings.TrimSpace(item.ID)
+		if id == "" {
+			return fmt.Errorf("dynamic_interfaces[%d].id required", i)
+		}
+		if !dynamicInterfaceIDPattern.MatchString(id) {
+			return fmt.Errorf("dynamic_interfaces[%d].id must match %s", i, dynamicInterfaceIDPattern.String())
+		}
+		if _, exists := seenIDs[id]; exists {
+			return fmt.Errorf("dynamic_interfaces[%d].id duplicated: %s", i, id)
+		}
+		seenIDs[id] = struct{}{}
+
+		kind := strings.TrimSpace(string(item.Kind))
+		if !IsValidDynamicInterfaceKind(kind) {
+			return fmt.Errorf("dynamic_interfaces[%d].kind must be one of: data_request, action", i)
+		}
+		if strings.TrimSpace(item.ExternalInterface) == "" {
+			return fmt.Errorf("dynamic_interfaces[%d].external_interface required", i)
+		}
+		if item.MaxQueries < 0 {
+			return fmt.Errorf("dynamic_interfaces[%d].max_queries must be >= 0", i)
+		}
+		if item.MaxCalls < 0 {
+			return fmt.Errorf("dynamic_interfaces[%d].max_calls must be >= 0", i)
+		}
+
+		switch item.Kind {
+		case DynamicInterfaceDataRequest:
+			if len(item.QueryTypes) == 0 {
+				return fmt.Errorf("dynamic_interfaces[%d].query_types required for data_request", i)
+			}
+			if item.MaxCalls > 0 {
+				return fmt.Errorf("dynamic_interfaces[%d].max_calls only applies to action interfaces", i)
+			}
+			if len(item.ArgsSchema) > 0 {
+				return fmt.Errorf("dynamic_interfaces[%d].args_schema only applies to action interfaces", i)
+			}
+		case DynamicInterfaceAction:
+			if item.MaxQueries > 0 {
+				return fmt.Errorf("dynamic_interfaces[%d].max_queries only applies to data_request interfaces", i)
+			}
+			if len(item.QueryTypes) > 0 {
+				return fmt.Errorf("dynamic_interfaces[%d].query_types only applies to data_request interfaces", i)
+			}
+		}
+
+		seenQueryTypes := make(map[string]struct{}, len(item.QueryTypes))
+		for j, queryType := range item.QueryTypes {
+			trimmed := strings.TrimSpace(queryType)
+			if trimmed == "" {
+				return fmt.Errorf("dynamic_interfaces[%d].query_types[%d] required", i, j)
+			}
+			if _, exists := seenQueryTypes[trimmed]; exists {
+				return fmt.Errorf("dynamic_interfaces[%d].query_types[%d] duplicated: %s", i, j, trimmed)
+			}
+			seenQueryTypes[trimmed] = struct{}{}
+		}
+	}
+	return nil
 }

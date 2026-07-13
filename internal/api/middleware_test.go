@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/config"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
 
@@ -159,5 +160,65 @@ func TestInvokeHandlerRejectsInvalidPipelineMode(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "invalid_pipeline_mode") {
 		t.Fatalf("expected invalid_pipeline_mode response, got %s", w.Body.String())
+	}
+}
+
+func TestInvokeHandlerRejectsInvalidDynamicInterfaces(t *testing.T) {
+	initMiddlewareTestDB(t)
+	h := MakeInvokeHandler(nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/invoke", strings.NewReader(`{
+		"world_id":"w1",
+		"node_id":"n1",
+		"task_type":"custom",
+		"context":{
+			"dynamic_interfaces":[
+				{"id":"bad","kind":"data_request","external_interface":"game_client_request_data"}
+			]
+		}
+	}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "invalid_dynamic_interfaces") {
+		t.Fatalf("expected invalid_dynamic_interfaces response, got %s", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "query_types required") {
+		t.Fatalf("expected query_types validation error, got %s", w.Body.String())
+	}
+}
+
+func TestInvokeHandlerAcceptsValidDynamicInterfaces(t *testing.T) {
+	initMiddlewareTestDB(t)
+	world := &store.NodeModel{UUID: "w1", Name: "World", NodeType: "world", WorldUUID: "w1"}
+	if err := store.CreateNode(world); err != nil {
+		t.Fatalf("create world: %v", err)
+	}
+	node := &store.NodeModel{UUID: "n1", Name: "NPC", NodeType: "npc", WorldUUID: "w1", ParentUUID: &world.UUID}
+	if err := store.CreateNode(node); err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	h := MakeInvokeHandler(engine.NewPipeline(&singleResponseProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/invoke", strings.NewReader(`{
+		"world_id":"w1",
+		"node_id":"n1",
+		"task_type":"custom",
+		"context":{
+			"dynamic_interfaces":[
+				{"id":"scene_facts","kind":"data_request","external_interface":"game_client_request_data","query_types":["scene_state"]},
+				{"id":"merchant_ops","kind":"action","external_interface":"npc_trade_action","max_calls":1}
+			]
+		}
+	}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected handler to pass validation and complete invoke, got %d body=%s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "invalid_dynamic_interfaces") {
+		t.Fatalf("did not expect invalid_dynamic_interfaces response, got %s", w.Body.String())
 	}
 }

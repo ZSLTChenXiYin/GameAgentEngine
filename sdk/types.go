@@ -77,6 +77,26 @@ type ChatMessage struct {
 	Content string `json:"content"`
 }
 
+type DynamicInterfaceKind = string
+
+const (
+	DynamicInterfaceDataRequest DynamicInterfaceKind = "data_request"
+	DynamicInterfaceAction      DynamicInterfaceKind = "action"
+)
+
+// DynamicInterface describes one request-scoped external capability exposed to the model.
+// Delivery, routing, retry, and callback governance still come from server config.
+type DynamicInterface struct {
+	ID                string         `json:"id"`
+	Kind              string         `json:"kind"`
+	ExternalInterface string         `json:"external_interface"`
+	Description       string         `json:"description,omitempty"`
+	QueryTypes        []string       `json:"query_types,omitempty"`
+	ArgsSchema        map[string]any `json:"args_schema,omitempty"`
+	MaxQueries        int            `json:"max_queries,omitempty"`
+	MaxCalls          int            `json:"max_calls,omitempty"`
+}
+
 // InvokeContext 表示调用方希望追加的上下文约束，可在请求层面覆盖服务端配置。
 type InvokeContext struct {
 	MaxAnalysisRounds   int    `json:"max_analysis_rounds,omitempty"`   // LLM 内部轮询最大次数（0 表示使用服务端配置）
