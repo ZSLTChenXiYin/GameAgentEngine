@@ -36,6 +36,7 @@ type captureProvider struct {
 	response   string
 	lastPrompt string
 	lastMsgs   []ChatMessage
+	lastTools  []LLMToolDefinition
 }
 
 type sequenceProvider struct {
@@ -71,6 +72,7 @@ func (c *captureProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
 	if req != nil {
 		c.lastPrompt = req.SystemPrompt
 		c.lastMsgs = req.Messages
+		c.lastTools = req.Tools
 	}
 	return &LLMResult{Content: c.response, Model: "capture", Tokens: 11}, nil
 }
@@ -529,6 +531,58 @@ func TestExecuteAutonomousActInjectsDynamicInterfacePromptBlock(t *testing.T) {
 		if !strings.Contains(provider.lastPrompt, want) {
 			t.Fatalf("expected prompt to contain %q, got %s", want, provider.lastPrompt)
 		}
+	}
+}
+
+func TestExecuteDialogueBuildsStructuredToolsFromDynamicInterfaces(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskNPCDialogue,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{
+			{
+				ID:                "scene_facts",
+				Kind:              DynamicInterfaceDataRequest,
+				ExternalInterface: "game_client_request_data",
+				Description:       "Query visible scene state",
+				QueryTypes:        []string{"node_detail", "visible_entities"},
+				MaxQueries:        2,
+			},
+			{
+				ID:                "merchant_ops",
+				Kind:              DynamicInterfaceAction,
+				ExternalInterface: "npc_trade_action",
+				Description:       "Perform trade-related external actions",
+				ArgsSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"intent": map[string]any{"type": "string"},
+					},
+				},
+				MaxCalls: 1,
+			},
+		}},
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(provider.lastTools) != 2 {
+		t.Fatalf("expected 2 structured tools, got %+v", provider.lastTools)
+	}
+	if provider.lastTools[0].Invocation != LLMToolInvocationDataRequest || provider.lastTools[0].DataRequest == nil {
+		t.Fatalf("expected first tool to be data_request, got %+v", provider.lastTools[0])
+	}
+	if provider.lastTools[0].DataRequest.ExternalInterface != "game_client_request_data" {
+		t.Fatalf("expected normalized external interface, got %+v", provider.lastTools[0].DataRequest)
+	}
+	if provider.lastTools[1].Invocation != LLMToolInvocationAction || provider.lastTools[1].ActionID != "merchant_ops" {
+		t.Fatalf("expected second tool to be action tool, got %+v", provider.lastTools[1])
+	}
+	if provider.lastTools[1].Parameters["type"] != "object" {
+		t.Fatalf("expected action args schema to survive, got %+v", provider.lastTools[1].Parameters)
 	}
 }
 

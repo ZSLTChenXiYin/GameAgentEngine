@@ -7,6 +7,72 @@ import (
 	"strings"
 )
 
+func buildDynamicInterfaceTools(dynamicInterfaces []DynamicInterface) []LLMToolDefinition {
+	if len(dynamicInterfaces) == 0 {
+		return nil
+	}
+	var tools []LLMToolDefinition
+	for _, item := range dynamicInterfaces {
+		if strings.TrimSpace(item.ID) == "" {
+			continue
+		}
+		desc := strings.TrimSpace(item.Description)
+		switch item.Kind {
+		case DynamicInterfaceDataRequest:
+			queryItems := make([]any, 0, len(item.QueryTypes))
+			for _, queryType := range item.QueryTypes {
+				queryItems = append(queryItems, map[string]any{"type": "string", "const": queryType})
+			}
+			tool := LLMToolDefinition{
+				Name:        item.ID,
+				Description: firstNonEmpty(desc, "Request game-client data for this turn"),
+				Invocation:  LLMToolInvocationDataRequest,
+				DataRequest: &LLMDataRequestTemplate{Target: "game_client", Label: item.ID, ExternalInterface: item.ExternalInterface},
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"queries": map[string]any{
+							"type": "array",
+							"items": map[string]any{
+								"type": "object",
+								"properties": map[string]any{
+									"type":    map[string]any{"oneOf": queryItems},
+									"node_id": map[string]any{"type": "string"},
+									"filter":  map[string]any{"type": "string"},
+									"limit":   map[string]any{"type": "integer"},
+								},
+								"required": []string{"type"},
+							},
+							"minItems": 1,
+						},
+					},
+					"required": []string{"queries"},
+				},
+			}
+			if item.MaxQueries > 0 {
+				tool.Parameters["properties"].(map[string]any)["queries"].(map[string]any)["maxItems"] = item.MaxQueries
+			}
+			tools = append(tools, tool)
+		case DynamicInterfaceAction:
+			tool := LLMToolDefinition{
+				Name:        item.ID,
+				Description: firstNonEmpty(desc, "Invoke an external action for this turn"),
+				Invocation:  LLMToolInvocationAction,
+				ActionID:    item.ID,
+				Parameters: map[string]any{
+					"type":                 "object",
+					"additionalProperties": true,
+				},
+			}
+			if len(item.ArgsSchema) > 0 {
+				tool.Parameters = item.ArgsSchema
+			}
+			tools = append(tools, tool)
+		}
+	}
+	return tools
+}
+
 func buildDynamicInterfacePromptBlock(dynamicInterfaces []DynamicInterface) string {
 	if len(dynamicInterfaces) == 0 {
 		return ""

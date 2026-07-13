@@ -532,6 +532,10 @@ func requestDynamicInterfaces(req *InvokeRequest) []DynamicInterface {
 	return req.Context.DynamicInterfaces
 }
 
+func requestDynamicTools(req *InvokeRequest) []LLMToolDefinition {
+	return buildDynamicInterfaceTools(requestDynamicInterfaces(req))
+}
+
 func appendRoundStateTreeEntry(state *RoundState, round int, parsed *llmParsedOutput, resolvedData string) {
 	if state == nil {
 		return
@@ -971,7 +975,7 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 		})
 
 		llmStart := time.Now()
-		llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: state.SystemPrompt, Messages: state.Messages})
+		llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: state.SystemPrompt, Messages: state.Messages, Tools: requestDynamicTools(req)})
 		if err != nil {
 			p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 				Category:   "pipeline_round",
@@ -1335,7 +1339,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 		systemPrompt = ctxDesc
 	}
 
-	llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: systemPrompt, Messages: sanitizeRoles(req.Messages)})
+	llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: systemPrompt, Messages: sanitizeRoles(req.Messages), Tools: requestDynamicTools(req)})
 	if err != nil {
 		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 			Category:   "pipeline_round",
