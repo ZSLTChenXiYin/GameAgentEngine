@@ -34,6 +34,44 @@ Common SDK constants:
 
 `InvokeContext.IncludeRelatedNodes` only enables bounded related-node supplements. It is not permission to expand every adjacent node into prompt context.
 
+Use `InvokeContext.DynamicInterfaces` for request-scoped external capabilities. A good rule is:
+
+- keep stable, global interfaces in engine config
+- pass temporary or NPC-turn-specific interfaces through `dynamic_interfaces`
+- prefer structured interface fields over hand-writing function specs into prompt text
+
+### Invoking with Dynamic Interfaces
+
+```go
+resp, err := client.Invoke(&sdk.InvokeRequest{
+    WorldID:  worldID,
+    NodeID:   nodeID,
+    TaskType: "npc_dialogue",
+    Messages: []sdk.ChatMessage{{Role: "user", Content: "What do you see?"}},
+    Context: &sdk.InvokeContext{
+        PipelineMode:      sdk.PipelineModePolling,
+        MaxAnalysisRounds: 4,
+        DynamicInterfaces: []sdk.DynamicInterface{
+            {
+                ID:                "scene_facts",
+                Kind:              sdk.DynamicInterfaceDataRequest,
+                ExternalInterface: "game_client_request_data",
+                Description:       "Query the current visible scene state",
+                QueryTypes:        []string{"node_detail", "visible_entities"},
+                MaxQueries:        2,
+            },
+            {
+                ID:                "merchant_ops",
+                Kind:              sdk.DynamicInterfaceAction,
+                ExternalInterface: "npc_trade_action",
+                Description:       "Perform trade-related external actions",
+                MaxCalls:          1,
+            },
+        },
+    },
+})
+```
+
 ### Health and Version
 
 ```go

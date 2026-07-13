@@ -40,10 +40,33 @@ Typical request body:
   ],
   "context": {
     "pipeline_mode": "polling",
-    "max_analysis_rounds": 4
+    "max_analysis_rounds": 4,
+    "dynamic_interfaces": [
+      {
+        "id": "scene_facts",
+        "kind": "data_request",
+        "external_interface": "game_client_request_data",
+        "description": "Query the current visible scene state",
+        "query_types": ["node_detail", "visible_entities"],
+        "max_queries": 2
+      },
+      {
+        "id": "merchant_ops",
+        "kind": "action",
+        "external_interface": "npc_trade_action",
+        "description": "Perform trade-related external actions",
+        "max_calls": 1
+      }
+    ]
   }
 }
 ```
+
+Notes:
+
+- `context.dynamic_interfaces` is request-scoped and should be used for capabilities that are only valid for this specific turn or conversation.
+- Keep stable transport, delivery, retry, and callback policy in server config through formal `external_interface` definitions.
+- Prefer providing callable interface definitions through structured request fields instead of embedding raw function specs into the prompt.
 
 ### `POST /api/v1/actions/callback`
 

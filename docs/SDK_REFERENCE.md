@@ -34,6 +34,44 @@ SDK 应与 Engine 保持同一套语义边界：
 
 `InvokeContext.IncludeRelatedNodes` 只是“受控关系补充”开关，不是“把所有邻接节点全部展开”的开关。
 
+`InvokeContext.DynamicInterfaces` 用于传递请求级的动态外部能力。一个实用原则是：
+
+- 稳定、全局存在的接口继续放在 Engine 配置里
+- 只在当前回合或当前 NPC 对话中临时开放的接口，通过 `dynamic_interfaces` 传入
+- 给模型提供可调用接口时，优先使用结构化字段，不要把函数定义整段手写进提示词
+
+### 携带动态接口发起 Invoke
+
+```go
+resp, err := client.Invoke(&sdk.InvokeRequest{
+    WorldID:  worldID,
+    NodeID:   nodeID,
+    TaskType: "npc_dialogue",
+    Messages: []sdk.ChatMessage{{Role: "user", Content: "你现在看到了什么？"}},
+    Context: &sdk.InvokeContext{
+        PipelineMode:      sdk.PipelineModePolling,
+        MaxAnalysisRounds: 4,
+        DynamicInterfaces: []sdk.DynamicInterface{
+            {
+                ID:                "scene_facts",
+                Kind:              sdk.DynamicInterfaceDataRequest,
+                ExternalInterface: "game_client_request_data",
+                Description:       "查询当前玩家可见的场景状态",
+                QueryTypes:        []string{"node_detail", "visible_entities"},
+                MaxQueries:        2,
+            },
+            {
+                ID:                "merchant_ops",
+                Kind:              sdk.DynamicInterfaceAction,
+                ExternalInterface: "npc_trade_action",
+                Description:       "执行与交易相关的外部动作",
+                MaxCalls:          1,
+            },
+        },
+    },
+})
+```
+
 ### 健康检查与版本
 
 ```go
