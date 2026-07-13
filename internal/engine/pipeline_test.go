@@ -472,6 +472,64 @@ func TestExecuteDialogueWithoutLocatedAtDoesNotInjectEnvironmentChain(t *testing
 	}
 }
 
+func TestExecuteDialogueInjectsDynamicInterfacePromptBlock(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskNPCDialogue,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "scene_facts",
+			Kind:              DynamicInterfaceDataRequest,
+			ExternalInterface: "game_client_request_data",
+			Description:       "Query visible scene state",
+			QueryTypes:        []string{"scene_state", "visible_entities"},
+			MaxQueries:        2,
+		}}},
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	for _, want := range []string{"Dynamic Interfaces", "scene_facts: Query visible scene state", "query_types: scene_state, visible_entities", "max_queries: 2"} {
+		if !strings.Contains(provider.lastPrompt, want) {
+			t.Fatalf("expected prompt to contain %q, got %s", want, provider.lastPrompt)
+		}
+	}
+}
+
+func TestExecuteAutonomousActInjectsDynamicInterfacePromptBlock(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: nodeInt, NodeUUID: nodeID, ComponentType: string(CompAutonomous), Data: `{"enabled":true,"trigger":"manual","capabilities":[{"id":"send_dialogue"}]}`}); err != nil {
+		t.Fatalf("create autonomous component: %v", err)
+	}
+
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskAutonomousAct,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "merchant_ops",
+			Kind:              DynamicInterfaceAction,
+			ExternalInterface: "npc_trade_action",
+			Description:       "Perform trade-related external actions",
+			MaxCalls:          1,
+		}}},
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	for _, want := range []string{"Dynamic Interfaces", "Action interfaces:", "merchant_ops: Perform trade-related external actions", "max_calls: 1"} {
+		if !strings.Contains(provider.lastPrompt, want) {
+			t.Fatalf("expected prompt to contain %q, got %s", want, provider.lastPrompt)
+		}
+	}
+}
+
 func TestHandleDataRequestFiltersNodeRelationsByRelationType(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)

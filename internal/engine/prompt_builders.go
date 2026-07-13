@@ -7,6 +7,71 @@ import (
 	"strings"
 )
 
+func buildDynamicInterfacePromptBlock(dynamicInterfaces []DynamicInterface) string {
+	if len(dynamicInterfaces) == 0 {
+		return ""
+	}
+
+	var dataLines []string
+	var actionLines []string
+	for _, item := range dynamicInterfaces {
+		if strings.TrimSpace(item.ID) == "" {
+			continue
+		}
+		desc := strings.TrimSpace(item.Description)
+		suffix := ""
+		if desc != "" {
+			suffix = ": " + desc
+		}
+		switch item.Kind {
+		case DynamicInterfaceDataRequest:
+			line := fmt.Sprintf("- %s%s", item.ID, suffix)
+			if len(item.QueryTypes) > 0 {
+				line += fmt.Sprintf(" (query_types: %s)", strings.Join(item.QueryTypes, ", "))
+			}
+			if item.MaxQueries > 0 {
+				line += fmt.Sprintf(" (max_queries: %d)", item.MaxQueries)
+			}
+			dataLines = append(dataLines, line)
+		case DynamicInterfaceAction:
+			line := fmt.Sprintf("- %s%s", item.ID, suffix)
+			if item.MaxCalls > 0 {
+				line += fmt.Sprintf(" (max_calls: %d)", item.MaxCalls)
+			}
+			actionLines = append(actionLines, line)
+		}
+	}
+
+	if len(dataLines) == 0 && len(actionLines) == 0 {
+		return ""
+	}
+
+	sb := &strings.Builder{}
+	sb.WriteString("\n\n========== Dynamic Interfaces ==========")
+	sb.WriteString("\nOnly use interfaces listed in this block for the current request.")
+	sb.WriteString("\nPrefer the smallest sufficient query or action. Do not invent interfaces that are not listed.")
+	if len(dataLines) > 0 {
+		sb.WriteString("\n\nData request interfaces:\n")
+		sb.WriteString(strings.Join(dataLines, "\n"))
+	}
+	if len(actionLines) > 0 {
+		sb.WriteString("\n\nAction interfaces:\n")
+		sb.WriteString(strings.Join(actionLines, "\n"))
+	}
+	return sb.String()
+}
+
+func appendDynamicInterfaceContext(systemContext string, dynamicInterfaces []DynamicInterface) string {
+	block := buildDynamicInterfacePromptBlock(dynamicInterfaces)
+	if strings.TrimSpace(block) == "" {
+		return systemContext
+	}
+	if strings.TrimSpace(systemContext) == "" {
+		return strings.TrimSpace(block)
+	}
+	return strings.TrimSpace(systemContext + block)
+}
+
 func buildDialoguePrompt(systemContext string, nodeID string) string {
 	return fmt.Sprintf(`你是一个游戏 Agent 系统中的 NPC 角色扮演引擎。
 重要：如果你需要查询更多数据来进行回复，可以在输出中包含 request_data 字段。例如：需要查询某个节点的记忆或组件时，可以输出 request_data 让引擎自动加载。

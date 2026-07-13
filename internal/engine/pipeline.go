@@ -525,6 +525,13 @@ func buildRoundStateTreeContext(state *RoundState) string {
 	return ""
 }
 
+func requestDynamicInterfaces(req *InvokeRequest) []DynamicInterface {
+	if req == nil || req.Context == nil {
+		return nil
+	}
+	return req.Context.DynamicInterfaces
+}
+
 func appendRoundStateTreeEntry(state *RoundState, round int, parsed *llmParsedOutput, resolvedData string) {
 	if state == nil {
 		return
@@ -848,7 +855,7 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 	switch req.TaskType {
 	case TaskNPCDialogue:
 		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-			return buildDialoguePrompt(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), nodeID)
+			return buildDialoguePrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), nodeID)
 		}
 	case TaskWorldTick:
 		var currentOutline string
@@ -869,7 +876,7 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 		}
 		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 			baseContext := mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext)
-			return buildWorldTickPrompt(baseContext, currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary)
+			return buildWorldTickPrompt(appendDynamicInterfaceContext(baseContext, requestDynamicInterfaces(req)), currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary)
 		}
 		finalizeFn = func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
 			_ = ctx
@@ -885,7 +892,7 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 			eventDesc = fmt.Sprintf("事件类型:%s 范围:%s 描述:%s 严重度:%s", req.Event.EventType, req.Event.ScopeID, req.Event.Description, req.Event.Severity)
 		}
 		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-			return buildEventImpactPrompt(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), eventDesc, nodeID)
+			return buildEventImpactPrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), eventDesc, nodeID)
 		}
 	case TaskAutonomousAct:
 		cfg, _, err := LoadAutonomousConfig(req.NodeID)
@@ -893,7 +900,7 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 			return nil, err
 		}
 		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-			return buildAutonomousPrompt(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), nodeID, cfg)
+			return buildAutonomousPrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), nodeID, cfg)
 		}
 		finalizeFn = func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
 			_ = parsed
@@ -1253,7 +1260,6 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 			GlobalTraceRing.Push(trace)
 		}
 
-
 		appendResponseLog(p, resp, req)
 		return resp, nil
 	}
@@ -1295,18 +1301,18 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 	ctxDesc := fmt.Sprintf("世界: %s, 节点: %s, 任务类型: %s", req.WorldID, req.NodeID, req.TaskType)
 	switch req.TaskType {
 	case TaskNPCDialogue:
-		systemPrompt = buildDialoguePrompt(ctxDesc, req.NodeID)
+		systemPrompt = buildDialoguePrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), req.NodeID)
 	case TaskWorldTick:
-		systemPrompt = buildWorldTickPrompt(ctxDesc, "", nil, nil, buildWorldTickTimeBlock(req.WorldID), "")
+		systemPrompt = buildWorldTickPrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), "", nil, nil, buildWorldTickTimeBlock(req.WorldID), "")
 	case TaskWorldEvent:
 		eventDesc := ""
 		if req.Event != nil {
 			eventDesc = fmt.Sprintf("事件类型:%s 范围:%s 描述:%s 严重度:%s", req.Event.EventType, req.Event.ScopeID, req.Event.Description, req.Event.Severity)
 		}
-		systemPrompt = buildEventImpactPrompt(ctxDesc, eventDesc, req.NodeID)
+		systemPrompt = buildEventImpactPrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), eventDesc, req.NodeID)
 	case TaskAutonomousAct:
 		if cfg, _, err := LoadAutonomousConfig(req.NodeID); err == nil && cfg != nil && cfg.Enabled {
-			systemPrompt = buildAutonomousPrompt(ctxDesc, req.NodeID, cfg)
+			systemPrompt = buildAutonomousPrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), req.NodeID, cfg)
 		} else {
 			resp := &InvokeResponse{RequestID: requestID, TaskType: req.TaskType, Reply: "autonomous component not found or disabled", ExecutionMode: executionMode}
 			resp.Metadata = buildResponseMeta(runtime, p.llmProvider.ModelName(), 0, start, 0)
@@ -1418,7 +1424,7 @@ func (p *Pipeline) executeDialogue(req *InvokeRequest, ctx *BuiltContext, start 
 	}
 
 	dialogueFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-		return buildDialoguePrompt(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), nodeID)
+		return buildDialoguePrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), nodeID)
 	}
 
 	loopRuntime := *runtime
@@ -1448,7 +1454,7 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 
 	tickFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 		baseContext := mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext)
-		return buildWorldTickPrompt(baseContext, currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary)
+		return buildWorldTickPrompt(appendDynamicInterfaceContext(baseContext, requestDynamicInterfaces(req)), currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary)
 	}
 
 	var tree *TaskTree
@@ -1689,7 +1695,7 @@ func (p *Pipeline) executeWorldEvent(req *InvokeRequest, ctx *BuiltContext, star
 	}
 
 	eventFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-		return buildEventImpactPrompt(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), eventDesc, nodeID)
+		return buildEventImpactPrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), eventDesc, nodeID)
 	}
 
 	var tree *TaskTree
@@ -1722,7 +1728,7 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 	}
 
 	autonomousFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-		return buildAutonomousPrompt(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), nodeID, cfg)
+		return buildAutonomousPrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), nodeID, cfg)
 	}
 
 	var tree *TaskTree
