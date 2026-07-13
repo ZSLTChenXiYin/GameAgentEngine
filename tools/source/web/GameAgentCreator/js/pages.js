@@ -24,6 +24,7 @@ function renderCenter() {
   switch (state.page) {
     case 'worlds': renderWorldsPage(center); break;
     case 'snapshots': renderSnapshotsPage(center); break;
+    case 'tasks': renderTasksPage(center); break;
     case 'plans': renderPlansPage(center); break;
     case 'policy': renderPolicyPage(center); break;
     case 'settings': renderSettingsPage(center); break;
@@ -422,21 +423,21 @@ function renderNodeDetail(container) {
   
   // Components — full detail
   const compSection = ce('div', { className: 'detail-card' }, [
-    ce('div', { className: 'card-hd toggle-hd', 'aria-expanded': 'true' }, [function(){var c=nd.components?nd.components.length:0;return ce('span',{},[ttxt('Components'),txt(' ('+c+')')])}(), ce('button', { id: 'btnAddComponentCenter', className: 'sm' }, [ttxt('+')])]),
+    ce('div', { className: 'card-hd toggle-hd', 'aria-expanded': 'true' }, [function(){var c=nd.components?nd.components.length:0;return ce('span',{},[ttxt('Components'),txt(' ('+c+')')])}(), ce('button', { id: 'btnAddComponentCenter', className: 'sm' }, [txt('+')])]),
     ce('div', { className: 'card-bd', id: 'compDetailList' }, []),
   ]);
   detail.appendChild(compSection);
   
   // Memories — full detail
   const memSection = ce('div', { className: 'detail-card' }, [
-    ce('div', { className: 'card-hd toggle-hd', 'aria-expanded': 'true' }, [function(){var c=nd.memories?nd.memories.length:0;return ce('span',{},[ttxt('Memories'),txt(' ('+c+')')])}(), ce('button', { id: 'btnAddMemoryCenter', className: 'sm' }, [ttxt('+')])]),
+    ce('div', { className: 'card-hd toggle-hd', 'aria-expanded': 'true' }, [function(){var c=nd.memories?nd.memories.length:0;return ce('span',{},[ttxt('Memories'),txt(' ('+c+')')])}(), ce('button', { id: 'btnAddMemoryCenter', className: 'sm' }, [txt('+')])]),
     ce('div', { className: 'card-bd', id: 'memDetailList' }, []),
   ]);
   detail.appendChild(memSection);
   
   // Relations — full detail
   const relSection = ce('div', { className: 'detail-card' }, [
-    ce('div', { className: 'card-hd toggle-hd', 'aria-expanded': 'true' }, [function(){var c=nd.relations?nd.relations.length:0;return ce('span',{},[ttxt('Relations'),txt(' ('+c+')')])}(), ce('button', { id: 'btnAddRelationCenter', className: 'sm' }, [ttxt('+')])]),
+    ce('div', { className: 'card-hd toggle-hd', 'aria-expanded': 'true' }, [function(){var c=nd.relations?nd.relations.length:0;return ce('span',{},[ttxt('Relations'),txt(' ('+c+')')])}(), ce('button', { id: 'btnAddRelationCenter', className: 'sm' }, [txt('+')])]),
     ce('div', { className: 'card-bd', id: 'relDetailList' }, [
       ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '8px' } }, [ttxt('Relations do not change the outline hierarchy unless you separately edit Primary Parent.')]),
       nd.relation_validation_issues && nd.relation_validation_issues.length > 0 ? ce('div', { className: 'status-box', style: { marginBottom: '8px', textAlign: 'left' } }, [
@@ -462,8 +463,8 @@ function renderNodeDetail(container) {
         ce('div', { className: 'item-hd' }, [
           ce('span', { className: 'item-tag', style: {background: 'var(--accent-soft)', color: 'var(--accent)'} }, [txt(componentTypeDisplay(c.component_type))]),
           ce('span', { style: {fontSize: '10px', color: 'var(--text-dim)'} }, [txt(' ' + (c.id ? c.id.substring(0,8) : ''))]),
-          ce('button', { className: 'item-edit', dataset: { id: c.id } }, [ttxt('\u270e')]),
-          ce('button', { className: 'item-del', dataset: { id: c.id } }, [ttxt('\u2715')]),
+          ce('button', { className: 'item-edit', dataset: { id: c.id } }, [txt('\u270e')]),
+          ce('button', { className: 'item-del', dataset: { id: c.id } }, [txt('\u2715')]),
         ]),
         ce('div', { className: 'item-body' }, [function(){var d=c.data||'';if(isJSON(d)){var p=tryParseJSON(d);return p?renderObjectKV(p,false):txt(d)}return txt(d)}()]),
       ]);
@@ -481,8 +482,8 @@ function renderNodeDetail(container) {
           ce('span', { className: 'item-tag', style: {background: 'rgba(59,130,246,.12)', color: levelColors[m.level] || '#3b82f6'} }, [txt(m.level || 'long_term')]),
           ce('span', { style: {fontSize: '10px', color: 'var(--text-dim)'} }, [txt(m.tags ? ' ' + m.tags : '')]),
           ce('button', { className: 'item-propagate', dataset: { id: m.id } }, [ttxt('Propagate')]),
-          ce('button', { className: 'item-edit', dataset: { id: m.id } }, [ttxt('\u270e')]),
-          ce('button', { className: 'item-del', dataset: { id: m.id } }, [ttxt('\u2715')]),
+          ce('button', { className: 'item-edit', dataset: { id: m.id } }, [txt('\u270e')]),
+          ce('button', { className: 'item-del', dataset: { id: m.id } }, [txt('\u2715')]),
         ]),
         ce('div', { className: 'item-body' }, [function(){var d=m.content||'';if(isJSON(d)){var p=tryParseJSON(d);return p?renderObjectKV(p,false):txt(d)}return txt(d)}()]),
       ]);
@@ -503,8 +504,8 @@ function renderNodeDetail(container) {
         ce('div', { className: 'item-hd' }, [
           ce('span', { className: 'item-tag', style: {background: 'rgba(16,185,129,.12)', color: 'var(--green)'} }, [txt(r.relation_type)]),
           ce('span', { style: {fontSize: '10px', color: 'var(--text-dim)'} }, [txt(' ' + r.source_id.substring(0,8) + ' -> ' + r.target_id.substring(0,8))]),
-          ce('button', { className: 'item-edit', dataset: { id: r.id } }, [ttxt('\u270e')]),
-          ce('button', { className: 'item-del', dataset: { id: r.id } }, [ttxt('\u2715')]),
+          ce('button', { className: 'item-edit', dataset: { id: r.id } }, [txt('\u270e')]),
+          ce('button', { className: 'item-del', dataset: { id: r.id } }, [txt('\u2715')]),
         ]),
         ce('div', { className: 'item-body' }, [
           ce('div', { className: 'hint', style: { textAlign: 'left', marginBottom: '6px' } }, [txt((srcName || r.source_id) + ' -> ' + (tgtName || r.target_id) + ' | ' + relationTypeDescription(r.relation_type))]),
@@ -910,11 +911,11 @@ function renderSettingsPage(container) {
   settingRow('Pipeline Mode', 'setPipelineMode', 'select_pipeline', s.pipeline_mode || 'full');
   settingRow('Propagation Max Depth', 'setPropMaxDepth', 'number_zero', s.propagation_max_depth != null ? s.propagation_max_depth : 2);
   settingRow('Enable Propagation Machine', 'setEnablePropMachine', 'bool', s.enable_propagation_machine);
-  form.appendChild(ce('div', { className: 'detail-card' }, [ce('div', { className: 'card-hd' }, [ttxt('Sub-Task DAG')])]));
+  form.appendChild(ce('div', { className: 'detail-card' }, [ce('div', { className: 'card-hd no-transform' }, [ttxt('Sub-Task DAG')])]));
   settingRow('Sub-Task Max Retries', 'setSubTaskRetries', 'number_zero', s.sub_task_max_retries != null ? s.sub_task_max_retries : 2);
   settingRow('Sub-Task Timeout (sec)', 'setSubTaskTimeout', 'number_zero', s.sub_task_timeout_secs != null ? s.sub_task_timeout_secs : 60);
   form.appendChild(ce('div', { className: 'detail-card' }, [
-    ce('div', { className: 'card-hd' }, [ttxt('World Time Settings')]),
+    ce('div', { className: 'card-hd no-transform' }, [ttxt('World Time Settings')]),
     ce('div', { className: 'card-bd' }, [
       renderWorldTimeSettingsEditor(wt),
     ]),

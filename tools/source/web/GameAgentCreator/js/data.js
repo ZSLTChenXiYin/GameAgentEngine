@@ -11,6 +11,61 @@ function apiErrorMessage(err) {
   return message;
 }
 
+function normalizeMessagePrefix(prefixKey) {
+  return tr(prefixKey).replace(/[：:\s]+$/, '');
+}
+
+function formatMessageWithDetail(prefixKey, detail) {
+  return normalizeMessagePrefix(prefixKey) + '：' + detail;
+}
+
+function formatApiError(prefixKey, err) {
+  return formatMessageWithDetail(prefixKey, apiErrorMessage(err));
+}
+
+function showApiError(prefixKey, err) {
+  toast(formatApiError(prefixKey, err), 'error');
+}
+
+function quoteValue(value) {
+  return '"' + String(value || '') + '"';
+}
+
+function formatWorldTimeValidationError(code, params) {
+  switch (code) {
+    case 'carry_rule_order':
+      return 'time_scale_carry[' + params.index + '] 必须为 ' + params.expectedFrom + ' -> ' + params.expectedTo + '。';
+    case 'sequence_unit_empty':
+      return 'unit_value_sequences[' + params.index + '].unit 不能为空。';
+    case 'sequence_unit_missing':
+      return 'unit_value_sequences[' + params.index + '].unit ' + quoteValue(params.unit) + ' 必须存在于 tick_units（时间刻单位）中。';
+    case 'sequence_unit_largest':
+      return 'unit_value_sequences[' + params.index + '].unit ' + quoteValue(params.unit) + ' 不能是最大的 Tick Units（时间刻单位）。';
+    case 'sequence_values_empty':
+      return 'unit_value_sequences[' + params.index + '].values 不能为空。';
+    case 'sequence_missing_carry_rule':
+      return 'unit_value_sequences[' + params.index + '].unit ' + quoteValue(params.unit) + ' 需要一条对应的 time_scale_carry 规则。';
+    case 'sequence_values_count':
+      return 'unit_value_sequences[' + params.index + '].values 中针对 ' + quoteValue(params.unit) + ' 的值数量必须严格等于 ' + params.expectedCount + '。';
+    case 'calendar_unit_empty':
+      return 'time_calendar.units[' + params.index + '].unit 不能为空。';
+    case 'calendar_unit_mismatch':
+      return 'time_calendar.units[' + params.index + '].unit 必须是 ' + quoteValue(params.expectedUnit) + '。';
+    case 'calendar_value_empty':
+      return 'time_calendar.units[' + params.index + '].value 不能为空。';
+    case 'calendar_value_range':
+      return 'time_calendar.units[' + params.index + '].value 中针对 ' + quoteValue(params.unit) + ' 的数值必须介于 0 和 ' + params.maxValue + ' 之间。';
+    case 'calendar_unit_requires_sequences':
+      return 'time_calendar.units[' + params.index + '].unit ' + quoteValue(params.unit) + ' 需要对应的 unit_value_sequences（单位值序列）配置。';
+    case 'calendar_value_missing_from_sequences':
+      return 'time_calendar.units[' + params.index + '].value ' + quoteValue(params.value) + ' 必须存在于 ' + quoteValue(params.unit) + ' 的 unit_value_sequences（单位值序列）中。';
+    case 'calendar_smallest_unit_mismatch':
+      return 'time_calendar 中最小单位必须与 tick_min_unit（最小时间刻单位）一致。';
+    default:
+      return tr('Unknown error');
+  }
+}
+
 async function checkHealth() {
   try {
     await api('GET', '/health');
@@ -65,7 +120,7 @@ state.tasks = [];
     renderTree(); renderCurrent();
   } catch(e) {
     state.worlds = [];
-    toast(tr('Failed to load worlds') + ': ' + apiErrorMessage(e), 'error');
+    showApiError('Failed to load worlds', e);
   }
 }
 
@@ -75,7 +130,7 @@ async function selectWorld(worldId) {
   if (worldSelector) worldSelector.value = worldId || '';
   if (worldId) {
     try { state.nodes = await api('GET', '/api/v1/nodes?world_id=' + encodeURIComponent(worldId)); }
-    catch(e) { state.nodes = []; toast(tr('Failed to load nodes') + ': ' + apiErrorMessage(e), 'error'); }
+    catch(e) { state.nodes = []; showApiError('Failed to load nodes', e); }
     try { state.relations = await api('GET', '/api/v1/relations?world_id=' + encodeURIComponent(worldId)); }
     catch(e) { state.relations = []; }
     state.selectedNodeIds = [];
@@ -158,39 +213,39 @@ function validateComponentEditorData(componentType, data) {
     }
   }
   if (mode === 'strong' && componentType === 'world_state') {
-    if (parsed.summary !== undefined && typeof parsed.summary !== 'string') return 'world_state.summary must be a string';
-    if (parsed.key_facts !== undefined && !Array.isArray(parsed.key_facts)) return 'world_state.key_facts must be an array of strings';
-    if (parsed.canonical_facts !== undefined && !Array.isArray(parsed.canonical_facts)) return 'world_state.canonical_facts must be an array of strings';
-    if (parsed.open_questions !== undefined && !Array.isArray(parsed.open_questions)) return 'world_state.open_questions must be an array of strings';
-    if (parsed.active_arcs !== undefined && !Array.isArray(parsed.active_arcs)) return 'world_state.active_arcs must be an array of strings';
-    if (parsed.metadata !== undefined && (!parsed.metadata || Array.isArray(parsed.metadata) || typeof parsed.metadata !== 'object')) return 'world_state.metadata must be an object';
+    if (parsed.summary !== undefined && typeof parsed.summary !== 'string') return tr('world_state.summary must be a string');
+    if (parsed.key_facts !== undefined && !Array.isArray(parsed.key_facts)) return tr('world_state.key_facts must be an array of strings');
+    if (parsed.canonical_facts !== undefined && !Array.isArray(parsed.canonical_facts)) return tr('world_state.canonical_facts must be an array of strings');
+    if (parsed.open_questions !== undefined && !Array.isArray(parsed.open_questions)) return tr('world_state.open_questions must be an array of strings');
+    if (parsed.active_arcs !== undefined && !Array.isArray(parsed.active_arcs)) return tr('world_state.active_arcs must be an array of strings');
+    if (parsed.metadata !== undefined && (!parsed.metadata || Array.isArray(parsed.metadata) || typeof parsed.metadata !== 'object')) return tr('world_state.metadata must be an object');
   }
   if (mode === 'strong' && componentType === 'story_state') {
-    if (parsed.current_situation !== undefined && typeof parsed.current_situation !== 'string') return 'story_state.current_situation must be a string';
-    if (parsed.recent_changes !== undefined && !Array.isArray(parsed.recent_changes)) return 'story_state.recent_changes must be an array of strings';
-    if (parsed.pending_threads !== undefined && !Array.isArray(parsed.pending_threads)) return 'story_state.pending_threads must be an array of strings';
-    if (parsed.tone !== undefined && typeof parsed.tone !== 'string') return 'story_state.tone must be a string';
-    if (parsed.metadata !== undefined && (!parsed.metadata || Array.isArray(parsed.metadata) || typeof parsed.metadata !== 'object')) return 'story_state.metadata must be an object';
+    if (parsed.current_situation !== undefined && typeof parsed.current_situation !== 'string') return tr('story_state.current_situation must be a string');
+    if (parsed.recent_changes !== undefined && !Array.isArray(parsed.recent_changes)) return tr('story_state.recent_changes must be an array of strings');
+    if (parsed.pending_threads !== undefined && !Array.isArray(parsed.pending_threads)) return tr('story_state.pending_threads must be an array of strings');
+    if (parsed.tone !== undefined && typeof parsed.tone !== 'string') return tr('story_state.tone must be a string');
+    if (parsed.metadata !== undefined && (!parsed.metadata || Array.isArray(parsed.metadata) || typeof parsed.metadata !== 'object')) return tr('story_state.metadata must be an object');
   }
   if (mode === 'strong' && componentType === 'story_history') {
     if (parsed.entries !== undefined) {
-      if (!Array.isArray(parsed.entries)) return 'story_history.entries must be an array of objects';
+      if (!Array.isArray(parsed.entries)) return tr('story_history.entries must be an array of objects');
       for (var i = 0; i < parsed.entries.length; i++) {
         var entry = parsed.entries[i];
-        if (!entry || Array.isArray(entry) || typeof entry !== 'object') return 'story_history.entries must be an array of objects';
-        if (entry.tick_number !== undefined && (!Number.isInteger(entry.tick_number) || entry.tick_number < 0)) return 'story_history.entries[].tick_number must be a non-negative integer';
-        if (entry.summary !== undefined && typeof entry.summary !== 'string') return 'story_history.entries[].summary must be a string';
-        if (entry.facts !== undefined && !Array.isArray(entry.facts)) return 'story_history.entries[].facts must be an array of strings';
-        if (entry.game_time !== undefined && typeof entry.game_time !== 'string') return 'story_history.entries[].game_time must be a string';
+        if (!entry || Array.isArray(entry) || typeof entry !== 'object') return tr('story_history.entries must be an array of objects');
+        if (entry.tick_number !== undefined && (!Number.isInteger(entry.tick_number) || entry.tick_number < 0)) return tr('story_history.entries[].tick_number must be a non-negative integer');
+        if (entry.summary !== undefined && typeof entry.summary !== 'string') return tr('story_history.entries[].summary must be a string');
+        if (entry.facts !== undefined && !Array.isArray(entry.facts)) return tr('story_history.entries[].facts must be an array of strings');
+        if (entry.game_time !== undefined && typeof entry.game_time !== 'string') return tr('story_history.entries[].game_time must be a string');
       }
     }
-    if (parsed.metadata !== undefined && (!parsed.metadata || Array.isArray(parsed.metadata) || typeof parsed.metadata !== 'object')) return 'story_history.metadata must be an object';
+    if (parsed.metadata !== undefined && (!parsed.metadata || Array.isArray(parsed.metadata) || typeof parsed.metadata !== 'object')) return tr('story_history.metadata must be an object');
   }
   if (mode === 'strong' && componentType === 'tick_policy') {
-    if (parsed.continuity_rules !== undefined && !Array.isArray(parsed.continuity_rules)) return 'tick_policy.continuity_rules must be an array of strings';
-    if (parsed.focus_scopes !== undefined && !Array.isArray(parsed.focus_scopes)) return 'tick_policy.focus_scopes must be an array of strings';
-    if (parsed.banned_resets !== undefined && !Array.isArray(parsed.banned_resets)) return 'tick_policy.banned_resets must be an array of strings';
-    if (parsed.metadata !== undefined && (!parsed.metadata || Array.isArray(parsed.metadata) || typeof parsed.metadata !== 'object')) return 'tick_policy.metadata must be an object';
+    if (parsed.continuity_rules !== undefined && !Array.isArray(parsed.continuity_rules)) return tr('tick_policy.continuity_rules must be an array of strings');
+    if (parsed.focus_scopes !== undefined && !Array.isArray(parsed.focus_scopes)) return tr('tick_policy.focus_scopes must be an array of strings');
+    if (parsed.banned_resets !== undefined && !Array.isArray(parsed.banned_resets)) return tr('tick_policy.banned_resets must be an array of strings');
+    if (parsed.metadata !== undefined && (!parsed.metadata || Array.isArray(parsed.metadata) || typeof parsed.metadata !== 'object')) return tr('tick_policy.metadata must be an object');
   }
   return '';
 }
@@ -539,7 +594,7 @@ function parseJSONObjectEditorField(value, label) {
   if (!raw) return {};
   var parsed = safeParseJSONText(raw);
   if (parsed.error || !parsed.value || Array.isArray(parsed.value) || typeof parsed.value !== 'object') {
-    throw new Error(tr(label) + ': ' + tr('JSON object required for this component type'));
+    throw new Error(formatMessageWithDetail(label, tr('JSON object required for this component type')));
   }
   return parsed.value;
 }
@@ -549,7 +604,7 @@ function parseJSONEditorField(value, label) {
   if (!raw) return {};
   var parsed = safeParseJSONText(raw);
   if (parsed.error) {
-    throw new Error(tr(label) + ': ' + parsed.error);
+    throw new Error(formatMessageWithDetail(label, parsed.error));
   }
   return parsed.value;
 }
@@ -713,10 +768,10 @@ function getNodeNameById(nodeId) {
 
 function relationTypeDescription(relType) {
   switch (relType) {
-    case 'belongs_to': return '稳定归属或组织成员关系。用于表达某节点属于某组织、阵营、资产体系或拥有者，不表示当前所处位置，也不会自动改变树中的 Primary Parent。';
-    case 'located_at': return '当前环境位置关系。用于表达节点此刻位于哪个地点、房间或场景中，不表示稳定归属，不会自动改变树中的 Primary Parent。';
-    case 'subordinate': return '指挥或汇报链关系。用于表达谁向谁负责、受谁管理，属于组织/控制链，不表示位置，也不会自动改变树中的 Primary Parent。';
-    case 'external_parent': return '辅助 DAG 父链关系。仅用于补充第二条父向语义链，默认不会进入树形大纲、不会进入默认上下文，也不会参与默认传播。';
+    case 'belongs_to': return 'belongs_to（稳定归属）用于表达某节点属于某组织、阵营、资产体系或拥有者，不表示当前所处位置，也不会自动改变树中的 Primary Parent（主父节点）。';
+    case 'located_at': return 'located_at（当前位置关系）用于表达节点此刻位于哪个地点、房间或场景中，不表示稳定归属，也不会自动改变树中的 Primary Parent（主父节点）。';
+    case 'subordinate': return 'subordinate（隶属汇报）用于表达谁向谁负责、受谁管理，属于组织/控制链，不表示位置，也不会自动改变树中的 Primary Parent（主父节点）。';
+    case 'external_parent': return 'external_parent（辅助父级作用域）用于补充第二条父向语义链，属于辅助 DAG（有向无环图）范围；默认不会进入树形大纲、不会进入默认上下文，也不会参与默认传播。';
     case 'ally': return '社会协作关系。用于表达盟友、合作或友方网络，默认不参与节点身份树、环境树和默认上下文扩展。';
     case 'enemy': return '社会对抗关系。用于表达敌对或竞争网络，默认不参与节点身份树、环境树和默认上下文扩展。';
     case 'kinship': return '社会背景关系。用于表达亲属、血缘或家族关系，默认不参与节点身份树、环境树和默认上下文扩展。';
@@ -883,25 +938,25 @@ function collectWorldTimeSettingsFromForm() {
 
 function validateWorldTimeSettingsInput(settings) {
   if (!settings) return '';
-  if (settings.tick_scale_mode !== 'fixed' && settings.tick_scale_mode !== 'flexible') return 'tick_scale_mode must be fixed or flexible';
-  if (!settings.tick_min_unit) return 'tick_min_unit must not be empty';
-  if (!Number.isInteger(settings.tick_step) || settings.tick_step <= 0) return 'tick_step must be greater than 0';
-  if (!Array.isArray(settings.tick_units) || settings.tick_units.length === 0) return 'tick_units must contain at least one unit';
+  if (settings.tick_scale_mode !== 'fixed' && settings.tick_scale_mode !== 'flexible') return tr('tick_scale_mode must be fixed or flexible');
+  if (!settings.tick_min_unit) return tr('tick_min_unit must not be empty');
+  if (!Number.isInteger(settings.tick_step) || settings.tick_step <= 0) return tr('tick_step must be greater than 0');
+  if (!Array.isArray(settings.tick_units) || settings.tick_units.length === 0) return tr('tick_units must contain at least one unit');
   var seen = {};
   var normalizedUnits = [];
   for (var i = 0; i < settings.tick_units.length; i++) {
     var unit = String(settings.tick_units[i] || '').trim();
-    if (!unit) return 'tick_units must not contain empty values';
-    if (seen[unit]) return 'tick_units must not contain duplicate values';
+    if (!unit) return tr('tick_units must not contain empty values');
+    if (seen[unit]) return tr('tick_units must not contain duplicate values');
     seen[unit] = true;
     normalizedUnits.push(unit);
   }
   var tickMinUnit = String(settings.tick_min_unit || '').trim();
-  if (normalizedUnits[normalizedUnits.length - 1] !== tickMinUnit) return 'tick_min_unit must match the smallest configured tick unit';
+  if (normalizedUnits[normalizedUnits.length - 1] !== tickMinUnit) return tr('tick_min_unit must match the smallest configured tick unit');
 
   var carryRules = Array.isArray(settings.time_scale_carry) ? settings.time_scale_carry : [];
   if (normalizedUnits.length > 1 && carryRules.length !== normalizedUnits.length - 1) {
-    return 'time_scale_carry must define exactly one adjacent rule per unit gap';
+    return tr('time_scale_carry must define exactly one adjacent rule per unit gap');
   }
   var carryByFrom = {};
   for (var j = 0; j < carryRules.length; j++) {
@@ -911,10 +966,10 @@ function validateWorldTimeSettingsInput(settings) {
     var expectedFrom = normalizedUnits[normalizedUnits.length - 1 - j];
     var expectedTo = normalizedUnits[normalizedUnits.length - 2 - j];
     if (!rule.from || !rule.to || !Number.isInteger(rule.base) || rule.base <= 0) {
-      return 'time_scale_carry entries must define from, to, and base > 0';
+      return tr('time_scale_carry entries must define from, to, and base > 0');
     }
     if (from !== expectedFrom || to !== expectedTo) {
-      return 'time_scale_carry[' + j + '] must be ' + expectedFrom + ' -> ' + expectedTo;
+      return formatWorldTimeValidationError('carry_rule_order', { index: j, expectedFrom: expectedFrom, expectedTo: expectedTo });
     }
     carryByFrom[from] = rule;
   }
@@ -924,47 +979,47 @@ function validateWorldTimeSettingsInput(settings) {
   for (var k = 0; k < sequences.length; k++) {
     var seq = sequences[k] || {};
     var seqUnit = String(seq.unit || '').trim();
-    if (!seqUnit) return 'unit_value_sequences[' + k + '].unit must not be empty';
-    if (!seen[seqUnit]) return 'unit_value_sequences[' + k + '].unit ' + JSON.stringify(seqUnit) + ' must exist in tick_units';
-    if (seqUnit === normalizedUnits[0]) return 'unit_value_sequences[' + k + '].unit ' + JSON.stringify(seqUnit) + ' cannot be the largest tick unit';
-    if (!Array.isArray(seq.values) || seq.values.length === 0) return 'unit_value_sequences[' + k + '].values must not be empty';
-    if (!carryByFrom[seqUnit]) return 'unit_value_sequences[' + k + '].unit ' + JSON.stringify(seqUnit) + ' requires a matching time_scale_carry rule';
+    if (!seqUnit) return formatWorldTimeValidationError('sequence_unit_empty', { index: k });
+    if (!seen[seqUnit]) return formatWorldTimeValidationError('sequence_unit_missing', { index: k, unit: seqUnit });
+    if (seqUnit === normalizedUnits[0]) return formatWorldTimeValidationError('sequence_unit_largest', { index: k, unit: seqUnit });
+    if (!Array.isArray(seq.values) || seq.values.length === 0) return formatWorldTimeValidationError('sequence_values_empty', { index: k });
+    if (!carryByFrom[seqUnit]) return formatWorldTimeValidationError('sequence_missing_carry_rule', { index: k, unit: seqUnit });
     if (seq.values.length !== carryByFrom[seqUnit].base) {
-      return 'unit_value_sequences[' + k + '].values for ' + JSON.stringify(seqUnit) + ' must contain exactly ' + carryByFrom[seqUnit].base + ' entries';
+      return formatWorldTimeValidationError('sequence_values_count', { index: k, unit: seqUnit, expectedCount: carryByFrom[seqUnit].base });
     }
     sequenceByUnit[seqUnit] = seq.values.map(function(item) { return String(item || '').trim(); });
   }
 
   if (settings.time_calendar && settings.time_calendar.enabled) {
-    if (!settings.time_calendar.calendar_name) return 'time_calendar.calendar_name must not be empty when calendar mode is enabled';
+    if (!settings.time_calendar.calendar_name) return tr('time_calendar.calendar_name must not be empty when calendar mode is enabled');
     if (!Array.isArray(settings.time_calendar.units) || settings.time_calendar.units.length !== settings.tick_units.length) {
-      return 'time_calendar.units must match tick_units exactly when calendar mode is enabled';
+      return tr('time_calendar.units must match tick_units exactly when calendar mode is enabled');
     }
     for (var m = 0; m < settings.time_calendar.units.length; m++) {
       var calendarUnit = settings.time_calendar.units[m] || {};
       var calendarUnitName = String(calendarUnit.unit || '').trim();
       var calendarValue = String(calendarUnit.value || '').trim();
-      if (!calendarUnitName) return 'time_calendar.units[' + m + '].unit must not be empty';
-      if (calendarUnitName !== normalizedUnits[m]) return 'time_calendar.units[' + m + '].unit must be ' + JSON.stringify(normalizedUnits[m]);
-      if (!calendarValue) return 'time_calendar.units[' + m + '].value must not be empty';
+      if (!calendarUnitName) return formatWorldTimeValidationError('calendar_unit_empty', { index: m });
+      if (calendarUnitName !== normalizedUnits[m]) return formatWorldTimeValidationError('calendar_unit_mismatch', { index: m, expectedUnit: normalizedUnits[m] });
+      if (!calendarValue) return formatWorldTimeValidationError('calendar_value_empty', { index: m });
       if (/^-?\d+$/.test(calendarValue)) {
         var numericValue = parseInt(calendarValue, 10);
         if (carryByFrom[calendarUnitName]) {
           if (numericValue < 0 || numericValue >= carryByFrom[calendarUnitName].base) {
-            return 'time_calendar.units[' + m + '].value for ' + JSON.stringify(calendarUnitName) + ' must be between 0 and ' + (carryByFrom[calendarUnitName].base - 1);
+            return formatWorldTimeValidationError('calendar_value_range', { index: m, unit: calendarUnitName, maxValue: carryByFrom[calendarUnitName].base - 1 });
           }
         }
       } else {
         if (!sequenceByUnit[calendarUnitName] || sequenceByUnit[calendarUnitName].length === 0) {
-          return 'time_calendar.units[' + m + '].unit ' + JSON.stringify(calendarUnitName) + ' requires unit_value_sequences';
+          return formatWorldTimeValidationError('calendar_unit_requires_sequences', { index: m, unit: calendarUnitName });
         }
         if (sequenceByUnit[calendarUnitName].indexOf(calendarValue) < 0) {
-          return 'time_calendar.units[' + m + '].value ' + JSON.stringify(calendarValue) + ' must exist in unit_value_sequences for ' + JSON.stringify(calendarUnitName);
+          return formatWorldTimeValidationError('calendar_value_missing_from_sequences', { index: m, value: calendarValue, unit: calendarUnitName });
         }
       }
     }
     if (String(settings.time_calendar.units[settings.time_calendar.units.length - 1].unit || '').trim() !== tickMinUnit) {
-      return 'time_calendar smallest unit must match tick_min_unit';
+      return formatWorldTimeValidationError('calendar_smallest_unit_mismatch');
     }
   }
   return '';
@@ -1087,7 +1142,7 @@ async function selectNode(nodeId, nodeType, options) {
     state.selectedNodeType = nodeType || null;
   }
   try { state.nodeDetail = await api('GET', '/api/v1/nodes/' + encodeURIComponent(nodeId)); }
-  catch(e) { state.nodeDetail = null; toast(tr('Failed to load node details') + ': ' + apiErrorMessage(e), 'error'); }
+  catch(e) { state.nodeDetail = null; showApiError('Failed to load node details', e); }
   loadAutonomous(); renderCurrent(); if (typeof updateActionButtons === 'function') updateActionButtons();
 }
 
@@ -1115,7 +1170,7 @@ async function loadPlans(silent) {
   } catch(e) {
     state.plans = [];
     if (state.page === 'plans') renderCurrent();
-    if (!silent) toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    if (!silent) showApiError('Failed', e);
   }
 }
 
@@ -1128,7 +1183,7 @@ async function approvePlan(worldId, planId) {
     loadPlans();
   } catch(e) {
     hideLoading();
-    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    showApiError('Failed', e);
   }
 }
 
@@ -1141,7 +1196,7 @@ async function rejectPlan(worldId, planId) {
     loadPlans();
   } catch(e) {
     hideLoading();
-    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    showApiError('Failed', e);
   }
 }
 
@@ -1154,7 +1209,7 @@ async function loadLogs() {
   } catch(e) {
     state.logs = [];
     if (state.page === 'logs') renderCurrent();
-    toast(tr('Failed to load logs') + ': ' + apiErrorMessage(e), 'error');
+    showApiError('Failed to load logs', e);
   }
 }
 
@@ -1251,7 +1306,7 @@ async function loadContinuityOverview() {
   } catch (e) {
     state.continuityBundle = null;
     if (state.page === 'continuity') renderCurrent();
-    toast(tr('Failed to load continuity bundle') + ': ' + apiErrorMessage(e), 'error');
+    showApiError('Failed to load continuity bundle', e);
   }
 }
 
@@ -1282,7 +1337,7 @@ async function loadCurrentWorld() {
       state.nodeDetail = null;
       renderCurrent();
     }
-  } catch(e) { toast(tr('Refresh failed') + ': ' + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Refresh failed', e); }
 }
 
 async function loadSnapshots() {
@@ -1318,7 +1373,7 @@ async function refreshSnapshots() {
     toast(tr('Snapshots refreshed'), 'success');
   } catch(e) {
     hideLoading();
-    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    showApiError('Failed', e);
   }
 }
 
@@ -1330,7 +1385,7 @@ async function validateSnapshot(snapshotWorldID) {
     openSnapshotValidationModal(result);
   } catch(e) {
     hideLoading();
-    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    showApiError('Failed', e);
   }
 }
 
@@ -1375,7 +1430,7 @@ async function restoreSnapshot(snapshotWorldID) {
     if (result && result.id) selectWorld(result.id);
   } catch(e) {
     hideLoading();
-    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    showApiError('Failed', e);
   }
 }
 
@@ -1406,7 +1461,7 @@ function deleteSnapshot(snapshotWorldID) {
       renderCurrent();
     } catch(e) {
       hideLoading();
-      toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+      showApiError('Failed', e);
     }
   });
   document.getElementById('modalCancelDeleteSnapshotBtn').addEventListener('click', closeModal);
@@ -1434,7 +1489,7 @@ async function forkWorld() {
     hideLoading(); toast(tr('Working copy created'), 'success');
     await loadWorlds();
     if (result && result.id) selectWorld(result.id);
-  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { hideLoading(); showApiError('Failed', e); }
 }
 
 async function saveSnapshot() {
@@ -1446,7 +1501,7 @@ async function saveSnapshot() {
     hideLoading(); toast(tr('Snapshot saved'), 'success');
     await loadWorlds();
     if (result && result.id) selectWorld(result.id);
-  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { hideLoading(); showApiError('Failed', e); }
 }
 
 async function createWorld() {
@@ -1455,7 +1510,7 @@ async function createWorld() {
   try {
     await api('POST', '/api/v1/nodes', { name: name, node_type: 'world' });
     closeModal(); toast(tr('World created'), 'success'); loadWorlds();
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 function openEditWorldModal() {
@@ -1484,7 +1539,7 @@ async function editWorld() {
     await loadWorlds();
     await selectWorld(state.selectedWorldId);
   } catch(e) {
-    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    showApiError('Failed', e);
   }
 }
 
@@ -1513,7 +1568,7 @@ async function createNode() {
     if (parentId) body.parent_id = parentId;
     await api('POST', '/api/v1/nodes', body);
     closeModal(); toast(tr('Node created'), 'success'); loadCurrentWorld();
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 function openEditNodeModal(nodeId) {
@@ -1540,14 +1595,14 @@ async function editNode(nodeId) {
   try {
     await api('PUT', '/api/v1/nodes/' + encodeURIComponent(nodeId), { name: name, node_type: nodeType });
     closeModal(); toast(tr('Node updated'), 'success'); loadCurrentWorld();
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 async function moveNodeParent(nodeId, newParentId) {
   try {
     await api('PUT', '/api/v1/nodes/' + encodeURIComponent(nodeId), { parent_id: newParentId });
     toast(tr('Primary parent updated'), 'success'); loadCurrentWorld();
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 function openCreateParentNodeModal(nodeId) {
@@ -1583,7 +1638,7 @@ async function createParentNode(nodeId) {
     await loadCurrentWorld();
     if (created && created.id) selectNode(created.id, created.node_type, { mode: 'single' });
   } catch(e) {
-    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    showApiError('Failed', e);
   }
 }
 
@@ -1663,7 +1718,7 @@ async function addOutgoingRelation(nodeId) {
     toast(tr('Relation added'), 'success');
     await selectNode(sourceId, node && node.node_type ? node.node_type : null, { mode: 'single' });
   } catch(e) {
-    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    showApiError('Failed', e);
   }
 }
 
@@ -1692,7 +1747,7 @@ async function copyNode(nodeId) {
     await loadCurrentWorld();
     if (result && result.id) selectNode(result.id, result.node_type);
   } catch(e) {
-    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    showApiError('Failed', e);
   }
 }
 
@@ -1710,7 +1765,7 @@ async function deleteNodeHandler(nodeId) {
       toast(tr('Node deleted'), 'success');
       if (state.selectedNodeId === nodeId) { state.selectedNodeId = null; state.nodeDetail = null; }
       loadCurrentWorld();
-    } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+    } catch(e) { showApiError('Failed', e); }
   });
   document.getElementById('modalCancelDelNodeBtn').addEventListener('click', closeModal);
 }
@@ -1744,7 +1799,7 @@ async function addComponent() {
   try {
     await api('POST', '/api/v1/components', { node_id: state.selectedNodeId, component_type: compType, data: data });
     closeModal(); toast(tr('Component added'), 'success'); selectNode(state.selectedNodeId);
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 function openAddMemoryModal() {
@@ -1772,7 +1827,7 @@ async function addMemory() {
   try {
     await api('POST', '/api/v1/memories', { node_id: state.selectedNodeId, content: content, level: level, tags: tags });
     closeModal(); toast(tr('Memory added'), 'success'); selectNode(state.selectedNodeId);
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 function openAddRelationModal() {
@@ -1843,7 +1898,7 @@ async function addRelation() {
   try {
     await api('POST', '/api/v1/relations', { world_id: state.selectedWorldId, source_id: sourceId, target_id: targetId, relation_type: relType, weight: weight, properties: properties });
     closeModal(); toast(tr('Relation added'), 'success'); loadCurrentWorld(); selectNode(sourceId);
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 /* ============= Import Modal ============= */
@@ -1876,7 +1931,7 @@ async function importConfig() {
     closeModal();
     toast(tr('Import successful'), 'success');
     if (!dryRun) loadWorlds();
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 /* ============= Config Modal ============= */
@@ -1962,7 +2017,7 @@ async function submitTickAdvance() {
     ]);
     openModal(tr('Tick Advance Result'), resultEl, ce('div', {}, [el('button', { id: 'modalCloseTickAdvanceResultBtn', textContent: tr('Close') })]));
     document.getElementById('modalCloseTickAdvanceResultBtn').addEventListener('click', closeModal);
-  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { hideLoading(); showApiError('Failed', e); }
 }
 
 async function runAutonomous() { if (!requireBothGuard()) return;
@@ -1972,7 +2027,7 @@ async function runAutonomous() { if (!requireBothGuard()) return;
     await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/nodes/' + encodeURIComponent(state.selectedNodeId) + '/autonomous/run', null);
     hideLoading();
     toast(tr('Autonomous triggered'), 'success');
-  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { hideLoading(); showApiError('Failed', e); }
 }
 
 async function savePolicy() {
@@ -1981,7 +2036,7 @@ async function savePolicy() {
   try {
     await api('PUT', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/policy', { blocked_actions: blocked, safe_actions: safe });
     toast(tr('Policy saved'), 'success'); loadPolicy();
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 async function saveSettings() {
@@ -2039,7 +2094,7 @@ async function saveSettings() {
 
     await api('PUT', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/settings', payload);
     toast(tr('Settings saved'), 'success'); loadSettings();
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 async function deleteComponent(compId) {
@@ -2054,7 +2109,7 @@ async function deleteComponent(compId) {
     try {
       await api('DELETE', '/api/v1/components/' + encodeURIComponent(compId));
       toast(tr('Component deleted'), 'success'); selectNode(state.selectedNodeId);
-    } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+    } catch(e) { showApiError('Failed', e); }
   });
   document.getElementById('modalCancelDelBtn').addEventListener('click', closeModal);
 }
@@ -2071,7 +2126,7 @@ async function deleteMemory(memId) {
     try {
       await api('DELETE', '/api/v1/memories/' + encodeURIComponent(memId));
       toast(tr('Memory deleted'), 'success'); selectNode(state.selectedNodeId);
-    } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+    } catch(e) { showApiError('Failed', e); }
   });
   document.getElementById('modalCancelDelBtn').addEventListener('click', closeModal);
 }
@@ -2088,7 +2143,7 @@ async function deleteRelation(relId) {
     try {
       await api('DELETE', '/api/v1/relations/' + encodeURIComponent(relId));
       toast(tr('Relation deleted'), 'success'); selectNode(state.selectedNodeId);
-    } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+    } catch(e) { showApiError('Failed', e); }
   });
   document.getElementById('modalCancelDelBtn').addEventListener('click', closeModal);
 }
@@ -2127,7 +2182,7 @@ async function editComponent(compId) {
   try {
     await api('PUT', '/api/v1/components/' + encodeURIComponent(compId), { component_type: compType, data: data });
     closeModal(); toast(tr('Component updated'), 'success'); selectNode(state.selectedNodeId);
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 function openEditMemoryModal(memId) {
@@ -2159,7 +2214,7 @@ async function editMemory(memId) {
   try {
     await api('PUT', '/api/v1/memories/' + encodeURIComponent(memId), { content: content, level: level, tags: tags });
     closeModal(); toast(tr('Memory updated'), 'success'); selectNode(state.selectedNodeId);
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 function openPropagateMemoryModal(memId) {
@@ -2212,7 +2267,7 @@ async function propagateMemory(memId) {
     closeModal();
     toast(tr('Propagation request submitted'), 'success');
   } catch(e) {
-    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    showApiError('Failed', e);
   }
 }
 
@@ -2229,7 +2284,7 @@ async function loadStateComponents() {
   } catch(e) {
     state.stateComponents = [];
     if (state.page === 'state') renderCurrent();
-    toast(tr('Failed to load state components') + ': ' + apiErrorMessage(e), 'error');
+    showApiError('Failed to load state components', e);
   }
 }
 
@@ -2246,7 +2301,7 @@ async function loadTimelines() {
   } catch(e) {
     state.timelines = [];
     if (state.page === 'timelines') renderCurrent();
-    toast(tr('Failed to load timelines') + ': ' + apiErrorMessage(e), 'error');
+    showApiError('Failed to load timelines', e);
   }
 }
 
@@ -2282,7 +2337,7 @@ async function saveStateComponent(componentType) {
     toast(tr('State component saved'), 'success');
     loadStateComponents();
   } catch(e) {
-    toast(tr('Failed: ') + apiErrorMessage(e), 'error');
+    showApiError('Failed', e);
   }
 }
 
@@ -2354,7 +2409,7 @@ async function editRelation(relId) {
   try {
     await api('PUT', '/api/v1/relations/' + encodeURIComponent(relId), { source_id: sourceId, target_id: targetId, relation_type: relType, weight: weight, properties: properties });
     closeModal(); toast(tr('Relation updated'), 'success'); loadCurrentWorld(); selectNode(sourceId);
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 /* ============= Event / Scope / Replan ============= */
@@ -2395,7 +2450,7 @@ async function eventImpact() {
     toast(tr('Event assessed'), 'success');
     openModal(tr('Assessment Result'), resultEl, ce('div', {}, [el('button', { id: 'modalCloseResultBtn', textContent: tr('Close') })]));
     document.getElementById('modalCloseResultBtn').addEventListener('click', closeModal);
-  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { hideLoading(); showApiError('Failed', e); }
 }
 
 async function scopeAdvance() { if (!requireBothGuard()) return; if (state.selectedNodeType === 'world') { toast(tr('Scope Advance requires a non-world node'), 'error'); return; }
@@ -2406,7 +2461,7 @@ async function scopeAdvance() { if (!requireBothGuard()) return; if (state.selec
     await api('POST', '/api/v1/worlds/' + encodeURIComponent(state.selectedWorldId) + '/scopes/' + encodeURIComponent(state.selectedNodeId) + '/advance', null);
     hideLoading();
     toast(tr('Scope advanced'), 'success');
-  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { hideLoading(); showApiError('Failed', e); }
 }
 
 async function timelineReplan() { if (!requireWorldGuard()) return;
@@ -2421,7 +2476,7 @@ async function timelineReplan() { if (!requireWorldGuard()) return;
     toast(tr('Replan done'), 'success');
     openModal(tr('Replan Result'), resultEl, ce('div', {}, [el('button', { id: 'modalCloseResultBtn', textContent: tr('Close') })]));
     document.getElementById('modalCloseResultBtn').addEventListener('click', closeModal);
-  } catch(e) { hideLoading(); toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { hideLoading(); showApiError('Failed', e); }
 }
 
 /* ============= Autonomous Config Modal ============= */
@@ -2456,7 +2511,7 @@ async function saveAutonomousConfig() { if (!state.selectedNodeId) { toast(tr('P
   try {
     await api('PUT', '/api/v1/nodes/' + encodeURIComponent(state.selectedNodeId) + '/autonomous', { enabled: enabled, trigger: trigger, interval_seconds: interval, capabilities: capabilities });
     closeModal(); toast(tr('Autonomous config saved'), 'success'); loadAutonomous();
-  } catch(e) { toast(tr('Failed: ') + apiErrorMessage(e), 'error'); }
+  } catch(e) { showApiError('Failed', e); }
 }
 
 
@@ -2464,8 +2519,7 @@ function loadTasks(silent) {
   if (!silent) showLoading(true);
   api("GET", "/api/v1/runtime/tasks?limit=100", null).then(function(data) {
     try {
-      const parsed = JSON.parse(data);
-      state.tasks = parsed.tasks || [];
+      state.tasks = data && data.tasks ? data.tasks : [];
     } catch(e) {
       state.tasks = [];
     }

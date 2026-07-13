@@ -23,7 +23,7 @@ function renderRightPanel() {
       compBody.appendChild(ce('div', { className: 'dock-cnt comp-row' }, [
         ce('div', { className: 'rp-item-hd' }, [
           ce('span', { style: {color: 'var(--accent)', fontWeight: 600} }, [txt(c.component_type)]),
-          ce('button', { className: 'dock-del', dataset: { id: c.id }, style: {fontSize: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer'} }, [ttxt('\u2715')]),
+          ce('button', { className: 'dock-del', dataset: { id: c.id }, style: {fontSize: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer'} }, [txt('\u2715')]),
         ]),
       ]));
       var _cr = compBody.lastChild;
@@ -40,7 +40,7 @@ function renderRightPanel() {
         ce('div', { className: 'rp-item-hd' }, [
           ce('span', { style: {color: 'var(--yellow)', fontWeight: 600} }, [txt(m.level || 'long_term')]),
           ce('button', { className: 'dock-propagate', dataset: { id: m.id }, style: {fontSize: '10px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer'} }, [ttxt('Propagate')]),
-          ce('button', { className: 'dock-del', dataset: { id: m.id }, style: {fontSize: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer'} }, [ttxt('\u2715')]),
+          ce('button', { className: 'dock-del', dataset: { id: m.id }, style: {fontSize: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer'} }, [txt('\u2715')]),
         ]),
       ]));
       var _mr = memBody.lastChild;
@@ -57,7 +57,7 @@ function renderRightPanel() {
         ce('div', { className: 'rp-item-hd' }, [
           ce('span', { style: {color: 'var(--green)', fontWeight: 600} }, [txt(r.relation_type)]),
           txt(' -> ' + r.target_id.substring(0, 8)),
-          ce('button', { className: 'dock-del', dataset: { id: r.id }, style: {fontSize: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer'} }, [ttxt('\u2715')]),
+          ce('button', { className: 'dock-del', dataset: { id: r.id }, style: {fontSize: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer'} }, [txt('\u2715')]),
         ]),
       ]));
       var _rr = relBody.lastChild;

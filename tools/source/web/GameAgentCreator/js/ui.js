@@ -34,7 +34,7 @@ function renderTopbar() {
   center.appendChild(pageBtn('traces', tr('Traces')));
   const right = ce('div', { className: 'topbar-right' }, [
     el('span', { id: 'connStatus', className: 'status', innerHTML: '<span class="status-dot off"></span> ' + tr('Disconnected') }),
-    ce('button', { id: 'btnConfig', title: tr('Server Config') }, [ttxt('\u2699')]),
+    ce('button', { id: 'btnConfig', title: tr('Server Config') }, [txt('\u2699')]),
   ]);
   topbar.appendChild(left);
   const rightSec = ce('div', { className: 'topbar-right' }, [
@@ -55,12 +55,12 @@ function renderLeftPanel() {
   lp.innerHTML = '';
   const hd = ce('div', { className: 'panel-hd' }, [
     ce('span', { className: 'title' }, [ttxt('World Outline')]),
-    ce('button', { className: 'close', id: 'btnTreeRefresh' }, [ttxt('\u21bb')]),
+    ce('button', { className: 'close', id: 'btnTreeRefresh' }, [txt('\u21bb')]),
   ]);
   lp.appendChild(hd);
   const tb = ce('div', { className: 'tree-toolbar' }, [
     el('input', { id: 'treeFilter', placeholder: tr('Filter nodes...'), value: state.treeFilter }),
-    ce('button', { id: 'btnAddNode' }, [ttxt('+')]),
+    ce('button', { id: 'btnAddNode' }, [txt('+')]),
   ]);
   lp.appendChild(tb);
   lp.appendChild(ce('div', { className: 'hint', style: { padding: '6px 10px 0 10px', textAlign: 'left' } }, [
@@ -149,7 +149,7 @@ function renderTree() {
         if (isAncestor) cls += ' path-ancestor';
 
         var row = ce('div', { className: cls, dataset: { id: node.id, pid: node.parent_id || '' }, style: { paddingLeft: (12 + depth * 16) + 'px' } }, [
-          ce('span', { className: 'tree-arrow' + (hasChildren ? (isCollapsed ? '' : ' expanded') : ' invisible') }, [ttxt('\u25b8')]),
+          ce('span', { className: 'tree-arrow' + (hasChildren ? (isCollapsed ? '' : ' expanded') : ' invisible') }, [txt('\u25b8')]),
           ce('span', { className: 'tree-icon ' + node.node_type }, []),
           ce('span', { className: 'tree-name' }, [txt(node.name)]),
           ce('span', { className: 'tree-type node-type-' + node.node_type }, [txt(node.node_type)]),
@@ -292,6 +292,7 @@ function switchPage(name) {
   renderCurrent();
 
   switch (name) {
+    case 'tasks': loadTasks(true); break;
     case 'snapshots': loadSnapshots(); break;
     case 'plans': loadPlans(true); break;
     case 'policy': loadPolicy(); break;
