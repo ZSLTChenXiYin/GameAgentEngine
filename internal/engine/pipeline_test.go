@@ -44,6 +44,7 @@ type captureProvider struct {
 type sequenceProvider struct {
 	responses []string
 	calls     int
+	lastPrompt string
 }
 
 func (s *stubProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
@@ -89,6 +90,9 @@ func (c *captureProvider) SupportsStructuredTools() bool {
 }
 
 func (s *sequenceProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
+	if req != nil {
+		s.lastPrompt = req.SystemPrompt
+	}
 	if s.calls >= len(s.responses) {
 		return &LLMResult{Content: `{"reply":"done","action_calls":[],"memory_updates":[]}`, Model: "sequence", Tokens: 5}, nil
 	}
@@ -881,6 +885,64 @@ func TestResumePausedExecutionContinuesAfterGameClientCallback(t *testing.T) {
 	}
 	if !foundResume {
 		t.Fatal("expected resume_completed log")
+	}
+}
+
+func TestResumePausedExecutionContinuesAfterSubTaskGameClientCallback(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"parent","sub_tasks":[{"label":"fetch_scene","task_type":"custom","node_id":"` + nodeID + `","merge_mode":"append"}]}`,
+		`{"reply":"need-client","request_data":{"label":"fetch-scene","target":"game_client","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+		`{"reply":"child-after-resume","action_calls":[],"memory_updates":[]}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	first, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom, Context: &InvokeContext{PipelineMode: PipelineFull}})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if first.DataRequest == nil {
+		t.Fatal("expected paused data request from sub-task")
+	}
+	if len(first.ActionCalls) != 1 || first.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected callback action, got %+v", first.ActionCalls)
+	}
+	callbackID := first.ActionCalls[0].CallbackID
+
+	paused, err := store.GetPausedExecutionByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get paused execution: %v", err)
+	}
+	if paused.RequestID == "" || paused.WorldUUID != worldID {
+		t.Fatalf("expected parent paused execution snapshot, got %+v", paused)
+	}
+
+	resumed, err := pipeline.ResumePausedExecution(callbackID, map[string]any{"scene": "tavern"})
+	if err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if resumed == nil {
+		t.Fatal("expected resumed response")
+	}
+	if !strings.Contains(resumed.Reply, "child-after-resume") {
+		t.Fatalf("expected resumed reply to include child result, got %+v", resumed)
+	}
+	if !strings.Contains(provider.lastPrompt, `"scene":"tavern"`) {
+		t.Fatalf("expected resumed child prompt to include callback payload, got %s", provider.lastPrompt)
+	}
+	if len(resumed.SubTasks) != 1 || resumed.SubTasks[0].Label != "fetch_scene" {
+		t.Fatalf("expected resumed sub-task metadata, got %+v", resumed.SubTasks)
+	}
+	paused, err = store.GetPausedExecutionByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get paused execution after resume: %v", err)
+	}
+	if paused.Status != "completed" {
+		t.Fatalf("expected completed paused execution, got %q", paused.Status)
+	}
+	if provider.calls != 3 {
+		t.Fatalf("expected 3 llm calls, got %d", provider.calls)
 	}
 }
 

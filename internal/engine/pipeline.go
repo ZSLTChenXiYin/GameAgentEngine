@@ -422,6 +422,38 @@ func (p *Pipeline) ResumePausedExecution(callbackID string, result any) (*Invoke
 	if err != nil {
 		return nil, err
 	}
+	if state != nil && state.PendingResumePhase == "sub_tasks" && state.PendingSubTaskResume != nil {
+		start := time.Now()
+		resp, err := p.resumePendingSubTaskDAG(req, ctx, state, runtime, executionMode, paused.RequestID, pausedRound, result)
+		if err != nil {
+			_ = store.MarkPausedExecutionFailed(paused.ExecutionID, err.Error())
+			p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+				Category:   "pipeline_resume",
+				EventName:  "resume_failed",
+				LogLevel:   "error",
+				Message:    err.Error(),
+				Round:      pausedRound,
+				DetailData: marshalLogDetail(map[string]any{"callback_id": callbackID, "execution_id": paused.ExecutionID}),
+			})
+			return nil, err
+		}
+		if pausedResponse(resp) {
+			return resp, nil
+		}
+		if err := store.MarkPausedExecutionCompleted(paused.ExecutionID); err != nil {
+			return nil, err
+		}
+		p.emitLog(req, resp, runtime, executionMode, pipelineLogEvent{
+			Category:     "pipeline_resume",
+			EventName:    "resume_completed",
+			Message:      truncateForLog(resp.Reply, 180),
+			Round:        resp.Metadata.RoundsUsed,
+			ResponseData: buildFullResponseLogData(resp),
+			DetailData:   marshalLogDetail(map[string]any{"callback_id": callbackID, "execution_id": paused.ExecutionID}),
+			DurationMs:   time.Since(start).Milliseconds(),
+		})
+		return resp, nil
+	}
 	resolved := marshalLogDetail(map[string]any{
 		"callback_id": callbackID,
 		"result":      result,
@@ -472,6 +504,12 @@ type RoundState struct {
 	TargetNodeID        string
 	MaxRounds           int
 	SupplementalContext []string
+	PendingResumePhase  string
+	PendingResponse     *InvokeResponse
+	PendingSubTasks     []SubTaskDeclaration
+	PendingSubTaskResults map[string]*InvokeResponse
+	PendingSubTaskFailed  map[string]string
+	PendingSubTaskResume  *pausedSubTaskResume
 }
 
 type pausedExecutionRuntime struct {
@@ -491,6 +529,19 @@ type pausedExecutionSnapshot struct {
 	PausedRound int                    `json:"paused_round"`
 	CallbackID  string                 `json:"callback_id"`
 	ExecutionID string                 `json:"execution_id"`
+}
+
+type pausedSubTaskResume struct {
+	ExecutionID  string                 `json:"execution_id,omitempty"`
+	CallbackID   string                 `json:"callback_id,omitempty"`
+	Label        string                 `json:"label"`
+	RequestID    string                 `json:"request_id,omitempty"`
+	Request      *InvokeRequest         `json:"request,omitempty"`
+	BuiltContext *BuiltContext          `json:"built_context,omitempty"`
+	RoundState   *RoundState            `json:"round_state,omitempty"`
+	Runtime      pausedExecutionRuntime `json:"runtime"`
+	DataRequest  *DataRequest           `json:"data_request,omitempty"`
+	PausedRound  int                    `json:"paused_round"`
 }
 
 func (s *RoundState) buildPrompt(base string) string {
@@ -523,6 +574,327 @@ func buildRoundStateTreeContext(state *RoundState) string {
 		return state.Tree.BuildLLMContext()
 	}
 	return ""
+}
+
+func cloneInvokeResponse(resp *InvokeResponse) *InvokeResponse {
+	if resp == nil {
+		return nil
+	}
+	clone := *resp
+	if resp.ActionCalls != nil {
+		clone.ActionCalls = append([]ActionCall(nil), resp.ActionCalls...)
+	}
+	if resp.MemoryUpdates != nil {
+		clone.MemoryUpdates = append([]MemoryUpdate(nil), resp.MemoryUpdates...)
+	}
+	if resp.SubTasks != nil {
+		clone.SubTasks = append([]SubTaskDeclaration(nil), resp.SubTasks...)
+	}
+	return &clone
+}
+
+func cloneSubTaskResultsMap(src map[string]*InvokeResponse) map[string]*InvokeResponse {
+	if len(src) == 0 {
+		return nil
+	}
+	result := make(map[string]*InvokeResponse, len(src))
+	for key, value := range src {
+		result[key] = cloneInvokeResponse(value)
+	}
+	return result
+}
+
+func cloneSubTaskFailedMap(src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(src))
+	for key, value := range src {
+		result[key] = value
+	}
+	return result
+}
+
+func pausedResponse(resp *InvokeResponse) bool {
+	return resp != nil && resp.DataRequest != nil && len(resp.ActionCalls) > 0 && strings.TrimSpace(resp.ActionCalls[0].CallbackID) != ""
+}
+
+func clearPendingSubTaskState(state *RoundState) {
+	if state == nil {
+		return
+	}
+	state.PendingResumePhase = ""
+	state.PendingResponse = nil
+	state.PendingSubTasks = nil
+	state.PendingSubTaskResults = nil
+	state.PendingSubTaskFailed = nil
+	state.PendingSubTaskResume = nil
+}
+
+func buildParentPausedResponse(parentReq *InvokeRequest, parentRequestID string, executionMode ExecutionMode, base *InvokeResponse) *InvokeResponse {
+	resp := cloneInvokeResponse(base)
+	if resp == nil {
+		resp = &InvokeResponse{}
+	}
+	resp.RequestID = parentRequestID
+	resp.TaskType = parentReq.TaskType
+	resp.ExecutionMode = executionMode
+	return resp
+}
+
+func mergeSubTaskResultIntoParent(resp *InvokeResponse, merged *InvokeResponse, subTasks []SubTaskDeclaration) {
+	if resp == nil || merged == nil {
+		return
+	}
+	resp.SubTasks = append([]SubTaskDeclaration(nil), subTasks...)
+	if merged.Reply != "" {
+		resp.Reply = merged.Reply
+	}
+	resp.ActionCalls = append(resp.ActionCalls, merged.ActionCalls...)
+	resp.MemoryUpdates = append(resp.MemoryUpdates, merged.MemoryUpdates...)
+}
+
+func reconstructDAGInstance(tree *TaskTree, llmProvider LLMProvider, runtime *executionConfig, subTasks []SubTaskDeclaration, results map[string]*InvokeResponse, failed map[string]string) *DAGInstance {
+	retries := 0
+	timeout := time.Duration(0)
+	if runtime != nil {
+		retries = runtime.subTaskRetries
+		timeout = time.Duration(runtime.subTaskTimeout) * time.Second
+	}
+	dag := NewDAGInstance(tree, llmProvider, retries, timeout)
+	for _, st := range subTasks {
+		if err := dag.Register(st); err != nil {
+			continue
+		}
+	}
+	for label, resp := range results {
+		dag.OnTaskComplete(label, cloneInvokeResponse(resp))
+	}
+	for label, errMsg := range failed {
+		dag.OnTaskFailed(label, fmt.Errorf("%s", errMsg))
+	}
+	return dag
+}
+
+func executionModeFromSnapshot(snapshot pausedExecutionRuntime) ExecutionMode {
+	switch snapshot.ExecutionMode {
+	case string(ModeDebug):
+		return ModeDebug
+	case string(ModeReview):
+		return ModeReview
+	default:
+		return ModeProduction
+	}
+}
+
+func buildPausedSubTaskResume(callbackID string, label string) (*pausedSubTaskResume, error) {
+	paused, err := store.GetPausedExecutionByCallbackID(callbackID)
+	if err != nil {
+		return nil, err
+	}
+	req, ctx, state, runtime, dr, executionMode, pausedRound, err := decodePausedExecutionSnapshot(paused)
+	if err != nil {
+		return nil, err
+	}
+	return &pausedSubTaskResume{
+		ExecutionID:  paused.ExecutionID,
+		CallbackID:   callbackID,
+		Label:        label,
+		RequestID:    paused.RequestID,
+		Request:      req,
+		BuiltContext: ctx,
+		RoundState:   state,
+		Runtime:      buildPausedExecutionRuntime(runtime, executionMode),
+		DataRequest:  dr,
+		PausedRound:  pausedRound,
+	}, nil
+}
+
+func (p *Pipeline) overwritePausedExecutionSnapshot(executionID string, req *InvokeRequest, ctx *BuiltContext, state *RoundState, runtime *executionConfig, executionMode ExecutionMode, requestID string, pausedRound int, dr *DataRequest, callbackID string) error {
+	if strings.TrimSpace(executionID) == "" {
+		return fmt.Errorf("execution id required")
+	}
+	if state != nil {
+		state.Tree = nil
+		state.Context = nil
+		state.TreeContext = buildRoundStateTreeContext(state)
+	}
+	originalReqJSON, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+	builtContextJSON, err := json.Marshal(ctx)
+	if err != nil {
+		return err
+	}
+	roundStateJSON, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	runtimeJSON, err := json.Marshal(buildPausedExecutionRuntime(runtime, executionMode))
+	if err != nil {
+		return err
+	}
+	dataRequestJSON := ""
+	if dr != nil {
+		if data, err := json.Marshal(dr); err == nil {
+			dataRequestJSON = string(data)
+		}
+	}
+	return store.UpdatePausedExecution(executionID, map[string]any{
+		"request_id":                requestID,
+		"world_uuid":                req.WorldID,
+		"node_uuid":                 req.NodeID,
+		"task_type":                 string(req.TaskType),
+		"execution_mode":            string(executionMode),
+		"configured_pipeline_mode":  configuredPipelineMode(runtime),
+		"effective_pipeline_mode":   effectivePipelineMode(runtime),
+		"status":                    "paused",
+		"paused_round":              pausedRound,
+		"max_rounds":                runtime.maxRounds,
+		"target_node_id":            state.TargetNodeID,
+		"pause_reason":              "game_client_request_data",
+		"callback_id":               callbackID,
+		"original_request_json":     string(originalReqJSON),
+		"built_context_json":        string(builtContextJSON),
+		"runtime_json":              string(runtimeJSON),
+		"round_state_json":          string(roundStateJSON),
+		"pending_data_request_json": dataRequestJSON,
+		"resume_payload_json":       "",
+		"last_error":                "",
+		"resumed_at":                nil,
+		"completed_at":              nil,
+	})
+}
+
+func (p *Pipeline) resumePendingSubTaskDAG(parentReq *InvokeRequest, parentCtx *BuiltContext, state *RoundState, runtime *executionConfig, executionMode ExecutionMode, parentRequestID string, parentPausedRound int, callbackResult any) (*InvokeResponse, error) {
+	if state == nil || state.PendingSubTaskResume == nil || state.PendingResponse == nil {
+		return nil, fmt.Errorf("pending sub-task resume state missing")
+	}
+	baseResp := cloneInvokeResponse(state.PendingResponse)
+	dag := reconstructDAGInstance(nil, p.llmProvider, runtime, state.PendingSubTasks, state.PendingSubTaskResults, state.PendingSubTaskFailed)
+	resumedSubResp, err := p.executeOrResumeSubTask(state.PendingSubTaskResume, callbackResult)
+	if err != nil {
+		dag.OnTaskFailed(state.PendingSubTaskResume.Label, err)
+	} else {
+		dag.OnTaskComplete(state.PendingSubTaskResume.Label, resumedSubResp)
+	}
+	state.PendingSubTaskResume = nil
+	for dag.HasReady() {
+		for _, st := range dag.ReadyTasks() {
+			dag.MarkRunning(st.Label)
+			subReq := &InvokeRequest{WorldID: parentReq.WorldID, TaskType: st.TaskType, NodeID: st.NodeID, Context: parentReq.Context}
+			subResp, err := p.Execute(subReq)
+			if err != nil {
+				log.Printf("[dag] sub-task %s failed: %v", st.Label, err)
+				dag.OnTaskFailed(st.Label, err)
+				continue
+			}
+			if pausedResponse(subResp) {
+				callbackID := subResp.ActionCalls[0].CallbackID
+				resumeState, err := buildPausedSubTaskResume(callbackID, st.Label)
+				if err != nil {
+					return nil, fmt.Errorf("load resumed sub-task paused snapshot: %w", err)
+				}
+				state.PendingResumePhase = "sub_tasks"
+				state.PendingResponse = baseResp
+				state.PendingSubTaskResults = cloneSubTaskResultsMap(dag.results)
+				state.PendingSubTaskFailed = cloneSubTaskFailedMap(dag.failed)
+				state.PendingSubTaskResume = resumeState
+				if err := p.overwritePausedExecutionSnapshot(resumeState.ExecutionID, parentReq, parentCtx, state, runtime, executionMode, parentRequestID, parentPausedRound, subResp.DataRequest, callbackID); err != nil {
+					return nil, fmt.Errorf("overwrite parent paused execution from resumed DAG pause: %w", err)
+				}
+				return buildParentPausedResponse(parentReq, parentRequestID, executionMode, subResp), nil
+			}
+			dag.OnTaskComplete(st.Label, subResp)
+		}
+	}
+	merged := dag.MergeResults()
+	mergeSubTaskResultIntoParent(baseResp, merged, state.PendingSubTasks)
+	clearPendingSubTaskState(state)
+	return baseResp, nil
+}
+
+func (p *Pipeline) executeOrResumeSubTask(sub *pausedSubTaskResume, callbackResult any) (*InvokeResponse, error) {
+	if sub == nil || sub.Request == nil || sub.BuiltContext == nil || sub.RoundState == nil {
+		return nil, fmt.Errorf("paused sub-task resume snapshot incomplete")
+	}
+	runtime := restoreExecutionRuntime(sub.Runtime)
+	runtime.policyEngine = p.loadWorldPolicy(sub.Request.WorldID)
+	mode := executionModeFromSnapshot(sub.Runtime)
+	if sub.DataRequest != nil {
+		label := sub.DataRequest.Label
+		if label == "" {
+			label = "game_client"
+		}
+		resolved := marshalLogDetail(map[string]any{
+			"callback_id": sub.CallbackID,
+			"result":      callbackResult,
+		})
+		sub.RoundState.SupplementalContext = append(sub.RoundState.SupplementalContext, "[鏁版嵁鏌ヨ鍥炲～] "+label, resolved)
+		appendRoundStateTreeEntry(sub.RoundState, sub.PausedRound, nil, resolved)
+	}
+	return p.executeMultiTurnLoopFromState(sub.Request, sub.BuiltContext, time.Now(), sub.RequestID, runtime, sub.RoundState, sub.PausedRound, mode)
+}
+
+func (p *Pipeline) runSubTaskDAG(req *InvokeRequest, resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, state *RoundState, runtime *executionConfig, executionMode ExecutionMode, requestID string, round int) (*InvokeResponse, bool, error) {
+	if state == nil || state.Tree == nil || runtime == nil || runtime.pipelineMode != PipelineFull || parsed == nil || strings.TrimSpace(parsed.RawSubTasks) == "" {
+		return resp, false, nil
+	}
+	var subTasks []SubTaskDeclaration
+	if err := json.Unmarshal([]byte(parsed.RawSubTasks), &subTasks); err != nil || len(subTasks) == 0 {
+		return resp, false, nil
+	}
+	p.emitLog(req, resp, runtime, executionMode, pipelineLogEvent{
+		Category:   "pipeline_round",
+		EventName:  "sub_tasks_declared",
+		Message:    fmt.Sprintf("round %d declared %d sub tasks", round, len(subTasks)),
+		Round:      round,
+		DetailData: marshalLogDetail(subTasks),
+	})
+
+	dag := reconstructDAGInstance(state.Tree, p.llmProvider, runtime, subTasks, nil, nil)
+
+	for dag.HasReady() {
+		for _, st := range dag.ReadyTasks() {
+			dag.MarkRunning(st.Label)
+			subReq := &InvokeRequest{WorldID: req.WorldID, TaskType: st.TaskType, NodeID: st.NodeID, Context: req.Context}
+			subResp, err := p.Execute(subReq)
+			if err != nil {
+				log.Printf("[dag] sub-task %s failed: %v", st.Label, err)
+				dag.OnTaskFailed(st.Label, err)
+				continue
+			}
+			if pausedResponse(subResp) {
+				callbackID := subResp.ActionCalls[0].CallbackID
+				resumeState, err := buildPausedSubTaskResume(callbackID, st.Label)
+				if err != nil {
+					return nil, false, fmt.Errorf("load sub-task paused snapshot: %w", err)
+				}
+				state.PendingResumePhase = "sub_tasks"
+				state.PendingResponse = cloneInvokeResponse(resp)
+				state.PendingSubTasks = append([]SubTaskDeclaration(nil), subTasks...)
+				state.PendingSubTaskResults = cloneSubTaskResultsMap(dag.results)
+				state.PendingSubTaskFailed = cloneSubTaskFailedMap(dag.failed)
+				state.PendingSubTaskResume = resumeState
+				if err := p.overwritePausedExecutionSnapshot(resumeState.ExecutionID, req, ctx, state, runtime, executionMode, requestID, round, subResp.DataRequest, callbackID); err != nil {
+					return nil, false, fmt.Errorf("overwrite parent paused execution from sub-task pause: %w", err)
+				}
+				return buildParentPausedResponse(req, requestID, executionMode, subResp), true, nil
+			}
+			dag.OnTaskComplete(st.Label, subResp)
+		}
+	}
+
+	merged := dag.MergeResults()
+	mergeSubTaskResultIntoParent(resp, merged, subTasks)
+	state.PendingResumePhase = ""
+	state.PendingResponse = nil
+	state.PendingSubTasks = nil
+	state.PendingSubTaskResults = nil
+	state.PendingSubTaskFailed = nil
+	state.PendingSubTaskResume = nil
+	return resp, false, nil
 }
 
 func requestDynamicInterfaces(req *InvokeRequest) []DynamicInterface {
@@ -1287,43 +1659,13 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 			DetailData:   buildResponseOutcomeDetail(resp),
 		})
 
-		if state.Tree != nil && runtime.pipelineMode == PipelineFull && parsed.RawSubTasks != "" {
-			var subTasks []SubTaskDeclaration
-			if err := json.Unmarshal([]byte(parsed.RawSubTasks), &subTasks); err == nil && len(subTasks) > 0 {
-				p.emitLog(req, resp, runtime, executionMode, pipelineLogEvent{
-					Category:   "pipeline_round",
-					EventName:  "sub_tasks_declared",
-					Message:    fmt.Sprintf("round %d declared %d sub tasks", round+1, len(subTasks)),
-					Round:      round + 1,
-					DetailData: marshalLogDetail(subTasks),
-				})
-				dag := NewDAGInstance(state.Tree, p.llmProvider, runtime.subTaskRetries, time.Duration(runtime.subTaskTimeout)*time.Second)
-				for _, st := range subTasks {
-					if err := dag.Register(st); err != nil {
-						log.Printf("[dag] register sub-task %s: %v", st.Label, err)
-					}
-				}
-				for dag.HasReady() {
-					for _, st := range dag.ReadyTasks() {
-						dag.MarkRunning(st.Label)
-						subReq := &InvokeRequest{WorldID: req.WorldID, TaskType: st.TaskType, NodeID: st.NodeID, Context: req.Context}
-						subResp, err := p.Execute(subReq)
-						if err != nil {
-							log.Printf("[dag] sub-task %s failed: %v", st.Label, err)
-							dag.OnTaskFailed(st.Label, err)
-						} else {
-							dag.OnTaskComplete(st.Label, subResp)
-						}
-					}
-				}
-				merged := dag.MergeResults()
-				resp.SubTasks = subTasks
-				if merged.Reply != "" {
-					resp.Reply = merged.Reply
-				}
-				resp.ActionCalls = append(resp.ActionCalls, merged.ActionCalls...)
-				resp.MemoryUpdates = append(resp.MemoryUpdates, merged.MemoryUpdates...)
-			}
+		if nextResp, paused, err := p.runSubTaskDAG(req, resp, parsed, ctx, state, runtime, executionMode, requestID, round+1); err != nil {
+			return nil, err
+		} else if paused {
+			appendResponseLog(p, nextResp, req)
+			return nextResp, nil
+		} else if nextResp != nil {
+			resp = nextResp
 		}
 
 		switch executionMode {
