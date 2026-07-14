@@ -540,6 +540,23 @@ func requestLLMTools(req *InvokeRequest, builtinTools []LLMToolDefinition) []LLM
 	return appendUniqueTools(builtinTools, requestDynamicTools(req)...)
 }
 
+func llmProviderSupportsStructuredTools(provider LLMProvider) bool {
+	if capable, ok := provider.(LLMStructuredToolProvider); ok {
+		return capable.SupportsStructuredTools()
+	}
+	return true
+}
+
+func (p *Pipeline) negotiatedLLMTools(tools []LLMToolDefinition) []LLMToolDefinition {
+	if len(tools) == 0 {
+		return nil
+	}
+	if !llmProviderSupportsStructuredTools(p.llmProvider) {
+		return nil
+	}
+	return tools
+}
+
 func appendRoundStateTreeEntry(state *RoundState, round int, parsed *llmParsedOutput, resolvedData string) {
 	if state == nil {
 		return
@@ -1019,7 +1036,7 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 		} else {
 			tools = requestDynamicTools(req)
 		}
-		llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: state.SystemPrompt, Messages: state.Messages, Tools: tools})
+		llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: state.SystemPrompt, Messages: state.Messages, Tools: p.negotiatedLLMTools(tools)})
 		if err != nil {
 			p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 				Category:   "pipeline_round",
@@ -1383,7 +1400,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 		systemPrompt = ctxDesc
 	}
 
-	llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: systemPrompt, Messages: sanitizeRoles(req.Messages), Tools: requestDynamicTools(req)})
+	llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: systemPrompt, Messages: sanitizeRoles(req.Messages), Tools: p.negotiatedLLMTools(requestDynamicTools(req))})
 	if err != nil {
 		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 			Category:   "pipeline_round",

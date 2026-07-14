@@ -504,6 +504,12 @@ type LLMProvider interface {
 	ModelName() string
 }
 
+// LLMStructuredToolProvider is an optional provider capability contract.
+// Providers that do not implement it are treated as tool-capable for backward compatibility.
+type LLMStructuredToolProvider interface {
+	SupportsStructuredTools() bool
+}
+
 // LLMResult 表示一次大模型调用的标准输出。
 type LLMResult struct {
 	Content string `json:"content"`

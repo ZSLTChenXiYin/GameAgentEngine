@@ -48,6 +48,8 @@ func (p *mockProvider) Chat(req *engine.LLMChatRequest) (*engine.LLMResult, erro
 // ModelName 返回模拟 Provider 的模型名称。
 func (p *mockProvider) ModelName() string { return "mock" }
 
+func (p *mockProvider) SupportsStructuredTools() bool { return false }
+
 // init 在编译期校验 mockProvider 实现了 LLMProvider 接口。
 func init() { var _ engine.LLMProvider = (*mockProvider)(nil) }
 

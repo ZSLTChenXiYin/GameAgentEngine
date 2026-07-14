@@ -295,3 +295,5 @@ func (p *openAIProvider) Chat(chatReq *engine.LLMChatRequest) (*engine.LLMResult
 
 // ModelName 返回当前 Provider 使用的模型名称。
 func (p *openAIProvider) ModelName() string { return p.model }
+
+func (p *openAIProvider) SupportsStructuredTools() bool { return true }

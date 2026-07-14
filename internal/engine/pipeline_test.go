@@ -33,10 +33,12 @@ type barrierProvider struct {
 }
 
 type captureProvider struct {
-	response   string
-	lastPrompt string
-	lastMsgs   []ChatMessage
-	lastTools  []LLMToolDefinition
+	response      string
+	lastPrompt    string
+	lastMsgs      []ChatMessage
+	lastTools     []LLMToolDefinition
+	supportsTools bool
+	toolsSet      bool
 }
 
 type sequenceProvider struct {
@@ -78,6 +80,13 @@ func (c *captureProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
 }
 
 func (c *captureProvider) ModelName() string { return "capture" }
+
+func (c *captureProvider) SupportsStructuredTools() bool {
+	if !c.toolsSet {
+		return true
+	}
+	return c.supportsTools
+}
 
 func (s *sequenceProvider) Chat(req *LLMChatRequest) (*LLMResult, error) {
 	if s.calls >= len(s.responses) {
@@ -651,6 +660,57 @@ func TestExecuteAutonomousIncludesOnlyCapabilityBuiltinTools(t *testing.T) {
 		if _, ok := seen[blocked]; ok {
 			t.Fatalf("did not expect autonomous tool %q in %+v", blocked, provider.lastTools)
 		}
+	}
+}
+
+func TestExecuteDialogueFallsBackWhenProviderDoesNotSupportStructuredTools(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`, supportsTools: false, toolsSet: true}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskNPCDialogue,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "scene_facts",
+			Kind:              DynamicInterfaceDataRequest,
+			ExternalInterface: "game_client_request_data",
+			Description:       "Query visible scene state",
+			QueryTypes:        []string{"node_detail"},
+		}}},
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if provider.lastTools != nil {
+		t.Fatalf("expected tools to be omitted when provider lacks support, got %+v", provider.lastTools)
+	}
+	if !strings.Contains(provider.lastPrompt, "Dynamic Interfaces") {
+		t.Fatalf("expected prompt fallback to retain dynamic interface instructions, got %s", provider.lastPrompt)
+	}
+}
+
+func TestExecuteDialogueIncludesStructuredToolsWhenProviderSupportsThem(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`, supportsTools: true, toolsSet: true}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskNPCDialogue,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "scene_facts",
+			Kind:              DynamicInterfaceDataRequest,
+			ExternalInterface: "game_client_request_data",
+			Description:       "Query visible scene state",
+			QueryTypes:        []string{"node_detail"},
+		}}},
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(provider.lastTools) == 0 {
+		t.Fatalf("expected structured tools to be forwarded, got %+v", provider.lastTools)
 	}
 }
 
