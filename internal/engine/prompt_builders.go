@@ -7,6 +7,145 @@ import (
 	"strings"
 )
 
+func builtinStoreRequestTool() LLMToolDefinition {
+	return LLMToolDefinition{
+		Name:        "request_store_data",
+		Description: "Request additional engine-side store data for the next reasoning round",
+		Invocation:  LLMToolInvocationDataRequest,
+		DataRequest: &LLMDataRequestTemplate{Target: "store", Label: "request_store_data"},
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"label": map[string]any{"type": "string"},
+				"queries": map[string]any{
+					"type": "array",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"type": map[string]any{
+								"type": "string",
+								"enum": []any{"node_components", "node_memories", "node_relations", "memory_search", "policy_check", "node_detail", "node_type_list", "world_timeline"},
+							},
+							"node_id": map[string]any{"type": "string"},
+							"filter":  map[string]any{"type": "string"},
+							"limit":   map[string]any{"type": "integer"},
+						},
+						"required": []string{"type"},
+					},
+					"minItems": 1,
+				},
+			},
+			"required": []string{"queries"},
+		},
+	}
+}
+
+func builtinActionTools(actionIDs []string) []LLMToolDefinition {
+	if len(actionIDs) == 0 {
+		return nil
+	}
+	builtins := map[string]LLMToolDefinition{
+		"update_mood": {
+			Name:        "update_mood",
+			Description: "Update a character mood profile and write a short-term memory",
+			Invocation:  LLMToolInvocationAction,
+			ActionID:    "update_mood",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"node_id":   map[string]any{"type": "string"},
+					"mood":      map[string]any{"type": "string"},
+					"intensity": map[string]any{"type": "number"},
+				},
+				"required": []string{"node_id", "mood"},
+			},
+		},
+		"add_memory": {
+			Name:        "add_memory",
+			Description: "Persist a memory record on a target node",
+			Invocation:  LLMToolInvocationAction,
+			ActionID:    "add_memory",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"node_id": map[string]any{"type": "string"},
+					"content": map[string]any{"type": "string"},
+					"level":   map[string]any{"type": "string", "enum": []any{"short_term", "long_term", "shared", "world"}},
+					"tags":    map[string]any{"type": "string"},
+				},
+				"required": []string{"node_id", "content"},
+			},
+		},
+		"send_dialogue": {
+			Name:        "send_dialogue",
+			Description: "Emit a dialogue line and record it as short-term memory",
+			Invocation:  LLMToolInvocationAction,
+			ActionID:    "send_dialogue",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"node_id": map[string]any{"type": "string"},
+					"content": map[string]any{"type": "string"},
+				},
+				"required": []string{"content"},
+			},
+		},
+		"adjust_relation": {
+			Name:        "adjust_relation",
+			Description: "Request an async relation adjustment through the game bridge",
+			Invocation:  LLMToolInvocationAction,
+			ActionID:    "adjust_relation",
+			Parameters: map[string]any{
+				"type":                 "object",
+				"additionalProperties": true,
+			},
+		},
+		"spawn_item": {
+			Name:        "spawn_item",
+			Description: "Request an async item spawn through the game bridge",
+			Invocation:  LLMToolInvocationAction,
+			ActionID:    "spawn_item",
+			Parameters: map[string]any{
+				"type":                 "object",
+				"additionalProperties": true,
+			},
+		},
+	}
+	var tools []LLMToolDefinition
+	for _, id := range actionIDs {
+		if tool, ok := builtins[id]; ok {
+			tools = append(tools, tool)
+		}
+	}
+	return tools
+}
+
+func appendUniqueTools(base []LLMToolDefinition, extra ...LLMToolDefinition) []LLMToolDefinition {
+	seen := map[string]struct{}{}
+	result := make([]LLMToolDefinition, 0, len(base)+len(extra))
+	for _, tool := range base {
+		if strings.TrimSpace(tool.Name) == "" {
+			continue
+		}
+		if _, ok := seen[tool.Name]; ok {
+			continue
+		}
+		seen[tool.Name] = struct{}{}
+		result = append(result, tool)
+	}
+	for _, tool := range extra {
+		if strings.TrimSpace(tool.Name) == "" {
+			continue
+		}
+		if _, ok := seen[tool.Name]; ok {
+			continue
+		}
+		seen[tool.Name] = struct{}{}
+		result = append(result, tool)
+	}
+	return result
+}
+
 func buildDynamicInterfaceTools(dynamicInterfaces []DynamicInterface) []LLMToolDefinition {
 	if len(dynamicInterfaces) == 0 {
 		return nil

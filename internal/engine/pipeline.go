@@ -536,6 +536,10 @@ func requestDynamicTools(req *InvokeRequest) []LLMToolDefinition {
 	return buildDynamicInterfaceTools(requestDynamicInterfaces(req))
 }
 
+func requestLLMTools(req *InvokeRequest, builtinTools []LLMToolDefinition) []LLMToolDefinition {
+	return appendUniqueTools(builtinTools, requestDynamicTools(req)...)
+}
+
 func appendRoundStateTreeEntry(state *RoundState, round int, parsed *llmParsedOutput, resolvedData string) {
 	if state == nil {
 		return
@@ -830,6 +834,7 @@ func (p *Pipeline) executeMultiTurnLoop(
 	runtime *executionConfig,
 	taskTree *TaskTree,
 	taskPromptFn func(treeContext string, req *InvokeRequest, nodeID string, round int) string,
+	toolFn func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition,
 	finalizeFn func(*InvokeResponse, *llmParsedOutput, *BuiltContext, *InvokeRequest) *InvokeResponse,
 	executionMode ExecutionMode,
 ) (*InvokeResponse, error) {
@@ -841,7 +846,7 @@ func (p *Pipeline) executeMultiTurnLoop(
 		TargetNodeID: req.NodeID,
 		MaxRounds:    runtime.maxRounds,
 	}
-	return p.executeMultiTurnLoopInternal(req, ctx, start, requestID, runtime, state, 0, taskPromptFn, finalizeFn, executionMode)
+	return p.executeMultiTurnLoopInternal(req, ctx, start, requestID, runtime, state, 0, taskPromptFn, toolFn, finalizeFn, executionMode)
 }
 
 func (p *Pipeline) executeMultiTurnLoopFromState(
@@ -855,11 +860,17 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 	executionMode ExecutionMode,
 ) (*InvokeResponse, error) {
 	var taskPromptFn func(treeContext string, req *InvokeRequest, nodeID string, round int) string
+	var toolFn func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition
 	var finalizeFn func(*InvokeResponse, *llmParsedOutput, *BuiltContext, *InvokeRequest) *InvokeResponse
 	switch req.TaskType {
 	case TaskNPCDialogue:
 		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 			return buildDialoguePrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), nodeID)
+		}
+		toolFn = func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
+			_ = nodeID
+			_ = round
+			return requestLLMTools(req, append([]LLMToolDefinition{builtinStoreRequestTool()}, builtinActionTools([]string{"add_memory", "update_mood", "send_dialogue", "adjust_relation", "spawn_item"})...))
 		}
 	case TaskWorldTick:
 		var currentOutline string
@@ -882,6 +893,11 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 			baseContext := mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext)
 			return buildWorldTickPrompt(appendDynamicInterfaceContext(baseContext, requestDynamicInterfaces(req)), currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary)
 		}
+		toolFn = func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
+			_ = nodeID
+			_ = round
+			return requestLLMTools(req, []LLMToolDefinition{builtinStoreRequestTool()})
+		}
 		finalizeFn = func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
 			_ = ctx
 			_ = req
@@ -898,6 +914,11 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 			return buildEventImpactPrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), eventDesc, nodeID)
 		}
+		toolFn = func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
+			_ = nodeID
+			_ = round
+			return requestLLMTools(req, append([]LLMToolDefinition{builtinStoreRequestTool()}, builtinActionTools([]string{"adjust_relation"})...))
+		}
 	case TaskAutonomousAct:
 		cfg, _, err := LoadAutonomousConfig(req.NodeID)
 		if err != nil {
@@ -905,6 +926,17 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 		}
 		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 			return buildAutonomousPrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), nodeID, cfg)
+		}
+		toolFn = func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
+			_ = nodeID
+			_ = round
+			var ids []string
+			for _, cap := range cfg.Capabilities {
+				if strings.TrimSpace(cap.ID) != "" {
+					ids = append(ids, cap.ID)
+				}
+			}
+			return requestLLMTools(req, append([]LLMToolDefinition{builtinStoreRequestTool()}, builtinActionTools(ids)...))
 		}
 		finalizeFn = func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
 			_ = parsed
@@ -927,8 +959,13 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 			return treeContext
 		}
+		toolFn = func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
+			_ = nodeID
+			_ = round
+			return requestLLMTools(req, []LLMToolDefinition{builtinStoreRequestTool()})
+		}
 	}
-	return p.executeMultiTurnLoopInternal(req, ctx, start, requestID, runtime, state, startRound, taskPromptFn, finalizeFn, executionMode)
+	return p.executeMultiTurnLoopInternal(req, ctx, start, requestID, runtime, state, startRound, taskPromptFn, toolFn, finalizeFn, executionMode)
 }
 
 func (p *Pipeline) executeMultiTurnLoopInternal(
@@ -940,6 +977,7 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 	state *RoundState,
 	startRound int,
 	taskPromptFn func(treeContext string, req *InvokeRequest, nodeID string, round int) string,
+	toolFn func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition,
 	finalizeFn func(*InvokeResponse, *llmParsedOutput, *BuiltContext, *InvokeRequest) *InvokeResponse,
 	executionMode ExecutionMode,
 ) (*InvokeResponse, error) {
@@ -975,7 +1013,13 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 		})
 
 		llmStart := time.Now()
-		llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: state.SystemPrompt, Messages: state.Messages, Tools: requestDynamicTools(req)})
+		var tools []LLMToolDefinition
+		if toolFn != nil {
+			tools = toolFn(req, targetNodeID, round)
+		} else {
+			tools = requestDynamicTools(req)
+		}
+		llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: state.SystemPrompt, Messages: state.Messages, Tools: tools})
 		if err != nil {
 			p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 				Category:   "pipeline_round",
@@ -1447,7 +1491,12 @@ func (p *Pipeline) executeDialogue(req *InvokeRequest, ctx *BuiltContext, start 
 	if loopRuntime.maxRounds > 1 && withTaskTree {
 		loopRuntime.maxRounds--
 	}
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, &loopRuntime, tree, dialogueFn, nil, executionMode)
+	dialogueToolFn := func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
+		_ = nodeID
+		_ = round
+		return requestLLMTools(req, append([]LLMToolDefinition{builtinStoreRequestTool()}, builtinActionTools([]string{"add_memory", "update_mood", "send_dialogue", "adjust_relation", "spawn_item"})...))
+	}
+	return p.executeMultiTurnLoop(req, ctx, start, requestID, &loopRuntime, tree, dialogueFn, dialogueToolFn, nil, executionMode)
 }
 
 func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {
@@ -1477,7 +1526,12 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 	if withTaskTree {
 		tree = NewTaskTree(req.TaskType, req.WorldID, req.NodeID)
 	}
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, tickFn, func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
+	tickToolFn := func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
+		_ = nodeID
+		_ = round
+		return requestLLMTools(req, []LLMToolDefinition{builtinStoreRequestTool()})
+	}
+	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, tickFn, tickToolFn, func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
 		_ = ctx
 		_ = req
 		if parsed != nil && parsed.AdvancedTicks > 0 {
@@ -1718,7 +1772,12 @@ func (p *Pipeline) executeWorldEvent(req *InvokeRequest, ctx *BuiltContext, star
 	if withTaskTree {
 		tree = NewTaskTree(req.TaskType, req.WorldID, req.NodeID)
 	}
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, eventFn, nil, executionMode)
+	eventToolFn := func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
+		_ = nodeID
+		_ = round
+		return requestLLMTools(req, append([]LLMToolDefinition{builtinStoreRequestTool()}, builtinActionTools([]string{"adjust_relation"})...))
+	}
+	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, eventFn, eventToolFn, nil, executionMode)
 }
 
 func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {
@@ -1752,7 +1811,18 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 		tree = NewTaskTree(req.TaskType, req.WorldID, req.NodeID)
 	}
 
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, autonomousFn, func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
+	autonomousToolFn := func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
+		_ = nodeID
+		_ = round
+		var ids []string
+		for _, cap := range cfg.Capabilities {
+			if strings.TrimSpace(cap.ID) != "" {
+				ids = append(ids, cap.ID)
+			}
+		}
+		return requestLLMTools(req, append([]LLMToolDefinition{builtinStoreRequestTool()}, builtinActionTools(ids)...))
+	}
+	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, autonomousFn, autonomousToolFn, func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
 		_ = parsed
 		_ = ctx
 		_ = req
@@ -1789,5 +1859,10 @@ func (p *Pipeline) executeCustom(req *InvokeRequest, ctx *BuiltContext, start ti
 	if withTaskTree {
 		tree = NewTaskTree(req.TaskType, req.WorldID, req.NodeID)
 	}
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, customFn, nil, executionMode)
+	customToolFn := func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
+		_ = nodeID
+		_ = round
+		return requestLLMTools(req, []LLMToolDefinition{builtinStoreRequestTool()})
+	}
+	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, customFn, customToolFn, nil, executionMode)
 }

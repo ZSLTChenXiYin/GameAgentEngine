@@ -569,20 +569,88 @@ func TestExecuteDialogueBuildsStructuredToolsFromDynamicInterfaces(t *testing.T)
 	}); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	if len(provider.lastTools) != 2 {
-		t.Fatalf("expected 2 structured tools, got %+v", provider.lastTools)
+	seen := map[string]LLMToolDefinition{}
+	for _, tool := range provider.lastTools {
+		seen[tool.Name] = tool
 	}
-	if provider.lastTools[0].Invocation != LLMToolInvocationDataRequest || provider.lastTools[0].DataRequest == nil {
-		t.Fatalf("expected first tool to be data_request, got %+v", provider.lastTools[0])
+	dataTool, ok := seen["scene_facts"]
+	if !ok {
+		t.Fatalf("expected scene_facts tool in %+v", provider.lastTools)
 	}
-	if provider.lastTools[0].DataRequest.ExternalInterface != "game_client_request_data" {
-		t.Fatalf("expected normalized external interface, got %+v", provider.lastTools[0].DataRequest)
+	if dataTool.Invocation != LLMToolInvocationDataRequest || dataTool.DataRequest == nil {
+		t.Fatalf("expected scene_facts to be data_request, got %+v", dataTool)
 	}
-	if provider.lastTools[1].Invocation != LLMToolInvocationAction || provider.lastTools[1].ActionID != "merchant_ops" {
-		t.Fatalf("expected second tool to be action tool, got %+v", provider.lastTools[1])
+	if dataTool.DataRequest.ExternalInterface != "game_client_request_data" {
+		t.Fatalf("expected normalized external interface, got %+v", dataTool.DataRequest)
 	}
-	if provider.lastTools[1].Parameters["type"] != "object" {
-		t.Fatalf("expected action args schema to survive, got %+v", provider.lastTools[1].Parameters)
+	actionTool, ok := seen["merchant_ops"]
+	if !ok {
+		t.Fatalf("expected merchant_ops tool in %+v", provider.lastTools)
+	}
+	if actionTool.Invocation != LLMToolInvocationAction || actionTool.ActionID != "merchant_ops" {
+		t.Fatalf("expected merchant_ops to be action tool, got %+v", actionTool)
+	}
+	if actionTool.Parameters["type"] != "object" {
+		t.Fatalf("expected action args schema to survive, got %+v", actionTool.Parameters)
+	}
+}
+
+func TestExecuteDialogueIncludesBuiltinToolsAlongsideDynamicInterfaces(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskNPCDialogue,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "scene_facts",
+			Kind:              DynamicInterfaceDataRequest,
+			ExternalInterface: "game_client_request_data",
+			Description:       "Query visible scene state",
+			QueryTypes:        []string{"node_detail"},
+		}}},
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	seen := map[string]LLMToolDefinition{}
+	for _, tool := range provider.lastTools {
+		seen[tool.Name] = tool
+	}
+	for _, name := range []string{"request_store_data", "add_memory", "update_mood", "send_dialogue", "adjust_relation", "spawn_item", "scene_facts"} {
+		if _, ok := seen[name]; !ok {
+			t.Fatalf("expected tool %q in %+v", name, provider.lastTools)
+		}
+	}
+}
+
+func TestExecuteAutonomousIncludesOnlyCapabilityBuiltinTools(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	nodeInt := store.ResolveNodeUUID(nodeID)
+	if err := store.CreateComponent(&store.ComponentModel{NodeID: nodeInt, NodeUUID: nodeID, ComponentType: string(CompAutonomous), Data: `{"enabled":true,"trigger":"manual","capabilities":[{"id":"send_dialogue"}]}`}); err != nil {
+		t.Fatalf("create autonomous component: %v", err)
+	}
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskAutonomousAct}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	seen := map[string]struct{}{}
+	for _, tool := range provider.lastTools {
+		seen[tool.Name] = struct{}{}
+	}
+	if _, ok := seen["request_store_data"]; !ok {
+		t.Fatalf("expected request_store_data tool, got %+v", provider.lastTools)
+	}
+	if _, ok := seen["send_dialogue"]; !ok {
+		t.Fatalf("expected send_dialogue tool, got %+v", provider.lastTools)
+	}
+	for _, blocked := range []string{"add_memory", "update_mood", "adjust_relation", "spawn_item"} {
+		if _, ok := seen[blocked]; ok {
+			t.Fatalf("did not expect autonomous tool %q in %+v", blocked, provider.lastTools)
+		}
 	}
 }
 
