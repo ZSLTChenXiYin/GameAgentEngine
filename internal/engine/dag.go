@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -10,18 +11,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// DAGInstance 管理一次推理中声明的子任务 DAG。
-// 生命周期限于单次 Execute() 调用，不做跨请求持久化。
+// DAGInstance manages one sub-task DAG for a single Execute call.
 type DAGInstance struct {
-	ID              string                      // DAG 唯一标识
-	Tree            *TaskTree                   // 关联的任务节点树
-	llmProvider     LLMProvider                 // LLM 提供者（用于 summarize 模式）
-	MaxRetries      int                         // 子任务最大重试次数
-	TimeoutDuration time.Duration               // 子任务超时时间
-	tasks           map[string]*subTaskState    // label -> 子任务状态
-	completed       map[string]bool             // 已完成的子任务
-	results         map[string]*InvokeResponse  // label -> 子任务结果
-	failed          map[string]string           // label -> 错误信息
+	ID              string
+	Tree            *TaskTree
+	llmProvider     LLMProvider
+	MaxRetries      int
+	TimeoutDuration time.Duration
+	tasks           map[string]*subTaskState
+	completed       map[string]bool
+	results         map[string]*InvokeResponse
+	failed          map[string]string
 }
 
 type subTaskState struct {
@@ -29,7 +29,7 @@ type subTaskState struct {
 	Status SubTaskStatus
 }
 
-// NewDAGInstance 创建子任务 DAG 实例。
+// NewDAGInstance creates a sub-task DAG runtime.
 func NewDAGInstance(tree *TaskTree, llmProvider LLMProvider, maxRetries int, timeout time.Duration) *DAGInstance {
 	if maxRetries <= 0 {
 		maxRetries = 2
@@ -38,19 +38,19 @@ func NewDAGInstance(tree *TaskTree, llmProvider LLMProvider, maxRetries int, tim
 		timeout = 60 * time.Second
 	}
 	return &DAGInstance{
+		ID:              uuid.NewString(),
+		Tree:            tree,
 		llmProvider:     llmProvider,
 		MaxRetries:      maxRetries,
 		TimeoutDuration: timeout,
-		ID:        uuid.NewString(),
-		Tree:      tree,
-		tasks:     make(map[string]*subTaskState),
-		completed: make(map[string]bool),
-		results:   make(map[string]*InvokeResponse),
-		failed:    make(map[string]string),
+		tasks:           make(map[string]*subTaskState),
+		completed:       make(map[string]bool),
+		results:         make(map[string]*InvokeResponse),
+		failed:          make(map[string]string),
 	}
 }
 
-// Register 注册一个子任务声明。
+// Register adds one declared sub-task.
 func (d *DAGInstance) Register(decl SubTaskDeclaration) error {
 	if _, exists := d.tasks[decl.Label]; exists {
 		return fmt.Errorf("sub-task %q already registered", decl.Label)
@@ -59,14 +59,11 @@ func (d *DAGInstance) Register(decl SubTaskDeclaration) error {
 	if len(decl.DependsOn) > 0 {
 		status = SubTaskPending
 	}
-	d.tasks[decl.Label] = &subTaskState{
-		Decl:   decl,
-		Status: status,
-	}
+	d.tasks[decl.Label] = &subTaskState{Decl: decl, Status: status}
 	return nil
 }
 
-// ReadyTasks 返回所有依赖已满足的待执行子任务。
+// ReadyTasks returns all ready sub-tasks.
 func (d *DAGInstance) ReadyTasks() []SubTaskDeclaration {
 	var ready []SubTaskDeclaration
 	for _, st := range d.tasks {
@@ -77,7 +74,7 @@ func (d *DAGInstance) ReadyTasks() []SubTaskDeclaration {
 	return ready
 }
 
-// HasReady 判断是否有就绪的子任务。
+// HasReady reports whether any sub-task is ready.
 func (d *DAGInstance) HasReady() bool {
 	for _, st := range d.tasks {
 		if st.Status == SubTaskReady {
@@ -87,44 +84,42 @@ func (d *DAGInstance) HasReady() bool {
 	return false
 }
 
-// MarkRunning 将子任务标记为运行中。
+// MarkRunning marks one sub-task as running.
 func (d *DAGInstance) MarkRunning(label string) {
 	if st, ok := d.tasks[label]; ok {
 		st.Status = SubTaskRunning
 	}
 }
 
-// OnTaskComplete 标记子任务完成，并检查依赖是否满足以解锁新的就绪任务。
+// OnTaskComplete marks one sub-task complete and unlocks dependents.
 func (d *DAGInstance) OnTaskComplete(label string, resp *InvokeResponse) {
 	if st, ok := d.tasks[label]; ok {
 		st.Status = SubTaskCompleted
 		d.completed[label] = true
 		d.results[label] = resp
 
-		// 检查是否有因本次完成而解锁的子任务
-		for _, st2 := range d.tasks {
-			if st2.Status == SubTaskPending && allDepsMet(st2.Decl.DependsOn, d.completed) {
-				st2.Status = SubTaskReady
+		for _, item := range d.tasks {
+			if item.Status == SubTaskPending && allDepsMet(item.Decl.DependsOn, d.completed) {
+				item.Status = SubTaskReady
 			}
 		}
 	}
 }
 
-// OnTaskFailed 标记子任务失败。
+// OnTaskFailed marks one sub-task failed.
 func (d *DAGInstance) OnTaskFailed(label string, err error) {
 	if st, ok := d.tasks[label]; ok {
 		st.Status = SubTaskFailed
 		d.failed[label] = err.Error()
-		// 失败不阻塞其他子任务
-		for _, st2 := range d.tasks {
-			if st2.Status == SubTaskPending && allDepsMet(st2.Decl.DependsOn, d.completed) {
-				st2.Status = SubTaskReady
+		for _, item := range d.tasks {
+			if item.Status == SubTaskPending && allDepsMet(item.Decl.DependsOn, d.completed) {
+				item.Status = SubTaskReady
 			}
 		}
 	}
 }
 
-// AllDone 返回是否所有子任务都已结束（完成或失败）。
+// AllDone reports whether every sub-task has reached a terminal state.
 func (d *DAGInstance) AllDone() bool {
 	for _, st := range d.tasks {
 		if st.Status != SubTaskCompleted && st.Status != SubTaskFailed {
@@ -134,11 +129,10 @@ func (d *DAGInstance) AllDone() bool {
 	return true
 }
 
-// MergeResults 将所有子任务的结果按 MergeMode 汇聚。
+// MergeResults merges sub-task outputs according to each declaration's merge_mode.
 func (d *DAGInstance) MergeResults() *InvokeResponse {
 	merged := &InvokeResponse{}
 
-	// 按注册顺序汇聚（map 遍历无序，先收集顺序）
 	order := make([]string, 0, len(d.tasks))
 	for label := range d.tasks {
 		order = append(order, label)
@@ -147,13 +141,12 @@ func (d *DAGInstance) MergeResults() *InvokeResponse {
 	for _, label := range order {
 		st := d.tasks[label]
 		resp := d.results[label]
-		if resp == nil {
+		if st == nil || resp == nil {
 			continue
 		}
 
 		switch st.Decl.MergeMode {
 		case "override":
-			// 后完成的覆盖之前的结果
 			merged = resp
 		case "summarize":
 			summary := d.summarizeResults()
@@ -161,7 +154,6 @@ func (d *DAGInstance) MergeResults() *InvokeResponse {
 			merged.ActionCalls = append(merged.ActionCalls, resp.ActionCalls...)
 			merged.MemoryUpdates = append(merged.MemoryUpdates, resp.MemoryUpdates...)
 		default:
-			// "append" 或空值：追加模式
 			merged.ActionCalls = append(merged.ActionCalls, resp.ActionCalls...)
 			merged.MemoryUpdates = append(merged.MemoryUpdates, resp.MemoryUpdates...)
 			if merged.Reply == "" {
@@ -172,21 +164,18 @@ func (d *DAGInstance) MergeResults() *InvokeResponse {
 		}
 	}
 
-	// 如果有失败的子任务，在 Reply 中附加错误信息
 	if len(d.failed) > 0 {
 		var errParts []string
 		for label, errMsg := range d.failed {
 			errParts = append(errParts, fmt.Sprintf("[子任务 %s 失败] %s", label, errMsg))
 		}
-		merged.Reply = merged.Reply + "\n" + strings.Join(errParts, "\n")
+		merged.Reply = mergeStrings(merged.Reply, strings.Join(errParts, "\n"), "\n")
 	}
 
 	return merged
 }
 
-// allDepsMet 检查子任务的所有依赖是否都已标记为完成。
-// ExecuteWithRetry 带重试和超时地执行一个子任务。
-// 返回 (响应, 是否成功)。
+// ExecuteWithRetry runs one sub-task with retry and timeout.
 func (d *DAGInstance) ExecuteWithRetry(label string, fn func() (*InvokeResponse, error)) (*InvokeResponse, bool) {
 	for attempt := 0; attempt <= d.MaxRetries; attempt++ {
 		if attempt > 0 {
@@ -194,8 +183,6 @@ func (d *DAGInstance) ExecuteWithRetry(label string, fn func() (*InvokeResponse,
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), d.TimeoutDuration)
-		defer cancel()
-
 		done := make(chan struct{}, 1)
 		var resp *InvokeResponse
 		var err error
@@ -241,31 +228,89 @@ func mergeStrings(a, b, sep string) string {
 	return a + sep + b
 }
 
-// summarizeResults 调用 LLM 对所有子任务结果做语义摘要。
+// summarizeResults asks the LLM to merge sub-task outcomes into one reply.
 func (d *DAGInstance) summarizeResults() string {
 	if d.llmProvider == nil {
 		return "[summarize] 无 LLM 提供者"
 	}
-	var parts []string
-	parts = append(parts, "以下是对多个并行子任务结果的摘要。子任务列表：")
+
+	pipeline := NewPipeline(d.llmProvider)
+	baseLines := []string{
+		"You are merging multiple engine sub-task results into one final reply.",
+		`Return JSON only. Use either {"reply":"..."} or {"reply":"...","request_data":{"label":"...","target":"store","queries":[...]}}.`,
+		"If more engine-side data is required before concluding, request it with request_data targeting store.",
+		"Do not request game_client data during DAG summarization.",
+		"========== Sub-task Results ==========",
+	}
+
 	for label, resp := range d.results {
-		if resp != nil {
-			reply := resp.Reply
-			if len(reply) > 200 {
-				reply = reply[:200] + "..."
-			}
-			parts = append(parts, "- " + label + ": " + reply)
+		if resp == nil {
+			continue
+		}
+		reply := strings.TrimSpace(resp.Reply)
+		if len(reply) > 200 {
+			reply = reply[:200] + "..."
+		}
+		baseLines = append(baseLines, "- "+label+": "+reply)
+	}
+
+	if len(d.failed) > 0 {
+		baseLines = append(baseLines, "========== Failed Sub-tasks ==========")
+		for label, errMsg := range d.failed {
+			baseLines = append(baseLines, fmt.Sprintf("- %s: %s", label, errMsg))
 		}
 	}
-	if len(d.failed) > 0 {
-		parts = append(parts, "失败子任务: " + fmt.Sprint(d.failed))
-	}
-	parts = append(parts, "请根据上述子任务结果生成一个统一的摘要。")
 
-	prompt := strings.Join(parts, "\n")
-	if resp, err := d.llmProvider.Chat(&LLMChatRequest{SystemPrompt: prompt}); err == nil {
-		return resp.Content
+	stateLines := make([]string, 0, 8)
+	for round := 0; round < 4; round++ {
+		roundLines := append([]string{}, baseLines...)
+		if len(stateLines) > 0 {
+			roundLines = append(roundLines, "", "========== Summarize Context ==========")
+			roundLines = append(roundLines, stateLines...)
+		}
+
+		prompt := strings.Join(roundLines, "\n")
+		resp, err := d.llmProvider.Chat(&LLMChatRequest{SystemPrompt: prompt})
+		if err != nil {
+			log.Printf("[dag] summarize round %d failed: %v", round+1, err)
+			return "[summarize] LLM 摘要失败"
+		}
+
+		parsed := pipeline.parseLLMJSON(resp.Content)
+		rawRequestData := strings.TrimSpace(parsed.RawRequestData)
+		if rawRequestData != "" && rawRequestData != "null" {
+			var dr DataRequest
+			if err := json.Unmarshal([]byte(rawRequestData), &dr); err != nil {
+				stateLines = append(stateLines, "[summarize request_data invalid] "+err.Error())
+				continue
+			}
+			if strings.TrimSpace(dr.Target) == "" {
+				dr.Target = "store"
+			}
+			if dr.Target != "store" {
+				stateLines = append(stateLines, "[summarize request_data blocked] only store target is supported during DAG summarization")
+				continue
+			}
+			if len(dr.Queries) == 0 {
+				stateLines = append(stateLines, "[summarize request_data blocked] no queries requested")
+				continue
+			}
+			stateLines = append(stateLines, "[summarize request_data] "+firstNonEmpty(dr.Label, "store_query"))
+			result := pipeline.handleDataRequest(nil, &dr)
+			if strings.TrimSpace(result) == "" {
+				result = "[no data returned]"
+			}
+			stateLines = append(stateLines, result)
+			continue
+		}
+
+		if reply := strings.TrimSpace(parsed.Reply); reply != "" {
+			return reply
+		}
+		if raw := strings.TrimSpace(resp.Content); raw != "" {
+			return raw
+		}
 	}
+
 	return "[summarize] LLM 摘要失败"
 }
-
