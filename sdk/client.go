@@ -1110,14 +1110,21 @@ func (c *Client) SetWorldSettings(worldID string, settings *WorldSettings) (*Wor
 	})
 }
 
-// ActionCallback 上报异步动作执行结果。
-func (c *Client) ActionCallback(callbackID, status string, result any) error {
-	_, err := c.do("POST", "/api/v1/actions/callback", map[string]any{
+// ActionCallback reports an async callback result and returns structured resume details.
+func (c *Client) ActionCallback(callbackID, status string, result any) (*CallbackResponse, error) {
+	data, err := c.do("POST", "/api/v1/actions/callback", map[string]any{
 		"callback_id": callbackID,
 		"status":      status,
 		"result":      result,
 	})
-	return err
+	if err != nil {
+		return nil, err
+	}
+	var resp CallbackResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
 }
 
 // PropagateMemory 手动触发已有记忆的传播。
@@ -1188,6 +1195,32 @@ func (c *Client) ListRuntimeTasks(category, status string, limit int) ([]Runtime
 	return resp.Tasks, nil
 }
 
+// ListPendingRuntimeTasks returns pull-ready runtime tasks for one consumer.
+func (c *Client) ListPendingRuntimeTasks(consumer string, limit int) ([]RuntimeTask, error) {
+	q := url.Values{}
+	if consumer != "" {
+		q.Set("consumer", consumer)
+	}
+	if limit > 0 {
+		q.Set("limit", fmt.Sprintf("%d", limit))
+	}
+	suffix := ""
+	if len(q) > 0 {
+		suffix = "?" + q.Encode()
+	}
+	data, err := c.do("GET", "/api/v1/runtime/tasks/pending"+suffix, nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Tasks []RuntimeTask `json:"tasks"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Tasks, nil
+}
+
 // GetRuntimeTask returns details for a single runtime task.
 func (c *Client) GetRuntimeTask(taskID string) (*RuntimeTask, error) {
 	data, err := c.do("GET", "/api/v1/runtime/tasks/"+taskID, nil)
@@ -1245,7 +1278,41 @@ func (c *Client) ReleaseRuntimeTask(taskID, leaseToken, reason string) error {
 	_, err := c.do("POST", "/api/v1/runtime/tasks/release", map[string]any{
 		"task_id":     taskID,
 		"lease_token": leaseToken,
-		"reason":      reason,
+		"error_message": reason,
 	})
 	return err
+}
+
+// RequeueRuntimeTask moves one heartbeat-timeout task back to the queue.
+func (c *Client) RequeueRuntimeTask(taskID string, retryDelayMs int, errorMessage string) (*RuntimeTask, error) {
+	data, err := c.do("POST", "/api/v1/runtime/tasks/requeue", map[string]any{
+		"task_id":        taskID,
+		"retry_delay_ms": retryDelayMs,
+		"error_message":  errorMessage,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Task *RuntimeTask `json:"task"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Task, nil
+}
+
+// GetRuntimeTaskStats loads aggregated runtime task diagnostics.
+func (c *Client) GetRuntimeTaskStats() (*RuntimeTaskStats, error) {
+	data, err := c.do("GET", "/api/v1/runtime/tasks/stats", nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Stats *RuntimeTaskStats `json:"stats"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Stats, nil
 }

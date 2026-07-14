@@ -177,6 +177,8 @@ tick, err := client.AdvanceTick(worldID, "scheduled", "第 3 天 - 傍晚")
 ### 运行时任务管理
 
 ```go
+pending, err := client.ListPendingRuntimeTasks("game_client", 5)
+
 // ListRuntimeTasks 按分类和状态过滤运行时任务
 func (c *Client) ListRuntimeTasks(category, status string, limit int) ([]RuntimeTask, error)
 
@@ -194,9 +196,46 @@ func (c *Client) HeartbeatRuntimeTask(taskID, leaseToken string) error
 
 // ReleaseRuntimeTask 释放一个已认领或运行中的任务
 func (c *Client) ReleaseRuntimeTask(taskID, leaseToken, reason string) error
+
+// RequeueRuntimeTask 将 heartbeat_timeout 任务重新放回队列
+func (c *Client) RequeueRuntimeTask(taskID string, retryDelayMs int, errorMessage string) (*RuntimeTask, error)
+
+// GetRuntimeTaskStats 读取聚合诊断统计
+func (c *Client) GetRuntimeTaskStats() (*RuntimeTaskStats, error)
 ```
 
 运行时任务支持 Push、Pull、Hybrid 三种投递模式。Push 模式下 Engine 直接推送任务到游戏端；Pull 模式需要游戏端主动轮询认领。所有模式最终都通过 `ActionCallback` 汇报结果。
+
+最小 pull worker 流程通常是：
+
+```go
+pending, err := client.ListPendingRuntimeTasks("game_client", 1)
+if err != nil || len(pending) == 0 {
+    return
+}
+
+claimed, err := client.ClaimRuntimeTask(pending[0].TaskID, "game_client", "worker-1")
+if err != nil {
+    return
+}
+
+_, err = client.StartRuntimeTask(claimed.TaskID, claimed.LeaseToken)
+if err != nil {
+    return
+}
+
+callback, err := client.ActionCallback(claimed.CallbackID, "success", map[string]any{
+    "scene": "tavern",
+})
+if err != nil {
+    return
+}
+
+if callback.Resumed != nil {
+    // 这里拿到 Engine 自动恢复后的最终推理结果
+    _ = callback.Resumed.Reply
+}
+```
 
 ### 评估事件影响
 
@@ -305,7 +344,7 @@ bundle, err := client.GetContinuityBundle(worldID, &sdk.ContinuityBundleOptions{
 | `EventImpact(worldID string, event *WorldEvent) (*InvokeResponse, error)` | 评估事件影响 |
 | `ScopeAdvance(worldID, scopeID string) (*InvokeResponse, error)` | 推进指定局部范围 |
 | `TimelineReplan(worldID string) (*InvokeResponse, error)` | 重建世界未来大纲 |
-| `ActionCallback(callbackID, status string, result any) error` | 完成异步动作回调 |
+| `ActionCallback(callbackID, status string, result any) (*CallbackResponse, error)` | 完成异步动作回调，并返回 post_process / resumed 结果 |
 | `ListPendingPlans(worldID string) ([]PendingPlan, error)` | 列出待审批计划 |
 | `ApprovePlan(worldID, planID string) (*PlanDecisionResponse, error)` | 批准一条待审批计划 |
 | `RejectPlan(worldID, planID string) (*PlanDecisionResponse, error)` | 拒绝一条待审批计划 |
@@ -324,6 +363,8 @@ bundle, err := client.GetContinuityBundle(worldID, &sdk.ContinuityBundleOptions{
 
 - `ActionCallback(...)` 当前用于两类场景：普通异步动作回调，以及 `request_data.target = "game_client"` 的数据回填。
 - 当某次回调对应的是 paused execution 时，Engine 会在服务端自动恢复原始多轮推理；调用方不需要再单独发一次 resume 请求。
+- `CallbackResponse.Resumed != nil` 表示本次回调触发了自动恢复，并且这里已经直接带回恢复后的最终推理结果。
+- `CallbackResponse.PostProcess != nil` 表示本次 callback 还触发了统一后处理，例如 `write_memory`。
 
 ### 设置、策略、日志与导入
 

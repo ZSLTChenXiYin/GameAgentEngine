@@ -140,6 +140,21 @@ type InvokeResponse struct {
 	Metadata        *ResponseMeta        `json:"metadata,omitempty"`
 }
 
+// CallbackPostProcess describes the persisted callback post-process outcome.
+type CallbackPostProcess struct {
+	Status  string         `json:"status,omitempty"`
+	Applied bool           `json:"applied,omitempty"`
+	Details map[string]any `json:"details,omitempty"`
+}
+
+// CallbackResponse describes the structured response from POST /api/v1/actions/callback.
+type CallbackResponse struct {
+	Status            string               `json:"status"`
+	ResumeExecutionID string               `json:"resume_execution_id,omitempty"`
+	PostProcess       *CallbackPostProcess `json:"post_process,omitempty"`
+	Resumed           *InvokeResponse      `json:"resumed,omitempty"`
+}
+
 // AgentCapability 描述某个自主节点被显式授权调用的能力。
 type AgentCapability struct {
 	ID          string         `json:"id"`
@@ -592,20 +607,78 @@ type SubTaskDeclaration struct {
 // RuntimeTask describes a runtime external interaction task.
 // Used in Pull mode for game clients to claim and track tasks.
 type RuntimeTask struct {
-	TaskID       string `json:"task_id"`
-	Category     string `json:"category,omitempty"`
-	Status       string `json:"status"`
-	Consumer     string `json:"consumer,omitempty"`
-	WorldID      string `json:"world_id,omitempty"`
-	NodeID       string `json:"node_id,omitempty"`
-	RequestID    string `json:"request_id,omitempty"`
-	CallbackID   string `json:"callback_id,omitempty"`
-	LeaseToken   string `json:"lease_token,omitempty"`
-	LeaseOwner   string `json:"lease_owner,omitempty"`
-	AttemptCount int    `json:"attempt_count,omitempty"`
-	MaxAttempts  int    `json:"max_attempts,omitempty"`
-	Priority     int    `json:"priority,omitempty"`
-	PayloadJSON  string `json:"payload_json,omitempty"`
-	CreatedAt    string `json:"created_at,omitempty"`
-	UpdatedAt    string `json:"updated_at,omitempty"`
+	TaskID                   string `json:"task_id"`
+	Category                 string `json:"category,omitempty"`
+	InterfaceName            string `json:"interface_name,omitempty"`
+	DeliveryMode             string `json:"delivery_mode,omitempty"`
+	Consumer                 string `json:"consumer,omitempty"`
+	Transport                string `json:"transport,omitempty"`
+	WorldID                  string `json:"world_id,omitempty"`
+	NodeID                   string `json:"node_id,omitempty"`
+	RequestID                string `json:"request_id,omitempty"`
+	CallbackID               string `json:"callback_id,omitempty"`
+	ResumeExecutionID        string `json:"resume_execution_id,omitempty"`
+	IdempotencyKey           string `json:"idempotency_key,omitempty"`
+	Status                   string `json:"status"`
+	LeaseToken               string `json:"lease_token,omitempty"`
+	LeaseOwner               string `json:"lease_owner,omitempty"`
+	AttemptCount             int    `json:"attempt_count,omitempty"`
+	MaxAttempts              int    `json:"max_attempts,omitempty"`
+	Priority                 int    `json:"priority,omitempty"`
+	PayloadJSON              string `json:"payload_json,omitempty"`
+	ResultJSON               string `json:"result_json,omitempty"`
+	ErrorMessage             string `json:"error_message,omitempty"`
+	DispatchAttempts         int    `json:"dispatch_attempts,omitempty"`
+	LastDispatchStatusCode   int    `json:"last_dispatch_status_code,omitempty"`
+	LastDispatchError        string `json:"last_dispatch_error,omitempty"`
+	LastDispatchFailureClass string `json:"last_dispatch_failure_class,omitempty"`
+	LastDispatchDecision     string `json:"last_dispatch_decision,omitempty"`
+	FallbackFromTransport    string `json:"fallback_from_transport,omitempty"`
+	LastTransitionReason     string `json:"last_transition_reason,omitempty"`
+	HeartbeatTimeoutCount    int    `json:"heartbeat_timeout_count,omitempty"`
+	AvailableAt              string `json:"available_at,omitempty"`
+	DispatchedAt             string `json:"dispatched_at,omitempty"`
+	ClaimedAt                string `json:"claimed_at,omitempty"`
+	LastHeartbeatAt          string `json:"last_heartbeat_at,omitempty"`
+	HeartbeatTimeoutAt       string `json:"heartbeat_timeout_at,omitempty"`
+	CompletedAt              string `json:"completed_at,omitempty"`
+	CreatedAt                string `json:"created_at,omitempty"`
+	UpdatedAt                string `json:"updated_at,omitempty"`
 }
+
+// RuntimeTaskStats aggregates runtime task health and distribution counters.
+type RuntimeTaskStats struct {
+	GeneratedAt               string           `json:"generated_at,omitempty"`
+	Total                     int64            `json:"total,omitempty"`
+	ReadyPull                 int64            `json:"ready_pull,omitempty"`
+	InFlight                  int64            `json:"in_flight,omitempty"`
+	Terminal                  int64            `json:"terminal,omitempty"`
+	HeartbeatTimeout          int64            `json:"heartbeat_timeout,omitempty"`
+	DispatchErrorTasks        int64            `json:"dispatch_error_tasks,omitempty"`
+	RetryExhaustedTasks       int64            `json:"retry_exhausted_tasks,omitempty"`
+	DispatchedWithoutCallback int64            `json:"dispatched_without_callback,omitempty"`
+	RepeatedHeartbeatTimeouts int64            `json:"repeated_heartbeat_timeouts,omitempty"`
+	OldestDispatchedAgeSecs   int64            `json:"oldest_dispatched_age_secs,omitempty"`
+	OldestReadyTaskAgeSecs    int64            `json:"oldest_ready_task_age_secs,omitempty"`
+	ByStatus                  map[string]int64 `json:"by_status,omitempty"`
+	ByCategory                map[string]int64 `json:"by_category,omitempty"`
+	ByConsumer                map[string]int64 `json:"by_consumer,omitempty"`
+	ByDeliveryMode            map[string]int64 `json:"by_delivery_mode,omitempty"`
+	ByTransport               map[string]int64 `json:"by_transport,omitempty"`
+	ByInterface               map[string]int64 `json:"by_interface,omitempty"`
+	ByDispatchFailureClass    map[string]int64 `json:"by_dispatch_failure_class,omitempty"`
+	ByDispatchDecision        map[string]int64 `json:"by_dispatch_decision,omitempty"`
+	ByHeartbeatTimeoutCount   map[string]int64 `json:"by_heartbeat_timeout_count,omitempty"`
+}
+
+const (
+	RuntimeTaskStatusPending          = "pending"
+	RuntimeTaskStatusDispatched       = "dispatched"
+	RuntimeTaskStatusClaimed          = "claimed"
+	RuntimeTaskStatusRunning          = "running"
+	RuntimeTaskStatusHeartbeatTimeout = "heartbeat_timeout"
+	RuntimeTaskStatusReleased         = "released"
+	RuntimeTaskStatusSucceeded        = "succeeded"
+	RuntimeTaskStatusFailed           = "failed"
+	RuntimeTaskStatusCancelled        = "cancelled"
+)
