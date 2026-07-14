@@ -422,7 +422,7 @@ func (p *Pipeline) ResumePausedExecution(callbackID string, result any) (*Invoke
 	if err != nil {
 		return nil, err
 	}
-	if state != nil && state.PendingResumePhase == "sub_tasks" && state.PendingSubTaskResume != nil {
+	if state != nil && (state.PendingResumePhase == "sub_tasks" || state.PendingResumePhase == "sub_task_summary") {
 		start := time.Now()
 		resp, err := p.resumePendingSubTaskDAG(req, ctx, state, runtime, executionMode, paused.RequestID, pausedRound, result)
 		if err != nil {
@@ -506,10 +506,12 @@ type RoundState struct {
 	SupplementalContext []string
 	PendingResumePhase  string
 	PendingResponse     *InvokeResponse
-	PendingSubTasks     []SubTaskDeclaration
+	PendingMergedSubTaskResponse *InvokeResponse
+	PendingSubTasks       []SubTaskDeclaration
 	PendingSubTaskResults map[string]*InvokeResponse
 	PendingSubTaskFailed  map[string]string
 	PendingSubTaskResume  *pausedSubTaskResume
+	PendingSummaries      []pausedSummaryMerge
 }
 
 type pausedExecutionRuntime struct {
@@ -542,6 +544,11 @@ type pausedSubTaskResume struct {
 	Runtime      pausedExecutionRuntime `json:"runtime"`
 	DataRequest  *DataRequest           `json:"data_request,omitempty"`
 	PausedRound  int                    `json:"paused_round"`
+}
+
+type pausedSummaryMerge struct {
+	Label      string   `json:"label"`
+	StateLines []string `json:"state_lines,omitempty"`
 }
 
 func (s *RoundState) buildPrompt(base string) string {
@@ -615,6 +622,21 @@ func cloneSubTaskFailedMap(src map[string]string) map[string]string {
 	return result
 }
 
+func clonePausedSummaries(src []pausedSummaryMerge) []pausedSummaryMerge {
+	if len(src) == 0 {
+		return nil
+	}
+	result := make([]pausedSummaryMerge, 0, len(src))
+	for _, item := range src {
+		clone := pausedSummaryMerge{Label: item.Label}
+		if len(item.StateLines) > 0 {
+			clone.StateLines = append([]string(nil), item.StateLines...)
+		}
+		result = append(result, clone)
+	}
+	return result
+}
+
 func pausedResponse(resp *InvokeResponse) bool {
 	return resp != nil && resp.DataRequest != nil && len(resp.ActionCalls) > 0 && strings.TrimSpace(resp.ActionCalls[0].CallbackID) != ""
 }
@@ -625,10 +647,12 @@ func clearPendingSubTaskState(state *RoundState) {
 	}
 	state.PendingResumePhase = ""
 	state.PendingResponse = nil
+	state.PendingMergedSubTaskResponse = nil
 	state.PendingSubTasks = nil
 	state.PendingSubTaskResults = nil
 	state.PendingSubTaskFailed = nil
 	state.PendingSubTaskResume = nil
+	state.PendingSummaries = nil
 }
 
 func buildParentPausedResponse(parentReq *InvokeRequest, parentRequestID string, executionMode ExecutionMode, base *InvokeResponse) *InvokeResponse {
@@ -647,6 +671,9 @@ func mergeSubTaskResultIntoParent(resp *InvokeResponse, merged *InvokeResponse, 
 		return
 	}
 	resp.SubTasks = append([]SubTaskDeclaration(nil), subTasks...)
+	if len(merged.SubTasks) > 0 {
+		resp.SubTasks = append([]SubTaskDeclaration(nil), merged.SubTasks...)
+	}
 	if merged.Reply != "" {
 		resp.Reply = merged.Reply
 	}
@@ -767,50 +794,231 @@ func (p *Pipeline) overwritePausedExecutionSnapshot(executionID string, req *Inv
 	})
 }
 
+func (p *Pipeline) applySubTaskMergeMode(merged *InvokeResponse, st SubTaskDeclaration, resp *InvokeResponse, summaryReply string) *InvokeResponse {
+	if merged == nil {
+		merged = &InvokeResponse{}
+	}
+	switch st.MergeMode {
+	case "override":
+		return cloneInvokeResponse(resp)
+	case "summarize":
+		merged.Reply = mergeStrings(merged.Reply, summaryReply, "\n")
+		if resp != nil {
+			merged.ActionCalls = append(merged.ActionCalls, resp.ActionCalls...)
+			merged.MemoryUpdates = append(merged.MemoryUpdates, resp.MemoryUpdates...)
+		}
+		return merged
+	default:
+		if resp != nil {
+			merged.ActionCalls = append(merged.ActionCalls, resp.ActionCalls...)
+			merged.MemoryUpdates = append(merged.MemoryUpdates, resp.MemoryUpdates...)
+			if merged.Reply == "" {
+				merged.Reply = resp.Reply
+			} else {
+				merged.Reply = merged.Reply + "\n" + resp.Reply
+			}
+		}
+		return merged
+	}
+}
+
+func buildDAGFailureSummary(dag *DAGInstance) string {
+	if dag == nil || len(dag.failed) == 0 {
+		return ""
+	}
+	var errParts []string
+	for _, label := range dag.orderedTaskLabels() {
+		if errMsg := strings.TrimSpace(dag.failed[label]); errMsg != "" {
+			errParts = append(errParts, fmt.Sprintf("[瀛愪换鍔?%s 澶辫触] %s", label, errMsg))
+		}
+	}
+	return strings.Join(errParts, "\n")
+}
+
+func (p *Pipeline) resumePendingSubTaskSummary(merged *InvokeResponse, dag *DAGInstance, pending pausedSummaryMerge, callbackResult any) (*InvokeResponse, *DataRequest, *string, error) {
+	if dag == nil {
+		return merged, nil, nil, fmt.Errorf("dag required for pending summary resume")
+	}
+	stateLines := append([]string(nil), pending.StateLines...)
+	resolved := marshalLogDetail(map[string]any{"result": callbackResult})
+	label := pending.Label
+	if label == "" {
+		label = "game_client"
+	}
+	stateLines = append(stateLines, "[summarize request_data resolved] "+label, resolved)
+	return p.continueSubTaskSummaryMerge(merged, dag, pending.Label, stateLines)
+}
+
+func (p *Pipeline) continueSubTaskSummaryMerge(merged *InvokeResponse, dag *DAGInstance, summaryLabel string, stateLines []string) (*InvokeResponse, *DataRequest, *string, error) {
+	if dag == nil {
+		return merged, nil, nil, fmt.Errorf("dag required for summary merge")
+	}
+	mergedResp := cloneInvokeResponse(merged)
+	if mergedResp == nil {
+		mergedResp = &InvokeResponse{}
+	}
+	baseLines := dag.summarizeBaseLines()
+	var normalizedState []string
+	if len(stateLines) > 0 {
+		normalizedState = append([]string(nil), stateLines...)
+	}
+	for _, label := range dag.orderedTaskLabels() {
+		st := dag.tasks[label]
+		resp := dag.results[label]
+		if st == nil || resp == nil {
+			continue
+		}
+		if summaryLabel != "" && label != summaryLabel {
+			mergedResp = p.applySubTaskMergeMode(mergedResp, st.Decl, resp, "")
+			continue
+		}
+		if st.Decl.MergeMode != "summarize" {
+			mergedResp = p.applySubTaskMergeMode(mergedResp, st.Decl, resp, "")
+			continue
+		}
+		currentState := normalizedState
+		for round := 0; round < 4; round++ {
+			roundLines := append([]string{}, baseLines...)
+			if len(currentState) > 0 {
+				roundLines = append(roundLines, "", "========== Summarize Context ==========")
+				roundLines = append(roundLines, currentState...)
+			}
+			prompt := strings.Join(roundLines, "\n")
+			llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: prompt})
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			parsed := p.parseLLMJSON(llmResp.Content)
+			rawRequestData := strings.TrimSpace(parsed.RawRequestData)
+			if rawRequestData != "" && rawRequestData != "null" {
+				var dr DataRequest
+				if err := json.Unmarshal([]byte(rawRequestData), &dr); err != nil {
+					currentState = append(currentState, "[summarize request_data invalid] "+err.Error())
+					continue
+				}
+				if strings.TrimSpace(dr.Target) == "" {
+					dr.Target = "store"
+				}
+				if dr.Target == "game_client" {
+					if strings.TrimSpace(dr.Label) == "" {
+						dr.Label = firstNonEmpty(summaryLabel, "game_client")
+					}
+					return mergedResp, &dr, &label, nil
+				}
+				if dr.Target != "store" {
+					currentState = append(currentState, "[summarize request_data blocked] only store target is supported during DAG summarization")
+					continue
+				}
+				if len(dr.Queries) == 0 {
+					currentState = append(currentState, "[summarize request_data blocked] no queries requested")
+					continue
+				}
+				currentState = append(currentState, "[summarize request_data] "+firstNonEmpty(dr.Label, "store_query"))
+				result := p.handleDataRequest(nil, &dr)
+				if strings.TrimSpace(result) == "" {
+					result = "[no data returned]"
+				}
+				currentState = append(currentState, result)
+				continue
+			}
+			if reply := strings.TrimSpace(parsed.Reply); reply != "" {
+				mergedResp = p.applySubTaskMergeMode(mergedResp, st.Decl, resp, reply)
+				normalizedState = nil
+				summaryLabel = ""
+				goto nextLabel
+			}
+			if raw := strings.TrimSpace(llmResp.Content); raw != "" {
+				mergedResp = p.applySubTaskMergeMode(mergedResp, st.Decl, resp, raw)
+				normalizedState = nil
+				summaryLabel = ""
+				goto nextLabel
+			}
+		}
+		mergedResp = p.applySubTaskMergeMode(mergedResp, st.Decl, resp, "[summarize] LLM 鎽樿澶辫触")
+		normalizedState = nil
+		summaryLabel = ""
+	nextLabel:
+		continue
+	}
+	if errSummary := buildDAGFailureSummary(dag); errSummary != "" {
+		mergedResp.Reply = mergeStrings(mergedResp.Reply, errSummary, "\n")
+	}
+	return mergedResp, nil, nil, nil
+}
+
+func (p *Pipeline) persistPendingSubTaskSummaryPause(executionID string, req *InvokeRequest, ctx *BuiltContext, state *RoundState, runtime *executionConfig, executionMode ExecutionMode, requestID string, pausedRound int, dr *DataRequest, callbackID string, baseResp *InvokeResponse, merged *InvokeResponse, label string, stateLines []string) error {
+	if state == nil {
+		return fmt.Errorf("round state required for pending summary pause")
+	}
+	state.PendingResumePhase = "sub_task_summary"
+	state.PendingResponse = cloneInvokeResponse(baseResp)
+	state.PendingMergedSubTaskResponse = cloneInvokeResponse(merged)
+	state.PendingSummaries = []pausedSummaryMerge{{Label: label, StateLines: append([]string(nil), stateLines...)}}
+	return p.overwritePausedExecutionSnapshot(executionID, req, ctx, state, runtime, executionMode, requestID, pausedRound, dr, callbackID)
+}
+
 func (p *Pipeline) resumePendingSubTaskDAG(parentReq *InvokeRequest, parentCtx *BuiltContext, state *RoundState, runtime *executionConfig, executionMode ExecutionMode, parentRequestID string, parentPausedRound int, callbackResult any) (*InvokeResponse, error) {
-	if state == nil || state.PendingSubTaskResume == nil || state.PendingResponse == nil {
+	if state == nil || state.PendingResponse == nil {
 		return nil, fmt.Errorf("pending sub-task resume state missing")
 	}
 	baseResp := cloneInvokeResponse(state.PendingResponse)
+	mergedResp := cloneInvokeResponse(state.PendingMergedSubTaskResponse)
 	dag := reconstructDAGInstance(nil, p.llmProvider, runtime, state.PendingSubTasks, state.PendingSubTaskResults, state.PendingSubTaskFailed)
-	resumedSubResp, err := p.executeOrResumeSubTask(state.PendingSubTaskResume, callbackResult)
-	if err != nil {
-		dag.OnTaskFailed(state.PendingSubTaskResume.Label, err)
-	} else {
-		dag.OnTaskComplete(state.PendingSubTaskResume.Label, resumedSubResp)
-	}
-	state.PendingSubTaskResume = nil
-	for dag.HasReady() {
-		for _, st := range dag.ReadyTasks() {
-			dag.MarkRunning(st.Label)
-			subReq := &InvokeRequest{WorldID: parentReq.WorldID, TaskType: st.TaskType, NodeID: st.NodeID, Context: parentReq.Context}
-			subResp, err := p.Execute(subReq)
-			if err != nil {
-				log.Printf("[dag] sub-task %s failed: %v", st.Label, err)
-				dag.OnTaskFailed(st.Label, err)
-				continue
-			}
-			if pausedResponse(subResp) {
-				callbackID := subResp.ActionCalls[0].CallbackID
-				resumeState, err := buildPausedSubTaskResume(callbackID, st.Label)
+	if state.PendingResumePhase == "sub_tasks" {
+		if state.PendingSubTaskResume == nil {
+			return nil, fmt.Errorf("pending sub-task resume state missing")
+		}
+		resumedSubResp, err := p.executeOrResumeSubTask(state.PendingSubTaskResume, callbackResult)
+		if err != nil {
+			dag.OnTaskFailed(state.PendingSubTaskResume.Label, err)
+		} else {
+			dag.OnTaskComplete(state.PendingSubTaskResume.Label, resumedSubResp)
+		}
+		state.PendingSubTaskResume = nil
+		for dag.HasReady() {
+			for _, st := range dag.ReadyTasks() {
+				dag.MarkRunning(st.Label)
+				subReq := &InvokeRequest{WorldID: parentReq.WorldID, TaskType: st.TaskType, NodeID: st.NodeID, Context: parentReq.Context}
+				subResp, err := p.Execute(subReq)
 				if err != nil {
-					return nil, fmt.Errorf("load resumed sub-task paused snapshot: %w", err)
+					log.Printf("[dag] sub-task %s failed: %v", st.Label, err)
+					dag.OnTaskFailed(st.Label, err)
+					continue
 				}
-				state.PendingResumePhase = "sub_tasks"
-				state.PendingResponse = baseResp
-				state.PendingSubTaskResults = cloneSubTaskResultsMap(dag.results)
-				state.PendingSubTaskFailed = cloneSubTaskFailedMap(dag.failed)
-				state.PendingSubTaskResume = resumeState
-				if err := p.overwritePausedExecutionSnapshot(resumeState.ExecutionID, parentReq, parentCtx, state, runtime, executionMode, parentRequestID, parentPausedRound, subResp.DataRequest, callbackID); err != nil {
-					return nil, fmt.Errorf("overwrite parent paused execution from resumed DAG pause: %w", err)
+				if pausedResponse(subResp) {
+					callbackID := subResp.ActionCalls[0].CallbackID
+					resumeState, err := buildPausedSubTaskResume(callbackID, st.Label)
+					if err != nil {
+						return nil, fmt.Errorf("load resumed sub-task paused snapshot: %w", err)
+					}
+					state.PendingResumePhase = "sub_tasks"
+					state.PendingResponse = baseResp
+					state.PendingSubTaskResults = cloneSubTaskResultsMap(dag.results)
+					state.PendingSubTaskFailed = cloneSubTaskFailedMap(dag.failed)
+					state.PendingSubTaskResume = resumeState
+					if err := p.overwritePausedExecutionSnapshot(resumeState.ExecutionID, parentReq, parentCtx, state, runtime, executionMode, parentRequestID, parentPausedRound, subResp.DataRequest, callbackID); err != nil {
+						return nil, fmt.Errorf("overwrite parent paused execution from resumed DAG pause: %w", err)
+					}
+					return buildParentPausedResponse(parentReq, parentRequestID, executionMode, subResp), nil
 				}
-				return buildParentPausedResponse(parentReq, parentRequestID, executionMode, subResp), nil
+				dag.OnTaskComplete(st.Label, subResp)
 			}
-			dag.OnTaskComplete(st.Label, subResp)
 		}
 	}
-	merged := dag.MergeResults()
-	mergeSubTaskResultIntoParent(baseResp, merged, state.PendingSubTasks)
+	if len(state.PendingSummaries) > 0 {
+		var err error
+		mergedResp, _, _, err = p.resumePendingSubTaskSummary(mergedResp, dag, state.PendingSummaries[0], callbackResult)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		mergedResp, _, _, err = p.continueSubTaskSummaryMerge(mergedResp, dag, "", nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+	mergeSubTaskResultIntoParent(baseResp, mergedResp, state.PendingSubTasks)
 	clearPendingSubTaskState(state)
 	return baseResp, nil
 }
@@ -886,14 +1094,60 @@ func (p *Pipeline) runSubTaskDAG(req *InvokeRequest, resp *InvokeResponse, parse
 		}
 	}
 
-	merged := dag.MergeResults()
+	merged, pausedDR, pausedLabel, err := p.continueSubTaskSummaryMerge(nil, dag, "", nil)
+	if err != nil {
+		return nil, false, err
+	}
+	if pausedDR != nil && pausedLabel != nil {
+		callbackID := p.actionReg.CreateCallbackWithMetadata("data_request", map[string]any{"label": pausedDR.Label, "queries": pausedDR.Queries}, action.CallbackMetadata{
+			NodeID:    req.NodeID,
+			WorldID:   req.WorldID,
+			RequestID: requestID,
+		})
+		executionID, err := p.persistPausedExecution(req, ctx, state, runtime, executionMode, requestID, round, pausedDR, callbackID)
+		if err != nil {
+			return nil, false, fmt.Errorf("persist summarize paused execution: %w", err)
+		}
+		if err := store.UpdateAsyncCallbackRecord(callbackID, map[string]any{"resume_execution_id": executionID}); err != nil {
+			return nil, false, fmt.Errorf("link summarize callback to paused execution: %w", err)
+		}
+		state.PendingSubTasks = append([]SubTaskDeclaration(nil), subTasks...)
+		state.PendingSubTaskResults = cloneSubTaskResultsMap(dag.results)
+		state.PendingSubTaskFailed = cloneSubTaskFailedMap(dag.failed)
+		if err := p.persistPendingSubTaskSummaryPause(executionID, req, ctx, state, runtime, executionMode, requestID, round, pausedDR, callbackID, resp, merged, *pausedLabel, nil); err != nil {
+			return nil, false, fmt.Errorf("persist pending summarize pause: %w", err)
+		}
+		route := resolveGameClientRoute(pausedDR)
+		task, err := enqueueGameClientRuntimeTask(req, pausedDR, callbackID, executionID, requestID, route)
+		if err != nil {
+			return nil, false, fmt.Errorf("enqueue summarize runtime task: %w", err)
+		}
+		if err := p.dispatchGameClientRuntimeTask(task, req, pausedDR, route); err != nil {
+			if route.IsStrictPush() {
+				_ = store.CompleteAsyncCallbackRecord(callbackID, "failed", "", err.Error())
+				_ = store.MarkPausedExecutionFailed(executionID, err.Error())
+				return nil, false, fmt.Errorf("dispatch summarize game client request: %w", err)
+			}
+		}
+		pauseResp := &InvokeResponse{
+			RequestID:     requestID,
+			ExecutionMode: executionMode,
+			TaskType:      req.TaskType,
+			Reply:         resp.Reply,
+			SubTasks:      append([]SubTaskDeclaration(nil), subTasks...),
+			DataRequest:   pausedDR,
+			ActionCalls: []ActionCall{{
+				ActionID:   "data_request",
+				Mode:       "async",
+				CallbackID: callbackID,
+				Args:       map[string]any{"data_request": *pausedDR},
+			}},
+			Metadata: buildResponseMeta(runtime, p.llmProvider.ModelName(), 0, time.Now(), round),
+		}
+		return pauseResp, true, nil
+	}
 	mergeSubTaskResultIntoParent(resp, merged, subTasks)
-	state.PendingResumePhase = ""
-	state.PendingResponse = nil
-	state.PendingSubTasks = nil
-	state.PendingSubTaskResults = nil
-	state.PendingSubTaskFailed = nil
-	state.PendingSubTaskResume = nil
+	clearPendingSubTaskState(state)
 	return resp, false, nil
 }
 

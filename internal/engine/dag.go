@@ -18,6 +18,7 @@ type DAGInstance struct {
 	llmProvider     LLMProvider
 	MaxRetries      int
 	TimeoutDuration time.Duration
+	order           []string
 	tasks           map[string]*subTaskState
 	completed       map[string]bool
 	results         map[string]*InvokeResponse
@@ -43,6 +44,7 @@ func NewDAGInstance(tree *TaskTree, llmProvider LLMProvider, maxRetries int, tim
 		llmProvider:     llmProvider,
 		MaxRetries:      maxRetries,
 		TimeoutDuration: timeout,
+		order:           make([]string, 0, 8),
 		tasks:           make(map[string]*subTaskState),
 		completed:       make(map[string]bool),
 		results:         make(map[string]*InvokeResponse),
@@ -60,6 +62,7 @@ func (d *DAGInstance) Register(decl SubTaskDeclaration) error {
 		status = SubTaskPending
 	}
 	d.tasks[decl.Label] = &subTaskState{Decl: decl, Status: status}
+	d.order = append(d.order, decl.Label)
 	return nil
 }
 
@@ -228,13 +231,20 @@ func mergeStrings(a, b, sep string) string {
 	return a + sep + b
 }
 
-// summarizeResults asks the LLM to merge sub-task outcomes into one reply.
-func (d *DAGInstance) summarizeResults() string {
-	if d.llmProvider == nil {
-		return "[summarize] 无 LLM 提供者"
+func (d *DAGInstance) orderedTaskLabels() []string {
+	if len(d.order) == 0 {
+		return nil
 	}
+	labels := make([]string, 0, len(d.order))
+	for _, label := range d.order {
+		if _, ok := d.tasks[label]; ok {
+			labels = append(labels, label)
+		}
+	}
+	return labels
+}
 
-	pipeline := NewPipeline(d.llmProvider)
+func (d *DAGInstance) summarizeBaseLines() []string {
 	baseLines := []string{
 		"You are merging multiple engine sub-task results into one final reply.",
 		`Return JSON only. Use either {"reply":"..."} or {"reply":"...","request_data":{"label":"...","target":"store","queries":[...]}}.`,
@@ -243,7 +253,8 @@ func (d *DAGInstance) summarizeResults() string {
 		"========== Sub-task Results ==========",
 	}
 
-	for label, resp := range d.results {
+	for _, label := range d.orderedTaskLabels() {
+		resp := d.results[label]
 		if resp == nil {
 			continue
 		}
@@ -256,10 +267,24 @@ func (d *DAGInstance) summarizeResults() string {
 
 	if len(d.failed) > 0 {
 		baseLines = append(baseLines, "========== Failed Sub-tasks ==========")
-		for label, errMsg := range d.failed {
-			baseLines = append(baseLines, fmt.Sprintf("- %s: %s", label, errMsg))
+		for _, label := range d.orderedTaskLabels() {
+			if errMsg := strings.TrimSpace(d.failed[label]); errMsg != "" {
+				baseLines = append(baseLines, fmt.Sprintf("- %s: %s", label, errMsg))
+			}
 		}
 	}
+
+	return baseLines
+}
+
+// summarizeResults asks the LLM to merge sub-task outcomes into one reply.
+func (d *DAGInstance) summarizeResults() string {
+	if d.llmProvider == nil {
+		return "[summarize] 无 LLM 提供者"
+	}
+
+	pipeline := NewPipeline(d.llmProvider)
+	baseLines := d.summarizeBaseLines()
 
 	stateLines := make([]string, 0, 8)
 	for round := 0; round < 4; round++ {

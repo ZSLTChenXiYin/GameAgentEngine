@@ -946,6 +946,65 @@ func TestResumePausedExecutionContinuesAfterSubTaskGameClientCallback(t *testing
 	}
 }
 
+func TestResumePausedExecutionContinuesAfterSubTaskSummarizeGameClientCallback(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"parent","sub_tasks":[{"label":"fetch_scene","task_type":"custom","node_id":"` + nodeID + `","merge_mode":"summarize"}]}`,
+		`{"reply":"child-branch","action_calls":[],"memory_updates":[]}`,
+		`{"request_data":{"label":"summarize-scene","target":"game_client","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+		`{"reply":"summary-after-resume"}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	first, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom, Context: &InvokeContext{PipelineMode: PipelineFull}})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if first.DataRequest == nil {
+		t.Fatal("expected paused summarize data request")
+	}
+	if len(first.ActionCalls) != 1 || first.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected callback action, got %+v", first.ActionCalls)
+	}
+	callbackID := first.ActionCalls[0].CallbackID
+
+	paused, err := store.GetPausedExecutionByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get paused execution: %v", err)
+	}
+	if paused.RequestID == "" || paused.WorldUUID != worldID {
+		t.Fatalf("expected parent paused execution snapshot, got %+v", paused)
+	}
+
+	resumed, err := pipeline.ResumePausedExecution(callbackID, map[string]any{"scene": "tavern"})
+	if err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if resumed == nil {
+		t.Fatal("expected resumed response")
+	}
+	if !strings.Contains(resumed.Reply, "summary-after-resume") {
+		t.Fatalf("expected resumed summary reply, got %+v", resumed)
+	}
+	if !strings.Contains(provider.lastPrompt, `"scene":"tavern"`) {
+		t.Fatalf("expected resumed summarize prompt to include callback payload, got %s", provider.lastPrompt)
+	}
+	if len(resumed.SubTasks) != 1 || resumed.SubTasks[0].Label != "fetch_scene" {
+		t.Fatalf("expected resumed sub-task metadata, got %+v", resumed.SubTasks)
+	}
+	paused, err = store.GetPausedExecutionByCallbackID(callbackID)
+	if err != nil {
+		t.Fatalf("get paused execution after resume: %v", err)
+	}
+	if paused.Status != "completed" {
+		t.Fatalf("expected completed paused execution, got %q", paused.Status)
+	}
+	if provider.calls != 4 {
+		t.Fatalf("expected 4 llm calls, got %d", provider.calls)
+	}
+}
+
 func TestExecuteAsyncActionEnqueuesRuntimeTask(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
