@@ -424,7 +424,7 @@ func (p *Pipeline) ResumePausedExecution(callbackID string, result any) (*Invoke
 	}
 	if state != nil && (state.PendingResumePhase == "sub_tasks" || state.PendingResumePhase == "sub_task_summary") {
 		start := time.Now()
-		resp, err := p.resumePendingSubTaskDAG(req, ctx, state, runtime, executionMode, paused.RequestID, pausedRound, result)
+		resp, err := p.resumePendingSubTaskDAG(paused.ExecutionID, req, ctx, state, runtime, executionMode, paused.RequestID, pausedRound, result)
 		if err != nil {
 			_ = store.MarkPausedExecutionFailed(paused.ExecutionID, err.Error())
 			p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
@@ -957,7 +957,58 @@ func (p *Pipeline) persistPendingSubTaskSummaryPause(executionID string, req *In
 	return p.overwritePausedExecutionSnapshot(executionID, req, ctx, state, runtime, executionMode, requestID, pausedRound, dr, callbackID)
 }
 
-func (p *Pipeline) resumePendingSubTaskDAG(parentReq *InvokeRequest, parentCtx *BuiltContext, state *RoundState, runtime *executionConfig, executionMode ExecutionMode, parentRequestID string, parentPausedRound int, callbackResult any) (*InvokeResponse, error) {
+func (p *Pipeline) pauseForPendingSubTaskSummary(executionID string, req *InvokeRequest, ctx *BuiltContext, state *RoundState, runtime *executionConfig, executionMode ExecutionMode, requestID string, pausedRound int, dr *DataRequest, baseResp *InvokeResponse, merged *InvokeResponse, subTasks []SubTaskDeclaration, results map[string]*InvokeResponse, failed map[string]string, label string, stateLines []string) (*InvokeResponse, error) {
+	callbackID := p.actionReg.CreateCallbackWithMetadata("data_request", map[string]any{"label": dr.Label, "queries": dr.Queries}, action.CallbackMetadata{
+		NodeID:    req.NodeID,
+		WorldID:   req.WorldID,
+		RequestID: requestID,
+	})
+	if strings.TrimSpace(executionID) == "" {
+		var err error
+		executionID, err = p.persistPausedExecution(req, ctx, state, runtime, executionMode, requestID, pausedRound, dr, callbackID)
+		if err != nil {
+			return nil, fmt.Errorf("persist summarize paused execution: %w", err)
+		}
+	}
+	if err := store.UpdateAsyncCallbackRecord(callbackID, map[string]any{"resume_execution_id": executionID}); err != nil {
+		return nil, fmt.Errorf("link summarize callback to paused execution: %w", err)
+	}
+	state.PendingSubTasks = append([]SubTaskDeclaration(nil), subTasks...)
+	state.PendingSubTaskResults = cloneSubTaskResultsMap(results)
+	state.PendingSubTaskFailed = cloneSubTaskFailedMap(failed)
+	if err := p.persistPendingSubTaskSummaryPause(executionID, req, ctx, state, runtime, executionMode, requestID, pausedRound, dr, callbackID, baseResp, merged, label, stateLines); err != nil {
+		return nil, fmt.Errorf("persist pending summarize pause: %w", err)
+	}
+	route := resolveGameClientRoute(dr)
+	task, err := enqueueGameClientRuntimeTask(req, dr, callbackID, executionID, requestID, route)
+	if err != nil {
+		return nil, fmt.Errorf("enqueue summarize runtime task: %w", err)
+	}
+	if err := p.dispatchGameClientRuntimeTask(task, req, dr, route); err != nil {
+		if route.IsStrictPush() {
+			_ = store.CompleteAsyncCallbackRecord(callbackID, "failed", "", err.Error())
+			_ = store.MarkPausedExecutionFailed(executionID, err.Error())
+			return nil, fmt.Errorf("dispatch summarize game client request: %w", err)
+		}
+	}
+	return &InvokeResponse{
+		RequestID:     requestID,
+		ExecutionMode: executionMode,
+		TaskType:      req.TaskType,
+		Reply:         baseResp.Reply,
+		SubTasks:      append([]SubTaskDeclaration(nil), subTasks...),
+		DataRequest:   dr,
+		ActionCalls: []ActionCall{{
+			ActionID:   "data_request",
+			Mode:       "async",
+			CallbackID: callbackID,
+			Args:       map[string]any{"data_request": *dr},
+		}},
+		Metadata: buildResponseMeta(runtime, p.llmProvider.ModelName(), 0, time.Now(), pausedRound),
+	}, nil
+}
+
+func (p *Pipeline) resumePendingSubTaskDAG(parentExecutionID string, parentReq *InvokeRequest, parentCtx *BuiltContext, state *RoundState, runtime *executionConfig, executionMode ExecutionMode, parentRequestID string, parentPausedRound int, callbackResult any) (*InvokeResponse, error) {
 	if state == nil || state.PendingResponse == nil {
 		return nil, fmt.Errorf("pending sub-task resume state missing")
 	}
@@ -1007,15 +1058,35 @@ func (p *Pipeline) resumePendingSubTaskDAG(parentReq *InvokeRequest, parentCtx *
 	}
 	if len(state.PendingSummaries) > 0 {
 		var err error
-		mergedResp, _, _, _, err = p.resumePendingSubTaskSummary(mergedResp, dag, state.PendingSummaries[0], callbackResult)
+		var pausedDR *DataRequest
+		var pausedLabel *string
+		var pausedStateLines []string
+		mergedResp, pausedDR, pausedLabel, pausedStateLines, err = p.resumePendingSubTaskSummary(mergedResp, dag, state.PendingSummaries[0], callbackResult)
 		if err != nil {
 			return nil, err
 		}
+		if pausedDR != nil && pausedLabel != nil {
+			pauseResp, err := p.pauseForPendingSubTaskSummary(parentExecutionID, parentReq, parentCtx, state, runtime, executionMode, parentRequestID, parentPausedRound, pausedDR, baseResp, mergedResp, state.PendingSubTasks, dag.results, dag.failed, *pausedLabel, pausedStateLines)
+			if err != nil {
+				return nil, err
+			}
+			return pauseResp, nil
+		}
 	} else {
 		var err error
-		mergedResp, _, _, _, err = p.continueSubTaskSummaryMerge(mergedResp, dag, "", nil)
+		var pausedDR *DataRequest
+		var pausedLabel *string
+		var pausedStateLines []string
+		mergedResp, pausedDR, pausedLabel, pausedStateLines, err = p.continueSubTaskSummaryMerge(mergedResp, dag, "", nil)
 		if err != nil {
 			return nil, err
+		}
+		if pausedDR != nil && pausedLabel != nil {
+			pauseResp, err := p.pauseForPendingSubTaskSummary(parentExecutionID, parentReq, parentCtx, state, runtime, executionMode, parentRequestID, parentPausedRound, pausedDR, baseResp, mergedResp, state.PendingSubTasks, dag.results, dag.failed, *pausedLabel, pausedStateLines)
+			if err != nil {
+				return nil, err
+			}
+			return pauseResp, nil
 		}
 	}
 	mergeSubTaskResultIntoParent(baseResp, mergedResp, state.PendingSubTasks)
@@ -1099,50 +1170,9 @@ func (p *Pipeline) runSubTaskDAG(req *InvokeRequest, resp *InvokeResponse, parse
 		return nil, false, err
 	}
 	if pausedDR != nil && pausedLabel != nil {
-		callbackID := p.actionReg.CreateCallbackWithMetadata("data_request", map[string]any{"label": pausedDR.Label, "queries": pausedDR.Queries}, action.CallbackMetadata{
-			NodeID:    req.NodeID,
-			WorldID:   req.WorldID,
-			RequestID: requestID,
-		})
-		executionID, err := p.persistPausedExecution(req, ctx, state, runtime, executionMode, requestID, round, pausedDR, callbackID)
+		pauseResp, err := p.pauseForPendingSubTaskSummary("", req, ctx, state, runtime, executionMode, requestID, round, pausedDR, resp, merged, subTasks, dag.results, dag.failed, *pausedLabel, pausedStateLines)
 		if err != nil {
-			return nil, false, fmt.Errorf("persist summarize paused execution: %w", err)
-		}
-		if err := store.UpdateAsyncCallbackRecord(callbackID, map[string]any{"resume_execution_id": executionID}); err != nil {
-			return nil, false, fmt.Errorf("link summarize callback to paused execution: %w", err)
-		}
-		state.PendingSubTasks = append([]SubTaskDeclaration(nil), subTasks...)
-		state.PendingSubTaskResults = cloneSubTaskResultsMap(dag.results)
-		state.PendingSubTaskFailed = cloneSubTaskFailedMap(dag.failed)
-		if err := p.persistPendingSubTaskSummaryPause(executionID, req, ctx, state, runtime, executionMode, requestID, round, pausedDR, callbackID, resp, merged, *pausedLabel, pausedStateLines); err != nil {
-			return nil, false, fmt.Errorf("persist pending summarize pause: %w", err)
-		}
-		route := resolveGameClientRoute(pausedDR)
-		task, err := enqueueGameClientRuntimeTask(req, pausedDR, callbackID, executionID, requestID, route)
-		if err != nil {
-			return nil, false, fmt.Errorf("enqueue summarize runtime task: %w", err)
-		}
-		if err := p.dispatchGameClientRuntimeTask(task, req, pausedDR, route); err != nil {
-			if route.IsStrictPush() {
-				_ = store.CompleteAsyncCallbackRecord(callbackID, "failed", "", err.Error())
-				_ = store.MarkPausedExecutionFailed(executionID, err.Error())
-				return nil, false, fmt.Errorf("dispatch summarize game client request: %w", err)
-			}
-		}
-		pauseResp := &InvokeResponse{
-			RequestID:     requestID,
-			ExecutionMode: executionMode,
-			TaskType:      req.TaskType,
-			Reply:         resp.Reply,
-			SubTasks:      append([]SubTaskDeclaration(nil), subTasks...),
-			DataRequest:   pausedDR,
-			ActionCalls: []ActionCall{{
-				ActionID:   "data_request",
-				Mode:       "async",
-				CallbackID: callbackID,
-				Args:       map[string]any{"data_request": *pausedDR},
-			}},
-			Metadata: buildResponseMeta(runtime, p.llmProvider.ModelName(), 0, time.Now(), round),
+			return nil, false, err
 		}
 		return pauseResp, true, nil
 	}

@@ -1046,6 +1046,64 @@ func TestResumePausedExecutionPreservesStoreContextBeforeSubTaskSummarizeGameCli
 	}
 }
 
+func TestResumePausedExecutionSupportsRepeatedSubTaskSummarizeGameClientCallbacks(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"parent","sub_tasks":[{"label":"fetch_scene","task_type":"custom","node_id":"` + nodeID + `","merge_mode":"summarize"}]}`,
+		`{"reply":"child-branch","action_calls":[],"memory_updates":[]}`,
+		`{"request_data":{"label":"summarize-pass-1","target":"game_client","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+		`{"request_data":{"label":"summarize-pass-2","target":"game_client","queries":[{"type":"node_relations","node_id":"` + nodeID + `"}]}}`,
+		`{"reply":"summary-after-second-resume"}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	first, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom, Context: &InvokeContext{PipelineMode: PipelineFull}})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if first.DataRequest == nil || len(first.ActionCalls) != 1 || first.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected first paused summarize request, got %+v", first)
+	}
+	firstCallbackID := first.ActionCalls[0].CallbackID
+
+	second, err := pipeline.ResumePausedExecution(firstCallbackID, map[string]any{"scene": "tavern"})
+	if err != nil {
+		t.Fatalf("first resume: %v", err)
+	}
+	if second == nil || second.DataRequest == nil || len(second.ActionCalls) != 1 || second.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected second paused summarize request, got %+v", second)
+	}
+	secondCallbackID := second.ActionCalls[0].CallbackID
+	if secondCallbackID == firstCallbackID {
+		t.Fatalf("expected new callback id for second summarize pause, got %q", secondCallbackID)
+	}
+
+	resumed, err := pipeline.ResumePausedExecution(secondCallbackID, map[string]any{"relations": []string{"guard", "merchant"}})
+	if err != nil {
+		t.Fatalf("second resume: %v", err)
+	}
+	if resumed == nil || !strings.Contains(resumed.Reply, "summary-after-second-resume") {
+		t.Fatalf("expected final resumed summary reply, got %+v", resumed)
+	}
+	if !strings.Contains(provider.lastPrompt, `"relations":["guard","merchant"]`) {
+		t.Fatalf("expected final summarize prompt to include second callback payload, got %s", provider.lastPrompt)
+	}
+	if !strings.Contains(provider.lastPrompt, `"scene":"tavern"`) {
+		t.Fatalf("expected final summarize prompt to retain first callback payload, got %s", provider.lastPrompt)
+	}
+	if provider.calls != 5 {
+		t.Fatalf("expected 5 llm calls, got %d", provider.calls)
+	}
+	paused, err := store.GetPausedExecutionByCallbackID(secondCallbackID)
+	if err != nil {
+		t.Fatalf("get second paused execution: %v", err)
+	}
+	if paused.Status != "completed" {
+		t.Fatalf("expected completed paused execution after second resume, got %q", paused.Status)
+	}
+}
+
 func TestExecuteAsyncActionEnqueuesRuntimeTask(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
