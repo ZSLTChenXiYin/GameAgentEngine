@@ -1019,11 +1019,27 @@ func (p *Pipeline) resumePendingSubTaskDAG(parentExecutionID string, parentReq *
 		if state.PendingSubTaskResume == nil {
 			return nil, fmt.Errorf("pending sub-task resume state missing")
 		}
+		pendingSub := state.PendingSubTaskResume
 		resumedSubResp, err := p.executeOrResumeSubTask(state.PendingSubTaskResume, callbackResult)
 		if err != nil {
-			dag.OnTaskFailed(state.PendingSubTaskResume.Label, err)
+			dag.OnTaskFailed(pendingSub.Label, err)
+		} else if pausedResponse(resumedSubResp) {
+			callbackID := resumedSubResp.ActionCalls[0].CallbackID
+			resumeState, loadErr := buildPausedSubTaskResume(callbackID, pendingSub.Label)
+			if loadErr != nil {
+				return nil, fmt.Errorf("load resumed sub-task paused snapshot: %w", loadErr)
+			}
+			state.PendingResumePhase = "sub_tasks"
+			state.PendingResponse = baseResp
+			state.PendingSubTaskResults = cloneSubTaskResultsMap(dag.results)
+			state.PendingSubTaskFailed = cloneSubTaskFailedMap(dag.failed)
+			state.PendingSubTaskResume = resumeState
+			if err := p.overwritePausedExecutionSnapshot(parentExecutionID, parentReq, parentCtx, state, runtime, executionMode, parentRequestID, parentPausedRound, resumedSubResp.DataRequest, callbackID); err != nil {
+				return nil, fmt.Errorf("overwrite parent paused execution from resumed sub-task pause: %w", err)
+			}
+			return buildParentPausedResponse(parentReq, parentRequestID, executionMode, resumedSubResp), nil
 		} else {
-			dag.OnTaskComplete(state.PendingSubTaskResume.Label, resumedSubResp)
+			dag.OnTaskComplete(pendingSub.Label, resumedSubResp)
 		}
 		state.PendingSubTaskResume = nil
 		for dag.HasReady() {
