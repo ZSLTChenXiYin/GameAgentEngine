@@ -72,6 +72,45 @@ resp, err := client.Invoke(&sdk.InvokeRequest{
 })
 ```
 
+如果不想手写整段 `DynamicInterface` 结构，也可以用 SDK helper 组装：
+
+```go
+req := &sdk.InvokeRequest{
+    WorldID:  worldID,
+    NodeID:   nodeID,
+    TaskType: "npc_dialogue",
+    Messages: []sdk.ChatMessage{{Role: "user", Content: "你现在看到了什么？"}},
+    Context:  sdk.NewInvokeContext(),
+}
+
+req.Context.PipelineMode = sdk.PipelineModePolling
+req.Context.MaxAnalysisRounds = 4
+
+req.AddDynamicInterfaces(
+    sdk.NewDynamicDataRequest(
+        "scene_facts",
+        "game_client_request_data",
+        sdk.WithDescription("查询当前玩家可见的场景状态"),
+        sdk.WithQueryTypes("node_detail", "visible_entities"),
+        sdk.WithMaxQueries(2),
+    ),
+    sdk.NewDynamicAction(
+        "merchant_ops",
+        "npc_trade_action",
+        sdk.WithActionDescription("执行与交易相关的外部动作"),
+        sdk.WithMaxCalls(1),
+    ),
+)
+
+resp, err := client.Invoke(req)
+```
+
+推荐约定：
+
+- 稳定存在、投递治理固定的接口继续放在 Engine 正式 `external_interfaces` 配置里
+- 只在当前回合、当前 NPC 对话或当前场景临时开放的接口，使用 `AddDynamicInterfaces(...)`
+- SDK helper 只负责构造请求级白名单；真正的 delivery、consumer、resume_policy 仍由 Engine 配置决定
+
 ### 健康检查与版本
 
 ```go
