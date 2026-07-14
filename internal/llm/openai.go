@@ -148,9 +148,9 @@ func buildOpenAIRequest(model string, chatReq *engine.LLMChatRequest) (openAIReq
 	return request, toolMap
 }
 
-func normalizeOpenAIToolCalls(message openAIMessage, toolMap map[string]engine.LLMToolDefinition) (string, bool, error) {
+func normalizeOpenAIToolCalls(message openAIMessage, toolMap map[string]engine.LLMToolDefinition) (string, bool, map[string]any, error) {
 	if len(message.ToolCalls) == 0 {
-		return "", false, nil
+		return "", false, nil, nil
 	}
 
 	result := map[string]any{}
@@ -160,6 +160,7 @@ func normalizeOpenAIToolCalls(message openAIMessage, toolMap map[string]engine.L
 
 	var actionCalls []map[string]any
 	var dataRequest map[string]any
+	var normalizedToolCalls []map[string]any
 
 	for _, call := range message.ToolCalls {
 		if call.Type != "" && call.Type != "function" {
@@ -167,18 +168,18 @@ func normalizeOpenAIToolCalls(message openAIMessage, toolMap map[string]engine.L
 		}
 		tool, ok := toolMap[strings.TrimSpace(call.Function.Name)]
 		if !ok {
-			return "", false, fmt.Errorf("unknown tool call returned by provider: %s", call.Function.Name)
+			return "", false, nil, fmt.Errorf("unknown tool call returned by provider: %s", call.Function.Name)
 		}
 		args := map[string]any{}
 		if strings.TrimSpace(call.Function.Arguments) != "" {
 			if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
-				return "", false, fmt.Errorf("decode tool arguments for %s: %w", call.Function.Name, err)
+				return "", false, nil, fmt.Errorf("decode tool arguments for %s: %w", call.Function.Name, err)
 			}
 		}
 		switch tool.Invocation {
 		case engine.LLMToolInvocationDataRequest:
 			if tool.DataRequest == nil {
-				return "", false, fmt.Errorf("tool %s missing data request template", tool.Name)
+				return "", false, nil, fmt.Errorf("tool %s missing data request template", tool.Name)
 			}
 			merged := map[string]any{}
 			if strings.TrimSpace(tool.DataRequest.Label) != "" {
@@ -206,14 +207,27 @@ func normalizeOpenAIToolCalls(message openAIMessage, toolMap map[string]engine.L
 				merged[key] = value
 			}
 			dataRequest = merged
+			normalizedToolCalls = append(normalizedToolCalls, map[string]any{
+				"name":       tool.Name,
+				"invocation": tool.Invocation,
+				"payload":    merged,
+			})
 		case engine.LLMToolInvocationAction:
 			actionID := strings.TrimSpace(tool.ActionID)
 			if actionID == "" {
 				actionID = strings.TrimSpace(tool.Name)
 			}
 			actionCalls = append(actionCalls, map[string]any{"action_id": actionID, "args": args})
+			normalizedToolCalls = append(normalizedToolCalls, map[string]any{
+				"name":       tool.Name,
+				"invocation": tool.Invocation,
+				"payload": map[string]any{
+					"action_id": actionID,
+					"args":      args,
+				},
+			})
 		default:
-			return "", false, fmt.Errorf("unsupported tool invocation kind for %s", tool.Name)
+			return "", false, nil, fmt.Errorf("unsupported tool invocation kind for %s", tool.Name)
 		}
 	}
 
@@ -235,9 +249,12 @@ func normalizeOpenAIToolCalls(message openAIMessage, toolMap map[string]engine.L
 
 	data, err := json.Marshal(result)
 	if err != nil {
-		return "", false, fmt.Errorf("marshal normalized tool call payload: %w", err)
+		return "", false, nil, fmt.Errorf("marshal normalized tool call payload: %w", err)
 	}
-	return string(data), true, nil
+	return string(data), true, map[string]any{
+		"structured_output_normalized": true,
+		"tool_calls":                   normalizedToolCalls,
+	}, nil
 }
 
 // Chat 调用远端聊天补全接口并返回统一的 LLM 结果。
@@ -280,16 +297,19 @@ func (p *openAIProvider) Chat(chatReq *engine.LLMChatRequest) (*engine.LLMResult
 	}
 
 	content := result.Choices[0].Message.Content
-	if normalized, ok, err := normalizeOpenAIToolCalls(result.Choices[0].Message, toolMap); err != nil {
+	var metadata map[string]any
+	if normalized, ok, normalizedMetadata, err := normalizeOpenAIToolCalls(result.Choices[0].Message, toolMap); err != nil {
 		return nil, err
 	} else if ok {
 		content = normalized
+		metadata = normalizedMetadata
 	}
 
 	return &engine.LLMResult{
-		Content: content,
-		Model:   p.model,
-		Tokens:  result.Usage.TotalTokens,
+		Content:  content,
+		Model:    p.model,
+		Tokens:   result.Usage.TotalTokens,
+		Metadata: metadata,
 	}, nil
 }
 

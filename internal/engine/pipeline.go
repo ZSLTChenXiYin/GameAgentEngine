@@ -1021,22 +1021,24 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 			promptSeed = ctx.SystemPrompt
 			state.SystemPrompt = state.buildPrompt(taskPromptFn(promptSeed, req, targetNodeID, round))
 		}
-		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
-			Category:   "pipeline_round",
-			EventName:  "prompt_prepared",
-			Message:    fmt.Sprintf("round %d prompt prepared", round+1),
-			Round:      round + 1,
-			DetailData: buildRoundLogDetail(state.SystemPrompt, state.Messages, round+1, targetNodeID, state.Tree),
-		})
-
-		llmStart := time.Now()
 		var tools []LLMToolDefinition
 		if toolFn != nil {
 			tools = toolFn(req, targetNodeID, round)
 		} else {
 			tools = requestDynamicTools(req)
 		}
-		llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: state.SystemPrompt, Messages: state.Messages, Tools: p.negotiatedLLMTools(tools)})
+		providerSupportsTools := llmProviderSupportsStructuredTools(p.llmProvider)
+		exposedTools := p.negotiatedLLMTools(tools)
+		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+			Category:   "pipeline_round",
+			EventName:  "prompt_prepared",
+			Message:    fmt.Sprintf("round %d prompt prepared", round+1),
+			Round:      round + 1,
+			DetailData: buildRoundLogDetailWithTools(state.SystemPrompt, state.Messages, round+1, targetNodeID, state.Tree, tools, exposedTools, providerSupportsTools),
+		})
+
+		llmStart := time.Now()
+		llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: state.SystemPrompt, Messages: state.Messages, Tools: exposedTools})
 		if err != nil {
 			p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 				Category:   "pipeline_round",
@@ -1057,7 +1059,7 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 			Round:      round + 1,
 			TokensUsed: llmResp.Tokens,
 			DurationMs: time.Since(llmStart).Milliseconds(),
-			DetailData: buildLLMResponseDetail(llmResp.Content, parsed),
+			DetailData: buildLLMResponseDetailWithMetadata(llmResp.Content, parsed, llmResp.Metadata),
 		})
 		if roundNode != nil {
 			roundNode.LLMResponse = llmResp.Content
@@ -1414,12 +1416,15 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 	}
 
 	parsed := p.parseLLMJSON(llmResp.Content)
+	providerSupportsTools := llmProviderSupportsStructuredTools(p.llmProvider)
+	plannedTools := requestDynamicTools(req)
+	exposedTools := p.negotiatedLLMTools(plannedTools)
 	p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 		Category:   "pipeline_round",
 		EventName:  "prompt_prepared",
 		Message:    "vertical prompt prepared",
 		Round:      1,
-		DetailData: buildRoundLogDetail(systemPrompt, sanitizeRoles(req.Messages), 1, req.NodeID, nil),
+		DetailData: buildRoundLogDetailWithTools(systemPrompt, sanitizeRoles(req.Messages), 1, req.NodeID, nil, plannedTools, exposedTools, providerSupportsTools),
 	})
 	p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 		Category:   "pipeline_round",
@@ -1428,7 +1433,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 		Round:      1,
 		TokensUsed: llmResp.Tokens,
 		DurationMs: time.Since(start).Milliseconds(),
-		DetailData: buildLLMResponseDetail(llmResp.Content, parsed),
+		DetailData: buildLLMResponseDetailWithMetadata(llmResp.Content, parsed, llmResp.Metadata),
 	})
 	resp := &InvokeResponse{
 		RequestID:     requestID,

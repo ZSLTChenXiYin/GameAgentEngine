@@ -120,4 +120,14 @@ func TestOpenAIProviderNormalizesToolCallsIntoEngineJSON(t *testing.T) {
 	if payload.ActionCalls[0].Args["intent"] != "quote" {
 		t.Fatalf("expected action args to survive normalization, got %+v", payload.ActionCalls[0].Args)
 	}
+	if resp.Metadata == nil {
+		t.Fatal("expected provider metadata to be populated")
+	}
+	if normalized, _ := resp.Metadata["structured_output_normalized"].(bool); !normalized {
+		t.Fatalf("expected structured_output_normalized metadata, got %+v", resp.Metadata)
+	}
+	rawCalls, ok := resp.Metadata["tool_calls"].([]map[string]any)
+	if !ok || len(rawCalls) != 2 {
+		t.Fatalf("expected normalized tool_calls metadata, got %+v", resp.Metadata)
+	}
 }

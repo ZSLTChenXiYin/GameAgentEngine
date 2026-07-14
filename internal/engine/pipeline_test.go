@@ -365,6 +365,54 @@ func TestExecuteDebugModePersistsFullRoundDetails(t *testing.T) {
 	}
 }
 
+func TestExecuteDebugModeLogsStructuredToolNegotiationDetails(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	previousMode := config.Global.Engine.ExecutionMode
+	config.Global.Engine.ExecutionMode = "debug"
+	defer func() { config.Global.Engine.ExecutionMode = previousMode }()
+
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`, supportsTools: false, toolsSet: true}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskNPCDialogue,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "scene_facts",
+			Kind:              DynamicInterfaceDataRequest,
+			ExternalInterface: "game_client_request_data",
+			Description:       "Query visible scene state",
+			QueryTypes:        []string{"node_detail"},
+		}}},
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	logs, err := store.GetInferenceLogs(worldID, 20, 0, string(TaskNPCDialogue))
+	if err != nil {
+		t.Fatalf("get logs: %v", err)
+	}
+	var found bool
+	for _, item := range logs {
+		if item.EventName == "prompt_prepared" {
+			found = true
+			if !strings.Contains(item.DetailData, "provider_supports_tools") {
+				t.Fatalf("expected provider_supports_tools in detail data, got %s", item.DetailData)
+			}
+			if !strings.Contains(item.DetailData, "planned_tools") {
+				t.Fatalf("expected planned_tools in detail data, got %s", item.DetailData)
+			}
+			if !strings.Contains(item.DetailData, "exposed_tools") {
+				t.Fatalf("expected exposed_tools in detail data, got %s", item.DetailData)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected prompt_prepared log in debug mode")
+	}
+}
+
 func TestExecuteReviewModePersistsPendingPlanLog(t *testing.T) {
 	initTestDB(t)
 	worldID, _ := createWorldAndNode(t)

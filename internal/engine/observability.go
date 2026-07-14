@@ -209,6 +209,22 @@ func buildRoundLogDetail(systemPrompt string, messages []ChatMessage, round int,
 	return marshalLogDetail(data)
 }
 
+func buildRoundLogDetailWithTools(systemPrompt string, messages []ChatMessage, round int, targetNodeID string, taskTree *TaskTree, plannedTools []LLMToolDefinition, exposedTools []LLMToolDefinition, providerSupportsTools bool) string {
+	data := map[string]any{
+		"round":                   round,
+		"target_node_id":          targetNodeID,
+		"system_prompt":           systemPrompt,
+		"messages":                messages,
+		"provider_supports_tools": providerSupportsTools,
+		"planned_tools":           summarizeToolDefinitions(plannedTools),
+		"exposed_tools":           summarizeToolDefinitions(exposedTools),
+	}
+	if taskTree != nil {
+		data["task_tree"] = taskTree
+	}
+	return marshalLogDetail(data)
+}
+
 func buildLLMResponseDetail(raw string, parsed *llmParsedOutput) string {
 	data := map[string]any{
 		"raw_response": raw,
@@ -227,6 +243,79 @@ func buildLLMResponseDetail(raw string, parsed *llmParsedOutput) string {
 		data["sub_tasks"] = parsed.RawSubTasks
 	}
 	return marshalLogDetail(data)
+}
+
+func buildLLMResponseDetailWithMetadata(raw string, parsed *llmParsedOutput, metadata map[string]any) string {
+	data := map[string]any{
+		"raw_response": raw,
+	}
+	if parsed != nil {
+		data["cleaned_response"] = parsed.CleanedContent
+		data["parse_error"] = parsed.ParseError
+		data["reply"] = parsed.Reply
+		data["advanced_ticks"] = parsed.AdvancedTicks
+		data["action_calls"] = parsed.RawActionCalls
+		data["memory_updates"] = parsed.RawMemoryUpdates
+		data["world_change_plan"] = parsed.RawPlan
+		data["request_data"] = parsed.RawRequestData
+		data["interim_memory_updates"] = parsed.RawInterimMemoryUpdates
+		data["future_outline"] = parsed.RawFutureOutline
+		data["sub_tasks"] = parsed.RawSubTasks
+	}
+	if len(metadata) > 0 {
+		data["provider_metadata"] = metadata
+	}
+	return marshalLogDetail(data)
+}
+
+func summarizeToolDefinitions(tools []LLMToolDefinition) []map[string]any {
+	if len(tools) == 0 {
+		return nil
+	}
+	result := make([]map[string]any, 0, len(tools))
+	for _, tool := range tools {
+		item := map[string]any{
+			"name":       tool.Name,
+			"invocation": tool.Invocation,
+			"action_id":  tool.ActionID,
+		}
+		if tool.DataRequest != nil {
+			item["data_request"] = map[string]any{
+				"label":              tool.DataRequest.Label,
+				"target":             tool.DataRequest.Target,
+				"external_interface": tool.DataRequest.ExternalInterface,
+			}
+		}
+		if params := summarizeToolParameters(tool.Parameters); len(params) > 0 {
+			item["parameters"] = params
+		}
+		result = append(result, item)
+	}
+	return result
+}
+
+func summarizeToolParameters(parameters map[string]any) map[string]any {
+	if len(parameters) == 0 {
+		return nil
+	}
+	result := map[string]any{}
+	if schemaType, ok := parameters["type"].(string); ok && strings.TrimSpace(schemaType) != "" {
+		result["type"] = schemaType
+	}
+	if rawRequired, ok := parameters["required"]; ok {
+		result["required"] = rawRequired
+	}
+	if rawAdditional, ok := parameters["additionalProperties"]; ok {
+		result["additionalProperties"] = rawAdditional
+	}
+	if rawProperties, ok := parameters["properties"].(map[string]any); ok {
+		keys := make([]string, 0, len(rawProperties))
+		for key := range rawProperties {
+			keys = append(keys, key)
+		}
+		result["property_keys"] = keys
+	}
+	return result
 }
 
 func buildResponseOutcomeDetail(resp *InvokeResponse) string {

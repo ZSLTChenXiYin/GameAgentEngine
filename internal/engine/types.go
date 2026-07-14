@@ -512,9 +512,10 @@ type LLMStructuredToolProvider interface {
 
 // LLMResult 表示一次大模型调用的标准输出。
 type LLMResult struct {
-	Content string `json:"content"`
-	Model   string `json:"model"`
-	Tokens  int    `json:"tokens"`
+	Content  string         `json:"content"`
+	Model    string         `json:"model"`
+	Tokens   int            `json:"tokens"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // ==================== Sub-Task DAG Types ====================
