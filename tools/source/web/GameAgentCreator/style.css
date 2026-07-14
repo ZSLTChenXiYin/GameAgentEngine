@@ -186,6 +186,11 @@ input { padding:0 7px; height:26px; }
 .continuity-toolbar { flex-wrap:wrap; gap:8px; }
 .continuity-toolbar select { min-width:140px; }
 .continuity-actions { margin-top:8px; }
+.task-count-block { display:flex; flex-direction:column; gap:4px; width:100%; }
+.task-count-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:3px 0; border-bottom:1px solid var(--border); font-size:11px; }
+.task-count-row:last-child { border-bottom:none; }
+.task-count-key { color:var(--text-dim); word-break:break-word; }
+.task-count-value { color:var(--text); font-family:var(--font-mono); font-size:10px; }
 
 /* ====== Modal ====== */
 .hidden { display:none!important; }

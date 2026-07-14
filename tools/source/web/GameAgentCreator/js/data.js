@@ -2517,11 +2517,30 @@ async function saveAutonomousConfig() { if (!state.selectedNodeId) { toast(tr('P
 
 function loadTasks(silent) {
   if (!silent) showLoading(true);
-  api("GET", "/api/v1/runtime/tasks?limit=100", null).then(function(data) {
+  var filters = state.taskFilters || {};
+  var params = new URLSearchParams();
+  params.set('limit', '100');
+  if (filters.category) params.set('category', filters.category);
+  if (filters.consumer) params.set('consumer', filters.consumer);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.diagnosticView) params.set('diagnostic_view', filters.diagnosticView);
+  if (filters.mineOnly !== false && state.selectedWorldId) params.set('world_id', state.selectedWorldId);
+
+  Promise.all([
+    api("GET", "/api/v1/runtime/tasks?" + params.toString(), null),
+    api("GET", "/api/v1/runtime/tasks/stats", null),
+  ]).then(function(results) {
+    var data = results[0];
+    var statsResp = results[1];
     try {
       state.tasks = data && data.tasks ? data.tasks : [];
     } catch(e) {
       state.tasks = [];
+    }
+    try {
+      state.tasksStats = statsResp && statsResp.stats ? statsResp.stats : null;
+    } catch(e2) {
+      state.tasksStats = null;
     }
     if (state.page === "tasks") renderCurrent();
     if (!silent) { showLoading(false); toast(tr("Tasks refreshed"), "success"); }

@@ -1518,33 +1518,243 @@ async function loadTraces(container) {
 }
 
 
-function renderTasksPage(center) {
-  center.appendChild(ce("h2", {}, [txt(tr("Runtime Tasks"))]));
-  const tasks = state.tasks || [];
-  if (tasks.length === 0) {
-    center.appendChild(ce("p", {}, [txt(tr("No tasks found.") + " (" + tr("Click refresh") + ")")]));
-    return;
-  }
-  const table = ce("table", { className: "data-table" }, []);
-  const thead = ce("thead", {}, [ce("tr", {}, [
-    ce("th", {}, [txt("ID")]),
-    ce("th", {}, [txt(tr("Status"))]),
-    ce("th", {}, [txt(tr("Category"))]),
-    ce("th", {}, [txt(tr("Attempts"))]),
-    ce("th", {}, [txt(tr("Created"))])
-  ])]);
-  table.appendChild(thead);
-  const tbody = ce("tbody", {}, []);
-  tasks.forEach(function(t) {
-    const tr = ce("tr", {}, [
-      ce("td", {}, [txt(t.task_id ? t.task_id.slice(0, 8) : "-")]),
-      ce("td", {}, [ce("span", { className: "status-" + (t.status || "unknown") }, [txt(t.status || "-")])]),
-      ce("td", {}, [txt(t.category || "-")]),
-      ce("td", {}, [txt(String(t.attempt_count || 0))]),
-      ce("td", {}, [txt(t.created_at ? t.created_at.slice(0, 19) : "-")])
-    ]);
-    tbody.appendChild(tr);
+function mapCountEntries(source) {
+  var entries = [];
+  if (!source || typeof source !== 'object') return entries;
+  Object.keys(source).forEach(function(key) {
+    entries.push({ key: key || '-', count: Number(source[key] || 0) });
   });
-  table.appendChild(tbody);
-  center.appendChild(table);
+  entries.sort(function(a, b) { return b.count - a.count || a.key.localeCompare(b.key); });
+  return entries;
+}
+
+function renderTaskCountBlock(label, source, emptyText) {
+  var entries = mapCountEntries(source);
+  if (entries.length === 0) return renderPropRow(label, emptyText || '-');
+  var block = ce('div', { className: 'task-count-block' }, []);
+  entries.slice(0, 8).forEach(function(entry) {
+    block.appendChild(ce('div', { className: 'task-count-row' }, [
+      ce('span', { className: 'task-count-key' }, [txt(entry.key)]),
+      ce('span', { className: 'task-count-value' }, [txt(String(entry.count))]),
+    ]));
+  });
+  return renderPropRow(label, block, { className: 'trace-block' });
+}
+
+function parseTaskPayload(task, field) {
+  if (!task || !task[field]) return null;
+  return parseLogJSON(task[field]) || null;
+}
+
+function taskHeuristicLabel(task, payload) {
+  if (!task) return '-';
+  if (task.callback_id && task.resume_execution_id) return tr('Callback pending and resumable');
+  if (task.callback_id) return tr('Callback pending');
+  if (task.resume_execution_id) return tr('Resumable execution');
+  var resumePolicy = payload && payload.resume_policy ? payload.resume_policy : '';
+  if (resumePolicy && resumePolicy !== 'none') return resumePolicy;
+  return tr('No resume linkage');
+}
+
+function taskRouteSummary(task, payload) {
+  var route = [];
+  if (task && task.delivery_mode) route.push(task.delivery_mode);
+  if (task && task.transport) route.push(task.transport);
+  else if (payload && payload.primary_transport) route.push(payload.primary_transport);
+  if (task && task.consumer) route.push(task.consumer);
+  return route.length > 0 ? route.join(' / ') : '-';
+}
+
+function taskTitle(task) {
+  if (!task) return '-';
+  return task.interface_name || task.category || task.task_id || '-';
+}
+
+function renderTasksPage(center) {
+  center.appendChild(ce('h2', {}, [txt(tr('Runtime Tasks'))]));
+
+  var filters = state.taskFilters || {};
+  var toolbar = ce('div', { className: 'world-toolbar continuity-toolbar' }, [
+    ce('button', { id: 'btnRefreshTasks' }, [ttxt('Refresh Tasks')]),
+    ce('select', { id: 'taskStatusFilter' }, []),
+    ce('select', { id: 'taskCategoryFilter' }, []),
+    ce('select', { id: 'taskConsumerFilter' }, []),
+    ce('select', { id: 'taskDiagnosticFilter' }, []),
+    ce('label', { className: 'checkbox-row' }, [
+      el('input', { id: 'taskMineOnly', type: 'checkbox', checked: filters.mineOnly !== false }),
+      ce('span', {}, [ttxt('Current World Only')]),
+    ]),
+    ce('button', { id: 'btnClearTaskFilter' }, [ttxt('Clear Filter')]),
+  ]);
+  center.appendChild(toolbar);
+
+  var statusSelect = document.getElementById('taskStatusFilter');
+  var categorySelect = document.getElementById('taskCategoryFilter');
+  var consumerSelect = document.getElementById('taskConsumerFilter');
+  var diagnosticSelect = document.getElementById('taskDiagnosticFilter');
+  [
+    { value: '', label: tr('All Statuses') },
+    { value: 'pending', label: 'pending' },
+    { value: 'released', label: 'released' },
+    { value: 'dispatched', label: 'dispatched' },
+    { value: 'claimed', label: 'claimed' },
+    { value: 'running', label: 'running' },
+    { value: 'heartbeat_timeout', label: 'heartbeat_timeout' },
+    { value: 'succeeded', label: 'succeeded' },
+    { value: 'failed', label: 'failed' },
+  ].forEach(function(item) {
+    statusSelect.appendChild(el('option', { value: item.value, textContent: item.label }));
+  });
+  [
+    { value: '', label: tr('All Categories') },
+    { value: 'external_query', label: 'external_query' },
+    { value: 'external_action', label: 'external_action' },
+  ].forEach(function(item) {
+    categorySelect.appendChild(el('option', { value: item.value, textContent: item.label }));
+  });
+  [
+    { value: '', label: tr('All Consumers') },
+    { value: 'game_client', label: 'game_client' },
+    { value: 'bridge', label: 'bridge' },
+  ].forEach(function(item) {
+    consumerSelect.appendChild(el('option', { value: item.value, textContent: item.label }));
+  });
+  [
+    { value: '', label: tr('All Diagnostics') },
+    { value: 'retry_exhausted', label: 'retry_exhausted' },
+    { value: 'stale_dispatched', label: 'stale_dispatched' },
+    { value: 'repeated_timeout', label: 'repeated_timeout' },
+  ].forEach(function(item) {
+    diagnosticSelect.appendChild(el('option', { value: item.value, textContent: item.label }));
+  });
+  statusSelect.value = filters.status || '';
+  categorySelect.value = filters.category || '';
+  consumerSelect.value = filters.consumer || '';
+  diagnosticSelect.value = filters.diagnosticView || '';
+
+  var stats = state.tasksStats;
+  if (stats) {
+    var summaryGrid = ce('div', { className: 'continuity-grid' }, []);
+    summaryGrid.appendChild(ce('div', { className: 'detail-card' }, [
+      ce('div', { className: 'card-hd' }, [ttxt('Task Health Summary')]),
+      ce('div', { className: 'card-bd' }, [
+        renderPropRow('Total', String(stats.total || 0)),
+        renderPropRow('Ready Pull', String(stats.ready_pull || 0)),
+        renderPropRow('In Flight', String(stats.in_flight || 0)),
+        renderPropRow('Terminal', String(stats.terminal || 0)),
+        renderPropRow('Heartbeat Timeout', String(stats.heartbeat_timeout || 0)),
+        renderPropRow('Dispatch Errors', String(stats.dispatch_error_tasks || 0)),
+        renderPropRow('Retry Exhausted', String(stats.retry_exhausted_tasks || 0)),
+        renderPropRow('Stale Dispatched', String(stats.dispatched_without_callback || 0)),
+        renderPropRow('Oldest Ready Age (sec)', String(stats.oldest_ready_task_age_secs || 0)),
+        renderPropRow('Oldest Dispatched Age (sec)', String(stats.oldest_dispatched_age_secs || 0)),
+      ]),
+    ]));
+    summaryGrid.appendChild(ce('div', { className: 'detail-card' }, [
+      ce('div', { className: 'card-hd' }, [ttxt('Task Distribution')]),
+      ce('div', { className: 'card-bd' }, [
+        renderTaskCountBlock('By Status', stats.by_status, tr('No status stats.')),
+        renderTaskCountBlock('By Category', stats.by_category, tr('No category stats.')),
+        renderTaskCountBlock('By Consumer', stats.by_consumer, tr('No consumer stats.')),
+        renderTaskCountBlock('By Delivery', stats.by_delivery_mode, tr('No delivery stats.')),
+      ]),
+    ]));
+    center.appendChild(summaryGrid);
+  }
+
+  var tasks = state.tasks || [];
+  var list = ce('div', { className: 'trace-container' }, []);
+  if (tasks.length === 0) {
+    list.appendChild(ce('div', { className: 'hint' }, [txt(tr('No tasks found.') + ' (' + tr('Click refresh') + ')')]));
+  } else {
+    tasks.forEach(function(task, index) {
+      var payload = parseTaskPayload(task, 'payload_json');
+      var result = parseTaskPayload(task, 'result_json');
+      var externalInterface = payload && payload.external_interface ? payload.external_interface : null;
+      var card = createToggleDetailCard([
+        ce('span', { style: { fontWeight: 600 } }, [txt(taskTitle(task))]),
+        txt(' ' + (task.status || '-')),
+        txt(' ' + shortID(task.task_id || '')),
+      ], index === 0);
+      var body = card.body;
+      body.appendChild(renderPropRow('Task ID', task.task_id || '-', { mono: true }));
+      body.appendChild(renderPropRow('Status', task.status || '-'));
+      body.appendChild(renderPropRow('Heuristic', taskHeuristicLabel(task, payload)));
+      body.appendChild(renderPropRow('Category', task.category || '-'));
+      body.appendChild(renderPropRow('Interface', task.interface_name || '-'));
+      body.appendChild(renderPropRow('Route', taskRouteSummary(task, payload)));
+      body.appendChild(renderPropRow('World', task.world_id || '-', { mono: true }));
+      body.appendChild(renderPropRow('Node', task.node_id || '-', { mono: true }));
+      body.appendChild(renderPropRow('Request ID', task.request_id || '-', { mono: true }));
+      body.appendChild(renderPropRow('Callback ID', task.callback_id || '-', { mono: true }));
+      body.appendChild(renderPropRow('Resume Execution', task.resume_execution_id || '-', { mono: true }));
+      body.appendChild(renderPropRow('Consumer', task.consumer || '-'));
+      body.appendChild(renderPropRow('Delivery Mode', task.delivery_mode || '-'));
+      body.appendChild(renderPropRow('Transport', task.transport || '-'));
+      body.appendChild(renderPropRow('Attempts', String(task.attempt_count || 0) + ' / ' + String(task.max_attempts || 0)));
+      body.appendChild(renderPropRow('Dispatch Attempts', String(task.dispatch_attempts || 0)));
+      body.appendChild(renderPropRow('Heartbeat Timeouts', String(task.heartbeat_timeout_count || 0)));
+      body.appendChild(renderPropRow('Created', formatInferenceLogTime(task.created_at || '')));
+      body.appendChild(renderPropRow('Updated', formatInferenceLogTime(task.updated_at || '')));
+      body.appendChild(renderPropRow('Available', formatInferenceLogTime(task.available_at || '')));
+      body.appendChild(renderPropRow('Claimed', formatInferenceLogTime(task.claimed_at || '')));
+      body.appendChild(renderPropRow('Dispatched', formatInferenceLogTime(task.dispatched_at || '')));
+      body.appendChild(renderPropRow('Completed', formatInferenceLogTime(task.completed_at || '')));
+      body.appendChild(renderPropRow('Lease Owner', task.lease_owner || '-'));
+      body.appendChild(renderPropRow('Lease Token', task.lease_token || '-', { mono: true }));
+      body.appendChild(renderPropRow('Dispatch Failure Class', task.last_dispatch_failure_class || '-'));
+      body.appendChild(renderPropRow('Dispatch Decision', task.last_dispatch_decision || '-'));
+      body.appendChild(renderPropRow('Transition Reason', task.last_transition_reason || '-'));
+      body.appendChild(renderPropRow('Fallback From Transport', task.fallback_from_transport || '-'));
+      if (externalInterface) body.appendChild(renderLogDetailBlock('External Interface', externalInterface));
+      if (payload && payload.resume_policy) body.appendChild(renderPropRow('Resume Policy', payload.resume_policy));
+      if (task.error_message) body.appendChild(renderPropRow('Error', task.error_message));
+      if (task.last_dispatch_error) body.appendChild(renderPropRow('Last Dispatch Error', task.last_dispatch_error));
+      if (payload) body.appendChild(renderLogDetailBlock('Payload', payload));
+      else if (task.payload_json) body.appendChild(renderLogDetailBlock('Payload', task.payload_json));
+      if (result) body.appendChild(renderLogDetailBlock('Result', result));
+      else if (task.result_json) body.appendChild(renderLogDetailBlock('Result', task.result_json));
+      if (task.request_id) {
+        body.appendChild(ce('div', { className: 'policy-actions continuity-actions' }, [
+          ce('button', { className: 'task-request-btn', dataset: { requestId: task.request_id } }, [ttxt('Tracked Request')]),
+        ]));
+      }
+      list.appendChild(card.card);
+    });
+  }
+  center.appendChild(list);
+
+  document.getElementById('btnRefreshTasks').addEventListener('click', function() {
+    loadTasks();
+  });
+  statusSelect.addEventListener('change', function() {
+    state.taskFilters.status = this.value || '';
+    loadTasks(true);
+  });
+  categorySelect.addEventListener('change', function() {
+    state.taskFilters.category = this.value || '';
+    loadTasks(true);
+  });
+  consumerSelect.addEventListener('change', function() {
+    state.taskFilters.consumer = this.value || '';
+    loadTasks(true);
+  });
+  diagnosticSelect.addEventListener('change', function() {
+    state.taskFilters.diagnosticView = this.value || '';
+    loadTasks(true);
+  });
+  document.getElementById('taskMineOnly').addEventListener('change', function() {
+    state.taskFilters.mineOnly = !!this.checked;
+    loadTasks(true);
+  });
+  document.getElementById('btnClearTaskFilter').addEventListener('click', function() {
+    state.taskFilters = { status: '', category: '', consumer: '', diagnosticView: '', mineOnly: true };
+    loadTasks(true);
+  });
+  document.querySelectorAll('.task-request-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      state.continuityRequestId = btn.dataset.requestId || '';
+      switchPage('continuity');
+    });
+  });
 }

@@ -33,6 +33,8 @@ let state = {
   selectedTreePathKey: null,
   page: 'worlds', nodeDetail: null, components: [], memories: [],
   relations: [], policy: null, settings: null, plans: [], logs: [], stateComponents: [], timelines: [], snapshots: [], snapshotMeta: null, snapshotListWorldId: null,
+  tasks: [], tasksStats: null,
+  taskFilters: { status: '', category: '', consumer: '', diagnosticView: '', mineOnly: true },
   continuityBundle: null, continuityRequestId: '', continuityMode: '',
   autonomous: null, treeFilter: '', connected: false,
   dragNodeId: null, suppressTreeClickUntil: 0,
