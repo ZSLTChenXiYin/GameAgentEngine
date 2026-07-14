@@ -30,14 +30,24 @@ var actionCallbackCmd = &cobra.Command{
 			}
 		}
 
-		if err := newClient().ActionCallback(args[0], status, result); err != nil {
+		resp, err := newClient().ActionCallback(args[0], status, result)
+		if err != nil {
 			fail(err)
 		}
+		if resp == nil {
+			printJSON(map[string]any{
+				"status":      "ok",
+				"callback_id": args[0],
+				"reported":    status,
+				"result":      result,
+			})
+			return
+		}
 		printJSON(map[string]any{
-			"status":      "ok",
 			"callback_id": args[0],
 			"reported":    status,
 			"result":      result,
+			"response":    resp,
 		})
 	},
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -222,11 +223,47 @@ func buildInvokeContext(cmd *cobra.Command) *sdk.InvokeContext {
 		ctx.IncludeRelatedNodes = v
 		anySet = true
 	}
+	if v, _ := cmd.Flags().GetString("pipeline-mode"); cmd.Flags().Changed("pipeline-mode") {
+		ctx.PipelineMode = v
+		anySet = true
+	}
+	if dynamicInterfaces, err := loadDynamicInterfaces(cmd); err != nil {
+		fail(err)
+	} else if len(dynamicInterfaces) > 0 {
+		ctx.DynamicInterfaces = dynamicInterfaces
+		anySet = true
+	}
 
 	if !anySet {
 		return nil
 	}
 	return ctx
+}
+
+func loadDynamicInterfaces(cmd *cobra.Command) ([]sdk.DynamicInterface, error) {
+	jsonText, _ := cmd.Flags().GetString("dynamic-interfaces-json")
+	filePath, _ := cmd.Flags().GetString("dynamic-interfaces-file")
+	if strings.TrimSpace(jsonText) != "" && strings.TrimSpace(filePath) != "" {
+		return nil, fmt.Errorf("use either --dynamic-interfaces-json or --dynamic-interfaces-file, not both")
+	}
+	if strings.TrimSpace(jsonText) == "" && strings.TrimSpace(filePath) == "" {
+		return nil, nil
+	}
+	var payload []byte
+	if strings.TrimSpace(filePath) != "" {
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return nil, err
+		}
+		payload = data
+	} else {
+		payload = []byte(jsonText)
+	}
+	var interfaces []sdk.DynamicInterface
+	if err := json.Unmarshal(payload, &interfaces); err != nil {
+		return nil, fmt.Errorf("invalid dynamic_interfaces JSON: %w", err)
+	}
+	return interfaces, nil
 }
 
 func validateRequestedTicksForWorld(worldID string, requestedTicks *int) error {
