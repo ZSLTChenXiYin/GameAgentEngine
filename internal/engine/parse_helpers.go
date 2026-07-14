@@ -118,6 +118,9 @@ func normalizeDynamicActionCall(req *InvokeRequest, call *ActionCall, actionRegi
 	if call.Args == nil {
 		call.Args = map[string]any{}
 	}
+	if err := validateDynamicActionArgs(call.Args, matched.ArgsSchema); err != nil {
+		return nil, fmt.Errorf("action args invalid for interface %q: %w", matched.ID, err)
+	}
 	call.Args["external_interface"] = matched.ExternalInterface
 	return matched, nil
 }

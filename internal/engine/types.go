@@ -611,6 +611,12 @@ func ValidateDynamicInterfaces(items []DynamicInterface) error {
 			if len(item.QueryTypes) > 0 {
 				return fmt.Errorf("dynamic_interfaces[%d].query_types only applies to data_request interfaces", i)
 			}
+			if len(item.ArgsSchema) > 0 {
+				schemaType, _ := item.ArgsSchema["type"].(string)
+				if strings.TrimSpace(schemaType) != "object" {
+					return fmt.Errorf("dynamic_interfaces[%d].args_schema.type must be object when provided", i)
+				}
+			}
 		}
 
 		seenQueryTypes := make(map[string]struct{}, len(item.QueryTypes))

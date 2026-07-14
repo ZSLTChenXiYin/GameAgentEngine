@@ -1820,6 +1820,85 @@ func TestExecuteDynamicActionBlocksUnknownUnapprovedAction(t *testing.T) {
 	}
 }
 
+func TestExecuteDynamicActionBlocksInvalidArgsBySchema(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[{"action_id":"merchant_ops","args":{"intent":123}}],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "merchant_ops",
+			Kind:              DynamicInterfaceAction,
+			ExternalInterface: "npc_trade_action",
+			Description:       "Perform trade-related external actions",
+			ArgsSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"intent": map[string]any{"type": "string"},
+				},
+				"required": []string{"intent"},
+			},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(resp.ActionCalls) != 0 {
+		t.Fatalf("expected invalid dynamic action to be dropped, got %+v", resp.ActionCalls)
+	}
+	tasks, err := store.ListRuntimeTasks(store.RuntimeTaskListQuery{WorldUUID: worldID, Limit: 10})
+	if err != nil {
+		t.Fatalf("list runtime tasks: %v", err)
+	}
+	if len(tasks) != 0 {
+		t.Fatalf("expected no runtime tasks, got %+v", tasks)
+	}
+}
+
+func TestExecuteDynamicActionBlocksUnknownArgsWhenSchemaDisallowsAdditionalProperties(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &stubProvider{response: `{"reply":"ok","action_calls":[{"action_id":"merchant_ops","args":{"intent":"quote","price":10}}],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context: &InvokeContext{DynamicInterfaces: []DynamicInterface{{
+			ID:                "merchant_ops",
+			Kind:              DynamicInterfaceAction,
+			ExternalInterface: "npc_trade_action",
+			Description:       "Perform trade-related external actions",
+			ArgsSchema: map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"properties": map[string]any{
+					"intent": map[string]any{"type": "string"},
+				},
+				"required": []string{"intent"},
+			},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(resp.ActionCalls) != 0 {
+		t.Fatalf("expected invalid dynamic action to be dropped, got %+v", resp.ActionCalls)
+	}
+	tasks, err := store.ListRuntimeTasks(store.RuntimeTaskListQuery{WorldUUID: worldID, Limit: 10})
+	if err != nil {
+		t.Fatalf("list runtime tasks: %v", err)
+	}
+	if len(tasks) != 0 {
+		t.Fatalf("expected no runtime tasks, got %+v", tasks)
+	}
+}
+
 func TestExecuteHybridFallbackTransportMovesAsyncTaskToReleased(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
