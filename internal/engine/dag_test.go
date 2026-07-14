@@ -57,6 +57,7 @@ func TestDAGSummarizeResultsCanRequestStoreDataAndContinue(t *testing.T) {
 }
 
 func TestDAGSummarizeResultsBlocksNonStoreRequestData(t *testing.T) {
+	initTestDB(t)
 	provider := &summarizeCaptureProvider{responses: []string{
 		`{"request_data":{"label":"fetch-client","target":"game_client","queries":[{"type":"node_detail","node_id":"npc-1"}]}}`,
 		`{"reply":"fallback final reply"}`,
@@ -75,12 +76,16 @@ func TestDAGSummarizeResultsBlocksNonStoreRequestData(t *testing.T) {
 	if len(provider.lastPrompts) < 2 {
 		t.Fatalf("expected captured prompts, got %d", len(provider.lastPrompts))
 	}
-	if !strings.Contains(provider.lastPrompts[1], "only store target is supported during DAG summarization") {
+	if !strings.Contains(provider.lastPrompts[0], "standalone DAG summarize helper only supports store-backed request_data continuation") {
+		t.Fatalf("expected standalone helper scope note in prompt, got %s", provider.lastPrompts[0])
+	}
+	if !strings.Contains(provider.lastPrompts[1], "use pipeline DAG summarize for game_client callbacks") {
 		t.Fatalf("expected blocked target note in second prompt, got %s", provider.lastPrompts[1])
 	}
 }
 
 func TestDAGSummarizeResultsRetriesAfterInvalidRequestData(t *testing.T) {
+	initTestDB(t)
 	provider := &summarizeCaptureProvider{responses: []string{
 		`{"request_data":"bad"}`,
 		`{"reply":"recovered final reply"}`,
@@ -105,6 +110,7 @@ func TestDAGSummarizeResultsRetriesAfterInvalidRequestData(t *testing.T) {
 }
 
 func TestDAGReadyTasksFollowRegistrationOrder(t *testing.T) {
+	initTestDB(t)
 	dag := NewDAGInstance(NewTaskTree(TaskCustom, "world-1", "node-1"), nil, 2, 0)
 	for _, decl := range []SubTaskDeclaration{
 		{Label: "first", TaskType: TaskCustom},
@@ -135,6 +141,7 @@ func TestDAGReadyTasksFollowRegistrationOrder(t *testing.T) {
 }
 
 func TestDAGMergeResultsFollowsRegistrationOrder(t *testing.T) {
+	initTestDB(t)
 	dag := NewDAGInstance(NewTaskTree(TaskCustom, "world-1", "node-1"), nil, 2, 0)
 	for _, decl := range []SubTaskDeclaration{
 		{Label: "first", TaskType: TaskCustom, MergeMode: "append"},

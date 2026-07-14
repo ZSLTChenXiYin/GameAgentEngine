@@ -263,8 +263,9 @@ func (d *DAGInstance) summarizeBaseLines() []string {
 	baseLines := []string{
 		"You are merging multiple engine sub-task results into one final reply.",
 		`Return JSON only. Use either {"reply":"..."} or {"reply":"...","request_data":{"label":"...","target":"store","queries":[...]}}.`,
+		"This standalone DAG summarize helper only supports store-backed request_data continuation.",
 		"If more engine-side data is required before concluding, request it with request_data targeting store.",
-		"Do not request game_client data during DAG summarization.",
+		"For game_client callbacks and pause/resume, use the pipeline-driven DAG summarize path instead of this helper.",
 		"========== Sub-task Results ==========",
 	}
 
@@ -293,6 +294,8 @@ func (d *DAGInstance) summarizeBaseLines() []string {
 }
 
 // summarizeResults asks the LLM to merge sub-task outcomes into one reply.
+// It is a lightweight standalone helper: store request_data loops are supported,
+// while pipeline-managed game_client pause/resume flows live in pipeline.go.
 func (d *DAGInstance) summarizeResults() string {
 	if d.llmProvider == nil {
 		return "[summarize] 无 LLM 提供者"
@@ -328,7 +331,7 @@ func (d *DAGInstance) summarizeResults() string {
 				dr.Target = "store"
 			}
 			if dr.Target != "store" {
-				stateLines = append(stateLines, "[summarize request_data blocked] only store target is supported during DAG summarization")
+				stateLines = append(stateLines, "[summarize request_data blocked] standalone DAG summarize only supports store target; use pipeline DAG summarize for game_client callbacks")
 				continue
 			}
 			if len(dr.Queries) == 0 {
