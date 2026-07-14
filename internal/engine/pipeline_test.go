@@ -1161,6 +1161,101 @@ func TestResumePausedExecutionSupportsRepeatedSubTaskSummarizeGameClientCallback
 	}
 }
 
+func TestSubTaskSummarizeDynamicDataRequestUsesAllowedInterface(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"parent","sub_tasks":[{"label":"fetch_scene","task_type":"custom","node_id":"` + nodeID + `","merge_mode":"summarize"}]}`,
+		`{"reply":"child-branch","action_calls":[],"memory_updates":[]}`,
+		`{"request_data":{"label":"summarize-scene","target":"game_client","external_interface":"scene_facts","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context: &InvokeContext{
+			PipelineMode: PipelineFull,
+			DynamicInterfaces: []DynamicInterface{{
+				ID:                "scene_facts",
+				Kind:              DynamicInterfaceDataRequest,
+				ExternalInterface: "game_client_request_data",
+				Description:       "Query visible scene state",
+				QueryTypes:        []string{"node_detail"},
+				MaxQueries:        1,
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp.DataRequest == nil || resp.DataRequest.ExternalInterface != "game_client_request_data" {
+		t.Fatalf("expected normalized summarize external interface, got %+v", resp.DataRequest)
+	}
+	if len(resp.ActionCalls) != 1 || resp.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected summarize callback action, got %+v", resp.ActionCalls)
+	}
+	task, err := store.GetRuntimeTaskByCallbackID(resp.ActionCalls[0].CallbackID)
+	if err != nil {
+		t.Fatalf("get runtime task: %v", err)
+	}
+	if task.InterfaceName != "game_client_request_data" {
+		t.Fatalf("expected summarize runtime task interface game_client_request_data, got %+v", task)
+	}
+}
+
+func TestSubTaskSummarizeDynamicDataRequestBlocksDisallowedQueryType(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"parent","sub_tasks":[{"label":"fetch_scene","task_type":"custom","node_id":"` + nodeID + `","merge_mode":"summarize"}]}`,
+		`{"reply":"child-branch","action_calls":[],"memory_updates":[]}`,
+		`{"request_data":{"label":"summarize-scene","target":"game_client","external_interface":"scene_facts","queries":[{"type":"node_relations","node_id":"` + nodeID + `"}]}}`,
+		`{"reply":"summary-after-block"}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context: &InvokeContext{
+			PipelineMode: PipelineFull,
+			DynamicInterfaces: []DynamicInterface{{
+				ID:                "scene_facts",
+				Kind:              DynamicInterfaceDataRequest,
+				ExternalInterface: "game_client_request_data",
+				Description:       "Query visible scene state",
+				QueryTypes:        []string{"node_detail"},
+				MaxQueries:        1,
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp.DataRequest != nil {
+		t.Fatalf("expected summarize dynamic request to be blocked, got %+v", resp.DataRequest)
+	}
+	if len(resp.ActionCalls) != 0 {
+		t.Fatalf("expected no summarize callback action, got %+v", resp.ActionCalls)
+	}
+	if !strings.Contains(resp.Reply, "summary-after-block") {
+		t.Fatalf("expected summarize loop to continue after blocked request, got %+v", resp)
+	}
+	tasks, err := store.ListRuntimeTasks(store.RuntimeTaskListQuery{WorldUUID: worldID, Limit: 10})
+	if err != nil {
+		t.Fatalf("list runtime tasks: %v", err)
+	}
+	if len(tasks) != 0 {
+		t.Fatalf("expected no runtime tasks for blocked summarize request, got %+v", tasks)
+	}
+	if !strings.Contains(provider.lastPrompt, "[summarize request_data blocked]") {
+		t.Fatalf("expected summarize prompt to record blocked dynamic request, got %s", provider.lastPrompt)
+	}
+}
+
 func TestExecuteAsyncActionEnqueuesRuntimeTask(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
