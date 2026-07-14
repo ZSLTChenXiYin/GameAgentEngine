@@ -835,7 +835,7 @@ func buildDAGFailureSummary(dag *DAGInstance) string {
 	return strings.Join(errParts, "\n")
 }
 
-func (p *Pipeline) resumePendingSubTaskSummary(req *InvokeRequest, merged *InvokeResponse, dag *DAGInstance, pending pausedSummaryMerge, callbackResult any) (*InvokeResponse, *DataRequest, *string, []string, error) {
+func (p *Pipeline) resumePendingSubTaskSummary(req *InvokeRequest, merged *InvokeResponse, dag *DAGInstance, pending pausedSummaryMerge, callbackResult any, runtime *executionConfig, executionMode ExecutionMode, round int) (*InvokeResponse, *DataRequest, *string, []string, error) {
 	if dag == nil {
 		return merged, nil, nil, nil, fmt.Errorf("dag required for pending summary resume")
 	}
@@ -845,11 +845,22 @@ func (p *Pipeline) resumePendingSubTaskSummary(req *InvokeRequest, merged *Invok
 	if label == "" {
 		label = "game_client"
 	}
+	p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+		Category:  "pipeline_round",
+		EventName: "summarize_data_request_resolved_from_client",
+		Message:   label,
+		Round:     round,
+		DetailData: marshalLogDetail(map[string]any{
+			"label":           label,
+			"source":          "game_client_callback",
+			"callback_result": callbackResult,
+		}),
+	})
 	stateLines = append(stateLines, "[summarize request_data resolved] "+label, resolved)
-	return p.continueSubTaskSummaryMerge(req, merged, dag, pending.Label, stateLines)
+	return p.continueSubTaskSummaryMerge(req, merged, dag, pending.Label, stateLines, runtime, executionMode, round)
 }
 
-func (p *Pipeline) continueSubTaskSummaryMerge(req *InvokeRequest, merged *InvokeResponse, dag *DAGInstance, summaryLabel string, stateLines []string) (*InvokeResponse, *DataRequest, *string, []string, error) {
+func (p *Pipeline) continueSubTaskSummaryMerge(req *InvokeRequest, merged *InvokeResponse, dag *DAGInstance, summaryLabel string, stateLines []string, runtime *executionConfig, executionMode ExecutionMode, round int) (*InvokeResponse, *DataRequest, *string, []string, error) {
 	if dag == nil {
 		return merged, nil, nil, nil, fmt.Errorf("dag required for summary merge")
 	}
@@ -893,6 +904,18 @@ func (p *Pipeline) continueSubTaskSummaryMerge(req *InvokeRequest, merged *Invok
 			if rawRequestData != "" && rawRequestData != "null" {
 				var dr DataRequest
 				if err := json.Unmarshal([]byte(rawRequestData), &dr); err != nil {
+					p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+						Category:  "pipeline_round",
+						EventName: "summarize_data_request_invalid",
+						LogLevel:  "warn",
+						Message:   err.Error(),
+						Round:     round,
+						DetailData: marshalLogDetail(map[string]any{
+							"raw_request_data": rawRequestData,
+							"summary_label":    summaryLabel,
+							"error":            err.Error(),
+						}),
+					})
 					currentState = append(currentState, "[summarize request_data invalid] "+err.Error())
 					continue
 				}
@@ -901,27 +924,87 @@ func (p *Pipeline) continueSubTaskSummaryMerge(req *InvokeRequest, merged *Invok
 				}
 				if dr.Target == "game_client" {
 					if err := normalizeDynamicDataRequest(req, &dr); err != nil {
+						p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+							Category:  "pipeline_round",
+							EventName: "summarize_data_request_blocked",
+							LogLevel:  "warn",
+							Message:   err.Error(),
+							Round:     round,
+							DetailData: marshalLogDetail(map[string]any{
+								"request":       dr,
+								"summary_label": summaryLabel,
+								"error":         err.Error(),
+							}),
+						})
 						currentState = append(currentState, "[summarize request_data blocked] "+err.Error())
 						continue
 					}
 					if strings.TrimSpace(dr.Label) == "" {
 						dr.Label = firstNonEmpty(summaryLabel, "game_client")
 					}
+					p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+						Category:   "pipeline_round",
+						EventName:  "summarize_data_request_emitted",
+						Message:    dr.Label,
+						Round:      round,
+						DetailData: marshalLogDetail(map[string]any{"request": dr, "summary_label": summaryLabel}),
+					})
 					return mergedResp, &dr, &label, append([]string(nil), currentState...), nil
 				}
 				if dr.Target != "store" {
+					p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+						Category:  "pipeline_round",
+						EventName: "summarize_data_request_blocked",
+						LogLevel:  "warn",
+						Message:   "only store target is supported during DAG summarization",
+						Round:     round,
+						DetailData: marshalLogDetail(map[string]any{
+							"request":       dr,
+							"summary_label": summaryLabel,
+						}),
+					})
 					currentState = append(currentState, "[summarize request_data blocked] only store target is supported during DAG summarization")
 					continue
 				}
 				if len(dr.Queries) == 0 {
+					p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+						Category:  "pipeline_round",
+						EventName: "summarize_data_request_blocked",
+						LogLevel:  "warn",
+						Message:   "no queries requested",
+						Round:     round,
+						DetailData: marshalLogDetail(map[string]any{
+							"request":       dr,
+							"summary_label": summaryLabel,
+						}),
+					})
 					currentState = append(currentState, "[summarize request_data blocked] no queries requested")
 					continue
 				}
+				p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+					Category:   "pipeline_round",
+					EventName:  "summarize_data_request_emitted",
+					Message:    firstNonEmpty(dr.Label, "store_query"),
+					Round:      round,
+					DetailData: marshalLogDetail(map[string]any{"request": dr, "summary_label": summaryLabel}),
+				})
 				currentState = append(currentState, "[summarize request_data] "+firstNonEmpty(dr.Label, "store_query"))
 				result := p.handleDataRequest(nil, &dr)
 				if strings.TrimSpace(result) == "" {
 					result = "[no data returned]"
 				}
+				p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+					Category:  "pipeline_round",
+					EventName: "summarize_data_request_resolved",
+					Message:   firstNonEmpty(dr.Label, "store_query"),
+					Round:     round,
+					DetailData: marshalLogDetail(map[string]any{
+						"request":       dr,
+						"summary_label": summaryLabel,
+						"result":        result,
+						"source":        "store",
+					}),
+				})
 				currentState = append(currentState, result)
 				continue
 			}
@@ -994,8 +1077,21 @@ func (p *Pipeline) pauseForPendingSubTaskSummary(executionID string, req *Invoke
 			_ = store.MarkPausedExecutionFailed(executionID, err.Error())
 			return nil, fmt.Errorf("dispatch summarize game client request: %w", err)
 		}
+		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+			Category:  "pipeline_round",
+			EventName: "summarize_data_request_dispatch_failed",
+			LogLevel:  "error",
+			Message:   err.Error(),
+			Round:     pausedRound,
+			DetailData: marshalLogDetail(map[string]any{
+				"callback_id":        callbackID,
+				"delivery_mode":      route.DeliveryMode,
+				"primary_transport":  route.PrimaryTransport,
+				"data_request_label": dr.Label,
+			}),
+		})
 	}
-	return &InvokeResponse{
+	resp := &InvokeResponse{
 		RequestID:     requestID,
 		ExecutionMode: executionMode,
 		TaskType:      req.TaskType,
@@ -1009,7 +1105,21 @@ func (p *Pipeline) pauseForPendingSubTaskSummary(executionID string, req *Invoke
 			Args:       map[string]any{"data_request": *dr},
 		}},
 		Metadata: buildResponseMeta(runtime, p.llmProvider.ModelName(), 0, time.Now(), pausedRound),
-	}, nil
+	}
+	p.emitLog(req, resp, runtime, executionMode, pipelineLogEvent{
+		Category:     "pipeline_round",
+		EventName:    "summarize_data_request_paused_for_client",
+		Message:      dr.Label,
+		Round:        pausedRound,
+		ResponseData: buildFullResponseLogData(resp),
+		DetailData: marshalLogDetail(map[string]any{
+			"request":       dr,
+			"summary_label": label,
+			"callback_id":   callbackID,
+			"execution_id":  executionID,
+		}),
+	})
+	return resp, nil
 }
 
 func (p *Pipeline) resumePendingSubTaskDAG(parentExecutionID string, parentReq *InvokeRequest, parentCtx *BuiltContext, state *RoundState, runtime *executionConfig, executionMode ExecutionMode, parentRequestID string, parentPausedRound int, callbackResult any) (*InvokeResponse, error) {
@@ -1081,7 +1191,7 @@ func (p *Pipeline) resumePendingSubTaskDAG(parentExecutionID string, parentReq *
 		var pausedDR *DataRequest
 		var pausedLabel *string
 		var pausedStateLines []string
-		mergedResp, pausedDR, pausedLabel, pausedStateLines, err = p.resumePendingSubTaskSummary(parentReq, mergedResp, dag, state.PendingSummaries[0], callbackResult)
+		mergedResp, pausedDR, pausedLabel, pausedStateLines, err = p.resumePendingSubTaskSummary(parentReq, mergedResp, dag, state.PendingSummaries[0], callbackResult, runtime, executionMode, parentPausedRound)
 		if err != nil {
 			return nil, err
 		}
@@ -1097,7 +1207,7 @@ func (p *Pipeline) resumePendingSubTaskDAG(parentExecutionID string, parentReq *
 		var pausedDR *DataRequest
 		var pausedLabel *string
 		var pausedStateLines []string
-		mergedResp, pausedDR, pausedLabel, pausedStateLines, err = p.continueSubTaskSummaryMerge(parentReq, mergedResp, dag, "", nil)
+		mergedResp, pausedDR, pausedLabel, pausedStateLines, err = p.continueSubTaskSummaryMerge(parentReq, mergedResp, dag, "", nil, runtime, executionMode, parentPausedRound)
 		if err != nil {
 			return nil, err
 		}
@@ -1185,7 +1295,7 @@ func (p *Pipeline) runSubTaskDAG(req *InvokeRequest, resp *InvokeResponse, parse
 		}
 	}
 
-	merged, pausedDR, pausedLabel, pausedStateLines, err := p.continueSubTaskSummaryMerge(req, nil, dag, "", nil)
+	merged, pausedDR, pausedLabel, pausedStateLines, err := p.continueSubTaskSummaryMerge(req, nil, dag, "", nil, runtime, executionMode, round)
 	if err != nil {
 		return nil, false, err
 	}

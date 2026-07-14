@@ -1161,6 +1161,82 @@ func TestResumePausedExecutionSupportsRepeatedSubTaskSummarizeGameClientCallback
 	}
 }
 
+func TestSubTaskSummarizePersistsStructuredDataRequestLogs(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	previousMode := config.Global.Engine.ExecutionMode
+	config.Global.Engine.ExecutionMode = "debug"
+	defer func() { config.Global.Engine.ExecutionMode = previousMode }()
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"parent","sub_tasks":[{"label":"fetch_scene","task_type":"custom","node_id":"` + nodeID + `","merge_mode":"summarize"}]}`,
+		`{"reply":"child-branch","action_calls":[],"memory_updates":[]}`,
+		`{"request_data":{"label":"fetch-store","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+		`{"request_data":{"label":"summarize-scene","target":"game_client","queries":[{"type":"node_relations","node_id":"` + nodeID + `"}]}}`,
+		`{"reply":"summary-after-resume"}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	first, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom, Context: &InvokeContext{PipelineMode: PipelineFull}})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if first == nil || first.DataRequest == nil || len(first.ActionCalls) != 1 {
+		t.Fatalf("expected summarize pause response, got %+v", first)
+	}
+	callbackID := first.ActionCalls[0].CallbackID
+	resumed, err := pipeline.ResumePausedExecution(callbackID, map[string]any{"relations": []string{"guard", "merchant"}})
+	if err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if resumed == nil || !strings.Contains(resumed.Reply, "summary-after-resume") {
+		t.Fatalf("expected resumed summarize reply, got %+v", resumed)
+	}
+
+	logs, err := store.GetInferenceLogs(worldID, 100, 0, string(TaskCustom))
+	if err != nil {
+		t.Fatalf("get logs: %v", err)
+	}
+	counts := map[string]int{}
+	for _, item := range logs {
+		counts[item.EventName]++
+	}
+	for _, eventName := range []string{
+		"summarize_data_request_emitted",
+		"summarize_data_request_resolved",
+		"summarize_data_request_paused_for_client",
+		"summarize_data_request_resolved_from_client",
+	} {
+		if counts[eventName] == 0 {
+			t.Fatalf("expected summarize log event %q, got %+v", eventName, counts)
+		}
+	}
+
+	pausedLogs, err := store.GetInferenceLogsByQuery(store.InferenceLogQuery{WorldUUID: worldID, TaskType: string(TaskCustom), EventName: "summarize_data_request_paused_for_client", Limit: 10})
+	if err != nil {
+		t.Fatalf("get paused summarize logs: %v", err)
+	}
+	if len(pausedLogs) == 0 {
+		t.Fatal("expected paused summarize log rows")
+	}
+	if pausedLogs[0].ResponseData == "" {
+		t.Fatal("expected paused summarize response data")
+	}
+
+	resolvedLogs, err := store.GetInferenceLogsByQuery(store.InferenceLogQuery{WorldUUID: worldID, TaskType: string(TaskCustom), EventName: "summarize_data_request_resolved_from_client", Limit: 10})
+	if err != nil {
+		t.Fatalf("get resolved summarize logs: %v", err)
+	}
+	if len(resolvedLogs) == 0 {
+		t.Fatal("expected summarize resolved-from-client log rows")
+	}
+	if resolvedLogs[0].DetailData == "" {
+		t.Fatal("expected summarize resolved-from-client detail data in debug mode")
+	}
+	if !strings.Contains(resolvedLogs[0].DetailData, "guard") {
+		t.Fatalf("expected callback payload in summarize resolved detail, got %s", resolvedLogs[0].DetailData)
+	}
+}
+
 func TestSubTaskSummarizeDynamicDataRequestUsesAllowedInterface(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
@@ -1253,6 +1329,16 @@ func TestSubTaskSummarizeDynamicDataRequestBlocksDisallowedQueryType(t *testing.
 	}
 	if !strings.Contains(provider.lastPrompt, "[summarize request_data blocked]") {
 		t.Fatalf("expected summarize prompt to record blocked dynamic request, got %s", provider.lastPrompt)
+	}
+	logs, err := store.GetInferenceLogsByQuery(store.InferenceLogQuery{WorldUUID: worldID, TaskType: string(TaskCustom), EventName: "summarize_data_request_blocked", Limit: 10})
+	if err != nil {
+		t.Fatalf("get blocked summarize logs: %v", err)
+	}
+	if len(logs) == 0 {
+		t.Fatal("expected blocked summarize data request log")
+	}
+	if !strings.Contains(logs[0].Message, "query type") {
+		t.Fatalf("expected blocked summarize log message to mention query type, got %q", logs[0].Message)
 	}
 }
 

@@ -82,9 +82,9 @@ Current merge modes:
 Current `summarize` behavior is iterative rather than a single blind merge:
 
 - the summarize LLM pass can return JSON-only `request_data`
-- during DAG summarization, only `target="store"` continuation is supported
-- the Engine resolves store queries synchronously and appends the fetched result back into summarize context
-- `target="game_client"` is blocked at this stage and does not pause DAG summarization
+- `target="store"` queries are resolved synchronously and appended back into summarize context for the next summarize pass
+- `target="game_client"` queries can pause the parent execution, emit a callback/runtime task, and resume the summarize merge once the game-side payload arrives
+- summarize-stage request-data paths now emit dedicated pipeline log events for emitted, blocked, resolved, paused, and resumed callback flows
 
 ---
 
