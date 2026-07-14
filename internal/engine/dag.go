@@ -69,7 +69,11 @@ func (d *DAGInstance) Register(decl SubTaskDeclaration) error {
 // ReadyTasks returns all ready sub-tasks.
 func (d *DAGInstance) ReadyTasks() []SubTaskDeclaration {
 	var ready []SubTaskDeclaration
-	for _, st := range d.tasks {
+	for _, label := range d.orderedTaskLabels() {
+		st := d.tasks[label]
+		if st == nil {
+			continue
+		}
 		if st.Status == SubTaskReady {
 			ready = append(ready, st.Decl)
 		}
@@ -79,7 +83,11 @@ func (d *DAGInstance) ReadyTasks() []SubTaskDeclaration {
 
 // HasReady reports whether any sub-task is ready.
 func (d *DAGInstance) HasReady() bool {
-	for _, st := range d.tasks {
+	for _, label := range d.orderedTaskLabels() {
+		st := d.tasks[label]
+		if st == nil {
+			continue
+		}
 		if st.Status == SubTaskReady {
 			return true
 		}
@@ -101,7 +109,11 @@ func (d *DAGInstance) OnTaskComplete(label string, resp *InvokeResponse) {
 		d.completed[label] = true
 		d.results[label] = resp
 
-		for _, item := range d.tasks {
+		for _, taskLabel := range d.orderedTaskLabels() {
+			item := d.tasks[taskLabel]
+			if item == nil {
+				continue
+			}
 			if item.Status == SubTaskPending && allDepsMet(item.Decl.DependsOn, d.completed) {
 				item.Status = SubTaskReady
 			}
@@ -114,7 +126,11 @@ func (d *DAGInstance) OnTaskFailed(label string, err error) {
 	if st, ok := d.tasks[label]; ok {
 		st.Status = SubTaskFailed
 		d.failed[label] = err.Error()
-		for _, item := range d.tasks {
+		for _, taskLabel := range d.orderedTaskLabels() {
+			item := d.tasks[taskLabel]
+			if item == nil {
+				continue
+			}
 			if item.Status == SubTaskPending && allDepsMet(item.Decl.DependsOn, d.completed) {
 				item.Status = SubTaskReady
 			}
@@ -124,7 +140,11 @@ func (d *DAGInstance) OnTaskFailed(label string, err error) {
 
 // AllDone reports whether every sub-task has reached a terminal state.
 func (d *DAGInstance) AllDone() bool {
-	for _, st := range d.tasks {
+	for _, label := range d.orderedTaskLabels() {
+		st := d.tasks[label]
+		if st == nil {
+			continue
+		}
 		if st.Status != SubTaskCompleted && st.Status != SubTaskFailed {
 			return false
 		}
@@ -136,12 +156,7 @@ func (d *DAGInstance) AllDone() bool {
 func (d *DAGInstance) MergeResults() *InvokeResponse {
 	merged := &InvokeResponse{}
 
-	order := make([]string, 0, len(d.tasks))
-	for label := range d.tasks {
-		order = append(order, label)
-	}
-
-	for _, label := range order {
+	for _, label := range d.orderedTaskLabels() {
 		st := d.tasks[label]
 		resp := d.results[label]
 		if st == nil || resp == nil {

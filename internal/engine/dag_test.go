@@ -103,3 +103,58 @@ func TestDAGSummarizeResultsRetriesAfterInvalidRequestData(t *testing.T) {
 		t.Fatalf("expected invalid request_data note in second prompt, got %s", provider.lastPrompts[1])
 	}
 }
+
+func TestDAGReadyTasksFollowRegistrationOrder(t *testing.T) {
+	dag := NewDAGInstance(NewTaskTree(TaskCustom, "world-1", "node-1"), nil, 2, 0)
+	for _, decl := range []SubTaskDeclaration{
+		{Label: "first", TaskType: TaskCustom},
+		{Label: "second", TaskType: TaskCustom, DependsOn: []string{"first"}},
+		{Label: "third", TaskType: TaskCustom},
+	} {
+		if err := dag.Register(decl); err != nil {
+			t.Fatalf("register %s: %v", decl.Label, err)
+		}
+	}
+
+	ready := dag.ReadyTasks()
+	if len(ready) != 2 {
+		t.Fatalf("expected 2 ready tasks, got %d", len(ready))
+	}
+	if ready[0].Label != "first" || ready[1].Label != "third" {
+		t.Fatalf("expected ready order [first third], got [%s %s]", ready[0].Label, ready[1].Label)
+	}
+
+	dag.OnTaskComplete("first", &InvokeResponse{Reply: "done-first"})
+	ready = dag.ReadyTasks()
+	if len(ready) != 2 {
+		t.Fatalf("expected 2 ready tasks after unlocking dependency, got %d", len(ready))
+	}
+	if ready[0].Label != "second" || ready[1].Label != "third" {
+		t.Fatalf("expected ready order [second third] after unlock, got [%s %s]", ready[0].Label, ready[1].Label)
+	}
+}
+
+func TestDAGMergeResultsFollowsRegistrationOrder(t *testing.T) {
+	dag := NewDAGInstance(NewTaskTree(TaskCustom, "world-1", "node-1"), nil, 2, 0)
+	for _, decl := range []SubTaskDeclaration{
+		{Label: "first", TaskType: TaskCustom, MergeMode: "append"},
+		{Label: "second", TaskType: TaskCustom, MergeMode: "append"},
+		{Label: "third", TaskType: TaskCustom, MergeMode: "append"},
+	} {
+		if err := dag.Register(decl); err != nil {
+			t.Fatalf("register %s: %v", decl.Label, err)
+		}
+	}
+
+	dag.results["third"] = &InvokeResponse{Reply: "reply-third"}
+	dag.results["first"] = &InvokeResponse{Reply: "reply-first"}
+	dag.results["second"] = &InvokeResponse{Reply: "reply-second"}
+
+	merged := dag.MergeResults()
+	if merged == nil {
+		t.Fatal("expected merged response")
+	}
+	if merged.Reply != "reply-first\nreply-second\nreply-third" {
+		t.Fatalf("expected registration-order merge, got %q", merged.Reply)
+	}
+}
