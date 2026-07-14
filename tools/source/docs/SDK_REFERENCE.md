@@ -203,7 +203,7 @@ bundle, err := client.GetContinuityBundle(worldID, &sdk.ContinuityBundleOptions{
 | `EventImpact(worldID string, event *WorldEvent) (*InvokeResponse, error)` | 评估事件影响 |
 | `ScopeAdvance(worldID, scopeID string) (*InvokeResponse, error)` | 推进指定局部范围 |
 | `TimelineReplan(worldID string) (*InvokeResponse, error)` | 重建世界未来大纲 |
-| `ActionCallback(callbackID, status string, result any) error` | 完成异步动作回调 |
+| `ActionCallback(callbackID, status string, result any) (*CallbackResponse, error)` | 完成异步动作回调，并返回 post_process / resumed 结果 |
 | `ListPendingPlans(worldID string) ([]PendingPlan, error)` | 列出待审批计划 |
 | `ApprovePlan(worldID, planID string) (*PlanDecisionResponse, error)` | 批准一条待审批计划 |
 | `RejectPlan(worldID, planID string) (*PlanDecisionResponse, error)` | 拒绝一条待审批计划 |

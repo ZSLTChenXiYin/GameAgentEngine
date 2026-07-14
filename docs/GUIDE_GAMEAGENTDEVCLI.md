@@ -1,6 +1,6 @@
 # GameAgentDevCli 指南
 
-**中文** | [**English**](./GUIDE_GAMEAGENTDEVCLI_EN.md)
+[**中文**] | [**English**](./GUIDE_GAMEAGENTDEVCLI_EN.md)
 
 GameAgentDevCli 是通过 HTTP API 操作 GameAgentEngine 的命令行工具。
 
@@ -10,18 +10,18 @@ GameAgentDevCli 是通过 HTTP API 操作 GameAgentEngine 的命令行工具。
 
 - 节点、组件、记忆、关系 CRUD
 - 世界设置、世界策略、计划审批
-- 世界 Tick、事件影响评估、局部推进、时间线重规划
-- 连续性状态组件与时间线归档查看
-- 日志、调试轨迹、连续性调试、节点图调试
-- 快照保存、校验、恢复、删除
+- world tick、事件影响、scope advance、timeline replan
+- continuity 状态组件和 timeline 归档访问
+- logs、traces、continuity 调试、node graph 调试
+- snapshot 保存、校验、恢复、删除
 - 打开 Creator
-- 任务管理（task 命令）
+- runtime task 管理
 
 ---
 
-## 零起步创建世界
+## 从零开始
 
-当前建议从创建一个 `world` 根节点开始：
+推荐先创建一个 `world` 根节点：
 
 ```bash
 GameAgentDevCli node create --type world --name "新世界"
@@ -42,10 +42,10 @@ GameAgentDevCli node create --world <world-id> --type npc --name "守门人"
 GameAgentDevCli world settings get <world-id>
 GameAgentDevCli world settings set <world-id> --pipeline-mode polling
 GameAgentDevCli world settings set <world-id> --world-time-settings-file world-time.json
-GameAgentDevCli world settings set <world-id> --world-time-settings-json '{"tick_scale_mode":"flexible","tick_min_unit":"时","tick_step":1,"tick_units":["日","时"]}'
+GameAgentDevCli world settings set <world-id> --world-time-settings-json '{"tick_scale_mode":"flexible","tick_min_unit":"hour","tick_step":1,"tick_units":["day","hour"]}'
 ```
 
-`world_time_settings` 不设置时，世界时间推进相关流程会被阻塞，这是当前的有意设计。
+如果 `world_time_settings` 缺失，依赖世界时间推进的流程会被阻断，这是当前设计的有意约束。
 
 ---
 
@@ -57,11 +57,11 @@ GameAgentDevCli world tick <world-id> --type manual --time "day-1" --requested-t
 GameAgentDevCli world tick <world-id> --autonomous-limit 2
 ```
 
-如果 `tick_scale_mode` 是 `fixed`，则 `requested_ticks` 必须等于 1。
+如果 `tick_scale_mode` 是 `fixed`，`requested_ticks` 必须保持为 `1`。
 
 ---
 
-## 连续性与时间线
+## Continuity 与时间线
 
 ```bash
 GameAgentDevCli state list <world-id>
@@ -71,15 +71,15 @@ GameAgentDevCli timeline list <world-id> --limit 5
 GameAgentDevCli debug continuity <world-id>
 ```
 
-排查时间推进或世界线问题时，优先看：
+排查 paused 多轮执行或 callback 恢复链路时，建议按下面顺序看：
 
-1. `timeline latest`
-2. `state get <world-id> world_time_state`
-3. `debug continuity`
+1. `GameAgentDevCli task inspect <task-id>`
+2. `GameAgentDevCli debug continuity <world-id>`
+3. `GameAgentDevCli debug traces --world <world-id> --limit 10`
 
 ---
 
-## 调试与观测
+## 调试与观察
 
 ```bash
 GameAgentDevCli logs --world <world-id> --limit 10
@@ -89,22 +89,87 @@ GameAgentDevCli debug node-graph <node-id>
 
 ---
 
-## 任务管理
+## 发起 Invoke
 
+`invoke` 是最直接的单次推理入口，适合不用自己写客户端时快速发请求。
 
-运行时任务（Runtime Task）用于管理 Engine 与游戏端之间的外部交互。支持 Push、Pull、Hybrid 三种投递模式。以下命令主要面向 Pull 模式：
+```bash
+GameAgentDevCli invoke <world-id> <node-id> \
+  --task-type npc_dialogue \
+  --message "南门刚刚发生了什么？"
+```
 
+也可以直接传请求级 pipeline mode 和动态接口白名单：
+
+```bash
+GameAgentDevCli invoke <world-id> <node-id> \
+  --task-type npc_dialogue \
+  --message "回答前先查询附近场景和任务状态。" \
+  --pipeline-mode full \
+  --dynamic-interfaces-file dynamic-interfaces.json
+```
+
+`dynamic-interfaces.json` 需要是 JSON 数组。它适合描述当前回合、当前 NPC 对话、当前场景下临时开放给 LLM 的查询或动作接口。
+
+---
+
+## Runtime Task 管理
+
+Runtime Task 用于承载 Engine 与游戏侧之间的外部交互，支持 `push`、`pull`、`hybrid` 三种投递模式。下面这些命令主要面向 `pull` 工作流：
 
 ```bash
 GameAgentDevCli task list --status pending --limit 20
+GameAgentDevCli task list --pending-only --consumer game_client --limit 20
 GameAgentDevCli task get <task-id>
+GameAgentDevCli task get <task-id> --json
+GameAgentDevCli task inspect <task-id>
+GameAgentDevCli task stats
 GameAgentDevCli task claim <task-id> --consumer gamer --owner devcli
 GameAgentDevCli task start <task-id> <lease-token>
 GameAgentDevCli task heartbeat <task-id> <lease-token>
 GameAgentDevCli task release <task-id> <lease-token> --reason "completed"
+GameAgentDevCli task requeue <task-id> --retry-delay-ms 1500 --reason "manual requeue"
 ```
 
+`task inspect` 适合排查 callback / resume 相关问题，它会集中打印：
+
+- `callback_id`
+- `resume_execution_id`
+- payload 摘要
+- dispatch decision / failure class / transition reason
+- dispatched / claimed / heartbeat / completed 时间线索
+
+`task stats` 适合看队列健康度，它会汇总：
+
+- total / ready pull / in flight / terminal
+- heartbeat timeout
+- retry exhausted
+- stale dispatched
+- 聚合分布统计
+
+---
+
+## 最小 Pull Worker 闭环
+
+如果游戏侧采用 `pull` 模式消费任务，最小闭环一般是：
+
+1. `task list --pending-only --consumer <consumer>` 或直接调 `/api/v1/runtime/tasks/pending`
+2. `task claim`
+3. `task start`
+4. 执行游戏侧查询或动作
+5. 回调结果
+6. 如果执行时间较长，期间持续 `heartbeat`
+
+当前 callback 响应已经带有结构化 post-process 信息。SDK 或自定义 worker 可以据此判断：
+
+- 这次 callback 只是完成了任务
+- 这次 callback 触发了 paused execution 自动恢复
+- 这次 callback 还触发了统一后处理，例如 `write_memory`
 
 ---
 
 ## 打开 Creator
+
+```bash
+GameAgentDevCli creator
+```
