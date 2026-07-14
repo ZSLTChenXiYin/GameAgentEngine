@@ -55,6 +55,30 @@ func TestPrintRuntimeTaskInspectionIncludesDispatchAndPayload(t *testing.T) {
 	}
 }
 
+func TestPrintRuntimeTaskStatsIncludesCoreCounters(t *testing.T) {
+	stats := &sdk.RuntimeTaskStats{
+		Total:                     9,
+		ReadyPull:                 2,
+		InFlight:                  3,
+		Terminal:                  4,
+		HeartbeatTimeout:          1,
+		DispatchErrorTasks:        1,
+		RetryExhaustedTasks:       2,
+		DispatchedWithoutCallback: 1,
+		RepeatedHeartbeatTimeouts: 1,
+		ByStatus:                  map[string]int64{"pending": 2, "released": 1},
+		ByDispatchDecision:        map[string]int64{"fallback_to_pull": 1},
+		ByHeartbeatTimeoutCount:   map[string]int64{"2": 1},
+	}
+
+	output := captureStdout(t, func() { printRuntimeTaskStats(stats) })
+	for _, want := range []string{"total=9", "ready_pull=2", "dispatch_errors=1", "retry_exhausted=2", "fallback_to_pull", "by_status="} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("missing %q in output %q", want, output)
+		}
+	}
+}
+
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	originalStdout := os.Stdout

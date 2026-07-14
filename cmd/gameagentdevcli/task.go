@@ -18,10 +18,20 @@ var taskListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List runtime tasks",
 	Run: func(cmd *cobra.Command, args []string) {
+		pendingOnly, _ := cmd.Flags().GetBool("pending-only")
+		consumer, _ := cmd.Flags().GetString("consumer")
 		category, _ := cmd.Flags().GetString("category")
 		status, _ := cmd.Flags().GetString("status")
 		limit, _ := cmd.Flags().GetInt("limit")
-		tasks, err := newClient().ListRuntimeTasks(category, status, limit)
+		var (
+			tasks []sdk.RuntimeTask
+			err   error
+		)
+		if pendingOnly {
+			tasks, err = newClient().ListPendingRuntimeTasks(consumer, limit)
+		} else {
+			tasks, err = newClient().ListRuntimeTasks(category, status, limit)
+		}
 		if err != nil {
 			fail(err)
 		}
@@ -49,6 +59,33 @@ var taskGetCmd = &cobra.Command{
 		if jsonOutput {
 			printJSON(task)
 			return
+		}
+		printRuntimeTaskSummary(task)
+	},
+}
+
+var taskStatsCmd = &cobra.Command{
+	Use:   "stats",
+	Short: "Show aggregated runtime task diagnostics",
+	Run: func(cmd *cobra.Command, args []string) {
+		stats, err := newClient().GetRuntimeTaskStats()
+		if err != nil {
+			fail(err)
+		}
+		printRuntimeTaskStats(stats)
+	},
+}
+
+var taskRequeueCmd = &cobra.Command{
+	Use:   "requeue <task-id>",
+	Short: "Requeue one heartbeat-timeout runtime task",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		retryDelayMs, _ := cmd.Flags().GetInt("retry-delay-ms")
+		reason, _ := cmd.Flags().GetString("reason")
+		task, err := newClient().RequeueRuntimeTask(args[0], retryDelayMs, reason)
+		if err != nil {
+			fail(err)
 		}
 		printRuntimeTaskSummary(task)
 	},
@@ -113,6 +150,27 @@ func printRuntimeTaskInspection(task *sdk.RuntimeTask) {
 			firstNonEmpty(task.LastHeartbeatAt, "-"),
 			firstNonEmpty(task.CompletedAt, "-"),
 		)
+	}
+}
+
+func printRuntimeTaskStats(stats *sdk.RuntimeTaskStats) {
+	if stats == nil {
+		fmt.Println("No runtime task stats found.")
+		return
+	}
+	fmt.Printf("Runtime Task Stats\n")
+	fmt.Printf("  total=%d ready_pull=%d in_flight=%d terminal=%d heartbeat_timeout=%d\n",
+		stats.Total, stats.ReadyPull, stats.InFlight, stats.Terminal, stats.HeartbeatTimeout)
+	fmt.Printf("  dispatch_errors=%d retry_exhausted=%d stale_dispatched=%d repeated_timeouts=%d\n",
+		stats.DispatchErrorTasks, stats.RetryExhaustedTasks, stats.DispatchedWithoutCallback, stats.RepeatedHeartbeatTimeouts)
+	if len(stats.ByStatus) > 0 {
+		fmt.Printf("  by_status=%v\n", stats.ByStatus)
+	}
+	if len(stats.ByDispatchDecision) > 0 {
+		fmt.Printf("  by_dispatch_decision=%v\n", stats.ByDispatchDecision)
+	}
+	if len(stats.ByHeartbeatTimeoutCount) > 0 {
+		fmt.Printf("  by_heartbeat_timeout_count=%v\n", stats.ByHeartbeatTimeoutCount)
 	}
 }
 
@@ -187,11 +245,15 @@ var taskReleaseCmd = &cobra.Command{
 }
 
 func init() {
-	taskCmd.AddCommand(taskListCmd, taskGetCmd, taskInspectCmd, taskClaimCmd, taskStartCmd, taskHeartbeatCmd, taskReleaseCmd)
+	taskCmd.AddCommand(taskListCmd, taskGetCmd, taskInspectCmd, taskStatsCmd, taskRequeueCmd, taskClaimCmd, taskStartCmd, taskHeartbeatCmd, taskReleaseCmd)
 	taskListCmd.Flags().String("category", "", "Filter by category")
 	taskListCmd.Flags().String("status", "", "Filter by status")
+	taskListCmd.Flags().String("consumer", "", "Filter pending list by consumer")
+	taskListCmd.Flags().Bool("pending-only", false, "List only pull-ready pending/released tasks")
 	taskListCmd.Flags().Int("limit", 50, "Max results")
 	taskGetCmd.Flags().Bool("json", false, "Print raw JSON instead of a summary")
+	taskRequeueCmd.Flags().Int("retry-delay-ms", 0, "Delay before the task becomes pull-ready again")
+	taskRequeueCmd.Flags().String("reason", "manual requeue", "Requeue reason")
 	taskClaimCmd.Flags().String("consumer", "", "Consumer identifier")
 	taskClaimCmd.Flags().String("owner", "devcli", "Lease owner identifier")
 	taskReleaseCmd.Flags().String("reason", "manual release", "Release reason")
