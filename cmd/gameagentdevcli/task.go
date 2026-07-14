@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
 
 var taskCmd = &cobra.Command{
@@ -42,8 +45,92 @@ var taskGetCmd = &cobra.Command{
 		if err != nil {
 			fail(err)
 		}
-		printJSON(task)
+		jsonOutput, _ := cmd.Flags().GetBool("json")
+		if jsonOutput {
+			printJSON(task)
+			return
+		}
+		printRuntimeTaskSummary(task)
 	},
+}
+
+var taskInspectCmd = &cobra.Command{
+	Use:   "inspect <task-id>",
+	Short: "Inspect callback/resume related runtime task details",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		task, err := newClient().GetRuntimeTask(args[0])
+		if err != nil {
+			fail(err)
+		}
+		printRuntimeTaskInspection(task)
+	},
+}
+
+func printRuntimeTaskSummary(task *sdk.RuntimeTask) {
+	if task == nil {
+		fmt.Println("No task found.")
+		return
+	}
+	lines := []string{
+		fmt.Sprintf("Task: %s", task.TaskID),
+		fmt.Sprintf("  status=%s category=%s interface=%s", firstNonEmpty(task.Status, "-"), firstNonEmpty(task.Category, "-"), firstNonEmpty(task.InterfaceName, "-")),
+		fmt.Sprintf("  delivery=%s consumer=%s transport=%s", firstNonEmpty(task.DeliveryMode, "-"), firstNonEmpty(task.Consumer, "-"), firstNonEmpty(task.Transport, "-")),
+		fmt.Sprintf("  callback=%s resume_execution=%s", firstNonEmpty(task.CallbackID, "-"), firstNonEmpty(task.ResumeExecutionID, "-")),
+		fmt.Sprintf("  attempts=%d/%d dispatch_attempts=%d heartbeat_timeouts=%d", task.AttemptCount, task.MaxAttempts, task.DispatchAttempts, task.HeartbeatTimeoutCount),
+	}
+	if task.ErrorMessage != "" {
+		lines = append(lines, "  error="+task.ErrorMessage)
+	}
+	if task.ResultJSON != "" {
+		lines = append(lines, "  result="+compactText(task.ResultJSON, 200))
+	}
+	for _, line := range lines {
+		fmt.Println(line)
+	}
+}
+
+func printRuntimeTaskInspection(task *sdk.RuntimeTask) {
+	if task == nil {
+		fmt.Println("No task found.")
+		return
+	}
+	printRuntimeTaskSummary(task)
+	if task.PayloadJSON != "" {
+		fmt.Println("  payload=" + compactText(task.PayloadJSON, 240))
+	}
+	if task.LastDispatchError != "" || task.LastDispatchDecision != "" || task.LastDispatchFailureClass != "" {
+		fmt.Printf("  dispatch_decision=%s failure_class=%s transition=%s\n",
+			firstNonEmpty(task.LastDispatchDecision, "-"),
+			firstNonEmpty(task.LastDispatchFailureClass, "-"),
+			firstNonEmpty(task.LastTransitionReason, "-"),
+		)
+	}
+	if task.DispatchedAt != "" || task.ClaimedAt != "" || task.LastHeartbeatAt != "" || task.CompletedAt != "" {
+		fmt.Printf("  dispatched_at=%s claimed_at=%s last_heartbeat_at=%s completed_at=%s\n",
+			firstNonEmpty(task.DispatchedAt, "-"),
+			firstNonEmpty(task.ClaimedAt, "-"),
+			firstNonEmpty(task.LastHeartbeatAt, "-"),
+			firstNonEmpty(task.CompletedAt, "-"),
+		)
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func compactText(value string, limit int) string {
+	trimmed := strings.TrimSpace(value)
+	if limit <= 0 || len(trimmed) <= limit {
+		return trimmed
+	}
+	return trimmed[:limit-3] + "..."
 }
 
 var taskClaimCmd = &cobra.Command{
@@ -100,10 +187,11 @@ var taskReleaseCmd = &cobra.Command{
 }
 
 func init() {
-	taskCmd.AddCommand(taskListCmd, taskGetCmd, taskClaimCmd, taskStartCmd, taskHeartbeatCmd, taskReleaseCmd)
+	taskCmd.AddCommand(taskListCmd, taskGetCmd, taskInspectCmd, taskClaimCmd, taskStartCmd, taskHeartbeatCmd, taskReleaseCmd)
 	taskListCmd.Flags().String("category", "", "Filter by category")
 	taskListCmd.Flags().String("status", "", "Filter by status")
 	taskListCmd.Flags().Int("limit", 50, "Max results")
+	taskGetCmd.Flags().Bool("json", false, "Print raw JSON instead of a summary")
 	taskClaimCmd.Flags().String("consumer", "", "Consumer identifier")
 	taskClaimCmd.Flags().String("owner", "devcli", "Lease owner identifier")
 	taskReleaseCmd.Flags().String("reason", "manual release", "Release reason")
