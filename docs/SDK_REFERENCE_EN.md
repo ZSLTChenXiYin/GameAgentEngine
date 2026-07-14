@@ -40,6 +40,13 @@ Use `InvokeContext.DynamicInterfaces` for request-scoped external capabilities. 
 - pass temporary or NPC-turn-specific interfaces through `dynamic_interfaces`
 - prefer structured interface fields over hand-writing function specs into prompt text
 
+Structured tool behavior:
+
+- if the provider supports structured tools, the SDK request is forwarded as real tool definitions for built-in engine actions plus request-scoped dynamic interfaces
+- if the provider does not support structured tools, the Engine keeps the same allowlist but exposes it through prompt instructions instead
+- built-in engine capabilities are exposed by task type, so an NPC dialogue turn and a world tick do not automatically receive the same callable set
+- dynamic action interfaces can add `ArgsSchema` for runtime argument validation before dispatch
+
 ### Invoking with Dynamic Interfaces
 
 ```go

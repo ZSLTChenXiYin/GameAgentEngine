@@ -79,6 +79,13 @@ Current merge modes:
 - `override`
 - `summarize`
 
+Current `summarize` behavior is iterative rather than a single blind merge:
+
+- the summarize LLM pass can return JSON-only `request_data`
+- during DAG summarization, only `target="store"` continuation is supported
+- the Engine resolves store queries synchronously and appends the fetched result back into summarize context
+- `target="game_client"` is blocked at this stage and does not pause DAG summarization
+
 ---
 
 ## Data Request Loop
@@ -91,6 +98,13 @@ The model can emit `request_data` queries inside a reasoning round:
 4. Resolved data is injected into the next round of context.
 
 This keeps the “ask, fetch, continue reasoning” pattern inside the shared pipeline instead of scattering it across callers.
+
+Interface exposure rules inside this loop are now layered:
+
+- built-in engine capabilities can be exposed as structured tools, depending on task type
+- request-scoped `dynamic_interfaces` are merged into the same tool set for the current invocation only
+- providers may explicitly opt out of structured tool support; in that case, the Engine falls back to prompt instructions without changing request semantics
+- dynamic action calls are validated against request-scoped limits and optional argument schemas before dispatch
 
 ---
 

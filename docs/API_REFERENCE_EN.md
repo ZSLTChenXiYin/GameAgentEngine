@@ -67,6 +67,10 @@ Notes:
 - `context.dynamic_interfaces` is request-scoped and should be used for capabilities that are only valid for this specific turn or conversation.
 - Keep stable transport, delivery, retry, and callback policy in server config through formal `external_interface` definitions.
 - Prefer providing callable interface definitions through structured request fields instead of embedding raw function specs into the prompt.
+- When the active provider supports structured tools, the Engine maps built-in engine capabilities and `dynamic_interfaces` into provider tool definitions automatically.
+- When the provider does not support structured tools, the Engine falls back to prompt-level instructions while keeping the same request-scoped allowlist semantics.
+- `data_request` interfaces may constrain `query_types` and `max_queries`; `action` interfaces may constrain `args_schema` and `max_calls`.
+- `action.args_schema`, when provided, must be a JSON-Schema-like object schema and is validated before the Engine dispatches the external action.
 
 ### `POST /api/v1/actions/callback`
 
