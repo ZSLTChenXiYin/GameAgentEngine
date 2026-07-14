@@ -1005,6 +1005,47 @@ func TestResumePausedExecutionContinuesAfterSubTaskSummarizeGameClientCallback(t
 	}
 }
 
+func TestResumePausedExecutionPreservesStoreContextBeforeSubTaskSummarizeGameClientCallback(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	if err := store.CreateComponent(&store.ComponentModel{NodeUUID: nodeID, NodeID: store.ResolveNodeUUID(nodeID), ComponentType: string(CompLore), Data: `{"scene":"lantern hall"}`}); err != nil {
+		t.Fatalf("create component: %v", err)
+	}
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"parent","sub_tasks":[{"label":"fetch_scene","task_type":"custom","node_id":"` + nodeID + `","merge_mode":"summarize"}]}`,
+		`{"reply":"child-branch","action_calls":[],"memory_updates":[]}`,
+		`{"request_data":{"label":"fetch-store","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+		`{"request_data":{"label":"summarize-scene","target":"game_client","queries":[{"type":"node_relations","node_id":"` + nodeID + `"}]}}`,
+		`{"reply":"summary-after-mixed-resume"}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	first, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom, Context: &InvokeContext{PipelineMode: PipelineFull}})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if first.DataRequest == nil {
+		t.Fatal("expected paused summarize data request")
+	}
+	callbackID := first.ActionCalls[0].CallbackID
+	resumed, err := pipeline.ResumePausedExecution(callbackID, map[string]any{"scene": "tavern"})
+	if err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if resumed == nil || !strings.Contains(resumed.Reply, "summary-after-mixed-resume") {
+		t.Fatalf("expected resumed mixed summary reply, got %+v", resumed)
+	}
+	if !strings.Contains(provider.lastPrompt, `"scene":"tavern"`) {
+		t.Fatalf("expected resumed summarize prompt to include callback payload, got %s", provider.lastPrompt)
+	}
+	if !strings.Contains(provider.lastPrompt, "[summarize request_data] fetch-store") {
+		t.Fatalf("expected resumed summarize prompt to retain store query markers, got %s", provider.lastPrompt)
+	}
+	if provider.calls != 5 {
+		t.Fatalf("expected 5 llm calls, got %d", provider.calls)
+	}
+}
+
 func TestExecuteAsyncActionEnqueuesRuntimeTask(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)

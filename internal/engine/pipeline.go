@@ -835,9 +835,9 @@ func buildDAGFailureSummary(dag *DAGInstance) string {
 	return strings.Join(errParts, "\n")
 }
 
-func (p *Pipeline) resumePendingSubTaskSummary(merged *InvokeResponse, dag *DAGInstance, pending pausedSummaryMerge, callbackResult any) (*InvokeResponse, *DataRequest, *string, error) {
+func (p *Pipeline) resumePendingSubTaskSummary(merged *InvokeResponse, dag *DAGInstance, pending pausedSummaryMerge, callbackResult any) (*InvokeResponse, *DataRequest, *string, []string, error) {
 	if dag == nil {
-		return merged, nil, nil, fmt.Errorf("dag required for pending summary resume")
+		return merged, nil, nil, nil, fmt.Errorf("dag required for pending summary resume")
 	}
 	stateLines := append([]string(nil), pending.StateLines...)
 	resolved := marshalLogDetail(map[string]any{"result": callbackResult})
@@ -849,9 +849,9 @@ func (p *Pipeline) resumePendingSubTaskSummary(merged *InvokeResponse, dag *DAGI
 	return p.continueSubTaskSummaryMerge(merged, dag, pending.Label, stateLines)
 }
 
-func (p *Pipeline) continueSubTaskSummaryMerge(merged *InvokeResponse, dag *DAGInstance, summaryLabel string, stateLines []string) (*InvokeResponse, *DataRequest, *string, error) {
+func (p *Pipeline) continueSubTaskSummaryMerge(merged *InvokeResponse, dag *DAGInstance, summaryLabel string, stateLines []string) (*InvokeResponse, *DataRequest, *string, []string, error) {
 	if dag == nil {
-		return merged, nil, nil, fmt.Errorf("dag required for summary merge")
+		return merged, nil, nil, nil, fmt.Errorf("dag required for summary merge")
 	}
 	mergedResp := cloneInvokeResponse(merged)
 	if mergedResp == nil {
@@ -886,7 +886,7 @@ func (p *Pipeline) continueSubTaskSummaryMerge(merged *InvokeResponse, dag *DAGI
 			prompt := strings.Join(roundLines, "\n")
 			llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: prompt})
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, nil, nil, nil, err
 			}
 			parsed := p.parseLLMJSON(llmResp.Content)
 			rawRequestData := strings.TrimSpace(parsed.RawRequestData)
@@ -903,7 +903,7 @@ func (p *Pipeline) continueSubTaskSummaryMerge(merged *InvokeResponse, dag *DAGI
 					if strings.TrimSpace(dr.Label) == "" {
 						dr.Label = firstNonEmpty(summaryLabel, "game_client")
 					}
-					return mergedResp, &dr, &label, nil
+					return mergedResp, &dr, &label, append([]string(nil), currentState...), nil
 				}
 				if dr.Target != "store" {
 					currentState = append(currentState, "[summarize request_data blocked] only store target is supported during DAG summarization")
@@ -943,7 +943,7 @@ func (p *Pipeline) continueSubTaskSummaryMerge(merged *InvokeResponse, dag *DAGI
 	if errSummary := buildDAGFailureSummary(dag); errSummary != "" {
 		mergedResp.Reply = mergeStrings(mergedResp.Reply, errSummary, "\n")
 	}
-	return mergedResp, nil, nil, nil
+	return mergedResp, nil, nil, nil, nil
 }
 
 func (p *Pipeline) persistPendingSubTaskSummaryPause(executionID string, req *InvokeRequest, ctx *BuiltContext, state *RoundState, runtime *executionConfig, executionMode ExecutionMode, requestID string, pausedRound int, dr *DataRequest, callbackID string, baseResp *InvokeResponse, merged *InvokeResponse, label string, stateLines []string) error {
@@ -1007,13 +1007,13 @@ func (p *Pipeline) resumePendingSubTaskDAG(parentReq *InvokeRequest, parentCtx *
 	}
 	if len(state.PendingSummaries) > 0 {
 		var err error
-		mergedResp, _, _, err = p.resumePendingSubTaskSummary(mergedResp, dag, state.PendingSummaries[0], callbackResult)
+		mergedResp, _, _, _, err = p.resumePendingSubTaskSummary(mergedResp, dag, state.PendingSummaries[0], callbackResult)
 		if err != nil {
 			return nil, err
 		}
 	} else {
 		var err error
-		mergedResp, _, _, err = p.continueSubTaskSummaryMerge(mergedResp, dag, "", nil)
+		mergedResp, _, _, _, err = p.continueSubTaskSummaryMerge(mergedResp, dag, "", nil)
 		if err != nil {
 			return nil, err
 		}
@@ -1094,7 +1094,7 @@ func (p *Pipeline) runSubTaskDAG(req *InvokeRequest, resp *InvokeResponse, parse
 		}
 	}
 
-	merged, pausedDR, pausedLabel, err := p.continueSubTaskSummaryMerge(nil, dag, "", nil)
+	merged, pausedDR, pausedLabel, pausedStateLines, err := p.continueSubTaskSummaryMerge(nil, dag, "", nil)
 	if err != nil {
 		return nil, false, err
 	}
@@ -1114,7 +1114,7 @@ func (p *Pipeline) runSubTaskDAG(req *InvokeRequest, resp *InvokeResponse, parse
 		state.PendingSubTasks = append([]SubTaskDeclaration(nil), subTasks...)
 		state.PendingSubTaskResults = cloneSubTaskResultsMap(dag.results)
 		state.PendingSubTaskFailed = cloneSubTaskFailedMap(dag.failed)
-		if err := p.persistPendingSubTaskSummaryPause(executionID, req, ctx, state, runtime, executionMode, requestID, round, pausedDR, callbackID, resp, merged, *pausedLabel, nil); err != nil {
+		if err := p.persistPendingSubTaskSummaryPause(executionID, req, ctx, state, runtime, executionMode, requestID, round, pausedDR, callbackID, resp, merged, *pausedLabel, pausedStateLines); err != nil {
 			return nil, false, fmt.Errorf("persist pending summarize pause: %w", err)
 		}
 		route := resolveGameClientRoute(pausedDR)
