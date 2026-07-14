@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
@@ -129,5 +130,118 @@ func TestOpenAIProviderNormalizesToolCallsIntoEngineJSON(t *testing.T) {
 	rawCalls, ok := resp.Metadata["tool_calls"].([]map[string]any)
 	if !ok || len(rawCalls) != 2 {
 		t.Fatalf("expected normalized tool_calls metadata, got %+v", resp.Metadata)
+	}
+}
+
+func TestOpenAIProviderDisambiguatesConflictingSanitizedToolNames(t *testing.T) {
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}],"usage":{"total_tokens":8}}`))
+	}))
+	defer server.Close()
+
+	provider := NewOpenAIProvider("test-key", server.URL, "test-model")
+	_, err := provider.Chat(&engine.LLMChatRequest{
+		SystemPrompt: "system",
+		Tools: []engine.LLMToolDefinition{
+			{Name: "merchant ops", Parameters: map[string]any{"type": "object"}},
+			{Name: "merchant_ops", Parameters: map[string]any{"type": "object"}},
+			{Name: "merchant-ops", Parameters: map[string]any{"type": "object"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("chat: %v", err)
+	}
+	tools, ok := gotBody["tools"].([]any)
+	if !ok || len(tools) != 3 {
+		t.Fatalf("expected 3 tools in request, got %+v", gotBody)
+	}
+	seen := map[string]struct{}{}
+	for _, raw := range tools {
+		fn := raw.(map[string]any)["function"].(map[string]any)
+		name := fn["name"].(string)
+		if _, exists := seen[name]; exists {
+			t.Fatalf("expected unique sanitized names, got duplicate %q in %+v", name, tools)
+		}
+		seen[name] = struct{}{}
+	}
+	for _, wantPrefix := range []string{"merchant_ops", "merchant_ops_2", "merchant-ops"} {
+		found := false
+		for name := range seen {
+			if name == wantPrefix {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected sanitized tool name %q in %+v", wantPrefix, seen)
+		}
+	}
+}
+
+func TestOpenAIProviderRejectsUnknownNormalizedToolName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"tool_calls":[{"id":"call_1","type":"function","function":{"name":"merchant_ops_99","arguments":"{}"}}]}}],"usage":{"total_tokens":5}}`))
+	}))
+	defer server.Close()
+
+	provider := NewOpenAIProvider("test-key", server.URL, "test-model")
+	_, err := provider.Chat(&engine.LLMChatRequest{
+		SystemPrompt: "system",
+		Tools: []engine.LLMToolDefinition{{
+			Name:       "merchant_ops",
+			Invocation: engine.LLMToolInvocationAction,
+			ActionID:   "merchant_ops",
+			Parameters: map[string]any{"type": "object"},
+		}},
+	})
+	if err == nil {
+		t.Fatal("expected unknown tool call error")
+	}
+	if !strings.Contains(err.Error(), "unknown tool call returned by provider") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestOpenAIProviderRejectsMultipleDataRequestToolCalls(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"tool_calls":[{"id":"call_1","type":"function","function":{"name":"scene_facts","arguments":"{\"queries\":[{\"type\":\"node_detail\"}]}"}},{"id":"call_2","type":"function","function":{"name":"scene_facts_2","arguments":"{\"queries\":[{\"type\":\"node_detail\"}]}"}}]}}],"usage":{"total_tokens":9}}`))
+	}))
+	defer server.Close()
+
+	provider := NewOpenAIProvider("test-key", server.URL, "test-model")
+	_, err := provider.Chat(&engine.LLMChatRequest{
+		SystemPrompt: "system",
+		Tools: []engine.LLMToolDefinition{
+			{
+				Name:       "scene_facts",
+				Invocation: engine.LLMToolInvocationDataRequest,
+				DataRequest: &engine.LLMDataRequestTemplate{
+					Label:             "fetch-scene-1",
+					Target:            "game_client",
+					ExternalInterface: "game_client_request_data",
+				},
+				Parameters: map[string]any{"type": "object"},
+			},
+			{
+				Name:       "scene facts",
+				Invocation: engine.LLMToolInvocationDataRequest,
+				DataRequest: &engine.LLMDataRequestTemplate{
+					Label:             "fetch-scene-2",
+					Target:            "game_client",
+					ExternalInterface: "game_client_request_data",
+				},
+				Parameters: map[string]any{"type": "object"},
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected multiple data request error")
+	}
+	if !strings.Contains(err.Error(), "multiple data request tool calls") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

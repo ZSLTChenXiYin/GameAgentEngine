@@ -181,6 +181,9 @@ func normalizeOpenAIToolCalls(message openAIMessage, toolMap map[string]engine.L
 			if tool.DataRequest == nil {
 				return "", false, nil, fmt.Errorf("tool %s missing data request template", tool.Name)
 			}
+			if dataRequest != nil {
+				return "", false, nil, fmt.Errorf("multiple data request tool calls returned by provider are not supported")
+			}
 			merged := map[string]any{}
 			if strings.TrimSpace(tool.DataRequest.Label) != "" {
 				merged["label"] = tool.DataRequest.Label
