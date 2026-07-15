@@ -80,16 +80,23 @@ Current commands:
 - `/help`
 - `/look`
 - `/who`
+- `/room`
 - `/state`
 - `/talk <npc>`
+- `/say <message>`
+- `/ask <npc> <message>`
 - `/target`
 - `/clear_target`
+- `/gift <npc> <item>`
+- `/show_item <npc> <item>`
+- `/trade [npc]`
+- `/threaten [npc]`
 - `/exit`
 
 Notes:
 
-- `play` currently focuses on direct dialogue only.
-- structured commands such as gift / show-item / trade will be added in later phases.
+- `play` now supports direct dialogue plus a first group-chat pass.
+- group chat still uses a single primary responder per turn; it does not run multi-NPC parallel reasoning.
 - the state file remains the authority source for high-frequency facts like HP, money, inventory, and scene occupancy.
 
 ## Failure and Long-Task Simulation

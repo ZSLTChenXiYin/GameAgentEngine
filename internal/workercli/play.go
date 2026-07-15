@@ -38,6 +38,7 @@ type playInteractionSpec struct {
 	ItemID        string
 	Input         string
 	TargetNodeID  string
+	Participants  []string
 	EventArgs     map[string]any
 }
 
@@ -213,6 +214,14 @@ func (a *app) executePlayCommand(s *playSession, cmd playCommand) (bool, error) 
 		s.currentTargetID = ""
 		fmt.Println("已清除当前对话目标。")
 		return false, nil
+	case "room":
+		s.refreshView(a)
+		fmt.Println(s.renderRoomState())
+		return false, nil
+	case "say":
+		return false, a.runPlaySay(s, cmd.Args)
+	case "ask":
+		return false, a.runPlayAsk(s, cmd.Args)
 	case "gift":
 		return false, a.runPlayGift(s, cmd.Args)
 	case "show_item", "show":
@@ -254,6 +263,53 @@ func (a *app) runPlayDialogue(s *playSession, input string) error {
 		EventType:     "speech",
 		Input:         input,
 		TargetNodeID:  s.currentTargetID,
+		Participants:  []string{s.playerNodeID, s.currentTargetID},
+	})
+}
+
+func (a *app) runPlaySay(s *playSession, args string) error {
+	text := strings.TrimSpace(args)
+	if text == "" {
+		return errors.New("/say requires message text")
+	}
+	s.refreshView(a)
+	targetID, participants, err := s.resolveGroupChatTarget("")
+	if err != nil {
+		return err
+	}
+	return a.invokePlayInteraction(s, playInteractionSpec{
+		Mode:          "group_chat",
+		AudienceScope: "public",
+		EventType:     "speech",
+		Input:         text,
+		TargetNodeID:  targetID,
+		Participants:  participants,
+	})
+}
+
+func (a *app) runPlayAsk(s *playSession, args string) error {
+	parts := strings.Fields(args)
+	if len(parts) < 2 {
+		return errors.New("/ask requires: /ask <npc> <message>")
+	}
+	targetArg := parts[0]
+	text := strings.TrimSpace(strings.Join(parts[1:], " "))
+	if text == "" {
+		return errors.New("/ask requires message text")
+	}
+	s.refreshView(a)
+	targetID, participants, err := s.resolveGroupChatTarget(targetArg)
+	if err != nil {
+		return err
+	}
+	s.currentTargetID = targetID
+	return a.invokePlayInteraction(s, playInteractionSpec{
+		Mode:          "group_chat",
+		AudienceScope: "public",
+		EventType:     "speech",
+		Input:         text,
+		TargetNodeID:  targetID,
+		Participants:  participants,
 	})
 }
 
@@ -284,6 +340,7 @@ func (a *app) runPlayGift(s *playSession, args string) error {
 		ItemID:        itemID,
 		Input:         fmt.Sprintf("玩家向你赠送了物品 %s。请基于权威状态和场景事实回应。", itemID),
 		TargetNodeID:  target.ID,
+		Participants:  []string{s.playerNodeID, target.ID},
 	})
 }
 
@@ -309,6 +366,7 @@ func (a *app) runPlayShowItem(s *playSession, args string) error {
 		ItemID:        itemID,
 		Input:         fmt.Sprintf("玩家向你展示了物品 %s。请基于权威状态和场景事实回应。", itemLabel),
 		TargetNodeID:  target.ID,
+		Participants:  []string{s.playerNodeID, target.ID},
 	})
 }
 
@@ -332,6 +390,7 @@ func (a *app) runPlayTrade(s *playSession, args string) error {
 		EventType:     "trade_request",
 		Input:         "玩家想和你谈交易或议价。请基于当前权威状态、库存、金钱和关系回应。",
 		TargetNodeID:  target.ID,
+		Participants:  []string{s.playerNodeID, target.ID},
 	})
 }
 
@@ -355,6 +414,7 @@ func (a *app) runPlayThreaten(s *playSession, args string) error {
 		EventType:     "threaten",
 		Input:         "玩家正在以威胁性的方式逼迫你回应。请基于场景、关系和即时风险判断回应。",
 		TargetNodeID:  target.ID,
+		Participants:  []string{s.playerNodeID, target.ID},
 	})
 }
 
@@ -369,7 +429,7 @@ func (a *app) invokePlayInteraction(s *playSession, spec playInteractionSpec) er
 		SpeakerNodeID:      s.playerNodeID,
 		TargetNodeID:       spec.TargetNodeID,
 		SceneNodeID:        s.currentSceneID,
-		ParticipantNodeIDs: []string{s.playerNodeID, spec.TargetNodeID},
+		ParticipantNodeIDs: uniqueParticipantIDs(spec.Participants, s.playerNodeID, spec.TargetNodeID),
 		AudienceScope:      spec.AudienceScope,
 		TurnIndex:          s.turnIndex,
 		Event: &sdk.InteractionEvent{
@@ -415,6 +475,29 @@ func (a *app) invokePlayInteraction(s *playSession, spec playInteractionSpec) er
 		fmt.Printf("[system] 引擎产生了 %d 个 action_calls，当前 play v1 仅展示，不在本地直接落地。\n", len(resp.ActionCalls))
 	}
 	return nil
+}
+
+func uniqueParticipantIDs(explicit []string, defaults ...string) []string {
+	seen := map[string]struct{}{}
+	result := make([]string, 0, len(explicit)+len(defaults))
+	appendID := func(id string) {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" {
+			return
+		}
+		if _, ok := seen[trimmed]; ok {
+			return
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+	for _, id := range explicit {
+		appendID(id)
+	}
+	for _, id := range defaults {
+		appendID(id)
+	}
+	return result
 }
 
 func (a *app) transferInventoryItem(fromActorID, toActorID, itemID string, quantity int) error {
@@ -593,6 +676,67 @@ func (s *playSession) renderTargetStatus() string {
 	return fmt.Sprintf("当前对话目标: %s", s.actorDisplayName(s.currentTargetID))
 }
 
+func (s *playSession) renderRoomState() string {
+	participants := s.sceneParticipantIDs()
+	parts := make([]string, 0, len(participants))
+	for _, id := range participants {
+		label := s.actorDisplayName(id)
+		if id == s.playerNodeID {
+			label += " [you]"
+		}
+		if id == s.currentTargetID {
+			label += " [target]"
+		}
+		parts = append(parts, fmt.Sprintf("- %s (%s)", label, id))
+	}
+	sort.Strings(parts)
+	if len(parts) == 0 {
+		return "房间参与者: 无"
+	}
+	return "房间参与者:\n" + strings.Join(parts, "\n")
+}
+
+func (s *playSession) resolveGroupChatTarget(preferred string) (string, []string, error) {
+	participants := s.sceneParticipantIDs()
+	if len(participants) == 0 {
+		return "", nil, errors.New("current scene has no participants")
+	}
+	if preferred != "" {
+		target, err := s.resolveSceneActor(preferred)
+		if err != nil {
+			return "", nil, err
+		}
+		if target.ID == s.playerNodeID {
+			return "", nil, errors.New("group chat target cannot be the player")
+		}
+		return target.ID, participants, nil
+	}
+	if strings.TrimSpace(s.currentTargetID) != "" {
+		for _, id := range participants {
+			if id == s.currentTargetID {
+				return s.currentTargetID, participants, nil
+			}
+		}
+	}
+	for _, id := range participants {
+		if id != s.playerNodeID {
+			return id, participants, nil
+		}
+	}
+	return "", nil, errors.New("no NPC participant available in current scene")
+}
+
+func (s *playSession) sceneParticipantIDs() []string {
+	actors := s.view.ActorsAtScene(s.currentSceneID)
+	ids := make([]string, 0, len(actors))
+	for _, actor := range actors {
+		if actor != nil {
+			ids = append(ids, actor.ID)
+		}
+	}
+	return uniqueParticipantIDs(ids)
+}
+
 func playHelpText() string {
 	return strings.Join([]string{
 		"/help                         查看帮助",
@@ -601,7 +745,10 @@ func playHelpText() string {
 		"/state                        查看玩家权威状态摘要",
 		"/talk <npc>                   选择当前对话目标",
 		"/target                       查看当前对话目标",
+		"/room                         查看当前房间/场景参与者",
 		"/clear_target                 清除当前对话目标",
+		"/say <message>                向当前房间公开发言，由一个主响应 NPC 回应",
+		"/ask <npc> <message>          在群聊语境下点名某个 NPC 回应",
 		"/gift <npc> <item>            向 NPC 送礼，并先在游戏侧权威状态落地",
 		"/show_item <npc> <item>       向 NPC 展示你当前持有的物品",
 		"/trade [npc]                  发起交易/议价对话",

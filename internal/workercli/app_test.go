@@ -192,3 +192,31 @@ func TestResolvePlayerInventoryItemRequiresPossession(t *testing.T) {
 		t.Fatal("expected missing item error")
 	}
 }
+
+func TestUniqueParticipantIDsDeduplicatesAndPreservesOrder(t *testing.T) {
+	got := uniqueParticipantIDs([]string{"player_1", "npc_1", "npc_1"}, "player_1", "npc_2")
+	if len(got) != 3 || got[0] != "player_1" || got[1] != "npc_1" || got[2] != "npc_2" {
+		t.Fatalf("unexpected participants: %#v", got)
+	}
+}
+
+func TestResolveGroupChatTargetDefaultsToFirstNPC(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_a"},
+			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_a"},
+			"npc_2":    {ID: "npc_2", Name: "guard", Kind: "npc", LocationID: "scene_a"},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_a"}
+	targetID, participants, err := s.resolveGroupChatTarget("")
+	if err != nil {
+		t.Fatalf("resolveGroupChatTarget returned error: %v", err)
+	}
+	if targetID == "" || targetID == "player_1" {
+		t.Fatalf("expected npc target, got %q", targetID)
+	}
+	if len(participants) != 3 {
+		t.Fatalf("expected 3 participants, got %#v", participants)
+	}
+}
