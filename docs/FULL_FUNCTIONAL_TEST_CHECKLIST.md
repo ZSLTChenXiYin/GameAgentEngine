@@ -4,27 +4,27 @@ Use this checklist to execute the staged full-functional validation plan.
 
 ## S0 Baseline
 
-- [ ] record current git revision
-- [ ] record config file path
-- [ ] record database isolation strategy
-- [ ] verify Engine port availability
-- [ ] verify push receiver port availability
-- [ ] verify API key, callback token, and runtime task token
+- [x] record current git revision
+- [x] record config file path
+- [x] record database isolation strategy
+- [x] verify Engine port availability
+- [x] verify push receiver port availability
+- [x] verify API key, callback token, and runtime task token
 
 ## S1-S2 Test Worker
 
-- [ ] build `cmd/gameagenttestworker`
-- [ ] run worker unit tests
-- [ ] verify push receiver startup
-- [ ] verify pull-once command startup
-- [ ] verify fixture-driven success path
-- [ ] verify forced failure path
-- [ ] verify long-task heartbeat path
+- [x] build `cmd/gameagenttestworker`
+- [x] run worker unit tests
+- [x] verify push receiver startup
+- [x] verify pull-once command startup
+- [x] verify fixture-driven success path
+- [x] verify forced failure path
+- [x] verify long-task heartbeat path
 
 ## S3 Automated Regression
 
-- [ ] run `go test ./...`
-- [ ] re-run targeted runtime task / CLI packages if needed
+- [x] run `go test ./...`
+- [x] re-run targeted runtime task / CLI packages if needed
 
 ## S4 Base Data Plane
 

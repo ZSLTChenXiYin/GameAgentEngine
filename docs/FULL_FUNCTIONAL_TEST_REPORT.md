@@ -2,7 +2,7 @@
 
 ## Run Metadata
 
-- git revision: `b0600c7c96750f8907f32ad618f12ee9364727f8`
+- git revision: `75e6ead8a15446514f0a21cf1be2623676b8db87`
 - config file: `C:\Users\808\AppData\Local\Temp\gae-s4-src-20260715122600\gameagentengine.conf.yaml`
 - database isolation: isolated temp sqlite db at `C:\Users\808\AppData\Local\Temp\gae-s4-src-20260715122600\gameagentengine.db`
 - Engine port: `18080`
@@ -27,7 +27,7 @@
 | S7 Callback/resume orchestration | completed | `docs/tests/full_functional_callback_resume.ps1` passed against isolated fixture-provider Engine |
 | S8 Tooling smoke | completed | `docs/tests/full_functional_tooling_smoke.ps1` passed against isolated fixture-provider Engine |
 | S9 Machine scenario | completed | `docs/tests/full_functional_machine_scenario.ps1` passed against isolated fixture-provider Engine |
-| S10 Final report | pending | |
+| S10 Final report | completed | final pass/fail matrix, reproduction notes, and operational gaps consolidated below |
 
 ## Automated Regression
 
@@ -163,10 +163,11 @@
 
 | Severity | Area | Symptom | Reproduction | Notes |
 |---|---|---|---|---|
+| P3 | machine scenario observability | `debug continuity --request-id` does not include `latest_timeline` when the scenario seeds `world_time_state` directly and skips `world tick` | run `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_machine_scenario.ps1 -EngineExePath .\tmp\s9\GameAgentEngine.exe -DevCliPath .\tmp\s9\GameAgentDevCli.exe -WorkerExePath .\tmp\s9\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_machine_scenario_result.json` and inspect `latest_timeline_present` | not a code defect in resume flow; current machine scenario intentionally preserves fixture determinism and validates continuity via state/logs/traces instead of timeline rows |
 
 ## Final Assessment
 
-- overall status:
-- blocking issues:
-- non-blocking issues:
-- operational gaps:
+- overall status: S0-S10 completed. Current source-built full-functional plan is repeatable end to end, and all priority regressions listed in the plan are covered and passing.
+- blocking issues: none in the validated source-built flow.
+- non-blocking issues: machine-style NPC scenario currently does not generate a timeline row because it seeds `world_time_state` directly to avoid consuming fixture responses before the request-scoped callback/resume path.
+- operational gaps: Creator smoke remains API-level because no browser automation surface was available in this run; packaged-distribution end-to-end validation still needs a dedicated pass against the bundled runtime rather than only source-built isolated binaries.
