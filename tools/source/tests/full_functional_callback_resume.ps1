@@ -3,17 +3,23 @@ param(
     [string]$EngineExePath,
     [string]$DevCliPath,
     [string]$WorkerExePath,
-    [string]$FixtureFile = ".\docs\tests\callback_resume_fixture.json",
-    [string]$DynamicDataInterfacesFile = ".\docs\tests\runtime_task_dynamic_interfaces.json",
-    [string]$DynamicActionInterfacesFile = ".\docs\tests\callback_resume_dynamic_actions.json",
+    [string]$FixtureFile = "",
+    [string]$DynamicDataInterfacesFile = "",
+    [string]$DynamicActionInterfacesFile = "",
     [string]$ApiKey = "dev-key",
     [string]$CallbackToken = "dev-callback-token",
     [string]$RuntimeTaskToken = "dev-task-token",
     [int]$EnginePort = 18083,
-    [string]$OutFile = ".\docs\tests\full_functional_callback_resume_result.json"
+    [string]$OutFile = ""
 )
 
 $ErrorActionPreference = "Stop"
+$ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+
+if ([string]::IsNullOrWhiteSpace($FixtureFile)) { $FixtureFile = Join-Path $ScriptDir "callback_resume_fixture.json" }
+if ([string]::IsNullOrWhiteSpace($DynamicDataInterfacesFile)) { $DynamicDataInterfacesFile = Join-Path $ScriptDir "runtime_task_dynamic_interfaces.json" }
+if ([string]::IsNullOrWhiteSpace($DynamicActionInterfacesFile)) { $DynamicActionInterfacesFile = Join-Path $ScriptDir "callback_resume_dynamic_actions.json" }
+if ([string]::IsNullOrWhiteSpace($OutFile)) { $OutFile = Join-Path $ScriptDir "full_functional_callback_resume_result.json" }
 
 function Assert-True {
     param(

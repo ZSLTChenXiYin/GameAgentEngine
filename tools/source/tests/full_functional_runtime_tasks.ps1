@@ -3,18 +3,23 @@ param(
     [string]$EngineExePath,
     [string]$DevCliPath,
     [string]$WorkerExePath,
-    [string]$FixtureFile = ".\docs\tests\runtime_task_delivery_fixture.json",
-    [string]$TradeDynamicInterfacesFile = ".\docs\tests\runtime_task_dynamic_action_trade.json",
+    [string]$FixtureFile = "",
+    [string]$TradeDynamicInterfacesFile = "",
     [string]$ApiKey = "dev-key",
     [string]$CallbackToken = "dev-callback-token",
     [string]$RuntimeTaskToken = "dev-task-token",
     [string]$GameHTTPBearerToken = "local-test-token",
     [int]$EnginePort = 18082,
     [int]$PushPort = 19000,
-    [string]$OutFile = ".\docs\tests\full_functional_runtime_tasks_result.json"
+    [string]$OutFile = ""
 )
 
 $ErrorActionPreference = "Stop"
+$ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+
+if ([string]::IsNullOrWhiteSpace($FixtureFile)) { $FixtureFile = Join-Path $ScriptDir "runtime_task_delivery_fixture.json" }
+if ([string]::IsNullOrWhiteSpace($TradeDynamicInterfacesFile)) { $TradeDynamicInterfacesFile = Join-Path $ScriptDir "runtime_task_dynamic_action_trade.json" }
+if ([string]::IsNullOrWhiteSpace($OutFile)) { $OutFile = Join-Path $ScriptDir "full_functional_runtime_tasks_result.json" }
 
 function Assert-True {
     param(

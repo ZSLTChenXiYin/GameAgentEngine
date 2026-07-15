@@ -2,16 +2,25 @@ param(
     [string]$EngineBaseUrl = "http://127.0.0.1:18080",
     [string]$ApiKey = "dev-key",
     [string]$DevCliPath,
-    [string]$BaseDataResultPath = ".\\docs\\tests\\full_functional_base_data_result.json",
-    [string]$WorldTimeSettingsPath = ".\\docs\\tests\\world_time_settings_flexible.json",
-    [string]$WorldStatePath = ".\\docs\\tests\\state_world_state.json",
-    [string]$StoryStatePath = ".\\docs\\tests\\state_story_state.json",
-    [string]$StoryHistoryPath = ".\\docs\\tests\\state_story_history.json",
-    [string]$TickPolicyPath = ".\\docs\\tests\\state_tick_policy.json",
+    [string]$BaseDataResultPath = "",
+    [string]$WorldTimeSettingsPath = "",
+    [string]$WorldStatePath = "",
+    [string]$StoryStatePath = "",
+    [string]$StoryHistoryPath = "",
+    [string]$TickPolicyPath = "",
     [string]$OutFile = ""
 )
 
 $ErrorActionPreference = "Stop"
+$ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+
+if ([string]::IsNullOrWhiteSpace($BaseDataResultPath)) { $BaseDataResultPath = Join-Path $ScriptDir "full_functional_base_data_result.json" }
+if ([string]::IsNullOrWhiteSpace($WorldTimeSettingsPath)) { $WorldTimeSettingsPath = Join-Path $ScriptDir "world_time_settings_flexible.json" }
+if ([string]::IsNullOrWhiteSpace($WorldStatePath)) { $WorldStatePath = Join-Path $ScriptDir "state_world_state.json" }
+if ([string]::IsNullOrWhiteSpace($StoryStatePath)) { $StoryStatePath = Join-Path $ScriptDir "state_story_state.json" }
+if ([string]::IsNullOrWhiteSpace($StoryHistoryPath)) { $StoryHistoryPath = Join-Path $ScriptDir "state_story_history.json" }
+if ([string]::IsNullOrWhiteSpace($TickPolicyPath)) { $TickPolicyPath = Join-Path $ScriptDir "state_tick_policy.json" }
+if ([string]::IsNullOrWhiteSpace($OutFile)) { $OutFile = Join-Path $ScriptDir "full_functional_continuity_result.json" }
 
 function Invoke-EngineJson {
     param(

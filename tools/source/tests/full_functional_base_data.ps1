@@ -2,7 +2,7 @@ param(
     [string]$EngineBaseUrl = "http://127.0.0.1:8080",
     [string]$ApiKey = "dev-key",
     [string]$DevCliPath = ".\\dist\\GameAgentEngine-windows-amd64-v0.4.6\\GameAgentDevCli.exe",
-    [string]$FixturePath = ".\\docs\\tests\\full_functional_base_data_world.yaml",
+    [string]$FixturePath = "",
     [string]$WorldName = "FullFunctionalBaseDataWorld",
     [string]$StressWorldName = "FullFunctionalBaseDataRaceWorld",
     [string]$RunSuffix = "",
@@ -11,6 +11,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+
+if ([string]::IsNullOrWhiteSpace($FixturePath)) {
+    $FixturePath = Join-Path $ScriptDir "full_functional_base_data_world.yaml"
+}
+if ([string]::IsNullOrWhiteSpace($OutFile)) {
+    $OutFile = Join-Path $ScriptDir "full_functional_base_data_result.json"
+}
 
 function New-Headers {
     return @{

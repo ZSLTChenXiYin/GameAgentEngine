@@ -21,9 +21,9 @@ Validate one real end-to-end loop:
 
 ## Test Files
 
-- `docs/tests/runtime_task_push_receiver_example.js`
-- `docs/tests/runtime_task_pull_worker_example.js`
-- `docs/tests/runtime_task_dynamic_interfaces.json`
+- `tools/source/tests/runtime_task_push_receiver_example.js`
+- `tools/source/tests/runtime_task_pull_worker_example.js`
+- `tools/source/tests/runtime_task_dynamic_interfaces.json`
 
 ## Pre-Check
 
@@ -55,7 +55,7 @@ Suggested values for local testing:
 ### 1. Start the local push receiver
 
 ```powershell
-node docs/tests/runtime_task_push_receiver_example.js
+node tools/source/tests/runtime_task_push_receiver_example.js
 ```
 
 ### 2. Start Engine
@@ -85,7 +85,7 @@ At minimum, set:
 GameAgentDevCli.exe invoke <world-id> <node-id> \
   --task-type npc_dialogue \
   --pipeline-mode full \
-  --dynamic-interfaces-file docs/tests/runtime_task_dynamic_interfaces.json \
+  --dynamic-interfaces-file tools/source/tests/runtime_task_dynamic_interfaces.json \
   --message "Before answering, query the game side for nearby scene facts and world state."
 ```
 

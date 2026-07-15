@@ -20,15 +20,15 @@
 | 阶段 | 状态 | 说明 |
 |---|---|---|
 | S0 基线 | 已完成 | 已补充计划文档 |
-| S1 测试 worker | 已完成 | 已新增 `cmd/gameagentworker`（并保留旧 `cmd/gameagenttestworker` 兼容入口） |
+| S1 测试 worker | 已完成 | 已新增 `cmd/gameagentworker` 作为独立 worker CLI |
 | S2 Worker 自验证 | 已完成 | worker 单测与构建通过 |
 | S3 自动化回归 | 已完成 | `go test ./...` 通过 |
-| S4 基础数据面 | 已完成 | `docs/tests/full_functional_base_data.ps1` 在隔离的 source-built Engine 上通过 |
-| S5 世界演化与连续性 | 已完成 | `docs/tests/full_functional_continuity.ps1` 在隔离的 mock-provider Engine 上通过 |
-| S6 Runtime Task 投递 | 已完成 | `docs/tests/full_functional_runtime_tasks.ps1` 在隔离的 fixture-provider Engine、本地 push receiver 与 pull worker 环境上通过 |
-| S7 Callback/Resume 编排 | 已完成 | `docs/tests/full_functional_callback_resume.ps1` 在隔离的 fixture-provider Engine 上通过 |
-| S8 工具链冒烟 | 已完成 | `docs/tests/full_functional_tooling_smoke.ps1` 在隔离的 fixture-provider Engine 上通过 |
-| S9 机器式场景 | 已完成 | `docs/tests/full_functional_machine_scenario.ps1` 在隔离的 fixture-provider Engine 上通过 |
+| S4 基础数据面 | 已完成 | `tools/source/tests/full_functional_base_data.ps1` 在隔离的 source-built Engine 上通过 |
+| S5 世界演化与连续性 | 已完成 | `tools/source/tests/full_functional_continuity.ps1` 在隔离的 mock-provider Engine 上通过 |
+| S6 Runtime Task 投递 | 已完成 | `tools/source/tests/full_functional_runtime_tasks.ps1` 在隔离的 fixture-provider Engine、本地 push receiver 与 pull worker 环境上通过 |
+| S7 Callback/Resume 编排 | 已完成 | `tools/source/tests/full_functional_callback_resume.ps1` 在隔离的 fixture-provider Engine 上通过 |
+| S8 工具链冒烟 | 已完成 | `tools/source/tests/full_functional_tooling_smoke.ps1` 在隔离的 fixture-provider Engine 上通过 |
+| S9 机器式场景 | 已完成 | `tools/source/tests/full_functional_machine_scenario.ps1` 在隔离的 fixture-provider Engine 上通过 |
 | S10 最终报告 | 已完成 | 下文已汇总最终通过/失败矩阵、复现说明与操作性缺口 |
 
 ## 自动化回归
@@ -41,10 +41,10 @@
 
 | 项目 | 状态 | 证据 |
 |---|---|---|
-| `task inspect` 返回完整字段 | 已完成 | `docs/tests/full_functional_runtime_tasks_result.json` 以及 `GameAgentDevCli task inspect <hybrid-task-id>` 显示了完整 `payload`、`dispatch_decision=fallback_to_pull` 和状态转换时间戳 |
-| `nodes --world` 与直接 HTTP 查询一致 | 已完成 | `docs/tests/full_functional_base_data_result.json` 中 `legacy list parity` 通过，`count=5` |
-| callback resume 不会重复发出重复 `data_request` | 已完成 | `docs/tests/full_functional_callback_resume_result.json` 以及 `/api/v1/logs?event_name=data_request_reused` 显示仅有一次 reuse 事件，恢复链路中只生成了一个 `game_client_request_data` runtime task |
-| `POST /api/v1/components` 避免 `world_settings` 重复创建竞态 | 已完成 | 在新 world 上并发创建 component 成功，`docs/tests/full_functional_base_data_result.json` 中 `count=6` |
+| `task inspect` 返回完整字段 | 已完成 | `tools/source/tests/full_functional_runtime_tasks_result.json` 以及 `GameAgentDevCli task inspect <hybrid-task-id>` 显示了完整 `payload`、`dispatch_decision=fallback_to_pull` 和状态转换时间戳 |
+| `nodes --world` 与直接 HTTP 查询一致 | 已完成 | `tools/source/tests/full_functional_base_data_result.json` 中 `legacy list parity` 通过，`count=5` |
+| callback resume 不会重复发出重复 `data_request` | 已完成 | `tools/source/tests/full_functional_callback_resume_result.json` 以及 `/api/v1/logs?event_name=data_request_reused` 显示仅有一次 reuse 事件，恢复链路中只生成了一个 `game_client_request_data` runtime task |
+| `POST /api/v1/components` 避免 `world_settings` 重复创建竞态 | 已完成 | 在新 world 上并发创建 component 成功，`tools/source/tests/full_functional_base_data_result.json` 中 `count=6` |
 
 ## 基础数据面结果
 
@@ -60,8 +60,8 @@
 ## 基础数据面执行说明
 
 - 脚本: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_base_data.ps1 -EngineBaseUrl http://127.0.0.1:18080 -DevCliPath <temp>\GameAgentDevCli.exe -OutFile docs\tests\full_functional_base_data_result.json`
-- 夹具: `docs/tests/full_functional_base_data_world.yaml`
-- 结果产物: `docs/tests/full_functional_base_data_result.json`
+- 夹具: `tools/source/tests/full_functional_base_data_world.yaml`
+- 结果产物: `tools/source/tests/full_functional_base_data_result.json`
 - 运行后缀: `20260715122604`
 - 主 world id: `5a9b0231-dc1e-4a48-8695-cd30990debb3`
 - 压测 world id: `8f44662c-3b84-4c44-b65f-2a42d5fb00f0`
@@ -79,7 +79,7 @@
 - 脚本: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_continuity.ps1 -EngineBaseUrl http://127.0.0.1:18081 -DevCliPath <temp>\GameAgentDevCli.exe -BaseDataResultPath docs\tests\full_functional_base_data_result_s5.json -OutFile docs\tests\full_functional_continuity_result.json`
 - 临时配置: `C:\Users\808\AppData\Local\Temp\gae-s5-src-20260715123313\gameagentengine.conf.yaml`
 - 运行模式: source-built Engine + mock provider
-- 结果产物: `docs/tests/full_functional_continuity_result.json`
+- 结果产物: `tools/source/tests/full_functional_continuity_result.json`
 - world id: `7be14a95-387d-4280-8011-b02ed444c0c1`
 - request id: `6c33c53b-ec44-4423-8144-8f841920cf91`
 - 最新世界时间标签: `Cycle历 12day 10hour`
@@ -99,7 +99,7 @@
 - 临时配置: `C:\Users\808\AppData\Local\Temp\gae-s6-src-20260715125246\gameagentengine.conf.yaml`
 - 临时数据库: `C:\Users\808\AppData\Local\Temp\gae-s6-src-20260715125246\gameagentengine.db`
 - 运行模式: source-built Engine + fixture provider + 本地 push receiver + pull worker
-- 结果产物: `docs/tests/full_functional_runtime_tasks_result.json`
+- 结果产物: `tools/source/tests/full_functional_runtime_tasks_result.json`
 - world id: `35a1fc1d-73c0-4292-9615-6b6d55351890`
 - engine / worker 端口: `18082` / `19000`
 
@@ -120,13 +120,13 @@
 - 临时配置: `C:\Users\808\AppData\Local\Temp\gae-s7-src-20260715130743\gameagentengine.conf.yaml`
 - 临时数据库: `C:\Users\808\AppData\Local\Temp\gae-s7-src-20260715130743\gameagentengine.db`
 - 运行模式: source-built Engine + fixture provider + 直接 callback HTTP + pull worker
-- 结果产物: `docs/tests/full_functional_callback_resume_result.json`
+- 结果产物: `tools/source/tests/full_functional_callback_resume_result.json`
 - world id: `936a0329-27ef-492d-9dd0-1ce5ef277ea7`
 - engine 端口: `18083`
 
 ## 工具链冒烟结果
 
-- SDK: 通过；`docs/tests/sdk_tooling_smoke.go` 针对在线 Engine 验证了 pending runtime task `51995f94-8cb5-4762-b867-adf437c685a1`、latest timeline tick `1`、continuity logs 与 traces
+- SDK: 通过；`tools/source/tests/sdk_tooling_smoke.go` 针对在线 Engine 验证了 pending runtime task `51995f94-8cb5-4762-b867-adf437c685a1`、latest timeline tick `1`、continuity logs 与 traces
 - DevCli: 通过；`node list` 与 legacy `nodes --world` 均保持 `count=2`，`task get 51995f94-8cb5-4762-b867-adf437c685a1 --json` 与 HTTP 任务字段一致
 - Creator Tasks: 通过；页面使用的数据源 `/api/v1/runtime/tasks` 与 `/api/v1/runtime/tasks/stats` 返回了同一个 pending task `51995f94-8cb5-4762-b867-adf437c685a1`，统计总数为 `1`
 - Creator Continuity: 通过；页面使用的数据源 `timelines/latest`、`timelines`、`state-components`、`logs` 与 `debug/traces` 返回了一次 world tick，`state_components=6`
@@ -139,7 +139,7 @@
 - 临时配置: `C:\Users\808\AppData\Local\Temp\gae-s8-src-20260715131652\gameagentengine.conf.yaml`
 - 临时数据库: `C:\Users\808\AppData\Local\Temp\gae-s8-src-20260715131652\gameagentengine.db`
 - 运行模式: source-built Engine + fixture provider + SDK/DevCli/API 工具链冒烟
-- 结果产物: `docs/tests/full_functional_tooling_smoke_result.json`
+- 结果产物: `tools/source/tests/full_functional_tooling_smoke_result.json`
 - world id: `6327c45d-bec7-4cbc-b7fa-3b94250e59d7`
 - engine 端口: `18084`
 
@@ -157,7 +157,7 @@
 - 临时配置: `C:\Users\808\AppData\Local\Temp\gae-s9-src-20260715132417\gameagentengine.conf.yaml`
 - 临时数据库: `C:\Users\808\AppData\Local\Temp\gae-s9-src-20260715132417\gameagentengine.db`
 - 运行模式: source-built Engine + fixture provider + pull worker
-- 结果产物: `docs/tests/full_functional_machine_scenario_result.json`
+- 结果产物: `tools/source/tests/full_functional_machine_scenario_result.json`
 - world id: `9abbb007-17c9-4de8-9367-6a72ae32b0d4`
 - engine 端口: `18085`
 

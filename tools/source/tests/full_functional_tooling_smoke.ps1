@@ -3,18 +3,27 @@ param(
     [string]$EngineExePath,
     [string]$DevCliPath,
     [string]$WorkerExePath,
-    [string]$FixtureFile = ".\docs\tests\tooling_smoke_fixture.json",
-    [string]$TradeDynamicInterfacesFile = ".\docs\tests\runtime_task_dynamic_action_trade.json",
-    [string]$WorldTimeSettingsPath = ".\docs\tests\world_time_settings_flexible.json",
-    [string]$WorldStatePath = ".\docs\tests\state_world_state.json",
-    [string]$TickPolicyPath = ".\docs\tests\state_tick_policy.json",
+    [string]$FixtureFile = "",
+    [string]$TradeDynamicInterfacesFile = "",
+    [string]$WorldTimeSettingsPath = "",
+    [string]$WorldStatePath = "",
+    [string]$TickPolicyPath = "",
     [string]$ApiKey = "dev-key",
     [string]$RuntimeTaskToken = "dev-task-token",
     [int]$EnginePort = 18084,
-    [string]$OutFile = ".\docs\tests\full_functional_tooling_smoke_result.json"
+    [string]$OutFile = ""
 )
 
 $ErrorActionPreference = "Stop"
+$ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+$SdkToolingSmokePath = Join-Path $ScriptDir "sdk_tooling_smoke.go"
+
+if ([string]::IsNullOrWhiteSpace($FixtureFile)) { $FixtureFile = Join-Path $ScriptDir "tooling_smoke_fixture.json" }
+if ([string]::IsNullOrWhiteSpace($TradeDynamicInterfacesFile)) { $TradeDynamicInterfacesFile = Join-Path $ScriptDir "runtime_task_dynamic_action_trade.json" }
+if ([string]::IsNullOrWhiteSpace($WorldTimeSettingsPath)) { $WorldTimeSettingsPath = Join-Path $ScriptDir "world_time_settings_flexible.json" }
+if ([string]::IsNullOrWhiteSpace($WorldStatePath)) { $WorldStatePath = Join-Path $ScriptDir "state_world_state.json" }
+if ([string]::IsNullOrWhiteSpace($TickPolicyPath)) { $TickPolicyPath = Join-Path $ScriptDir "state_tick_policy.json" }
+if ([string]::IsNullOrWhiteSpace($OutFile)) { $OutFile = Join-Path $ScriptDir "full_functional_tooling_smoke_result.json" }
 
 function Assert-True {
     param(
@@ -144,7 +153,7 @@ function Add-CheckResult {
 if (-not (Test-Path $EngineExePath)) { throw "EngineExePath not found: $EngineExePath" }
 if (-not (Test-Path $DevCliPath)) { throw "DevCliPath not found: $DevCliPath" }
 if (-not (Test-Path $WorkerExePath)) { throw "WorkerExePath not found: $WorkerExePath" }
-foreach ($path in @($FixtureFile, $TradeDynamicInterfacesFile, $WorldTimeSettingsPath, $WorldStatePath, $TickPolicyPath, ".\docs\tests\sdk_tooling_smoke.go")) {
+foreach ($path in @($FixtureFile, $TradeDynamicInterfacesFile, $WorldTimeSettingsPath, $WorldStatePath, $TickPolicyPath, $SdkToolingSmokePath)) {
     if (-not (Test-Path $path)) {
         throw "Required file not found: $path"
     }
@@ -224,7 +233,7 @@ try {
     Assert-Equal $tick.advanced_ticks 2 "tooling smoke tick advanced_ticks mismatch"
     Add-CheckResult -Results $results -Area "continuity" -Operation "seed world tick" -Status "passed" -Evidence "request_id=$($tick.invoke.request_id)"
 
-    $sdkSmoke = (& go run .\docs\tests\sdk_tooling_smoke.go --server "http://127.0.0.1:$EnginePort" --key $ApiKey --world $worldId --node $npcId) -join "`n"
+    $sdkSmoke = (& go run $SdkToolingSmokePath --server "http://127.0.0.1:$EnginePort" --key $ApiKey --world $worldId --node $npcId) -join "`n"
     if ($LASTEXITCODE -ne 0) {
         throw "sdk tooling smoke failed"
     }

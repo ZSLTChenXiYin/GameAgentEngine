@@ -8,7 +8,7 @@ It currently provides a deterministic fixture-driven runtime task worker that is
 - callback / resume validation
 - local developer-side engine interaction simulation
 
-The legacy `GameAgentTestWorker` command remains available as a compatibility wrapper, but new scripts and docs should prefer `GameAgentWorker`.
+Packaged integration-test fixtures and helper scripts now live under `tools/source/tests`.
 
 ## Supported Modes
 
