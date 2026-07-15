@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -81,6 +82,8 @@ type taskExecutionDecision struct {
 type app struct {
 	options     Options
 	cfg         workerConfig
+	authorityMu sync.RWMutex
+	authority   *workerstate.WorldState
 	rootCmd     *cobra.Command
 	serveCmd    *cobra.Command
 	pushCmd     *cobra.Command
@@ -145,6 +148,21 @@ func newTestApp() *app {
 		DefaultLeaseOwner: "gameagentworker",
 		WorkerID:          "gameagentworker",
 	})
+}
+
+func (a *app) setAuthorityState(state *workerstate.WorldState) {
+	a.authorityMu.Lock()
+	defer a.authorityMu.Unlock()
+	a.authority = workerstate.NewStateView(state).State()
+}
+
+func (a *app) authorityView() *workerstate.StateView {
+	a.authorityMu.RLock()
+	defer a.authorityMu.RUnlock()
+	if a.authority == nil {
+		return nil
+	}
+	return workerstate.NewStateView(a.authority)
 }
 
 func (a *app) initCommands() {
@@ -493,19 +511,17 @@ func (a *app) buildFixtureResult(interfaceName string, payload map[string]any, s
 }
 
 func (a *app) resolveAuthorityQueryResult(payload map[string]any, status string, longRunning bool) map[string]any {
-	if strings.TrimSpace(a.cfg.StateFile) == "" {
-		return nil
-	}
-	state, err := workerstate.LoadFile(a.cfg.StateFile)
+	view, err := a.loadAuthorityView()
 	if err != nil {
-		a.logJSON("state_file_load_error", map[string]any{"path": a.cfg.StateFile, "error": err.Error()})
 		return map[string]any{
 			"status":       status,
 			"long_running": longRunning,
 			"state_error":  err.Error(),
 		}
 	}
-	view := workerstate.NewStateView(state)
+	if view == nil {
+		return nil
+	}
 	queries := extractAuthorityQueries(payload)
 	if len(queries) == 0 {
 		return map[string]any{
@@ -521,6 +537,22 @@ func (a *app) resolveAuthorityQueryResult(payload map[string]any, status string,
 		"queries":      resolveAuthorityQueries(view, queries),
 	}
 	return resolved
+}
+
+func (a *app) loadAuthorityView() (*workerstate.StateView, error) {
+	if view := a.authorityView(); view != nil {
+		return view, nil
+	}
+	if strings.TrimSpace(a.cfg.StateFile) == "" {
+		return nil, nil
+	}
+	state, err := workerstate.LoadFile(a.cfg.StateFile)
+	if err != nil {
+		a.logJSON("state_file_load_error", map[string]any{"path": a.cfg.StateFile, "error": err.Error()})
+		return nil, err
+	}
+	a.setAuthorityState(state)
+	return a.authorityView(), nil
 }
 
 type authorityQuery struct {

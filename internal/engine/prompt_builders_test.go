@@ -1,6 +1,9 @@
 package engine
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestBuildDynamicInterfaceTools(t *testing.T) {
 	tools := buildDynamicInterfaceTools([]DynamicInterface{
@@ -43,5 +46,23 @@ func TestBuildDynamicInterfaceTools(t *testing.T) {
 	}
 	if tools[1].Parameters["type"] != "object" {
 		t.Fatalf("expected args schema to survive, got %+v", tools[1].Parameters)
+	}
+}
+
+func TestBuildDialogueModeInstructionIncludesShowItemConstraint(t *testing.T) {
+	text := buildDialogueModeInstruction("direct_dialogue", &InteractionContext{
+		Event: &InteractionEvent{Type: "show_item", ItemID: "knife_bloody"},
+	})
+	if !strings.Contains(text, "展示物品") {
+		t.Fatalf("expected show_item guidance, got %q", text)
+	}
+}
+
+func TestBuildDialogueModeInstructionIncludesThreatenConstraint(t *testing.T) {
+	text := buildDialogueModeInstruction("direct_dialogue", &InteractionContext{
+		Event: &InteractionEvent{Type: "threaten"},
+	})
+	if !strings.Contains(text, "威胁施压") {
+		t.Fatalf("expected threaten guidance, got %q", text)
 	}
 }

@@ -322,6 +322,10 @@ request_data 格式（可选，需要时添加）：
 }
 
 func buildDialogueModeInstruction(mode string, interaction *InteractionContext) string {
+	eventType := ""
+	if interaction != nil && interaction.Event != nil {
+		eventType = strings.TrimSpace(interaction.Event.Type)
+	}
 	switch mode {
 	case "group_chat":
 		return strings.Join([]string{
@@ -345,11 +349,24 @@ func buildDialogueModeInstruction(mode string, interaction *InteractionContext) 
 			"- 不要把交易直接说成已经完成，除非权威状态或动作调用已经支持。",
 		}, "\n")
 	default:
-		return strings.Join([]string{
+		parts := []string{
 			"- 当前交互是点对点对话。你只代表当前目标 NPC 回复当前说话者。",
 			"- 对自然语言中的动作性主张保持事实约束：未被上下文或权威数据证实的地点、物品、状态、任务进度都不能视为既成事实。",
 			"- 缺少关键事实时优先 request_data，而不是脑补。",
-		}, "\n")
+		}
+		switch eventType {
+		case "show_item":
+			parts = append(parts,
+				"- 当前事件是展示物品。你应优先围绕该物品的识别、态度、记忆、风险和线索价值来回应。",
+				"- 如果并不确定该物品是否真的存在、是否属于玩家、是否与你当前情境相关，优先 request_data。",
+			)
+		case "threaten":
+			parts = append(parts,
+				"- 当前事件是威胁施压。你应结合关系、场景安全、身份立场与即时风险做出克制且符合角色的反应。",
+				"- 不要无依据地假设玩家已经成功控制局面；缺少武器、人数、位置或支援事实时优先 request_data。",
+			)
+		}
+		return strings.Join(parts, "\n")
 	}
 }
 

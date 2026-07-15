@@ -2,6 +2,13 @@ package workerstate
 
 import "strings"
 
+func (v *StateView) State() *WorldState {
+	if v == nil || v.state == nil {
+		return normalizeWorldState(nil)
+	}
+	return v.state
+}
+
 func (v *StateView) WorldID() string {
 	if v == nil || v.state == nil {
 		return ""
@@ -135,6 +142,46 @@ func (v *StateView) FindSceneIDByName(name string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func (v *StateView) FindItemIDByName(name string) (string, bool) {
+	needle := strings.TrimSpace(name)
+	if needle == "" || v == nil || v.state == nil {
+		return "", false
+	}
+	for id, item := range v.state.Items {
+		if item == nil {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(id), needle) || strings.EqualFold(strings.TrimSpace(item.ID), needle) || strings.EqualFold(strings.TrimSpace(item.Name), needle) {
+			return item.ID, true
+		}
+	}
+	for _, actor := range v.state.Actors {
+		if actor == nil {
+			continue
+		}
+		for _, entry := range actor.Inventory {
+			if strings.EqualFold(strings.TrimSpace(entry.ItemID), needle) {
+				return entry.ItemID, true
+			}
+		}
+	}
+	return "", false
+}
+
+func (v *StateView) ActorInventoryEntry(actorID, itemID string) (*InventoryEntry, bool) {
+	actor, ok := v.Actor(actorID)
+	if !ok || actor == nil {
+		return nil, false
+	}
+	for i := range actor.Inventory {
+		entry := &actor.Inventory[i]
+		if strings.EqualFold(strings.TrimSpace(entry.ItemID), strings.TrimSpace(itemID)) {
+			return entry, true
+		}
+	}
+	return nil, false
 }
 
 func (v *StateView) SceneOccupants(sceneID string) []string {

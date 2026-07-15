@@ -154,3 +154,41 @@ func TestResolveSceneActorRequiresSameScene(t *testing.T) {
 		t.Fatal("expected same-scene validation error")
 	}
 }
+
+func TestTransferInventoryItemMovesAuthorityState(t *testing.T) {
+	a := newTestApp()
+	a.setAuthorityState(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Inventory: []workerstate.InventoryEntry{{ItemID: "knife_bloody", Quantity: 1}}},
+			"npc_1":    {ID: "npc_1"},
+		},
+		Items: map[string]*workerstate.ItemState{
+			"knife_bloody": {ID: "knife_bloody", OwnerID: "player_1"},
+		},
+	})
+	if err := a.transferInventoryItem("player_1", "npc_1", "knife_bloody", 1); err != nil {
+		t.Fatalf("transferInventoryItem returned error: %v", err)
+	}
+	view := a.authorityView()
+	if view.ItemPresentOnActor("player_1", "knife_bloody") {
+		t.Fatal("expected item removed from player inventory")
+	}
+	if !view.ItemPresentOnActor("npc_1", "knife_bloody") {
+		t.Fatal("expected item added to npc inventory")
+	}
+	if item := view.State().Items["knife_bloody"]; item == nil || item.OwnerID != "npc_1" {
+		t.Fatalf("expected item owner updated to npc_1, got %#v", item)
+	}
+}
+
+func TestResolvePlayerInventoryItemRequiresPossession(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Inventory: []workerstate.InventoryEntry{{ItemID: "knife_bloody", Quantity: 1}}},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1"}
+	if _, _, err := s.resolvePlayerInventoryItem("silver_ring"); err == nil {
+		t.Fatal("expected missing item error")
+	}
+}
