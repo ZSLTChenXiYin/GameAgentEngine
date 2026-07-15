@@ -1,0 +1,95 @@
+# Full Functional Test Checklist
+
+Use this checklist to execute the staged full-functional validation plan.
+
+## S0 Baseline
+
+- [ ] record current git revision
+- [ ] record config file path
+- [ ] record database isolation strategy
+- [ ] verify Engine port availability
+- [ ] verify push receiver port availability
+- [ ] verify API key, callback token, and runtime task token
+
+## S1-S2 Test Worker
+
+- [ ] build `cmd/gameagenttestworker`
+- [ ] run worker unit tests
+- [ ] verify push receiver startup
+- [ ] verify pull-once command startup
+- [ ] verify fixture-driven success path
+- [ ] verify forced failure path
+- [ ] verify long-task heartbeat path
+
+## S3 Automated Regression
+
+- [ ] run `go test ./...`
+- [ ] re-run targeted runtime task / CLI packages if needed
+
+## S4 Base Data Plane
+
+- [ ] node CRUD via HTTP
+- [ ] node CRUD via DevCli
+- [ ] component CRUD via HTTP
+- [ ] component CRUD via DevCli
+- [ ] memory CRUD via HTTP
+- [ ] memory CRUD via DevCli
+- [ ] relation CRUD via HTTP
+- [ ] relation CRUD via DevCli
+- [ ] world settings get/set
+- [ ] world policy get/set
+
+## S5 World Evolution and Continuity
+
+- [ ] configure world time settings
+- [ ] execute one world tick
+- [ ] inspect timeline latest/list
+- [ ] inspect state list/get
+- [ ] inspect debug continuity
+- [ ] inspect logs and traces for one request_id
+
+## S6 Runtime Task Delivery
+
+- [ ] push delivery success
+- [ ] pull delivery success
+- [ ] hybrid fallback transition
+- [ ] task claim/start/heartbeat
+- [ ] task release/requeue
+- [ ] task list/stats/inspect
+
+## S7 Callback / Resume Orchestration
+
+- [ ] callback success path
+- [ ] callback failure path
+- [ ] paused execution auto-resume
+- [ ] `resume_policy = none`
+- [ ] callback replay protection
+- [ ] callback post-process `record_only`
+- [ ] callback post-process `write_memory`
+- [ ] duplicate `data_request` suppression after resume
+
+## S8 Tooling Smoke
+
+- [ ] SDK runtime task helper smoke
+- [ ] DevCli node/task compatibility smoke
+- [ ] Creator Tasks page smoke
+- [ ] Creator Continuity page smoke
+- [ ] Creator Traces page smoke
+
+## S9 Machine Scenario
+
+- [ ] isolated Engine runtime started
+- [ ] test worker started
+- [ ] NPC dialogue invoke with request-scoped dynamic interfaces
+- [ ] runtime task created
+- [ ] callback completed by worker
+- [ ] paused execution resumed
+- [ ] logs / traces / continuity confirmed
+
+## Priority Regression Verification
+
+- [ ] `task inspect` shows populated fields
+- [ ] `nodes --world` matches direct HTTP output
+- [ ] callback resume does not re-emit duplicate `data_request`
+- [ ] `POST /api/v1/components` avoids duplicate `world_settings` write failure
+
