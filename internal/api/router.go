@@ -14,6 +14,7 @@ func NewRouter(p *engine.Pipeline) *http.ServeMux {
 	mux.HandleFunc("GET /api/v1/version", VersionHandler)
 
 	mux.HandleFunc("POST /api/v1/invoke", MakeInvokeHandler(p))
+	mux.HandleFunc("POST /api/v1/player/input/interpret", MakePlayerInputInterpretHandler(p))
 	mux.HandleFunc("POST /api/v1/actions/callback", CallbackReplayMiddleware(MakeActionCallbackHandler(p)))
 	mux.HandleFunc("GET /api/v1/runtime/tasks", MakeListRuntimeTasksHandler())
 	mux.HandleFunc("GET /api/v1/runtime/tasks/stats", MakeRuntimeTaskStatsHandler())

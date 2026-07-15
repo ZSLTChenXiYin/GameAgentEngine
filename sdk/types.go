@@ -156,6 +156,17 @@ type PlayerIntentInterpretation struct {
 	SuggestedInteraction *SuggestedInteraction `json:"suggested_interaction,omitempty"`
 }
 
+type PlayerInputInterpretRequest struct {
+	WorldID            string         `json:"world_id"`
+	PlayerNodeID       string         `json:"player_node_id"`
+	SceneNodeID        string         `json:"scene_node_id,omitempty"`
+	TargetNodeID       string         `json:"target_node_id,omitempty"`
+	SessionID          string         `json:"session_id,omitempty"`
+	Message            string         `json:"message"`
+	ParticipantNodeIDs []string       `json:"participant_node_ids,omitempty"`
+	Context            *InvokeContext `json:"context,omitempty"`
+}
+
 type InteractionContext struct {
 	Mode               string            `json:"mode,omitempty"`
 	SpeakerNodeID      string            `json:"speaker_node_id,omitempty"`

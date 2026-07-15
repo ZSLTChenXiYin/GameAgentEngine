@@ -605,6 +605,19 @@ func (c *Client) Invoke(req *InvokeRequest) (*InvokeResponse, error) {
 	return &resp, nil
 }
 
+// InterpretPlayerInput 调用玩家输入解释入口，返回结构化行为提案。
+func (c *Client) InterpretPlayerInput(req *PlayerInputInterpretRequest) (*InvokeResponse, error) {
+	data, err := c.do("POST", "/api/v1/player/input/interpret", req)
+	if err != nil {
+		return nil, err
+	}
+	var resp InvokeResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // TickRequest 描述世界刻推进请求体。
 type TickRequest struct {
 	TickType        string `json:"tick_type"`

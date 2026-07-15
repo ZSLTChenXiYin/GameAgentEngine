@@ -291,3 +291,50 @@ func TestInvokeHandlerAcceptsValidInteraction(t *testing.T) {
 		t.Fatalf("did not expect invalid_interaction response, got %s", w.Body.String())
 	}
 }
+
+func TestPlayerInputInterpretHandlerRejectsMissingFields(t *testing.T) {
+	initMiddlewareTestDB(t)
+	h := MakePlayerInputInterpretHandler(nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/player/input/interpret", strings.NewReader(`{
+		"world_id":"w1",
+		"message":"我把刀拍在柜台上"
+	}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "player_node_id") {
+		t.Fatalf("expected missing player_node_id error, got %s", w.Body.String())
+	}
+}
+
+func TestPlayerInputInterpretHandlerAcceptsValidRequest(t *testing.T) {
+	initMiddlewareTestDB(t)
+	world := &store.NodeModel{UUID: "w1", Name: "World", NodeType: "world", WorldUUID: "w1"}
+	if err := store.CreateNode(world); err != nil {
+		t.Fatalf("create world: %v", err)
+	}
+	player := &store.NodeModel{UUID: "player_1", Name: "Player Mirror", NodeType: "npc", WorldUUID: "w1", ParentUUID: &world.UUID}
+	if err := store.CreateNode(player); err != nil {
+		t.Fatalf("create player node: %v", err)
+	}
+	h := MakePlayerInputInterpretHandler(engine.NewPipeline(&singleResponseProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/player/input/interpret", strings.NewReader(`{
+		"world_id":"w1",
+		"player_node_id":"player_1",
+		"target_node_id":"npc_1",
+		"scene_node_id":"scene_inn",
+		"message":"我把刀拍在柜台上"
+	}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "invalid_interaction") {
+		t.Fatalf("did not expect invalid_interaction, got %s", w.Body.String())
+	}
+}
