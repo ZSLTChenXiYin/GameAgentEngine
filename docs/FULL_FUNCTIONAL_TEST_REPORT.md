@@ -24,7 +24,7 @@
 | S4 Base data plane | completed | `docs/tests/full_functional_base_data.ps1` passed against isolated source-built Engine |
 | S5 World evolution and continuity | completed | `docs/tests/full_functional_continuity.ps1` passed against isolated mock-provider Engine |
 | S6 Runtime task delivery | completed | `docs/tests/full_functional_runtime_tasks.ps1` passed against isolated fixture-provider Engine plus local push receiver and pull worker |
-| S7 Callback/resume orchestration | pending | |
+| S7 Callback/resume orchestration | completed | `docs/tests/full_functional_callback_resume.ps1` passed against isolated fixture-provider Engine |
 | S8 Tooling smoke | pending | |
 | S9 Machine scenario | pending | |
 | S10 Final report | pending | |
@@ -41,7 +41,7 @@
 |---|---|---|
 | `task inspect` populated fields | completed | `docs/tests/full_functional_runtime_tasks_result.json` plus `GameAgentDevCli task inspect <hybrid-task-id>` showed populated `payload`, `dispatch_decision=fallback_to_pull`, and transition timestamps |
 | `nodes --world` matches direct HTTP | completed | `docs/tests/full_functional_base_data_result.json` shows `legacy list parity` passed with `count=5` |
-| callback resume avoids duplicate `data_request` | pending | |
+| callback resume avoids duplicate `data_request` | completed | `docs/tests/full_functional_callback_resume_result.json` plus `/api/v1/logs?event_name=data_request_reused` showed one reuse event and only one `game_client_request_data` runtime task for the resumed chain |
 | `POST /api/v1/components` avoids duplicate `world_settings` race | completed | concurrent component create on fresh world passed with `count=6` in `docs/tests/full_functional_base_data_result.json` |
 
 ## Base Data Plane Results
@@ -103,14 +103,24 @@
 
 ## Callback and Resume Results
 
-- callback success:
-- callback failure:
-- paused execution auto-resume:
-- `resume_policy = none`:
-- replay protection:
-- `record_only`:
-- `write_memory`:
-- duplicate query suppression:
+- callback success: passed; callback `3eb9fea7-5b5b-44d1-acd5-21e9f6af4701` returned `resumed.reply=scene-resumed-final`, runtime task `f513873b-d582-407a-a346-ab8fc4fe4db4` completed to `succeeded`
+- callback failure: passed; callback `bf36c9d7-34e6-4e42-8642-6c678e63cf7c` completed runtime task `225cea56-2b56-480e-8ced-34607c49546c` to `failed` with persisted callback payload in `error_message`
+- paused execution auto-resume: passed; callback success created one `resume_completed` log and returned non-empty `resume_execution_id`
+- `resume_policy = none`: passed; callback `63000dec-5d06-4941-844b-7e8fb6646fa9` completed task `2b40a732-6ef6-44d0-b09d-dae8c75925d0` without `resumed` payload and without a second `resume_completed` log
+- replay protection: passed; second callback request with `X-Callback-Request-Id=s7-scene-1` returned `X-Callback-Replayed=true` and did not duplicate resume logs
+- `record_only`: passed; callback `78ed85ca-0e37-43bd-a08d-f7b3c76eb310` completed task `e7fed65d-df9f-4013-9cad-d402f1a45fd7` with `post_process_applied=false` and wrote no memory rows
+- `write_memory`: passed; callback `e1d0dda5-a23e-4e43-9b7b-c55174c022e1` completed task `633d032f-5190-4c91-9eb6-145e22389088` and wrote long-term memory `8e790632-f162-4dc5-ad56-3d9ffa97dbad`
+- duplicate query suppression: passed; resumed chain emitted one `data_request_reused` log and kept `game_client_request_data` runtime task count at `1`
+
+## Callback and Resume Execution Notes
+
+- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_callback_resume.ps1 -EngineExePath .\tmp\s7\GameAgentEngine.exe -DevCliPath .\tmp\s7\GameAgentDevCli.exe -WorkerExePath .\tmp\s7\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_callback_resume_result.json`
+- temp config: `C:\Users\808\AppData\Local\Temp\gae-s7-src-20260715130743\gameagentengine.conf.yaml`
+- temp db: `C:\Users\808\AppData\Local\Temp\gae-s7-src-20260715130743\gameagentengine.db`
+- runtime mode: source-built Engine + fixture provider + direct callback HTTP + pull worker
+- result artifact: `docs/tests/full_functional_callback_resume_result.json`
+- world id: `936a0329-27ef-492d-9dd0-1ce5ef277ea7`
+- engine port: `18083`
 
 ## Tooling Smoke Results
 

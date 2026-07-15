@@ -1,0 +1,60 @@
+{
+    "engine_port":  18083,
+    "config_path":  "C:\\Users\\808\\AppData\\Local\\Temp\\gae-s7-src-20260715130743\\gameagentengine.conf.yaml",
+    "db_path":  "C:\\Users\\808\\AppData\\Local\\Temp\\gae-s7-src-20260715130743\\gameagentengine.db",
+    "world_id":  "936a0329-27ef-492d-9dd0-1ce5ef277ea7",
+    "scene_callback_id":  "3eb9fea7-5b5b-44d1-acd5-21e9f6af4701",
+    "scene_task_id":  "f513873b-d582-407a-a346-ab8fc4fe4db4",
+    "none_callback_id":  "63000dec-5d06-4941-844b-7e8fb6646fa9",
+    "none_task_id":  "2b40a732-6ef6-44d0-b09d-dae8c75925d0",
+    "record_only_callback_id":  "78ed85ca-0e37-43bd-a08d-f7b3c76eb310",
+    "record_only_task_id":  "e7fed65d-df9f-4013-9cad-d402f1a45fd7",
+    "write_memory_callback_id":  "e1d0dda5-a23e-4e43-9b7b-c55174c022e1",
+    "write_memory_task_id":  "633d032f-5190-4c91-9eb6-145e22389088",
+    "failure_callback_id":  "bf36c9d7-34e6-4e42-8642-6c678e63cf7c",
+    "failure_task_id":  "225cea56-2b56-480e-8ced-34607c49546c",
+    "checks":  [
+                   {
+                       "area":  "callback",
+                       "operation":  "success path and auto-resume",
+                       "status":  "passed",
+                       "evidence":  "callback_id=3eb9fea7-5b5b-44d1-acd5-21e9f6af4701 task_id=f513873b-d582-407a-a346-ab8fc4fe4db4 reply=scene-resumed-final"
+                   },
+                   {
+                       "area":  "callback",
+                       "operation":  "replay protection",
+                       "status":  "passed",
+                       "evidence":  "callback_id=3eb9fea7-5b5b-44d1-acd5-21e9f6af4701 replayed=true"
+                   },
+                   {
+                       "area":  "callback",
+                       "operation":  "duplicate data_request suppression",
+                       "status":  "passed",
+                       "evidence":  "callback_id=3eb9fea7-5b5b-44d1-acd5-21e9f6af4701 reuse_logs=1 task_count=1"
+                   },
+                   {
+                       "area":  "callback",
+                       "operation":  "resume_policy none",
+                       "status":  "passed",
+                       "evidence":  "callback_id=63000dec-5d06-4941-844b-7e8fb6646fa9 task_id=2b40a732-6ef6-44d0-b09d-dae8c75925d0"
+                   },
+                   {
+                       "area":  "callback",
+                       "operation":  "post-process record_only",
+                       "status":  "passed",
+                       "evidence":  "callback_id=78ed85ca-0e37-43bd-a08d-f7b3c76eb310 task_id=e7fed65d-df9f-4013-9cad-d402f1a45fd7"
+                   },
+                   {
+                       "area":  "callback",
+                       "operation":  "post-process write_memory",
+                       "status":  "passed",
+                       "evidence":  "callback_id=e1d0dda5-a23e-4e43-9b7b-c55174c022e1 memory_id=8e790632-f162-4dc5-ad56-3d9ffa97dbad"
+                   },
+                   {
+                       "area":  "callback",
+                       "operation":  "failure path",
+                       "status":  "passed",
+                       "evidence":  "callback_id=bf36c9d7-34e6-4e42-8642-6c678e63cf7c task_id=225cea56-2b56-480e-8ced-34607c49546c"
+                   }
+               ]
+}

@@ -59,14 +59,14 @@ Use this checklist to execute the staged full-functional validation plan.
 
 ## S7 Callback / Resume Orchestration
 
-- [ ] callback success path
-- [ ] callback failure path
-- [ ] paused execution auto-resume
-- [ ] `resume_policy = none`
-- [ ] callback replay protection
-- [ ] callback post-process `record_only`
-- [ ] callback post-process `write_memory`
-- [ ] duplicate `data_request` suppression after resume
+- [x] callback success path
+- [x] callback failure path
+- [x] paused execution auto-resume
+- [x] `resume_policy = none`
+- [x] callback replay protection
+- [x] callback post-process `record_only`
+- [x] callback post-process `write_memory`
+- [x] duplicate `data_request` suppression after resume
 
 ## S8 Tooling Smoke
 
@@ -90,5 +90,5 @@ Use this checklist to execute the staged full-functional validation plan.
 
 - [x] `task inspect` shows populated fields
 - [x] `nodes --world` matches direct HTTP output
-- [ ] callback resume does not re-emit duplicate `data_request`
+- [x] callback resume does not re-emit duplicate `data_request`
 - [x] `POST /api/v1/components` avoids duplicate `world_settings` write failure

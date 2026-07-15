@@ -1,0 +1,30 @@
+[
+  {
+    "content": "{\"reply\":\"wait-for-scene\",\"request_data\":{\"label\":\"fetch-scene\",\"target\":\"game_client\",\"queries\":[{\"type\":\"node_detail\"}]}}",
+    "tokens": 8
+  },
+  {
+    "content": "{\"reply\":\"still-needs-scene\",\"request_data\":{\"label\":\"fetch-scene\",\"target\":\"game_client\",\"queries\":[{\"type\":\"node_detail\"}]}}",
+    "tokens": 8
+  },
+  {
+    "content": "{\"reply\":\"scene-resumed-final\",\"action_calls\":[],\"memory_updates\":[]}",
+    "tokens": 8
+  },
+  {
+    "content": "{\"reply\":\"wait-without-resume\",\"request_data\":{\"label\":\"fetch-scene-none\",\"target\":\"game_client\",\"queries\":[{\"type\":\"node_detail\"}]}}",
+    "tokens": 8
+  },
+  {
+    "content": "{\"reply\":\"spawn-record-only\",\"action_calls\":[{\"action_id\":\"spawn_record_only\",\"args\":{\"item_name\":\"apple\"}}],\"memory_updates\":[]}",
+    "tokens": 8
+  },
+  {
+    "content": "{\"reply\":\"spawn-write-memory\",\"action_calls\":[{\"action_id\":\"spawn_write_memory\",\"args\":{\"item_name\":\"potion\"}}],\"memory_updates\":[]}",
+    "tokens": 8
+  },
+  {
+    "content": "{\"reply\":\"spawn-failure\",\"action_calls\":[{\"action_id\":\"spawn_failure\",\"args\":{\"item_name\":\"bomb\"}}],\"memory_updates\":[]}",
+    "tokens": 8
+  }
+]
