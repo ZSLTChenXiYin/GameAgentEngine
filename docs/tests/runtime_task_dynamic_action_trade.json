@@ -1,0 +1,20 @@
+[
+  {
+    "id": "merchant_ops",
+    "kind": "action",
+    "external_interface": "npc_trade_action",
+    "description": "Perform trade-related external actions.",
+    "max_calls": 1,
+    "args_schema": {
+      "type": "object",
+      "properties": {
+        "intent": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "intent"
+      ]
+    }
+  }
+]

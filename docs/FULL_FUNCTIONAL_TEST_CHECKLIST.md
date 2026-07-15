@@ -50,12 +50,12 @@ Use this checklist to execute the staged full-functional validation plan.
 
 ## S6 Runtime Task Delivery
 
-- [ ] push delivery success
-- [ ] pull delivery success
-- [ ] hybrid fallback transition
-- [ ] task claim/start/heartbeat
-- [ ] task release/requeue
-- [ ] task list/stats/inspect
+- [x] push delivery success
+- [x] pull delivery success
+- [x] hybrid fallback transition
+- [x] task claim/start/heartbeat
+- [x] task release/requeue
+- [x] task list/stats/inspect
 
 ## S7 Callback / Resume Orchestration
 
@@ -88,7 +88,7 @@ Use this checklist to execute the staged full-functional validation plan.
 
 ## Priority Regression Verification
 
-- [ ] `task inspect` shows populated fields
+- [x] `task inspect` shows populated fields
 - [x] `nodes --world` matches direct HTTP output
 - [ ] callback resume does not re-emit duplicate `data_request`
 - [x] `POST /api/v1/components` avoids duplicate `world_settings` write failure

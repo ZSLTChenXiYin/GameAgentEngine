@@ -23,7 +23,7 @@
 | S3 Automated regression | completed | `go test ./...` passed |
 | S4 Base data plane | completed | `docs/tests/full_functional_base_data.ps1` passed against isolated source-built Engine |
 | S5 World evolution and continuity | completed | `docs/tests/full_functional_continuity.ps1` passed against isolated mock-provider Engine |
-| S6 Runtime task delivery | pending | |
+| S6 Runtime task delivery | completed | `docs/tests/full_functional_runtime_tasks.ps1` passed against isolated fixture-provider Engine plus local push receiver and pull worker |
 | S7 Callback/resume orchestration | pending | |
 | S8 Tooling smoke | pending | |
 | S9 Machine scenario | pending | |
@@ -39,7 +39,7 @@
 
 | Item | Status | Evidence |
 |---|---|---|
-| `task inspect` populated fields | pending | |
+| `task inspect` populated fields | completed | `docs/tests/full_functional_runtime_tasks_result.json` plus `GameAgentDevCli task inspect <hybrid-task-id>` showed populated `payload`, `dispatch_decision=fallback_to_pull`, and transition timestamps |
 | `nodes --world` matches direct HTTP | completed | `docs/tests/full_functional_base_data_result.json` shows `legacy list parity` passed with `count=5` |
 | callback resume avoids duplicate `data_request` | pending | |
 | `POST /api/v1/components` avoids duplicate `world_settings` race | completed | concurrent component create on fresh world passed with `count=6` in `docs/tests/full_functional_base_data_result.json` |
@@ -84,12 +84,22 @@
 
 ## Runtime Task Delivery Results
 
-- push:
-- pull:
-- hybrid fallback:
-- claim/start/heartbeat:
-- release/requeue:
-- stats/inspect:
+- push: passed; `spawn_item` push task `9e6067e9-2c9b-4d4e-a56d-cc01c1dfa3bd` dispatched to local push receiver and completed callback successfully
+- pull: passed; `npc_trade_action` pull task `f3dc112a-0066-40a6-b6a9-4ea1dcf690a2` was claimed and completed by `GameAgentTestWorker pull-once`
+- hybrid fallback: passed; `spawn_item` hybrid task `bffec0a1-fefc-4388-8041-d354f87743f8` fell back to `released` + `transport=task_pull` after push dispatch network failure
+- claim/start/heartbeat: passed; manual task `021a7acb-7318-44e5-a10c-448c30e1b1d7` transitioned through `claimed -> running`, then accepted explicit heartbeat
+- release/requeue: passed; manual release returned task to `released`, and timeout task `6abc550e-53f6-4000-851e-c204d3d4d691` transitioned through `heartbeat_timeout -> released` after explicit requeue
+- stats/inspect: passed; `task stats` output included `fallback_to_pull`, and `task inspect` showed populated payload/dispatch/timestamp fields for the hybrid task
+
+## Runtime Task Delivery Execution Notes
+
+- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_runtime_tasks.ps1 -EngineExePath .\tmp\s6\GameAgentEngine.exe -DevCliPath .\tmp\s6\GameAgentDevCli.exe -WorkerExePath .\tmp\s6\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_runtime_tasks_result.json`
+- temp config: `C:\Users\808\AppData\Local\Temp\gae-s6-src-20260715125246\gameagentengine.conf.yaml`
+- temp db: `C:\Users\808\AppData\Local\Temp\gae-s6-src-20260715125246\gameagentengine.db`
+- runtime mode: source-built Engine + fixture provider + local push receiver + pull worker
+- result artifact: `docs/tests/full_functional_runtime_tasks_result.json`
+- world id: `35a1fc1d-73c0-4292-9615-6b6d55351890`
+- engine / worker ports: `18082` / `19000`
 
 ## Callback and Resume Results
 
