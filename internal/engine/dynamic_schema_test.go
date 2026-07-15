@@ -71,3 +71,33 @@ func TestValidateInteractionContextAcceptsValidPayload(t *testing.T) {
 		t.Fatalf("expected valid interaction payload, got %v", err)
 	}
 }
+
+func TestValidateInteractionContextRejectsInvalidAudienceScope(t *testing.T) {
+	err := ValidateInteractionContext(&InteractionContext{
+		Mode:          "direct_dialogue",
+		SpeakerNodeID: "player_1",
+		TargetNodeID:  "npc_1",
+		AudienceScope: "secret",
+	})
+	if err == nil {
+		t.Fatal("expected interaction validation error")
+	}
+	if got := err.Error(); got != "interaction.audience_scope must be one of: public, private, whisper" {
+		t.Fatalf("unexpected error: %s", got)
+	}
+}
+
+func TestValidateInteractionContextRejectsDuplicateParticipants(t *testing.T) {
+	err := ValidateInteractionContext(&InteractionContext{
+		Mode:               "group_chat",
+		SpeakerNodeID:      "player_1",
+		TargetNodeID:       "npc_1",
+		ParticipantNodeIDs: []string{"player_1", "npc_1", "player_1"},
+	})
+	if err == nil {
+		t.Fatal("expected interaction validation error")
+	}
+	if got := err.Error(); got != "interaction.participant_node_ids[2] duplicated: player_1" {
+		t.Fatalf("unexpected error: %s", got)
+	}
+}
