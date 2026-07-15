@@ -103,6 +103,59 @@ type InteractionEvent struct {
 	Args   map[string]any `json:"args,omitempty"`
 }
 
+type PlayerIntentPrecondition struct {
+	Type         string         `json:"type"`
+	ActorNodeID  string         `json:"actor_node_id,omitempty"`
+	TargetNodeID string         `json:"target_node_id,omitempty"`
+	SceneNodeID  string         `json:"scene_node_id,omitempty"`
+	ItemID       string         `json:"item_id,omitempty"`
+	TaskID       string         `json:"task_id,omitempty"`
+	Expected     string         `json:"expected,omitempty"`
+	Args         map[string]any `json:"args,omitempty"`
+}
+
+type PlayerIntentStep struct {
+	Type          string                     `json:"type"`
+	TargetNodeID  string                     `json:"target_node_id,omitempty"`
+	SceneNodeID   string                     `json:"scene_node_id,omitempty"`
+	ItemID        string                     `json:"item_id,omitempty"`
+	Content       string                     `json:"content,omitempty"`
+	Args          map[string]any             `json:"args,omitempty"`
+	Preconditions []PlayerIntentPrecondition `json:"preconditions,omitempty"`
+}
+
+type PlayerIntent struct {
+	Type         string             `json:"type"`
+	ActorNodeID  string             `json:"actor_node_id,omitempty"`
+	SceneNodeID  string             `json:"scene_node_id,omitempty"`
+	TargetNodeID string             `json:"target_node_id,omitempty"`
+	Summary      string             `json:"summary,omitempty"`
+	RiskLevel    string             `json:"risk_level,omitempty"`
+	Confidence   float64            `json:"confidence,omitempty"`
+	Steps        []PlayerIntentStep `json:"steps,omitempty"`
+}
+
+type MissingFact struct {
+	Type   string `json:"type"`
+	NodeID string `json:"node_id,omitempty"`
+	ItemID string `json:"item_id,omitempty"`
+	TaskID string `json:"task_id,omitempty"`
+	Reason string `json:"reason,omitempty"`
+}
+
+type SuggestedInteraction struct {
+	Mode          string `json:"mode,omitempty"`
+	EventType     string `json:"event_type,omitempty"`
+	AudienceScope string `json:"audience_scope,omitempty"`
+	TargetNodeID  string `json:"target_node_id,omitempty"`
+}
+
+type PlayerIntentInterpretation struct {
+	Intent               *PlayerIntent         `json:"intent,omitempty"`
+	MissingFacts         []MissingFact         `json:"missing_facts,omitempty"`
+	SuggestedInteraction *SuggestedInteraction `json:"suggested_interaction,omitempty"`
+}
+
 type InteractionContext struct {
 	Mode               string            `json:"mode,omitempty"`
 	SpeakerNodeID      string            `json:"speaker_node_id,omitempty"`
@@ -117,12 +170,12 @@ type InteractionContext struct {
 
 // InvokeContext 表示调用方希望追加的上下文约束，可在请求层面覆盖服务端配置。
 type InvokeContext struct {
-	MaxAnalysisRounds   int                `json:"max_analysis_rounds,omitempty"`   // LLM 内部轮询最大次数（0 表示使用服务端配置）
-	MaxDepth            int                `json:"max_depth,omitempty"`             // 上下文向上追溯的最大深度（0 表示使用服务端配置）
-	MemoryLimit         int                `json:"memory_limit,omitempty"`          // 每次推理最多加载的记忆数量（0 表示使用服务端配置）
-	IncludeRelatedNodes bool               `json:"include_related_nodes,omitempty"` // 是否启用受控关系补充；这不是“把所有邻接关系节点全部塞进上下文”的开关。
-	PipelineMode        string             `json:"pipeline_mode,omitempty"`         // 管线模式：vertical/polling/full；也决定关系图谱装配强度。
-	DynamicInterfaces   []DynamicInterface `json:"dynamic_interfaces,omitempty"`    // 当前请求临时暴露给模型的外部接口白名单。
+	MaxAnalysisRounds   int                 `json:"max_analysis_rounds,omitempty"`   // LLM 内部轮询最大次数（0 表示使用服务端配置）
+	MaxDepth            int                 `json:"max_depth,omitempty"`             // 上下文向上追溯的最大深度（0 表示使用服务端配置）
+	MemoryLimit         int                 `json:"memory_limit,omitempty"`          // 每次推理最多加载的记忆数量（0 表示使用服务端配置）
+	IncludeRelatedNodes bool                `json:"include_related_nodes,omitempty"` // 是否启用受控关系补充；这不是“把所有邻接关系节点全部塞进上下文”的开关。
+	PipelineMode        string              `json:"pipeline_mode,omitempty"`         // 管线模式：vertical/polling/full；也决定关系图谱装配强度。
+	DynamicInterfaces   []DynamicInterface  `json:"dynamic_interfaces,omitempty"`    // 当前请求临时暴露给模型的外部接口白名单。
 	Interaction         *InteractionContext `json:"interaction,omitempty"`
 }
 
@@ -147,16 +200,17 @@ type WorldEvent struct {
 
 // InvokeResponse 是 SDK 侧的统一推理响应结构。
 type InvokeResponse struct {
-	RequestID       string               `json:"request_id"`
-	TaskType        string               `json:"task_type"`
-	ExecutionMode   string               `json:"execution_mode"`
-	Reply           string               `json:"reply,omitempty"`
-	AdvancedTicks   int                  `json:"advanced_ticks,omitempty"`
-	ActionCalls     []ActionCall         `json:"action_calls,omitempty"`
-	WorldChangePlan *WorldChangePlan     `json:"world_change_plan,omitempty"`
-	MemoryUpdates   []MemoryUpdate       `json:"memory_updates,omitempty"`
-	SubTasks        []SubTaskDeclaration `json:"sub_tasks,omitempty"`
-	Metadata        *ResponseMeta        `json:"metadata,omitempty"`
+	RequestID       string                      `json:"request_id"`
+	TaskType        string                      `json:"task_type"`
+	ExecutionMode   string                      `json:"execution_mode"`
+	Reply           string                      `json:"reply,omitempty"`
+	AdvancedTicks   int                         `json:"advanced_ticks,omitempty"`
+	ActionCalls     []ActionCall                `json:"action_calls,omitempty"`
+	WorldChangePlan *WorldChangePlan            `json:"world_change_plan,omitempty"`
+	MemoryUpdates   []MemoryUpdate              `json:"memory_updates,omitempty"`
+	PlayerIntent    *PlayerIntentInterpretation `json:"player_intent,omitempty"`
+	SubTasks        []SubTaskDeclaration        `json:"sub_tasks,omitempty"`
+	Metadata        *ResponseMeta               `json:"metadata,omitempty"`
 }
 
 // CallbackPostProcess describes the persisted callback post-process outcome.

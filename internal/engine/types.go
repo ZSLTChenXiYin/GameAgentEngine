@@ -315,6 +315,59 @@ type InteractionEvent struct {
 	Args   map[string]any `json:"args,omitempty"`
 }
 
+type PlayerIntentPrecondition struct {
+	Type         string         `json:"type"`
+	ActorNodeID  string         `json:"actor_node_id,omitempty"`
+	TargetNodeID string         `json:"target_node_id,omitempty"`
+	SceneNodeID  string         `json:"scene_node_id,omitempty"`
+	ItemID       string         `json:"item_id,omitempty"`
+	TaskID       string         `json:"task_id,omitempty"`
+	Expected     string         `json:"expected,omitempty"`
+	Args         map[string]any `json:"args,omitempty"`
+}
+
+type PlayerIntentStep struct {
+	Type          string                     `json:"type"`
+	TargetNodeID  string                     `json:"target_node_id,omitempty"`
+	SceneNodeID   string                     `json:"scene_node_id,omitempty"`
+	ItemID        string                     `json:"item_id,omitempty"`
+	Content       string                     `json:"content,omitempty"`
+	Args          map[string]any             `json:"args,omitempty"`
+	Preconditions []PlayerIntentPrecondition `json:"preconditions,omitempty"`
+}
+
+type PlayerIntent struct {
+	Type         string             `json:"type"`
+	ActorNodeID  string             `json:"actor_node_id,omitempty"`
+	SceneNodeID  string             `json:"scene_node_id,omitempty"`
+	TargetNodeID string             `json:"target_node_id,omitempty"`
+	Summary      string             `json:"summary,omitempty"`
+	RiskLevel    string             `json:"risk_level,omitempty"`
+	Confidence   float64            `json:"confidence,omitempty"`
+	Steps        []PlayerIntentStep `json:"steps,omitempty"`
+}
+
+type MissingFact struct {
+	Type   string `json:"type"`
+	NodeID string `json:"node_id,omitempty"`
+	ItemID string `json:"item_id,omitempty"`
+	TaskID string `json:"task_id,omitempty"`
+	Reason string `json:"reason,omitempty"`
+}
+
+type SuggestedInteraction struct {
+	Mode          string `json:"mode,omitempty"`
+	EventType     string `json:"event_type,omitempty"`
+	AudienceScope string `json:"audience_scope,omitempty"`
+	TargetNodeID  string `json:"target_node_id,omitempty"`
+}
+
+type PlayerIntentInterpretation struct {
+	Intent               *PlayerIntent         `json:"intent,omitempty"`
+	MissingFacts         []MissingFact         `json:"missing_facts,omitempty"`
+	SuggestedInteraction *SuggestedInteraction `json:"suggested_interaction,omitempty"`
+}
+
 type InteractionContext struct {
 	Mode               string            `json:"mode,omitempty"`
 	SpeakerNodeID      string            `json:"speaker_node_id,omitempty"`
@@ -330,29 +383,30 @@ type InteractionContext struct {
 type InvokeContext struct {
 	// IncludeRelatedNodes 是受控的关系补充开关，不是“把所有关系边另一端节点全部展开”的许可。
 	// 后续实现应允许它按任务/关系类型/方向/hop 数受限扩图，避免关系噪音淹没主上下文。
-	IncludeRelatedNodes bool               `json:"include_related_nodes,omitempty"`
-	MemoryLimit         int                `json:"memory_limit,omitempty"`
-	MaxDepth            int                `json:"max_depth,omitempty"`
-	MaxAnalysisRounds   int                `json:"max_analysis_rounds,omitempty"`
-	PipelineMode        PipelineMode       `json:"pipeline_mode,omitempty"`
-	DynamicInterfaces   []DynamicInterface `json:"dynamic_interfaces,omitempty"`
+	IncludeRelatedNodes bool                `json:"include_related_nodes,omitempty"`
+	MemoryLimit         int                 `json:"memory_limit,omitempty"`
+	MaxDepth            int                 `json:"max_depth,omitempty"`
+	MaxAnalysisRounds   int                 `json:"max_analysis_rounds,omitempty"`
+	PipelineMode        PipelineMode        `json:"pipeline_mode,omitempty"`
+	DynamicInterfaces   []DynamicInterface  `json:"dynamic_interfaces,omitempty"`
 	Interaction         *InteractionContext `json:"interaction,omitempty"`
 }
 
 // InvokeResponse 是统一的推理响应结构。
 type InvokeResponse struct {
-	RequestID       string               `json:"request_id"`
-	TaskType        TaskType             `json:"task_type"`
-	ExecutionMode   ExecutionMode        `json:"execution_mode"`
-	Reply           string               `json:"reply,omitempty"`
-	AdvancedTicks   int                  `json:"advanced_ticks,omitempty"`
-	ActionCalls     []ActionCall         `json:"action_calls,omitempty"`
-	WorldChangePlan *WorldChangePlan     `json:"world_change_plan,omitempty"`
-	FutureOutline   string               `json:"future_outline,omitempty"`
-	MemoryUpdates   []MemoryUpdate       `json:"memory_updates,omitempty"`
-	DataRequest     *DataRequest         `json:"data_request,omitempty"`
-	SubTasks        []SubTaskDeclaration `json:"sub_tasks,omitempty"`
-	Metadata        *ResponseMeta        `json:"metadata,omitempty"`
+	RequestID       string                      `json:"request_id"`
+	TaskType        TaskType                    `json:"task_type"`
+	ExecutionMode   ExecutionMode               `json:"execution_mode"`
+	Reply           string                      `json:"reply,omitempty"`
+	AdvancedTicks   int                         `json:"advanced_ticks,omitempty"`
+	ActionCalls     []ActionCall                `json:"action_calls,omitempty"`
+	WorldChangePlan *WorldChangePlan            `json:"world_change_plan,omitempty"`
+	FutureOutline   string                      `json:"future_outline,omitempty"`
+	MemoryUpdates   []MemoryUpdate              `json:"memory_updates,omitempty"`
+	DataRequest     *DataRequest                `json:"data_request,omitempty"`
+	PlayerIntent    *PlayerIntentInterpretation `json:"player_intent,omitempty"`
+	SubTasks        []SubTaskDeclaration        `json:"sub_tasks,omitempty"`
+	Metadata        *ResponseMeta               `json:"metadata,omitempty"`
 }
 
 // AutonomousRunResult 描述一次自主节点触发的执行结果。
@@ -565,6 +619,10 @@ var dynamicInterfaceIDPattern = regexp.MustCompile(`^[a-z][a-z0-9_:-]{1,63}$`)
 var validInteractionModes = []string{"direct_dialogue", "group_chat", "gift_response", "trade_dialogue"}
 var validInteractionEventTypes = []string{"speech", "gift", "show_item", "trade_request", "threaten"}
 var validInteractionAudienceScopes = []string{"public", "private", "whisper"}
+var validPlayerIntentTypes = []string{"speech", "show_item", "gift", "trade_request", "threaten", "move", "inspect", "use_item", "composite"}
+var validPlayerIntentRiskLevels = []string{"low", "medium", "high"}
+var validPlayerIntentPreconditionTypes = []string{"same_scene", "target_present", "item_present", "money_at_least", "task_status", "scene_flag", "location_accessible"}
+var validMissingFactTypes = []string{"player_location", "target_location", "item_presence", "scene_state", "task_state", "wallet_state"}
 
 func IsValidNodeType(nodeType string) bool {
 	return slices.Contains(ValidNodeTypes(), NodeType(nodeType))
@@ -636,6 +694,126 @@ func ValidateInteractionContext(ctx *InteractionContext) error {
 		if !slices.Contains(validInteractionEventTypes, eventType) {
 			return fmt.Errorf("interaction.event.type must be one of: %s", strings.Join(validInteractionEventTypes, ", "))
 		}
+	}
+	return nil
+}
+
+func ValidatePlayerIntentInterpretation(payload *PlayerIntentInterpretation) error {
+	if payload == nil {
+		return nil
+	}
+	if payload.Intent == nil {
+		return fmt.Errorf("player_intent.intent required")
+	}
+	if err := ValidatePlayerIntent(payload.Intent); err != nil {
+		return err
+	}
+	for i, item := range payload.MissingFacts {
+		if trimmed := strings.TrimSpace(item.Type); trimmed == "" {
+			return fmt.Errorf("player_intent.missing_facts[%d].type required", i)
+		} else if !slices.Contains(validMissingFactTypes, trimmed) {
+			return fmt.Errorf("player_intent.missing_facts[%d].type must be one of: %s", i, strings.Join(validMissingFactTypes, ", "))
+		}
+	}
+	if payload.SuggestedInteraction != nil {
+		if mode := strings.TrimSpace(payload.SuggestedInteraction.Mode); mode != "" && !slices.Contains(validInteractionModes, mode) {
+			return fmt.Errorf("player_intent.suggested_interaction.mode must be one of: %s", strings.Join(validInteractionModes, ", "))
+		}
+		if eventType := strings.TrimSpace(payload.SuggestedInteraction.EventType); eventType != "" && !slices.Contains(validInteractionEventTypes, eventType) {
+			return fmt.Errorf("player_intent.suggested_interaction.event_type must be one of: %s", strings.Join(validInteractionEventTypes, ", "))
+		}
+		if scope := strings.TrimSpace(payload.SuggestedInteraction.AudienceScope); scope != "" && !slices.Contains(validInteractionAudienceScopes, scope) {
+			return fmt.Errorf("player_intent.suggested_interaction.audience_scope must be one of: %s", strings.Join(validInteractionAudienceScopes, ", "))
+		}
+	}
+	return nil
+}
+
+func ValidatePlayerIntent(intent *PlayerIntent) error {
+	if intent == nil {
+		return fmt.Errorf("player_intent.intent required")
+	}
+	intentType := strings.TrimSpace(intent.Type)
+	if intentType == "" {
+		return fmt.Errorf("player_intent.intent.type required")
+	}
+	if !slices.Contains(validPlayerIntentTypes, intentType) {
+		return fmt.Errorf("player_intent.intent.type must be one of: %s", strings.Join(validPlayerIntentTypes, ", "))
+	}
+	if strings.TrimSpace(intent.ActorNodeID) == "" {
+		return fmt.Errorf("player_intent.intent.actor_node_id required")
+	}
+	if risk := strings.TrimSpace(intent.RiskLevel); risk != "" && !slices.Contains(validPlayerIntentRiskLevels, risk) {
+		return fmt.Errorf("player_intent.intent.risk_level must be one of: %s", strings.Join(validPlayerIntentRiskLevels, ", "))
+	}
+	if intent.Confidence < 0 || intent.Confidence > 1 {
+		return fmt.Errorf("player_intent.intent.confidence must be between 0 and 1")
+	}
+	if intentType == "composite" && len(intent.Steps) == 0 {
+		return fmt.Errorf("player_intent.intent.steps required for composite intent")
+	}
+	for i, step := range intent.Steps {
+		if err := ValidatePlayerIntentStep(step); err != nil {
+			return fmt.Errorf("player_intent.intent.steps[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func ValidatePlayerIntentStep(step PlayerIntentStep) error {
+	stepType := strings.TrimSpace(step.Type)
+	if stepType == "" {
+		return fmt.Errorf("type required")
+	}
+	if !slices.Contains(validPlayerIntentTypes, stepType) || stepType == "composite" {
+		return fmt.Errorf("type must be one of: speech, show_item, gift, trade_request, threaten, move, inspect, use_item")
+	}
+	switch stepType {
+	case "speech":
+		if strings.TrimSpace(step.Content) == "" {
+			return fmt.Errorf("content required")
+		}
+	case "show_item", "gift":
+		if strings.TrimSpace(step.TargetNodeID) == "" {
+			return fmt.Errorf("target_node_id required")
+		}
+		if strings.TrimSpace(step.ItemID) == "" {
+			return fmt.Errorf("item_id required")
+		}
+	case "trade_request", "threaten":
+		if strings.TrimSpace(step.TargetNodeID) == "" {
+			return fmt.Errorf("target_node_id required")
+		}
+	case "move":
+		if strings.TrimSpace(step.TargetNodeID) == "" {
+			if destination, _ := step.Args["destination_scene_id"].(string); strings.TrimSpace(destination) == "" {
+				return fmt.Errorf("target_node_id or args.destination_scene_id required")
+			}
+		}
+	case "inspect":
+		if strings.TrimSpace(step.TargetNodeID) == "" && strings.TrimSpace(step.ItemID) == "" {
+			return fmt.Errorf("target_node_id or item_id required")
+		}
+	case "use_item":
+		if strings.TrimSpace(step.ItemID) == "" {
+			return fmt.Errorf("item_id required")
+		}
+	}
+	for i, item := range step.Preconditions {
+		if err := ValidatePlayerIntentPrecondition(item); err != nil {
+			return fmt.Errorf("preconditions[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func ValidatePlayerIntentPrecondition(item PlayerIntentPrecondition) error {
+	preType := strings.TrimSpace(item.Type)
+	if preType == "" {
+		return fmt.Errorf("type required")
+	}
+	if !slices.Contains(validPlayerIntentPreconditionTypes, preType) {
+		return fmt.Errorf("type must be one of: %s", strings.Join(validPlayerIntentPreconditionTypes, ", "))
 	}
 	return nil
 }

@@ -101,3 +101,63 @@ func TestValidateInteractionContextRejectsDuplicateParticipants(t *testing.T) {
 		t.Fatalf("unexpected error: %s", got)
 	}
 }
+
+func TestValidatePlayerIntentInterpretationAcceptsCompositeIntent(t *testing.T) {
+	err := ValidatePlayerIntentInterpretation(&PlayerIntentInterpretation{
+		Intent: &PlayerIntent{
+			Type:        "composite",
+			ActorNodeID: "player_001",
+			RiskLevel:   "medium",
+			Confidence:  0.8,
+			Steps: []PlayerIntentStep{
+				{Type: "show_item", TargetNodeID: "npc_1", ItemID: "knife_bloody", Preconditions: []PlayerIntentPrecondition{{Type: "same_scene"}}},
+				{Type: "speech", Content: "你见过这把刀的主人吗？"},
+			},
+		},
+		MissingFacts:         []MissingFact{{Type: "scene_state"}},
+		SuggestedInteraction: &SuggestedInteraction{Mode: "direct_dialogue", EventType: "show_item", AudienceScope: "private"},
+	})
+	if err != nil {
+		t.Fatalf("expected valid player intent interpretation, got %v", err)
+	}
+}
+
+func TestValidatePlayerIntentInterpretationRejectsInvalidRiskLevel(t *testing.T) {
+	err := ValidatePlayerIntentInterpretation(&PlayerIntentInterpretation{
+		Intent: &PlayerIntent{Type: "speech", ActorNodeID: "player_001", RiskLevel: "critical"},
+	})
+	if err == nil {
+		t.Fatal("expected player intent validation error")
+	}
+	if got := err.Error(); got != "player_intent.intent.risk_level must be one of: low, medium, high" {
+		t.Fatalf("unexpected error: %s", got)
+	}
+}
+
+func TestValidatePlayerIntentInterpretationRejectsCompositeWithoutSteps(t *testing.T) {
+	err := ValidatePlayerIntentInterpretation(&PlayerIntentInterpretation{
+		Intent: &PlayerIntent{Type: "composite", ActorNodeID: "player_001"},
+	})
+	if err == nil {
+		t.Fatal("expected composite validation error")
+	}
+	if got := err.Error(); got != "player_intent.intent.steps required for composite intent" {
+		t.Fatalf("unexpected error: %s", got)
+	}
+}
+
+func TestValidatePlayerIntentInterpretationRejectsInvalidStepPayload(t *testing.T) {
+	err := ValidatePlayerIntentInterpretation(&PlayerIntentInterpretation{
+		Intent: &PlayerIntent{
+			Type:        "composite",
+			ActorNodeID: "player_001",
+			Steps:       []PlayerIntentStep{{Type: "gift", TargetNodeID: "npc_1"}},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected step validation error")
+	}
+	if got := err.Error(); got != "player_intent.intent.steps[0]: item_id required" {
+		t.Fatalf("unexpected error: %s", got)
+	}
+}
