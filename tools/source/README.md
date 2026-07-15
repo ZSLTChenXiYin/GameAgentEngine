@@ -42,6 +42,14 @@ GameAgentDevCli inspect
 
 时间推进前需要在 Creator 的 Settings 页面配置 `world_time_settings`。
 
+如果你想直接体验仓库附带的文字游戏壳与外部 worker 权威状态配合，可以使用：
+
+```bash
+GameAgentEngine serve
+GameAgentDevCli import demo-world.yaml
+GameAgentWorker play --state-file demo-state.yaml --world-id demo_world --player-node-id player_001
+```
+
 ---
 
 ## 工具链

@@ -22,7 +22,12 @@ GameAgentEngine-{os}-{arch}-v0.4.6/
     └── GameAgentCreator/
 ```
 
-Packaged builds should not contain `demo-world.yaml` or `web/Demo/`.
+Packaged builds now include the docs, config, and static assets from `tools/source/`, which means they also ship with:
+
+- `demo-world.yaml`
+- `demo-state.yaml`
+
+Packaged builds still do not include a standalone `web/Demo/` page.
 
 ---
 
