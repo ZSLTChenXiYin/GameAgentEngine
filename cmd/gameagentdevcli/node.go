@@ -36,6 +36,13 @@ var nodeLegacyListCmd = &cobra.Command{
 	Run:   nodeListCmd.Run,
 }
 
+func bindNodeListFlags(cmd *cobra.Command) {
+	cmd.Flags().String("world", "", "World ID")
+	cmd.Flags().Int("limit", 0, "Maximum number of nodes to return")
+	cmd.Flags().Int("offset", 0, "List offset")
+	cmd.Flags().String("type", "", "Filter by node type")
+}
+
 var nodeGetCmd = &cobra.Command{
 	Use:   "get <id>",
 	Short: "Get node details",
@@ -229,10 +236,8 @@ func init() {
 	nodeCmd.AddCommand(nodeListCmd, nodeGetCmd, nodeCreateCmd, nodeUpdateCmd, nodeDeleteCmd, nodeCopyCmd, nodeAutonomousCmd)
 	nodeAutonomousCmd.AddCommand(nodeAutonomousGetCmd, nodeAutonomousSetCmd, nodeAutonomousDisableCmd, nodeAutonomousRunCmd)
 
-	nodeListCmd.Flags().String("world", "", "World ID")
-	nodeListCmd.Flags().Int("limit", 0, "Maximum number of nodes to return")
-	nodeListCmd.Flags().Int("offset", 0, "List offset")
-	nodeListCmd.Flags().String("type", "", "Filter by node type")
+	bindNodeListFlags(nodeListCmd)
+	bindNodeListFlags(nodeLegacyListCmd)
 
 	nodeCreateCmd.Flags().String("world", "", "World ID; required for non-world nodes")
 	nodeCreateCmd.Flags().String("name", "", "Node name")
