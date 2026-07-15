@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/playerintent"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/workerstate"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
@@ -222,6 +223,8 @@ func (a *app) executePlayCommand(s *playSession, cmd playCommand) (bool, error) 
 		return false, a.runPlaySay(s, cmd.Args)
 	case "ask":
 		return false, a.runPlayAsk(s, cmd.Args)
+	case "act":
+		return false, a.runPlayAct(s, cmd.Args)
 	case "gift":
 		return false, a.runPlayGift(s, cmd.Args)
 	case "show_item", "show":
@@ -264,6 +267,91 @@ func (a *app) runPlayDialogue(s *playSession, input string) error {
 		Input:         input,
 		TargetNodeID:  s.currentTargetID,
 		Participants:  []string{s.playerNodeID, s.currentTargetID},
+	})
+}
+
+func (a *app) runPlayAct(s *playSession, args string) error {
+	text := strings.TrimSpace(args)
+	if text == "" {
+		return errors.New("/act requires action text")
+	}
+	s.refreshView(a)
+	participants := s.sceneParticipantIDs()
+	targetID := strings.TrimSpace(s.currentTargetID)
+	if targetID == "" {
+		if autoTarget, _, err := s.resolveGroupChatTarget(""); err == nil {
+			targetID = autoTarget
+		}
+	}
+	resp, err := s.client.InterpretPlayerInput(&sdk.PlayerInputInterpretRequest{
+		WorldID:            s.worldID,
+		PlayerNodeID:       s.playerNodeID,
+		SceneNodeID:        s.currentSceneID,
+		TargetNodeID:       targetID,
+		SessionID:          s.sessionID,
+		Message:            text,
+		ParticipantNodeIDs: participants,
+		Context: &sdk.InvokeContext{
+			IncludeRelatedNodes: a.cfg.PlayIncludeRelated,
+			PipelineMode:        a.cfg.PlayPipelineMode,
+			DynamicInterfaces: []sdk.DynamicInterface{
+				sdk.NewDynamicDataRequest(
+					"play_authority",
+					"game_client_request_data",
+					sdk.WithDescription("Query authoritative game-side state such as HP, inventory, money, quest, scene, occupancy, and immediate room state during play mode."),
+					sdk.WithQueryTypes("player_state", "player_inventory", "player_wallet", "player_location", "npc_location", "scene_state", "room_state", "task_state", "item_presence"),
+					sdk.WithMaxQueries(8),
+				),
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	resp, err = a.resolvePlayResponse(resp)
+	if err != nil {
+		return err
+	}
+	if resp == nil || resp.PlayerIntent == nil || resp.PlayerIntent.Intent == nil {
+		if resp != nil && strings.TrimSpace(resp.Reply) != "" {
+			fmt.Printf("[system] %s\n", strings.TrimSpace(resp.Reply))
+		}
+		return errors.New("player intent interpretation missing")
+	}
+	validation := playerintent.Validate(s.view, resp.PlayerIntent)
+	if !validation.OK {
+		for _, issue := range validation.Issues {
+			fmt.Printf("[system] validation: %s\n", issue.Message)
+		}
+		return errors.New("player intent validation failed")
+	}
+	a.authorityMu.Lock()
+	result, execErr := playerintent.Execute(a.authority, resp.PlayerIntent)
+	a.authorityMu.Unlock()
+	if execErr != nil {
+		return execErr
+	}
+	s.refreshView(a)
+	bridge, err := playerintent.BuildInteractionSpec(resp.PlayerIntent, s.playerNodeID, s.currentSceneID)
+	if err != nil {
+		if result != nil {
+			fmt.Printf("[system] executed %d step(s) without follow-up interaction\n", len(result.Outcomes))
+			return nil
+		}
+		return err
+	}
+	if len(participants) > 0 {
+		bridge.Participants = uniqueParticipantIDs(participants, bridge.Participants...)
+	}
+	s.currentTargetID = bridge.TargetNodeID
+	return a.invokePlayInteraction(s, playInteractionSpec{
+		Mode:          bridge.Mode,
+		AudienceScope: bridge.AudienceScope,
+		EventType:     bridge.EventType,
+		ItemID:        bridge.ItemID,
+		Input:         bridge.Input,
+		TargetNodeID:  bridge.TargetNodeID,
+		Participants:  bridge.Participants,
 	})
 }
 
@@ -465,6 +553,10 @@ func (a *app) invokePlayInteraction(s *playSession, spec playInteractionSpec) er
 	if err != nil {
 		return err
 	}
+	resp, err = a.resolvePlayResponse(resp)
+	if err != nil {
+		return err
+	}
 	label := s.actorDisplayName(spec.TargetNodeID)
 	if strings.TrimSpace(resp.Reply) == "" {
 		fmt.Printf("[%s] （无文本回复）\n", label)
@@ -475,6 +567,36 @@ func (a *app) invokePlayInteraction(s *playSession, spec playInteractionSpec) er
 		fmt.Printf("[system] 引擎产生了 %d 个 action_calls，当前 play v1 仅展示，不在本地直接落地。\n", len(resp.ActionCalls))
 	}
 	return nil
+}
+
+func (a *app) resolvePlayResponse(resp *sdk.InvokeResponse) (*sdk.InvokeResponse, error) {
+	current := resp
+	for current != nil && hasPendingDataRequest(current) {
+		if !a.cfg.PlayAutoWorker {
+			return current, errors.New("play response paused for authority data; enable --auto-worker")
+		}
+		processed, ok, err := a.processOnePendingTaskDetailed()
+		if err != nil {
+			return nil, err
+		}
+		if !ok || processed == nil || processed.Callback == nil || processed.Callback.Resumed == nil {
+			return current, errors.New("authority callback did not resume play response")
+		}
+		current = processed.Callback.Resumed
+	}
+	return current, nil
+}
+
+func hasPendingDataRequest(resp *sdk.InvokeResponse) bool {
+	if resp == nil {
+		return false
+	}
+	for _, call := range resp.ActionCalls {
+		if strings.EqualFold(strings.TrimSpace(call.ActionID), "data_request") && strings.EqualFold(strings.TrimSpace(call.Mode), "async") {
+			return true
+		}
+	}
+	return false
 }
 
 func uniqueParticipantIDs(explicit []string, defaults ...string) []string {
@@ -749,6 +871,7 @@ func playHelpText() string {
 		"/clear_target                 清除当前对话目标",
 		"/say <message>                向当前房间公开发言，由一个主响应 NPC 回应",
 		"/ask <npc> <message>          在群聊语境下点名某个 NPC 回应",
+		"/act <text>                   让玩家节点先解释自然语言，再走权威校验、执行和 NPC/群聊响应",
 		"/gift <npc> <item>            向 NPC 送礼，并先在游戏侧权威状态落地",
 		"/show_item <npc> <item>       向 NPC 展示你当前持有的物品",
 		"/trade [npc]                  发起交易/议价对话",

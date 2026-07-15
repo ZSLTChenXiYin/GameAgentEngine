@@ -1,11 +1,15 @@
 package workercli
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/workerstate"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
 
 func TestDecideExecutionReturnsFailureForConfiguredInterface(t *testing.T) {
@@ -218,5 +222,44 @@ func TestResolveGroupChatTargetDefaultsToFirstNPC(t *testing.T) {
 	}
 	if len(participants) != 3 {
 		t.Fatalf("expected 3 participants, got %#v", participants)
+	}
+}
+
+func TestResolvePlayResponseReturnsResumedResponse(t *testing.T) {
+	a := newTestApp()
+	a.cfg.PlayAutoWorker = true
+	a.cfg.Consumer = "game_client"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/runtime/tasks/pending":
+			_ = json.NewEncoder(w).Encode(map[string]any{"tasks": []map[string]any{{"task_id": "task_1", "interface_name": "game_client_request_data", "callback_id": "cb_1", "payload_json": `{"request_data":{"queries":[{"type":"scene_state","node_id":"scene_inn"}]}}`, "status": "pending"}}})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/runtime/tasks/claim":
+			_ = json.NewEncoder(w).Encode(map[string]any{"task": map[string]any{"task_id": "task_1", "interface_name": "game_client_request_data", "callback_id": "cb_1", "payload_json": `{"request_data":{"queries":[{"type":"scene_state","node_id":"scene_inn"}]}}`, "status": "claimed", "lease_token": "lease_1"}})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/runtime/tasks/start":
+			_ = json.NewEncoder(w).Encode(map[string]any{"task": map[string]any{"task_id": "task_1", "interface_name": "game_client_request_data", "callback_id": "cb_1", "payload_json": `{"request_data":{"queries":[{"type":"scene_state","node_id":"scene_inn"}]}}`, "status": "running", "lease_token": "lease_1"}})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/actions/callback":
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "resumed": map[string]any{"request_id": "req_2", "task_type": "npc_dialogue", "execution_mode": "production", "reply": "Innkeeper responds.", "action_calls": []any{}, "memory_updates": []any{}}})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	a.cfg.EngineBaseURL = server.URL
+	a.setAuthorityState(&workerstate.WorldState{WorldID: "world_1", Scenes: map[string]*workerstate.SceneState{"scene_inn": {ID: "scene_inn"}}})
+	resp, err := a.resolvePlayResponse(&sdk.InvokeResponse{ActionCalls: []sdk.ActionCall{{ActionID: "data_request", Mode: "async"}}})
+	if err != nil {
+		t.Fatalf("resolvePlayResponse returned error: %v", err)
+	}
+	if resp == nil || resp.Reply != "Innkeeper responds." {
+		t.Fatalf("unexpected resumed response: %#v", resp)
+	}
+}
+
+func TestHasPendingDataRequestDetectsAsyncCallback(t *testing.T) {
+	if !hasPendingDataRequest(&sdk.InvokeResponse{ActionCalls: []sdk.ActionCall{{ActionID: "data_request", Mode: "async"}}}) {
+		t.Fatal("expected pending data request detection")
+	}
+	if hasPendingDataRequest(&sdk.InvokeResponse{ActionCalls: []sdk.ActionCall{{ActionID: "spawn_item", Mode: "async"}}}) {
+		t.Fatal("did not expect non-data_request action to be treated as pending data request")
 	}
 }

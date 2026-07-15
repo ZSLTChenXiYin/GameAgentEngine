@@ -79,6 +79,11 @@ type taskExecutionDecision struct {
 	DecisionName string
 }
 
+type processedTaskResult struct {
+	Task     *sdk.RuntimeTask
+	Callback *sdk.CallbackResponse
+}
+
 type app struct {
 	options     Options
 	cfg         workerConfig
@@ -319,6 +324,14 @@ func (a *app) runPullLoop() error {
 }
 
 func (a *app) processOnePendingTask() (*sdk.RuntimeTask, bool, error) {
+	result, processed, err := a.processOnePendingTaskDetailed()
+	if result == nil {
+		return nil, processed, err
+	}
+	return result.Task, processed, err
+}
+
+func (a *app) processOnePendingTaskDetailed() (*processedTaskResult, bool, error) {
 	pending, err := a.runtimeTaskRequest(http.MethodGet, fmt.Sprintf("/api/v1/runtime/tasks/pending?consumer=%s&limit=1", a.cfg.Consumer), nil)
 	if err != nil {
 		return nil, false, err
@@ -340,19 +353,19 @@ func (a *app) processOnePendingTask() (*sdk.RuntimeTask, bool, error) {
 	}
 	started, err := a.startTask(claimed.TaskID, claimed.LeaseToken)
 	if err != nil {
-		return claimed, true, err
+		return &processedTaskResult{Task: claimed}, true, err
 	}
 	decision := a.decideExecution(started.InterfaceName, parseRuntimeTaskPayload(started.PayloadJSON))
 	if decision.LongRunning {
 		if err := a.runLongTask(started, decision); err != nil {
-			return started, true, err
+			return &processedTaskResult{Task: started}, true, err
 		}
 	} else if decision.Delay > 0 {
 		time.Sleep(decision.Delay)
 	}
 	resp, err := a.postCallback(started.CallbackID, decision.Status, decision.Result, callbackRequestID(started.TaskID))
 	if err != nil {
-		return started, true, err
+		return &processedTaskResult{Task: started}, true, err
 	}
 	a.logJSON("pull_callback_completed", map[string]any{
 		"task_id":              started.TaskID,
@@ -362,7 +375,7 @@ func (a *app) processOnePendingTask() (*sdk.RuntimeTask, bool, error) {
 		"resumed":              resp.Resumed != nil,
 		"post_process_applied": resp.PostProcess != nil && resp.PostProcess.Applied,
 	})
-	return started, true, nil
+	return &processedTaskResult{Task: started, Callback: resp}, true, nil
 }
 
 func (a *app) claimTask(taskID string) (*sdk.RuntimeTask, error) {
