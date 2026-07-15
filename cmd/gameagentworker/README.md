@@ -59,7 +59,7 @@ GameAgentWorker.exe pull-once --consumer game_client
 Run play mode with a local authority state file:
 
 ```powershell
-GameAgentWorker.exe play --state-file .\demo-state.yaml --player-node-id player_001 --world-id demo_world
+GameAgentWorker.exe play --state-file .\tools\source\demo-state.yaml --player-node-id player_001 --world-id demo_world
 ```
 
 ## Play Mode
@@ -98,6 +98,7 @@ Notes:
 - `play` now supports direct dialogue plus a first group-chat pass.
 - group chat still uses a single primary responder per turn; it does not run multi-NPC parallel reasoning.
 - the state file remains the authority source for high-frequency facts like HP, money, inventory, and scene occupancy.
+- the repository ships a matching pair of demo assets in `tools/source/demo-world.yaml` and `tools/source/demo-state.yaml`.
 
 ## Failure and Long-Task Simulation
 

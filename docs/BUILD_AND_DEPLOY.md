@@ -22,7 +22,12 @@ GameAgentEngine-{os}-{arch}-v0.4.6/
     └── GameAgentCreator/
 ```
 
-当前打包内容不包含 `demo-world.yaml` 或 `web/Demo/`。
+当前打包内容包含 `tools/source/` 中的文档、配置和静态资源，因此也会带上：
+
+- `demo-world.yaml`
+- `demo-state.yaml`
+
+当前打包内容仍不包含单独的 `web/Demo/` 页面。
 
 ---
 

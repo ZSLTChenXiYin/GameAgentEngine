@@ -143,6 +143,23 @@ GameAgentDevCli world tick <world-id>
 
 > **注意：** 在跑 `world tick` 之前，需要先在 Creator 的 Settings 页面配置 `world_time_settings`。没有世界时间配置，时间推进会被刻意阻塞 — 这是 Engine 的设计约束，不是 BUG。
 
+### 直接体验 Demo 世界与文字游戏壳
+
+仓库现在附带一套最小 demo 资产：
+
+- `tools/source/demo-world.yaml`：导入到 Engine 的 demo 世界
+- `tools/source/demo-state.yaml`：供 `GameAgentWorker play` 使用的权威状态文件
+
+最短体验路径：
+
+```bash
+GameAgentEngine serve
+GameAgentDevCli import tools/source/demo-world.yaml
+GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+```
+
+这样你可以一边让 Engine 扮演 NPC，一边让 worker 侧状态文件提供 HP、背包、金钱、任务和场景即时状态这类权威数据。
+
 ---
 
 ## 工具链
