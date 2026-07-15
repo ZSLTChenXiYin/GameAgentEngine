@@ -70,11 +70,11 @@ Use this checklist to execute the staged full-functional validation plan.
 
 ## S8 Tooling Smoke
 
-- [ ] SDK runtime task helper smoke
-- [ ] DevCli node/task compatibility smoke
-- [ ] Creator Tasks page smoke
-- [ ] Creator Continuity page smoke
-- [ ] Creator Traces page smoke
+- [x] SDK runtime task helper smoke
+- [x] DevCli node/task compatibility smoke
+- [x] Creator Tasks page smoke
+- [x] Creator Continuity page smoke
+- [x] Creator Traces page smoke
 
 ## S9 Machine Scenario
 

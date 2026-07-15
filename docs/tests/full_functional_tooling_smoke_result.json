@@ -1,0 +1,53 @@
+{
+    "engine_port":  18084,
+    "config_path":  "C:\\Users\\808\\AppData\\Local\\Temp\\gae-s8-src-20260715131652\\gameagentengine.conf.yaml",
+    "db_path":  "C:\\Users\\808\\AppData\\Local\\Temp\\gae-s8-src-20260715131652\\gameagentengine.db",
+    "world_id":  "6327c45d-bec7-4cbc-b7fa-3b94250e59d7",
+    "node_id":  "088baebd-ca32-4a04-9626-b4a939089d42",
+    "pending_task_id":  "51995f94-8cb5-4762-b867-adf437c685a1",
+    "latest_tick_number":  1,
+    "checks":  [
+                   {
+                       "area":  "sdk",
+                       "operation":  "seed runtime task",
+                       "status":  "passed",
+                       "evidence":  "callback_id=5f7c2492-55a8-40dd-9e71-235921d3f506 pending_count=1"
+                   },
+                   {
+                       "area":  "continuity",
+                       "operation":  "seed world tick",
+                       "status":  "passed",
+                       "evidence":  "request_id=5d034b1d-1925-49b8-93ec-943f98cbb684"
+                   },
+                   {
+                       "area":  "sdk",
+                       "operation":  "runtime task helper smoke",
+                       "status":  "passed",
+                       "evidence":  "pending_task_id=51995f94-8cb5-4762-b867-adf437c685a1 latest_tick=1"
+                   },
+                   {
+                       "area":  "devcli",
+                       "operation":  "node/task compatibility smoke",
+                       "status":  "passed",
+                       "evidence":  "node_count=2 task_id=51995f94-8cb5-4762-b867-adf437c685a1"
+                   },
+                   {
+                       "area":  "creator",
+                       "operation":  "Tasks page smoke",
+                       "status":  "passed",
+                       "evidence":  "task_id=51995f94-8cb5-4762-b867-adf437c685a1 stats_total=1"
+                   },
+                   {
+                       "area":  "creator",
+                       "operation":  "Continuity page smoke",
+                       "status":  "passed",
+                       "evidence":  "timeline_tick=1 state_components=6"
+                   },
+                   {
+                       "area":  "creator",
+                       "operation":  "Traces page smoke",
+                       "status":  "passed",
+                       "evidence":  "trace_count=2"
+                   }
+               ]
+}

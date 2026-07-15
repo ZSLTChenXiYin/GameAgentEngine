@@ -25,7 +25,7 @@
 | S5 World evolution and continuity | completed | `docs/tests/full_functional_continuity.ps1` passed against isolated mock-provider Engine |
 | S6 Runtime task delivery | completed | `docs/tests/full_functional_runtime_tasks.ps1` passed against isolated fixture-provider Engine plus local push receiver and pull worker |
 | S7 Callback/resume orchestration | completed | `docs/tests/full_functional_callback_resume.ps1` passed against isolated fixture-provider Engine |
-| S8 Tooling smoke | pending | |
+| S8 Tooling smoke | completed | `docs/tests/full_functional_tooling_smoke.ps1` passed against isolated fixture-provider Engine |
 | S9 Machine scenario | pending | |
 | S10 Final report | pending | |
 
@@ -124,11 +124,22 @@
 
 ## Tooling Smoke Results
 
-- SDK:
-- DevCli:
-- Creator Tasks:
-- Creator Continuity:
-- Creator Traces:
+- SDK: passed; `docs/tests/sdk_tooling_smoke.go` verified pending runtime task `51995f94-8cb5-4762-b867-adf437c685a1`, latest timeline tick `1`, continuity logs, and traces against the live Engine
+- DevCli: passed; `node list` and legacy `nodes --world` stayed aligned at `count=2`, and `task get 51995f94-8cb5-4762-b867-adf437c685a1 --json` matched HTTP task fields
+- Creator Tasks: passed; page data sources `/api/v1/runtime/tasks` and `/api/v1/runtime/tasks/stats` returned the same pending task `51995f94-8cb5-4762-b867-adf437c685a1` and stats total `1`
+- Creator Continuity: passed; page data sources `timelines/latest`, `timelines`, `state-components`, `logs`, and `debug/traces` returned one world tick with `state_components=6`
+- Creator Traces: passed; page data source `/debug/traces?world_id=<world>&limit=30` returned `trace_count=2`
+
+## Tooling Smoke Execution Notes
+
+- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_tooling_smoke.ps1 -EngineExePath .\tmp\s8\GameAgentEngine.exe -DevCliPath .\tmp\s8\GameAgentDevCli.exe -WorkerExePath .\tmp\s8\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_tooling_smoke_result.json`
+- sdk helper: `go run .\docs\tests\sdk_tooling_smoke.go --server http://127.0.0.1:18084 --key dev-key --world 6327c45d-bec7-4cbc-b7fa-3b94250e59d7 --node 088baebd-ca32-4a04-9626-b4a939089d42`
+- temp config: `C:\Users\808\AppData\Local\Temp\gae-s8-src-20260715131652\gameagentengine.conf.yaml`
+- temp db: `C:\Users\808\AppData\Local\Temp\gae-s8-src-20260715131652\gameagentengine.db`
+- runtime mode: source-built Engine + fixture provider + SDK/DevCli/API tooling smoke
+- result artifact: `docs/tests/full_functional_tooling_smoke_result.json`
+- world id: `6327c45d-bec7-4cbc-b7fa-3b94250e59d7`
+- engine port: `18084`
 
 ## Machine-Style Scenario Results
 
