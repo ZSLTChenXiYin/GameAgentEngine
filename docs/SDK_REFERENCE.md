@@ -547,3 +547,19 @@ type ResponseMeta struct {
     RoundsUsed             int    `json:"rounds_used,omitempty"`
 }
 ```
+
+---
+
+## Practical Notes
+
+### Function vs Prompt
+
+When the target LLM provider supports structured tools or functions, prefer putting game-side callable interfaces into structured request fields such as `dynamic_interfaces` instead of hand-writing the callable contract into prompt text.
+
+Use prompt text for behavioral instruction and reasoning guidance. Use structured fields for callable interface contracts.
+
+### Runtime Task Detail Shape
+
+`GetRuntimeTask(taskID)` returns one already-unwrapped `RuntimeTask` object for direct SDK, CLI, or worker use.
+
+Callers do not need to manually decode a `{"task": ...}` response envelope before reading task fields.

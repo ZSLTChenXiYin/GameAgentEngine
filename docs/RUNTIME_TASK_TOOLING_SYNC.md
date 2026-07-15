@@ -57,6 +57,11 @@ The current recommended boundary is:
 2. Pass only request-local temporary game-side interfaces through `dynamic_interfaces`.
 3. Treat runtime task payload snapshots as the execution-time contract for workers and management tooling.
 
+Two practical rules follow from that boundary:
+
+1. Prefer structured function/tool fields over hand-writing interface definitions into prompt text.
+2. Use prompt text only for behavioral instruction, not as the primary contract for callable game-side interfaces.
+
 This means the game side does not need to stuff every possible interface into prompt text or every request. It only needs to provide temporary per-turn capabilities when they are actually relevant.
 
 ## Minimal End-to-End Loop
@@ -79,6 +84,15 @@ When the loop does not behave as expected, check in this order:
 3. `GameAgentDevCli debug continuity <world-id>`
 4. Creator `Tasks` page
 5. Creator `Continuity` and `Traces` pages
+
+## Recent Source Fixes Covered By Tooling
+
+The current source tree already includes fixes for several issues seen in real machine-style testing:
+
+- repeated `data_request` emissions after callback resume now reuse the resolved callback payload instead of generating duplicate runtime tasks
+- `GameAgentDevCli task inspect <task-id>` now reads the real runtime task envelope returned by Engine, instead of showing mostly empty fields
+- the legacy root command `GameAgentDevCli nodes` now shares the same filter flags as `GameAgentDevCli node list`, so `--world` and related filters reach `/api/v1/nodes` correctly
+- `world_settings` creation/update paths are hardened against duplicate-row races so runtime-task and component-adjacent flows do not fail on duplicate `world_settings` inserts
 
 ## Verification Completed In This Sync
 

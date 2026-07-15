@@ -173,3 +173,35 @@ GameAgentDevCli task requeue <task-id> --retry-delay-ms 1500 --reason "manual re
 ```bash
 GameAgentDevCli creator
 ```
+
+---
+
+## Supplementary Notes
+
+### Legacy Alias Compatibility
+
+The following two commands should be treated as equivalent list entrypoints:
+
+```bash
+GameAgentDevCli node list --world <world-id>
+GameAgentDevCli nodes --world <world-id>
+```
+
+`nodes` is a legacy root alias. It is expected to honor the same `--world`, `--limit`, `--offset`, and `--type` flags as `node list`.
+
+### Dynamic Interface Input Guidance
+
+For game-side callable interfaces, keep the boundary simple:
+
+- stable and globally available interfaces belong in Engine `external_interfaces` config
+- temporary per-turn or per-NPC-turn interfaces belong in `dynamic_interfaces`
+- prefer structured `dynamic_interfaces` / function fields over writing callable interface contracts directly into prompt text
+
+### When DevCli Output Differs From Direct HTTP
+
+If direct HTTP results look correct but DevCli output looks empty or incomplete, verify in this order:
+
+1. use raw-oriented views first, such as `task get <task-id> --json` or `nodes --world <world-id>`
+2. then compare the human-oriented view, such as `task inspect <task-id>` or `node list --world <world-id>`
+
+If step 1 is correct and step 2 is wrong, the problem is usually tooling-side field mapping or flag wiring instead of missing Engine data.
