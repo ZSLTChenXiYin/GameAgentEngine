@@ -1,6 +1,8 @@
 package store
 
 import (
+	"errors"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -39,6 +41,9 @@ func GetOrCreateWorldSettings(worldUUID string) (*WorldSettingsModel, error) {
 	if err == nil {
 		return s, nil
 	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
 	worldID := ResolveWorldUUID(worldUUID)
 	s = &WorldSettingsModel{
 		WorldID:                  worldID,
@@ -57,6 +62,9 @@ func GetOrCreateWorldSettings(worldUUID string) (*WorldSettingsModel, error) {
 	if err := Write(func(db *gorm.DB) error {
 		return db.Create(s).Error
 	}); err != nil {
+		if isWorldSettingsDuplicateError(err) {
+			return GetWorldSettings(worldUUID)
+		}
 		return nil, err
 	}
 	return s, nil
@@ -134,7 +142,25 @@ func UpsertWorldSettingsWithMask(worldUUID string, settings *WorldSettingsModel,
 	if err := Write(func(db *gorm.DB) error {
 		return db.Save(s).Error
 	}); err != nil {
+		if isWorldSettingsDuplicateError(err) {
+			return GetWorldSettings(worldUUID)
+		}
 		return nil, err
 	}
 	return s, nil
+}
+
+func isWorldSettingsDuplicateError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "world_settings.world_id") ||
+		strings.Contains(message, "world_settings.world_uuid") ||
+		strings.Contains(message, "unique constraint failed") ||
+		strings.Contains(message, "duplicate key value violates unique constraint") ||
+		strings.Contains(message, "error 1062")
 }
