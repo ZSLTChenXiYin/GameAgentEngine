@@ -459,6 +459,12 @@ func (p *Pipeline) ResumePausedExecution(callbackID string, result any) (*Invoke
 		"result":      result,
 	})
 	if dr != nil {
+		resolvedCache := ensureResolvedDataRequests(state)
+		if resolvedCache != nil {
+			if signature := dataRequestSignature(dr); signature != "" {
+				resolvedCache[signature] = resolved
+			}
+		}
 		label := dr.Label
 		if label == "" {
 			label = "game_client"
@@ -504,6 +510,7 @@ type RoundState struct {
 	TargetNodeID        string
 	MaxRounds           int
 	SupplementalContext []string
+	ResolvedDataRequests map[string]string
 	PendingResumePhase  string
 	PendingResponse     *InvokeResponse
 	PendingMergedSubTaskResponse *InvokeResponse
@@ -556,6 +563,38 @@ func (s *RoundState) buildPrompt(base string) string {
 		return base
 	}
 	return strings.TrimSpace(base + "\n\n补充上下文:\n" + strings.Join(s.SupplementalContext, "\n"))
+}
+
+func dataRequestSignature(dr *DataRequest) string {
+	if dr == nil {
+		return ""
+	}
+	type requestSignature struct {
+		Label             string      `json:"label,omitempty"`
+		Target            string      `json:"target,omitempty"`
+		ExternalInterface string      `json:"external_interface,omitempty"`
+		Queries           []DataQuery `json:"queries,omitempty"`
+	}
+	data, err := json.Marshal(requestSignature{
+		Label:             dr.Label,
+		Target:            dr.Target,
+		ExternalInterface: dr.ExternalInterface,
+		Queries:           dr.Queries,
+	})
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+func ensureResolvedDataRequests(state *RoundState) map[string]string {
+	if state == nil {
+		return nil
+	}
+	if state.ResolvedDataRequests == nil {
+		state.ResolvedDataRequests = map[string]string{}
+	}
+	return state.ResolvedDataRequests
 }
 
 func mergeBaseAndTreeContext(baseContext, treeContext string) string {
@@ -1881,6 +1920,27 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 					})
 					appendRoundStateTreeEntry(state, round+1, parsed, "[dynamic interface blocked] "+err.Error())
 					continue
+				}
+				if cached := ensureResolvedDataRequests(state); cached != nil {
+					if signature := dataRequestSignature(&dr); signature != "" {
+						if resolved, ok := cached[signature]; ok && strings.TrimSpace(resolved) != "" {
+							p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
+								Category:   "pipeline_round",
+								EventName:  "data_request_reused",
+								Message:    dr.Label,
+								Round:      round + 1,
+								DetailData: marshalLogDetail(map[string]any{"request": dr, "resolved": resolved}),
+							})
+							if roundNode != nil {
+								roundNode.Analysis = resolved
+								roundNode.Decision = "[reused data_request] " + dr.Label
+							} else {
+								state.SupplementalContext = append(state.SupplementalContext, "[reused data_request] "+dr.Label, resolved)
+							}
+							appendRoundStateTreeEntry(state, round+1, parsed, resolved)
+							continue
+						}
+					}
 				}
 				p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 					Category:   "pipeline_round",

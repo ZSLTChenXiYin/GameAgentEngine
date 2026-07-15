@@ -1003,6 +1003,58 @@ func TestResumePausedExecutionSupportsRepeatedSubTaskGameClientCallbacks(t *test
 	}
 }
 
+func TestResumePausedExecutionReusesResolvedDataRequestInsteadOfRequerying(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &sequenceProvider{responses: []string{
+		`{"reply":"need-client","request_data":{"label":"fetch-scene","target":"game_client","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+		`{"reply":"still-thinking","request_data":{"label":"fetch-scene","target":"game_client","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`,
+		`{"reply":"final-after-reuse","action_calls":[],"memory_updates":[]}`,
+	}}
+	pipeline := NewPipeline(provider)
+
+	first, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if first.DataRequest == nil || len(first.ActionCalls) != 1 {
+		t.Fatalf("expected first data request pause, got %+v", first)
+	}
+	callbackID := first.ActionCalls[0].CallbackID
+
+	resumed, err := pipeline.ResumePausedExecution(callbackID, map[string]any{"scene": "tavern"})
+	if err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if resumed == nil || resumed.Reply != "final-after-reuse" {
+		t.Fatalf("unexpected resumed response: %+v", resumed)
+	}
+	if provider.calls != 3 {
+		t.Fatalf("expected 3 llm calls, got %d", provider.calls)
+	}
+	tasks, err := store.ListRuntimeTasks(store.RuntimeTaskListQuery{WorldUUID: worldID, Limit: 20})
+	if err != nil {
+		t.Fatalf("list runtime tasks: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected only one runtime task, got %+v", tasks)
+	}
+	logs, err := store.GetInferenceLogs(worldID, 50, 0, string(TaskCustom))
+	if err != nil {
+		t.Fatalf("get logs: %v", err)
+	}
+	var foundReuse bool
+	for _, item := range logs {
+		if item.EventName == "data_request_reused" {
+			foundReuse = true
+			break
+		}
+	}
+	if !foundReuse {
+		t.Fatal("expected data_request_reused log")
+	}
+}
+
 func TestResumePausedExecutionContinuesAfterSubTaskSummarizeGameClientCallback(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
