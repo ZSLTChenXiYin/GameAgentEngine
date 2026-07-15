@@ -365,7 +365,11 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 		policyEngine:           p.loadWorldPolicy(req.WorldID),
 	}
 
-	ctx, err := p.ctxBuilder.Build(req.TaskType, req.NodeID, depth, runtime.memoryLimit, includeRelated)
+	var interaction *InteractionContext
+	if req.Context != nil {
+		interaction = req.Context.Interaction
+	}
+	ctx, err := p.ctxBuilder.Build(req.TaskType, req.NodeID, depth, runtime.memoryLimit, includeRelated, interaction)
 	if err != nil {
 		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 			Category:   "pipeline",

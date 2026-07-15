@@ -184,8 +184,7 @@ func buildContextLogDetail(ctx *BuiltContext, started time.Time) string {
 	if ctx == nil {
 		return ""
 	}
-	return marshalLogDetail(map[string]any{
-		"node_id":         ctx.Node.UUID,
+	data := map[string]any{
 		"component_count": len(ctx.Components),
 		"memory_count":    len(ctx.Memories),
 		"relation_count":  len(ctx.Relations),
@@ -193,7 +192,24 @@ func buildContextLogDetail(ctx *BuiltContext, started time.Time) string {
 		"ancestor_count":  len(ctx.Ancestors),
 		"system_prompt":   truncateForContext(ctx.SystemPrompt, 4000),
 		"built_at":        time.Since(started).Milliseconds(),
-	})
+	}
+	if ctx.Node != nil {
+		data["node_id"] = ctx.Node.UUID
+	}
+	if ctx.SpeakerNode != nil {
+		data["speaker_node_id"] = ctx.SpeakerNode.UUID
+	}
+	if ctx.TargetNode != nil {
+		data["target_node_id"] = ctx.TargetNode.UUID
+	}
+	if ctx.SceneNode != nil {
+		data["scene_node_id"] = ctx.SceneNode.UUID
+	}
+	if ctx.Interaction != nil {
+		data["interaction_mode"] = ctx.Interaction.Mode
+		data["participant_count"] = len(ctx.ParticipantNodes)
+	}
+	return marshalLogDetail(data)
 }
 
 func buildRoundLogDetail(systemPrompt string, messages []ChatMessage, round int, targetNodeID string, taskTree *TaskTree) string {
