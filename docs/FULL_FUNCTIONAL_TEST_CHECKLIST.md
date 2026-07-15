@@ -28,16 +28,16 @@ Use this checklist to execute the staged full-functional validation plan.
 
 ## S4 Base Data Plane
 
-- [ ] node CRUD via HTTP
-- [ ] node CRUD via DevCli
-- [ ] component CRUD via HTTP
-- [ ] component CRUD via DevCli
-- [ ] memory CRUD via HTTP
-- [ ] memory CRUD via DevCli
-- [ ] relation CRUD via HTTP
-- [ ] relation CRUD via DevCli
-- [ ] world settings get/set
-- [ ] world policy get/set
+- [x] node CRUD via HTTP
+- [x] node CRUD via DevCli
+- [x] component CRUD via HTTP
+- [x] component CRUD via DevCli
+- [x] memory CRUD via HTTP
+- [x] memory CRUD via DevCli
+- [x] relation CRUD via HTTP
+- [x] relation CRUD via DevCli
+- [x] world settings get/set
+- [x] world policy get/set
 
 ## S5 World Evolution and Continuity
 
@@ -89,7 +89,6 @@ Use this checklist to execute the staged full-functional validation plan.
 ## Priority Regression Verification
 
 - [ ] `task inspect` shows populated fields
-- [ ] `nodes --world` matches direct HTTP output
+- [x] `nodes --world` matches direct HTTP output
 - [ ] callback resume does not re-emit duplicate `data_request`
-- [ ] `POST /api/v1/components` avoids duplicate `world_settings` write failure
-
+- [x] `POST /api/v1/components` avoids duplicate `world_settings` write failure

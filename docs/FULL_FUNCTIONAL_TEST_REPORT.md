@@ -2,16 +2,16 @@
 
 ## Run Metadata
 
-- git revision: `0885daaff08de89f5b0049d0bdaf012927e8e4ce`
-- config file:
-- database isolation:
-- Engine port:
+- git revision: `b0600c7c96750f8907f32ad618f12ee9364727f8`
+- config file: `C:\Users\808\AppData\Local\Temp\gae-s4-src-20260715122600\gameagentengine.conf.yaml`
+- database isolation: isolated temp sqlite db at `C:\Users\808\AppData\Local\Temp\gae-s4-src-20260715122600\gameagentengine.db`
+- Engine port: `18080`
 - worker port:
-- API key source:
-- callback token source:
-- runtime task token source:
-- runtime mode: source-built / packaged / mixed
-- execution date:
+- API key source: temp test config `auth.api_key = dev-key`
+- callback token source: temp test config `auth.callback_token = dev-callback-token`
+- runtime task token source: temp test config `auth.runtime_task_token = dev-task-token`
+- runtime mode: source-built
+- execution date: `2026-07-15`
 
 ## Stage Summary
 
@@ -21,7 +21,7 @@
 | S1 Test worker | completed | `cmd/gameagenttestworker` added |
 | S2 Worker self-validation | completed | worker unit tests and build passed |
 | S3 Automated regression | completed | `go test ./...` passed |
-| S4 Base data plane | pending | |
+| S4 Base data plane | completed | `docs/tests/full_functional_base_data.ps1` passed against isolated source-built Engine |
 | S5 World evolution and continuity | pending | |
 | S6 Runtime task delivery | pending | |
 | S7 Callback/resume orchestration | pending | |
@@ -40,20 +40,29 @@
 | Item | Status | Evidence |
 |---|---|---|
 | `task inspect` populated fields | pending | |
-| `nodes --world` matches direct HTTP | pending | |
+| `nodes --world` matches direct HTTP | completed | `docs/tests/full_functional_base_data_result.json` shows `legacy list parity` passed with `count=5` |
 | callback resume avoids duplicate `data_request` | pending | |
-| `POST /api/v1/components` avoids duplicate `world_settings` race | pending | |
+| `POST /api/v1/components` avoids duplicate `world_settings` race | completed | concurrent component create on fresh world passed with `count=6` in `docs/tests/full_functional_base_data_result.json` |
 
 ## Base Data Plane Results
 
 | Area | HTTP | DevCli | Notes |
 |---|---|---|---|
-| Node CRUD | pending | pending | |
-| Component CRUD | pending | pending | |
-| Memory CRUD | pending | pending | |
-| Relation CRUD | pending | pending | |
-| World settings | pending | pending | |
-| World policy | pending | pending | |
+| Node CRUD | passed | passed | create/update/delete plus legacy `nodes --world` parity on world `5a9b0231-dc1e-4a48-8695-cd30990debb3` |
+| Component CRUD | passed | passed | create/update/delete passed; concurrent create stress on fresh world also passed |
+| Memory CRUD | passed | passed | create/update/delete cross-checked between HTTP and DevCli |
+| Relation CRUD | passed | passed | create/update/delete cross-checked between HTTP and DevCli |
+| World settings | passed | passed | DevCli set and HTTP get matched `pipeline_mode=polling`, `memory_limit=24` |
+| World policy | passed | passed | HTTP set and DevCli get matched `blocked=spawn_item` |
+
+## Base Data Plane Execution Notes
+
+- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_base_data.ps1 -EngineBaseUrl http://127.0.0.1:18080 -DevCliPath <temp>\GameAgentDevCli.exe -OutFile docs\tests\full_functional_base_data_result.json`
+- fixture: `docs/tests/full_functional_base_data_world.yaml`
+- result artifact: `docs/tests/full_functional_base_data_result.json`
+- run suffix: `20260715122604`
+- primary world id: `5a9b0231-dc1e-4a48-8695-cd30990debb3`
+- stress world id: `8f44662c-3b84-4c44-b65f-2a42d5fb00f0`
 
 ## World Evolution and Continuity Results
 

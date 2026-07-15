@@ -1,0 +1,142 @@
+{
+    "run_suffix":  "20260715122604",
+    "world_name":  "FullFunctionalBaseDataWorld-20260715122604",
+    "world_id":  "5a9b0231-dc1e-4a48-8695-cd30990debb3",
+    "stress_world_name":  "FullFunctionalBaseDataRaceWorld-20260715122604",
+    "stress_world_id":  "8f44662c-3b84-4c44-b65f-2a42d5fb00f0",
+    "checks":  [
+                   {
+                       "area":  "world",
+                       "operation":  "import fixture",
+                       "channel":  "devcli",
+                       "status":  "passed",
+                       "evidence":  "world_id=5a9b0231-dc1e-4a48-8695-cd30990debb3"
+                   },
+                   {
+                       "area":  "world",
+                       "operation":  "locate imported world",
+                       "channel":  "http",
+                       "status":  "passed",
+                       "evidence":  "world_id=5a9b0231-dc1e-4a48-8695-cd30990debb3"
+                   },
+                   {
+                       "area":  "node",
+                       "operation":  "create",
+                       "channel":  "http",
+                       "status":  "passed",
+                       "evidence":  "node_id=b5811748-c386-4f5a-b64c-a72efe9a5d54"
+                   },
+                   {
+                       "area":  "node",
+                       "operation":  "get after create",
+                       "channel":  "devcli",
+                       "status":  "passed",
+                       "evidence":  "node_id=b5811748-c386-4f5a-b64c-a72efe9a5d54"
+                   },
+                   {
+                       "area":  "node",
+                       "operation":  "update",
+                       "channel":  "devcli-\u003ehttp",
+                       "status":  "passed",
+                       "evidence":  "node_id=b5811748-c386-4f5a-b64c-a72efe9a5d54"
+                   },
+                   {
+                       "area":  "node",
+                       "operation":  "legacy list parity",
+                       "channel":  "devcli/http",
+                       "status":  "passed",
+                       "evidence":  "count=5"
+                   },
+                   {
+                       "area":  "component",
+                       "operation":  "create",
+                       "channel":  "http",
+                       "status":  "passed",
+                       "evidence":  "component_id=d7c3c18f-f995-4c05-b313-efe41d8dd991"
+                   },
+                   {
+                       "area":  "component",
+                       "operation":  "update",
+                       "channel":  "devcli-\u003ehttp",
+                       "status":  "passed",
+                       "evidence":  "component_id=d7c3c18f-f995-4c05-b313-efe41d8dd991"
+                   },
+                   {
+                       "area":  "memory",
+                       "operation":  "create",
+                       "channel":  "devcli",
+                       "status":  "passed",
+                       "evidence":  "memory_id=b3b88f3a-88a4-4572-b3c5-8685b7a78034"
+                   },
+                   {
+                       "area":  "memory",
+                       "operation":  "update",
+                       "channel":  "http-\u003edevcli",
+                       "status":  "passed",
+                       "evidence":  "memory_id=b3b88f3a-88a4-4572-b3c5-8685b7a78034"
+                   },
+                   {
+                       "area":  "relation",
+                       "operation":  "create",
+                       "channel":  "http",
+                       "status":  "passed",
+                       "evidence":  "relation_id=afe190a5-2d46-42f3-9cf0-9468762ca1ed"
+                   },
+                   {
+                       "area":  "relation",
+                       "operation":  "update",
+                       "channel":  "devcli-\u003ehttp",
+                       "status":  "passed",
+                       "evidence":  "relation_id=afe190a5-2d46-42f3-9cf0-9468762ca1ed"
+                   },
+                   {
+                       "area":  "world_settings",
+                       "operation":  "set/get",
+                       "channel":  "devcli-\u003ehttp",
+                       "status":  "passed",
+                       "evidence":  "pipeline_mode=polling"
+                   },
+                   {
+                       "area":  "world_policy",
+                       "operation":  "set/get",
+                       "channel":  "http-\u003edevcli",
+                       "status":  "passed",
+                       "evidence":  "blocked=spawn_item"
+                   },
+                   {
+                       "area":  "component",
+                       "operation":  "concurrent create on fresh world",
+                       "channel":  "http",
+                       "status":  "passed",
+                       "evidence":  "world_id=8f44662c-3b84-4c44-b65f-2a42d5fb00f0 count=6"
+                   },
+                   {
+                       "area":  "component",
+                       "operation":  "delete",
+                       "channel":  "devcli-\u003ehttp",
+                       "status":  "passed",
+                       "evidence":  "component_id=d7c3c18f-f995-4c05-b313-efe41d8dd991"
+                   },
+                   {
+                       "area":  "memory",
+                       "operation":  "delete",
+                       "channel":  "devcli-\u003ehttp",
+                       "status":  "passed",
+                       "evidence":  "memory_id=b3b88f3a-88a4-4572-b3c5-8685b7a78034"
+                   },
+                   {
+                       "area":  "relation",
+                       "operation":  "delete",
+                       "channel":  "http",
+                       "status":  "passed",
+                       "evidence":  "relation_id=afe190a5-2d46-42f3-9cf0-9468762ca1ed"
+                   },
+                   {
+                       "area":  "node",
+                       "operation":  "delete",
+                       "channel":  "devcli-\u003ehttp",
+                       "status":  "passed",
+                       "evidence":  "node_id=b5811748-c386-4f5a-b64c-a72efe9a5d54"
+                   }
+               ]
+}
