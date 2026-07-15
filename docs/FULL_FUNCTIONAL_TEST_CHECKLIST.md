@@ -13,7 +13,7 @@ Use this checklist to execute the staged full-functional validation plan.
 
 ## S1-S2 Test Worker
 
-- [x] build `cmd/gameagenttestworker`
+- [x] build `cmd/gameagentworker`
 - [x] run worker unit tests
 - [x] verify push receiver startup
 - [x] verify pull-once command startup

@@ -20,7 +20,7 @@
 | 阶段 | 状态 | 说明 |
 |---|---|---|
 | S0 基线 | 已完成 | 已补充计划文档 |
-| S1 测试 worker | 已完成 | 已新增 `cmd/gameagenttestworker` |
+| S1 测试 worker | 已完成 | 已新增 `cmd/gameagentworker`（并保留旧 `cmd/gameagenttestworker` 兼容入口） |
 | S2 Worker 自验证 | 已完成 | worker 单测与构建通过 |
 | S3 自动化回归 | 已完成 | `go test ./...` 通过 |
 | S4 基础数据面 | 已完成 | `docs/tests/full_functional_base_data.ps1` 在隔离的 source-built Engine 上通过 |
@@ -87,7 +87,7 @@
 ## Runtime Task 投递结果
 
 - push: 通过；`spawn_item` push task `9e6067e9-2c9b-4d4e-a56d-cc01c1dfa3bd` 成功派发到本地 push receiver，并成功完成 callback
-- pull: 通过；`npc_trade_action` pull task `f3dc112a-0066-40a6-b6a9-4ea1dcf690a2` 被 `GameAgentTestWorker pull-once` 成功 claim 并完成
+- pull: 通过；`npc_trade_action` pull task `f3dc112a-0066-40a6-b6a9-4ea1dcf690a2` 被 `GameAgentWorker pull-once` 成功 claim 并完成
 - hybrid fallback: 通过；`spawn_item` hybrid task `bffec0a1-fefc-4388-8041-d354f87743f8` 在 push 派发网络失败后回落为 `released` 且 `transport=task_pull`
 - claim/start/heartbeat: 通过；手工任务 `021a7acb-7318-44e5-a10c-448c30e1b1d7` 完成 `claimed -> running` 转换，并成功接收显式 heartbeat
 - release/requeue: 通过；手工 release 将任务退回 `released`，超时任务 `6abc550e-53f6-4000-851e-c204d3d4d691` 在显式 requeue 后完成 `heartbeat_timeout -> released`
@@ -95,7 +95,7 @@
 
 ## Runtime Task 投递执行说明
 
-- 脚本: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_runtime_tasks.ps1 -EngineExePath .\tmp\s6\GameAgentEngine.exe -DevCliPath .\tmp\s6\GameAgentDevCli.exe -WorkerExePath .\tmp\s6\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_runtime_tasks_result.json`
+- 脚本: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_runtime_tasks.ps1 -EngineExePath .\tmp\s6\GameAgentEngine.exe -DevCliPath .\tmp\s6\GameAgentDevCli.exe -WorkerExePath .\tmp\s6\GameAgentWorker.exe -OutFile docs\tests\full_functional_runtime_tasks_result.json`
 - 临时配置: `C:\Users\808\AppData\Local\Temp\gae-s6-src-20260715125246\gameagentengine.conf.yaml`
 - 临时数据库: `C:\Users\808\AppData\Local\Temp\gae-s6-src-20260715125246\gameagentengine.db`
 - 运行模式: source-built Engine + fixture provider + 本地 push receiver + pull worker
@@ -116,7 +116,7 @@
 
 ## Callback 与 Resume 执行说明
 
-- 脚本: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_callback_resume.ps1 -EngineExePath .\tmp\s7\GameAgentEngine.exe -DevCliPath .\tmp\s7\GameAgentDevCli.exe -WorkerExePath .\tmp\s7\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_callback_resume_result.json`
+- 脚本: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_callback_resume.ps1 -EngineExePath .\tmp\s7\GameAgentEngine.exe -DevCliPath .\tmp\s7\GameAgentDevCli.exe -WorkerExePath .\tmp\s7\GameAgentWorker.exe -OutFile docs\tests\full_functional_callback_resume_result.json`
 - 临时配置: `C:\Users\808\AppData\Local\Temp\gae-s7-src-20260715130743\gameagentengine.conf.yaml`
 - 临时数据库: `C:\Users\808\AppData\Local\Temp\gae-s7-src-20260715130743\gameagentengine.db`
 - 运行模式: source-built Engine + fixture provider + 直接 callback HTTP + pull worker
@@ -134,7 +134,7 @@
 
 ## 工具链冒烟执行说明
 
-- 脚本: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_tooling_smoke.ps1 -EngineExePath .\tmp\s8\GameAgentEngine.exe -DevCliPath .\tmp\s8\GameAgentDevCli.exe -WorkerExePath .\tmp\s8\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_tooling_smoke_result.json`
+- 脚本: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_tooling_smoke.ps1 -EngineExePath .\tmp\s8\GameAgentEngine.exe -DevCliPath .\tmp\s8\GameAgentDevCli.exe -WorkerExePath .\tmp\s8\GameAgentWorker.exe -OutFile docs\tests\full_functional_tooling_smoke_result.json`
 - SDK helper: `go run .\docs\tests\sdk_tooling_smoke.go --server http://127.0.0.1:18084 --key dev-key --world 6327c45d-bec7-4cbc-b7fa-3b94250e59d7 --node 088baebd-ca32-4a04-9626-b4a939089d42`
 - 临时配置: `C:\Users\808\AppData\Local\Temp\gae-s8-src-20260715131652\gameagentengine.conf.yaml`
 - 临时数据库: `C:\Users\808\AppData\Local\Temp\gae-s8-src-20260715131652\gameagentengine.db`
@@ -147,13 +147,13 @@
 
 - invoke: 通过；对 NPC `83443764-bfaf-475b-97dd-80c78664adcc` 发起的 `POST /api/v1/invoke` 在 request `d6f5343f-0633-4873-a3ab-050ba781f5fb` 下生成了 request-scoped callback `df578b37-f1ac-4908-aa8d-3b47f2053f78`
 - runtime task creation: 通过；Engine 为接口 `game_client_request_data` 持久化了 pull task `3532df57-9cab-4e12-b760-b2088362f667`
-- worker callback: 通过；`GameAgentTestWorker pull-once --consumer game_client` 成功 claim 该任务，并完成 callback，`resume_execution_id=651ed3c1-b50e-46a3-902d-d13841c6c55d`
+- worker callback: 通过；`GameAgentWorker pull-once --consumer game_client` 成功 claim 该任务，并完成 callback，`resume_execution_id=651ed3c1-b50e-46a3-902d-d13841c6c55d`
 - paused execution resume: 通过；按 request 范围查询的日志中有一条 `data_request_paused_for_client` 和一条 `resume_completed`
 - observability artifacts: 通过；`debug continuity --request-id` 返回 `logs=1`、`traces=1`、`state_components=6`；由于该场景是直接写入 `world_time_state` 而没有执行 world tick，因此 `latest_timeline` 不存在
 
 ## 机器式场景执行说明
 
-- 脚本: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_machine_scenario.ps1 -EngineExePath .\tmp\s9\GameAgentEngine.exe -DevCliPath .\tmp\s9\GameAgentDevCli.exe -WorkerExePath .\tmp\s9\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_machine_scenario_result.json`
+- 脚本: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_machine_scenario.ps1 -EngineExePath .\tmp\s9\GameAgentEngine.exe -DevCliPath .\tmp\s9\GameAgentDevCli.exe -WorkerExePath .\tmp\s9\GameAgentWorker.exe -OutFile docs\tests\full_functional_machine_scenario_result.json`
 - 临时配置: `C:\Users\808\AppData\Local\Temp\gae-s9-src-20260715132417\gameagentengine.conf.yaml`
 - 临时数据库: `C:\Users\808\AppData\Local\Temp\gae-s9-src-20260715132417\gameagentengine.db`
 - 运行模式: source-built Engine + fixture provider + pull worker
@@ -165,7 +165,7 @@
 
 | 严重度 | 区域 | 现象 | 复现方式 | 说明 |
 |---|---|---|---|---|
-| P3 | 机器场景可观测性 | 当场景直接写入 `world_time_state` 且跳过 `world tick` 时，`debug continuity --request-id` 不包含 `latest_timeline` | 运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_machine_scenario.ps1 -EngineExePath .\tmp\s9\GameAgentEngine.exe -DevCliPath .\tmp\s9\GameAgentDevCli.exe -WorkerExePath .\tmp\s9\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_machine_scenario_result.json`，再检查 `latest_timeline_present` | 这不是 resume 流程的代码缺陷；当前机器场景为了保持 fixture 的确定性，选择用 state/logs/traces 验证 continuity，而不是依赖 timeline 行 |
+| P3 | 机器场景可观测性 | 当场景直接写入 `world_time_state` 且跳过 `world tick` 时，`debug continuity --request-id` 不包含 `latest_timeline` | 运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_machine_scenario.ps1 -EngineExePath .\tmp\s9\GameAgentEngine.exe -DevCliPath .\tmp\s9\GameAgentDevCli.exe -WorkerExePath .\tmp\s9\GameAgentWorker.exe -OutFile docs\tests\full_functional_machine_scenario_result.json`，再检查 `latest_timeline_present` | 这不是 resume 流程的代码缺陷；当前机器场景为了保持 fixture 的确定性，选择用 state/logs/traces 验证 continuity，而不是依赖 timeline 行 |
 
 ## 最终评估
 

@@ -92,6 +92,13 @@ for target in "${TARGETS[@]}"; do
     -o "${OUT}/GameAgentDevCli${EXT}" \
     ./cmd/gameagentdevcli/
 
+
+  echo "[${GOOS}/${GOARCH}] Building GameAgentWorker..."
+  GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 go build \
+    -trimpath \
+    -ldflags="${LDFLAGS}" \
+    -o "${OUT}/GameAgentWorker${EXT}" \
+    ./cmd/gameagentworker/
   # Inject version into Creator JS before copying
   if [ -f "${SOURCE_DIR}/web/GameAgentCreator/js/version.js" ]; then
     sed -i.bak "s/CREATOR_MIN_COMPATIBLE = \"v[0-9]\+\.[0-9]\+\.[0-9]\+\"/CREATOR_MIN_COMPATIBLE = \"${VERSION}\"/" "${SOURCE_DIR}/web/GameAgentCreator/js/version.js"

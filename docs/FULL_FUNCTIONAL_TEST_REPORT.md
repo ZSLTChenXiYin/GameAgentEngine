@@ -18,7 +18,7 @@
 | Stage | Status | Notes |
 |---|---|---|
 | S0 Baseline | completed | plan document added |
-| S1 Test worker | completed | `cmd/gameagenttestworker` added |
+| S1 Test worker | completed | `cmd/gameagentworker` added (legacy `cmd/gameagenttestworker` kept as compatibility wrapper) |
 | S2 Worker self-validation | completed | worker unit tests and build passed |
 | S3 Automated regression | completed | `go test ./...` passed |
 | S4 Base data plane | completed | `docs/tests/full_functional_base_data.ps1` passed against isolated source-built Engine |
@@ -85,7 +85,7 @@
 ## Runtime Task Delivery Results
 
 - push: passed; `spawn_item` push task `9e6067e9-2c9b-4d4e-a56d-cc01c1dfa3bd` dispatched to local push receiver and completed callback successfully
-- pull: passed; `npc_trade_action` pull task `f3dc112a-0066-40a6-b6a9-4ea1dcf690a2` was claimed and completed by `GameAgentTestWorker pull-once`
+- pull: passed; `npc_trade_action` pull task `f3dc112a-0066-40a6-b6a9-4ea1dcf690a2` was claimed and completed by `GameAgentWorker pull-once`
 - hybrid fallback: passed; `spawn_item` hybrid task `bffec0a1-fefc-4388-8041-d354f87743f8` fell back to `released` + `transport=task_pull` after push dispatch network failure
 - claim/start/heartbeat: passed; manual task `021a7acb-7318-44e5-a10c-448c30e1b1d7` transitioned through `claimed -> running`, then accepted explicit heartbeat
 - release/requeue: passed; manual release returned task to `released`, and timeout task `6abc550e-53f6-4000-851e-c204d3d4d691` transitioned through `heartbeat_timeout -> released` after explicit requeue
@@ -93,7 +93,7 @@
 
 ## Runtime Task Delivery Execution Notes
 
-- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_runtime_tasks.ps1 -EngineExePath .\tmp\s6\GameAgentEngine.exe -DevCliPath .\tmp\s6\GameAgentDevCli.exe -WorkerExePath .\tmp\s6\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_runtime_tasks_result.json`
+- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_runtime_tasks.ps1 -EngineExePath .\tmp\s6\GameAgentEngine.exe -DevCliPath .\tmp\s6\GameAgentDevCli.exe -WorkerExePath .\tmp\s6\GameAgentWorker.exe -OutFile docs\tests\full_functional_runtime_tasks_result.json`
 - temp config: `C:\Users\808\AppData\Local\Temp\gae-s6-src-20260715125246\gameagentengine.conf.yaml`
 - temp db: `C:\Users\808\AppData\Local\Temp\gae-s6-src-20260715125246\gameagentengine.db`
 - runtime mode: source-built Engine + fixture provider + local push receiver + pull worker
@@ -114,7 +114,7 @@
 
 ## Callback and Resume Execution Notes
 
-- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_callback_resume.ps1 -EngineExePath .\tmp\s7\GameAgentEngine.exe -DevCliPath .\tmp\s7\GameAgentDevCli.exe -WorkerExePath .\tmp\s7\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_callback_resume_result.json`
+- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_callback_resume.ps1 -EngineExePath .\tmp\s7\GameAgentEngine.exe -DevCliPath .\tmp\s7\GameAgentDevCli.exe -WorkerExePath .\tmp\s7\GameAgentWorker.exe -OutFile docs\tests\full_functional_callback_resume_result.json`
 - temp config: `C:\Users\808\AppData\Local\Temp\gae-s7-src-20260715130743\gameagentengine.conf.yaml`
 - temp db: `C:\Users\808\AppData\Local\Temp\gae-s7-src-20260715130743\gameagentengine.db`
 - runtime mode: source-built Engine + fixture provider + direct callback HTTP + pull worker
@@ -132,7 +132,7 @@
 
 ## Tooling Smoke Execution Notes
 
-- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_tooling_smoke.ps1 -EngineExePath .\tmp\s8\GameAgentEngine.exe -DevCliPath .\tmp\s8\GameAgentDevCli.exe -WorkerExePath .\tmp\s8\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_tooling_smoke_result.json`
+- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_tooling_smoke.ps1 -EngineExePath .\tmp\s8\GameAgentEngine.exe -DevCliPath .\tmp\s8\GameAgentDevCli.exe -WorkerExePath .\tmp\s8\GameAgentWorker.exe -OutFile docs\tests\full_functional_tooling_smoke_result.json`
 - sdk helper: `go run .\docs\tests\sdk_tooling_smoke.go --server http://127.0.0.1:18084 --key dev-key --world 6327c45d-bec7-4cbc-b7fa-3b94250e59d7 --node 088baebd-ca32-4a04-9626-b4a939089d42`
 - temp config: `C:\Users\808\AppData\Local\Temp\gae-s8-src-20260715131652\gameagentengine.conf.yaml`
 - temp db: `C:\Users\808\AppData\Local\Temp\gae-s8-src-20260715131652\gameagentengine.db`
@@ -145,13 +145,13 @@
 
 - invoke: passed; `POST /api/v1/invoke` on NPC `83443764-bfaf-475b-97dd-80c78664adcc` produced request-scoped callback `df578b37-f1ac-4908-aa8d-3b47f2053f78` under request `d6f5343f-0633-4873-a3ab-050ba781f5fb`
 - runtime task creation: passed; Engine persisted pull task `3532df57-9cab-4e12-b760-b2088362f667` for interface `game_client_request_data`
-- worker callback: passed; `GameAgentTestWorker pull-once --consumer game_client` claimed the task and completed callback with `resume_execution_id=651ed3c1-b50e-46a3-902d-d13841c6c55d`
+- worker callback: passed; `GameAgentWorker pull-once --consumer game_client` claimed the task and completed callback with `resume_execution_id=651ed3c1-b50e-46a3-902d-d13841c6c55d`
 - paused execution resume: passed; request-scoped logs showed one `data_request_paused_for_client` and one `resume_completed`
 - observability artifacts: passed; `debug continuity --request-id` returned `logs=1`, `traces=1`, `state_components=6`; `latest_timeline` was absent because this scenario seeded `world_time_state` directly and did not execute a world tick
 
 ## Machine-Style Scenario Execution Notes
 
-- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_machine_scenario.ps1 -EngineExePath .\tmp\s9\GameAgentEngine.exe -DevCliPath .\tmp\s9\GameAgentDevCli.exe -WorkerExePath .\tmp\s9\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_machine_scenario_result.json`
+- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_machine_scenario.ps1 -EngineExePath .\tmp\s9\GameAgentEngine.exe -DevCliPath .\tmp\s9\GameAgentDevCli.exe -WorkerExePath .\tmp\s9\GameAgentWorker.exe -OutFile docs\tests\full_functional_machine_scenario_result.json`
 - temp config: `C:\Users\808\AppData\Local\Temp\gae-s9-src-20260715132417\gameagentengine.conf.yaml`
 - temp db: `C:\Users\808\AppData\Local\Temp\gae-s9-src-20260715132417\gameagentengine.db`
 - runtime mode: source-built Engine + fixture provider + pull worker
@@ -163,7 +163,7 @@
 
 | Severity | Area | Symptom | Reproduction | Notes |
 |---|---|---|---|---|
-| P3 | machine scenario observability | `debug continuity --request-id` does not include `latest_timeline` when the scenario seeds `world_time_state` directly and skips `world tick` | run `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_machine_scenario.ps1 -EngineExePath .\tmp\s9\GameAgentEngine.exe -DevCliPath .\tmp\s9\GameAgentDevCli.exe -WorkerExePath .\tmp\s9\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_machine_scenario_result.json` and inspect `latest_timeline_present` | not a code defect in resume flow; current machine scenario intentionally preserves fixture determinism and validates continuity via state/logs/traces instead of timeline rows |
+| P3 | machine scenario observability | `debug continuity --request-id` does not include `latest_timeline` when the scenario seeds `world_time_state` directly and skips `world tick` | run `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_machine_scenario.ps1 -EngineExePath .\tmp\s9\GameAgentEngine.exe -DevCliPath .\tmp\s9\GameAgentDevCli.exe -WorkerExePath .\tmp\s9\GameAgentWorker.exe -OutFile docs\tests\full_functional_machine_scenario_result.json` and inspect `latest_timeline_present` | not a code defect in resume flow; current machine scenario intentionally preserves fixture determinism and validates continuity via state/logs/traces instead of timeline rows |
 
 ## Final Assessment
 

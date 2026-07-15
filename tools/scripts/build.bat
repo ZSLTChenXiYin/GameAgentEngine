@@ -62,6 +62,10 @@ for %%p in (%TARGETS%) do (
     go build -trimpath -ldflags="%LDFLAGS%" -o "!OUT_DIR!\GameAgentDevCli!EXT!" .\cmd\gameagentdevcli\
     if errorlevel 1 popd & exit /b 1
 
+    echo [%%a/%%b] Building GameAgentWorker...
+    go build -trimpath -ldflags="%LDFLAGS%" -o "!OUT_DIR!\GameAgentWorker!EXT!" .\cmd\gameagentworker\
+    if errorlevel 1 popd & exit /b 1
+
     REM Inject version into Creator JS before copying
     if exist "%SOURCE_DIR%\web\GameAgentCreator\js\version.js" (
         powershell -Command "(Get-Content '%SOURCE_DIR%\web\GameAgentCreator\js\version.js') -replace 'CREATOR_MIN_COMPATIBLE = \"v[0-9]+\.[0-9]+\.[0-9]+\"', 'CREATOR_MIN_COMPATIBLE = \"%VERSION%\"' | Set-Content '%SOURCE_DIR%\web\GameAgentCreator\js\version.js'"
