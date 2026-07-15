@@ -65,17 +65,17 @@ func TestListPendingRuntimeTasksUsesPendingEndpoint(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"tasks": []map[string]any{{
-				"task_id":         "task-1",
-				"status":          "pending",
-				"interface_name":  "game_client_request_data",
-				"delivery_mode":   "pull",
-				"consumer":        "game_client",
-				"payload_json":    `{"scene":"tavern"}`,
-				"attempt_count":   1,
-				"max_attempts":    3,
-				"available_at":    "2026-01-01T00:00:00Z",
-				"created_at":      "2026-01-01T00:00:00Z",
-				"updated_at":      "2026-01-01T00:00:01Z",
+				"task_id":        "task-1",
+				"status":         "pending",
+				"interface_name": "game_client_request_data",
+				"delivery_mode":  "pull",
+				"consumer":       "game_client",
+				"payload_json":   `{"scene":"tavern"}`,
+				"attempt_count":  1,
+				"max_attempts":   3,
+				"available_at":   "2026-01-01T00:00:00Z",
+				"created_at":     "2026-01-01T00:00:00Z",
+				"updated_at":     "2026-01-01T00:00:01Z",
 			}},
 		})
 	}))
@@ -105,12 +105,12 @@ func TestGetRuntimeTaskStatsReturnsStructuredStats(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"stats": map[string]any{
-				"total":                        9,
-				"ready_pull":                   2,
-				"dispatched_without_callback":  1,
-				"by_status":                    map[string]any{"pending": 2, "dispatched": 1},
-				"by_dispatch_decision":         map[string]any{"fallback_to_pull": 1},
-				"by_heartbeat_timeout_count":   map[string]any{"2": 1},
+				"total":                       9,
+				"ready_pull":                  2,
+				"dispatched_without_callback": 1,
+				"by_status":                   map[string]any{"pending": 2, "dispatched": 1},
+				"by_dispatch_decision":        map[string]any{"fallback_to_pull": 1},
+				"by_heartbeat_timeout_count":  map[string]any{"2": 1},
 			},
 		})
 	}))
@@ -129,6 +129,67 @@ func TestGetRuntimeTaskStatsReturnsStructuredStats(t *testing.T) {
 	}
 }
 
+func TestGetRuntimeTaskUnwrapsTaskEnvelope(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/runtime/tasks/task-123" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"task": map[string]any{
+				"task_id":             "task-123",
+				"status":              "succeeded",
+				"category":            "data_request",
+				"interface_name":      "scene_facts",
+				"resume_execution_id": "exec-42",
+			},
+		})
+	}))
+	defer ts.Close()
+
+	client := NewClient(ts.URL, "test-key")
+	task, err := client.GetRuntimeTask("task-123")
+	if err != nil {
+		t.Fatalf("get runtime task: %v", err)
+	}
+	if task == nil || task.TaskID != "task-123" || task.InterfaceName != "scene_facts" || task.ResumeExecutionID != "exec-42" {
+		t.Fatalf("unexpected task: %#v", task)
+	}
+}
+
+func TestStartRuntimeTaskUnwrapsTaskEnvelope(t *testing.T) {
+	var gotPayload map[string]any
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/runtime/tasks/start" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
+			t.Fatalf("decode payload: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"task": map[string]any{
+				"task_id":     "task-456",
+				"status":      "running",
+				"lease_token": "lease-1",
+			},
+		})
+	}))
+	defer ts.Close()
+
+	client := NewClient(ts.URL, "test-key")
+	task, err := client.StartRuntimeTask("task-456", "lease-1")
+	if err != nil {
+		t.Fatalf("start runtime task: %v", err)
+	}
+	if gotPayload["task_id"] != "task-456" || gotPayload["lease_token"] != "lease-1" {
+		t.Fatalf("unexpected payload: %#v", gotPayload)
+	}
+	if task == nil || task.TaskID != "task-456" || task.Status != RuntimeTaskStatusRunning || task.LeaseToken != "lease-1" {
+		t.Fatalf("unexpected task: %#v", task)
+	}
+}
+
 func TestRequeueRuntimeTaskReturnsUpdatedTask(t *testing.T) {
 	var gotPayload map[string]any
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -141,8 +202,8 @@ func TestRequeueRuntimeTaskReturnsUpdatedTask(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"task": map[string]any{
-				"task_id":      "task-timeout-1",
-				"status":       "released",
+				"task_id":       "task-timeout-1",
+				"status":        "released",
 				"error_message": "manual requeue",
 			},
 		})
