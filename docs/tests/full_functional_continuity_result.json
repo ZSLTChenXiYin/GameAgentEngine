@@ -2,7 +2,7 @@
     "world_id":  "7be14a95-387d-4280-8011-b02ed444c0c1",
     "request_id":  "6c33c53b-ec44-4423-8144-8f841920cf91",
     "latest_tick_number":  1,
-    "latest_time_label":  "CycleÀú 12day 10hour",
+    "latest_time_label":  "Cycleå† 12day 10hour",
     "checks":  [
                    {
                        "area":  "world_time_settings",
@@ -37,7 +37,7 @@
                        "operation":  "list/get",
                        "channel":  "devcli",
                        "status":  "passed",
-                       "evidence":  "world_time_label=CycleÀú 12day 10hour"
+                       "evidence":  "world_time_label=Cycleå† 12day 10hour"
                    },
                    {
                        "area":  "continuity",

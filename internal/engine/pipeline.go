@@ -868,7 +868,7 @@ func buildDAGFailureSummary(dag *DAGInstance) string {
 	var errParts []string
 	for _, label := range dag.orderedTaskLabels() {
 		if errMsg := strings.TrimSpace(dag.failed[label]); errMsg != "" {
-			errParts = append(errParts, fmt.Sprintf("[瀛愪换鍔?%s 澶辫触] %s", label, errMsg))
+			errParts = append(errParts, fmt.Sprintf("[子任务 %s 失败] %s", label, errMsg))
 		}
 	}
 	return strings.Join(errParts, "\n")
@@ -1060,7 +1060,7 @@ func (p *Pipeline) continueSubTaskSummaryMerge(req *InvokeRequest, merged *Invok
 				goto nextLabel
 			}
 		}
-		mergedResp = p.applySubTaskMergeMode(mergedResp, st.Decl, resp, "[summarize] LLM 鎽樿澶辫触")
+		mergedResp = p.applySubTaskMergeMode(mergedResp, st.Decl, resp, "[summarize] LLM 摘要失败")
 		normalizedState = nil
 		summaryLabel = ""
 	nextLabel:
