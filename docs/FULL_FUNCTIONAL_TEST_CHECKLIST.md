@@ -78,13 +78,13 @@ Use this checklist to execute the staged full-functional validation plan.
 
 ## S9 Machine Scenario
 
-- [ ] isolated Engine runtime started
-- [ ] test worker started
-- [ ] NPC dialogue invoke with request-scoped dynamic interfaces
-- [ ] runtime task created
-- [ ] callback completed by worker
-- [ ] paused execution resumed
-- [ ] logs / traces / continuity confirmed
+- [x] isolated Engine runtime started
+- [x] test worker started
+- [x] NPC dialogue invoke with request-scoped dynamic interfaces
+- [x] runtime task created
+- [x] callback completed by worker
+- [x] paused execution resumed
+- [x] logs / traces / continuity confirmed
 
 ## Priority Regression Verification
 

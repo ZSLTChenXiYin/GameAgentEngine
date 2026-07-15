@@ -26,7 +26,7 @@
 | S6 Runtime task delivery | completed | `docs/tests/full_functional_runtime_tasks.ps1` passed against isolated fixture-provider Engine plus local push receiver and pull worker |
 | S7 Callback/resume orchestration | completed | `docs/tests/full_functional_callback_resume.ps1` passed against isolated fixture-provider Engine |
 | S8 Tooling smoke | completed | `docs/tests/full_functional_tooling_smoke.ps1` passed against isolated fixture-provider Engine |
-| S9 Machine scenario | pending | |
+| S9 Machine scenario | completed | `docs/tests/full_functional_machine_scenario.ps1` passed against isolated fixture-provider Engine |
 | S10 Final report | pending | |
 
 ## Automated Regression
@@ -143,11 +143,21 @@
 
 ## Machine-Style Scenario Results
 
-- invoke:
-- runtime task creation:
-- worker callback:
-- paused execution resume:
-- observability artifacts:
+- invoke: passed; `POST /api/v1/invoke` on NPC `83443764-bfaf-475b-97dd-80c78664adcc` produced request-scoped callback `df578b37-f1ac-4908-aa8d-3b47f2053f78` under request `d6f5343f-0633-4873-a3ab-050ba781f5fb`
+- runtime task creation: passed; Engine persisted pull task `3532df57-9cab-4e12-b760-b2088362f667` for interface `game_client_request_data`
+- worker callback: passed; `GameAgentTestWorker pull-once --consumer game_client` claimed the task and completed callback with `resume_execution_id=651ed3c1-b50e-46a3-902d-d13841c6c55d`
+- paused execution resume: passed; request-scoped logs showed one `data_request_paused_for_client` and one `resume_completed`
+- observability artifacts: passed; `debug continuity --request-id` returned `logs=1`, `traces=1`, `state_components=6`; `latest_timeline` was absent because this scenario seeded `world_time_state` directly and did not execute a world tick
+
+## Machine-Style Scenario Execution Notes
+
+- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_machine_scenario.ps1 -EngineExePath .\tmp\s9\GameAgentEngine.exe -DevCliPath .\tmp\s9\GameAgentDevCli.exe -WorkerExePath .\tmp\s9\GameAgentTestWorker.exe -OutFile docs\tests\full_functional_machine_scenario_result.json`
+- temp config: `C:\Users\808\AppData\Local\Temp\gae-s9-src-20260715132417\gameagentengine.conf.yaml`
+- temp db: `C:\Users\808\AppData\Local\Temp\gae-s9-src-20260715132417\gameagentengine.db`
+- runtime mode: source-built Engine + fixture provider + pull worker
+- result artifact: `docs/tests/full_functional_machine_scenario_result.json`
+- world id: `9abbb007-17c9-4de8-9367-6a72ae32b0d4`
+- engine port: `18085`
 
 ## Failures and Follow-Ups
 

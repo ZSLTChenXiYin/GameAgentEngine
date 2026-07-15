@@ -1,0 +1,55 @@
+{
+    "engine_port":  18085,
+    "config_path":  "C:\\Users\\808\\AppData\\Local\\Temp\\gae-s9-src-20260715132417\\gameagentengine.conf.yaml",
+    "db_path":  "C:\\Users\\808\\AppData\\Local\\Temp\\gae-s9-src-20260715132417\\gameagentengine.db",
+    "world_id":  "9abbb007-17c9-4de8-9367-6a72ae32b0d4",
+    "node_id":  "83443764-bfaf-475b-97dd-80c78664adcc",
+    "request_id":  "d6f5343f-0633-4873-a3ab-050ba781f5fb",
+    "callback_id":  "df578b37-f1ac-4908-aa8d-3b47f2053f78",
+    "task_id":  "3532df57-9cab-4e12-b760-b2088362f667",
+    "latest_timeline_present":  false,
+    "checks":  [
+                   {
+                       "area":  "runtime",
+                       "operation":  "isolated Engine runtime started",
+                       "status":  "passed",
+                       "evidence":  "port=18085 config=C:\\Users\\808\\AppData\\Local\\Temp\\gae-s9-src-20260715132417\\gameagentengine.conf.yaml"
+                   },
+                   {
+                       "area":  "invoke",
+                       "operation":  "NPC dialogue invoke with request-scoped dynamic interfaces",
+                       "status":  "passed",
+                       "evidence":  "request_id=d6f5343f-0633-4873-a3ab-050ba781f5fb callback_id=df578b37-f1ac-4908-aa8d-3b47f2053f78"
+                   },
+                   {
+                       "area":  "runtime",
+                       "operation":  "runtime task created",
+                       "status":  "passed",
+                       "evidence":  "task_id=3532df57-9cab-4e12-b760-b2088362f667 interface=game_client_request_data"
+                   },
+                   {
+                       "area":  "worker",
+                       "operation":  "test worker started",
+                       "status":  "passed",
+                       "evidence":  "consumer=game_client lease_owner=s9-worker"
+                   },
+                   {
+                       "area":  "worker",
+                       "operation":  "callback completed by worker",
+                       "status":  "passed",
+                       "evidence":  "task_id=3532df57-9cab-4e12-b760-b2088362f667 callback_id=df578b37-f1ac-4908-aa8d-3b47f2053f78"
+                   },
+                   {
+                       "area":  "resume",
+                       "operation":  "paused execution resumed",
+                       "status":  "passed",
+                       "evidence":  "resume_logs=1 paused_logs=1"
+                   },
+                   {
+                       "area":  "observability",
+                       "operation":  "logs / traces / continuity confirmed",
+                       "status":  "passed",
+                       "evidence":  "request_id=d6f5343f-0633-4873-a3ab-050ba781f5fb continuity_logs=1 continuity_traces=1 continuity_state_components=6 latest_timeline_present=False total_logs=12"
+                   }
+               ]
+}

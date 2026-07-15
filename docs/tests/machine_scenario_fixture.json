@@ -1,0 +1,14 @@
+[
+  {
+    "content": "{\"reply\":\"machine-world-tick\",\"action_calls\":[],\"memory_updates\":[],\"world_change_plan\":{\"impact_level\":\"minor\",\"summary\":\"Scene continuity seeded before NPC dialogue.\",\"world_events\":[],\"proposed_actions\":[]}}",
+    "tokens": 8
+  },
+  {
+    "content": "{\"reply\":\"need-scene-before-answer\",\"request_data\":{\"label\":\"scene_query\",\"target\":\"game_client\",\"queries\":[{\"type\":\"node_detail\"}]}}",
+    "tokens": 8
+  },
+  {
+    "content": "{\"reply\":\"npc-final-reply-after-resume\",\"action_calls\":[],\"memory_updates\":[]}",
+    "tokens": 8
+  }
+]
