@@ -309,6 +309,24 @@ type DynamicInterface struct {
 	MaxCalls          int                  `json:"max_calls,omitempty"`
 }
 
+type InteractionEvent struct {
+	Type   string         `json:"type"`
+	ItemID string         `json:"item_id,omitempty"`
+	Args   map[string]any `json:"args,omitempty"`
+}
+
+type InteractionContext struct {
+	Mode               string            `json:"mode,omitempty"`
+	SpeakerNodeID      string            `json:"speaker_node_id,omitempty"`
+	TargetNodeID       string            `json:"target_node_id,omitempty"`
+	SceneNodeID        string            `json:"scene_node_id,omitempty"`
+	RoomID             string            `json:"room_id,omitempty"`
+	ParticipantNodeIDs []string          `json:"participant_node_ids,omitempty"`
+	AudienceScope      string            `json:"audience_scope,omitempty"`
+	TurnIndex          int               `json:"turn_index,omitempty"`
+	Event              *InteractionEvent `json:"event,omitempty"`
+}
+
 type InvokeContext struct {
 	// IncludeRelatedNodes 是受控的关系补充开关，不是“把所有关系边另一端节点全部展开”的许可。
 	// 后续实现应允许它按任务/关系类型/方向/hop 数受限扩图，避免关系噪音淹没主上下文。
@@ -318,6 +336,7 @@ type InvokeContext struct {
 	MaxAnalysisRounds   int                `json:"max_analysis_rounds,omitempty"`
 	PipelineMode        PipelineMode       `json:"pipeline_mode,omitempty"`
 	DynamicInterfaces   []DynamicInterface `json:"dynamic_interfaces,omitempty"`
+	Interaction         *InteractionContext `json:"interaction,omitempty"`
 }
 
 // InvokeResponse 是统一的推理响应结构。
@@ -543,6 +562,10 @@ type SubTaskDeclaration struct {
 var customComponentTypePattern = regexp.MustCompile(`^[a-z][a-z0-9_:-]{1,63}$`)
 var dynamicInterfaceIDPattern = regexp.MustCompile(`^[a-z][a-z0-9_:-]{1,63}$`)
 
+var validInteractionModes = []string{"direct_dialogue", "group_chat", "gift_response", "trade_dialogue"}
+var validInteractionEventTypes = []string{"speech", "gift", "show_item", "trade_request", "threaten"}
+var validInteractionAudienceScopes = []string{"public", "private", "whisper"}
+
 func IsValidNodeType(nodeType string) bool {
 	return slices.Contains(ValidNodeTypes(), NodeType(nodeType))
 }
@@ -569,6 +592,52 @@ func IsValidDynamicInterfaceKind(kind string) bool {
 	default:
 		return false
 	}
+}
+
+func ValidateInteractionContext(ctx *InteractionContext) error {
+	if ctx == nil {
+		return nil
+	}
+	mode := strings.TrimSpace(ctx.Mode)
+	if mode == "" {
+		return fmt.Errorf("interaction.mode required")
+	}
+	if !slices.Contains(validInteractionModes, mode) {
+		return fmt.Errorf("interaction.mode must be one of: %s", strings.Join(validInteractionModes, ", "))
+	}
+	if strings.TrimSpace(ctx.SpeakerNodeID) == "" {
+		return fmt.Errorf("interaction.speaker_node_id required")
+	}
+	if strings.TrimSpace(ctx.TargetNodeID) == "" {
+		return fmt.Errorf("interaction.target_node_id required")
+	}
+	if ctx.TurnIndex < 0 {
+		return fmt.Errorf("interaction.turn_index must be >= 0")
+	}
+	if scope := strings.TrimSpace(ctx.AudienceScope); scope != "" && !slices.Contains(validInteractionAudienceScopes, scope) {
+		return fmt.Errorf("interaction.audience_scope must be one of: %s", strings.Join(validInteractionAudienceScopes, ", "))
+	}
+	seenParticipants := make(map[string]struct{}, len(ctx.ParticipantNodeIDs))
+	for i, participant := range ctx.ParticipantNodeIDs {
+		id := strings.TrimSpace(participant)
+		if id == "" {
+			return fmt.Errorf("interaction.participant_node_ids[%d] required", i)
+		}
+		if _, exists := seenParticipants[id]; exists {
+			return fmt.Errorf("interaction.participant_node_ids[%d] duplicated: %s", i, id)
+		}
+		seenParticipants[id] = struct{}{}
+	}
+	if ctx.Event != nil {
+		eventType := strings.TrimSpace(ctx.Event.Type)
+		if eventType == "" {
+			return fmt.Errorf("interaction.event.type required")
+		}
+		if !slices.Contains(validInteractionEventTypes, eventType) {
+			return fmt.Errorf("interaction.event.type must be one of: %s", strings.Join(validInteractionEventTypes, ", "))
+		}
+	}
+	return nil
 }
 
 func ValidateDynamicInterfaces(items []DynamicInterface) error {

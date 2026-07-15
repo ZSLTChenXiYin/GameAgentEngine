@@ -39,3 +39,35 @@ func TestValidateDynamicInterfacesRejectsActionArgsSchemaWithoutObjectType(t *te
 		t.Fatalf("unexpected error: %s", got)
 	}
 }
+
+func TestValidateInteractionContextRejectsInvalidEventType(t *testing.T) {
+	err := ValidateInteractionContext(&InteractionContext{
+		Mode:          "direct_dialogue",
+		SpeakerNodeID: "player_1",
+		TargetNodeID:  "npc_1",
+		Event:         &InteractionEvent{Type: "teleport"},
+	})
+	if err == nil {
+		t.Fatal("expected interaction validation error")
+	}
+	if got := err.Error(); got != "interaction.event.type must be one of: speech, gift, show_item, trade_request, threaten" {
+		t.Fatalf("unexpected error: %s", got)
+	}
+}
+
+func TestValidateInteractionContextAcceptsValidPayload(t *testing.T) {
+	err := ValidateInteractionContext(&InteractionContext{
+		Mode:               "group_chat",
+		SpeakerNodeID:      "player_1",
+		TargetNodeID:       "npc_1",
+		SceneNodeID:        "scene_tavern",
+		RoomID:             "room_mainhall",
+		ParticipantNodeIDs: []string{"player_1", "npc_1", "npc_2"},
+		AudienceScope:      "public",
+		TurnIndex:          1,
+		Event:              &InteractionEvent{Type: "speech"},
+	})
+	if err != nil {
+		t.Fatalf("expected valid interaction payload, got %v", err)
+	}
+}

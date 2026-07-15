@@ -97,6 +97,24 @@ type DynamicInterface struct {
 	MaxCalls          int            `json:"max_calls,omitempty"`
 }
 
+type InteractionEvent struct {
+	Type   string         `json:"type"`
+	ItemID string         `json:"item_id,omitempty"`
+	Args   map[string]any `json:"args,omitempty"`
+}
+
+type InteractionContext struct {
+	Mode               string            `json:"mode,omitempty"`
+	SpeakerNodeID      string            `json:"speaker_node_id,omitempty"`
+	TargetNodeID       string            `json:"target_node_id,omitempty"`
+	SceneNodeID        string            `json:"scene_node_id,omitempty"`
+	RoomID             string            `json:"room_id,omitempty"`
+	ParticipantNodeIDs []string          `json:"participant_node_ids,omitempty"`
+	AudienceScope      string            `json:"audience_scope,omitempty"`
+	TurnIndex          int               `json:"turn_index,omitempty"`
+	Event              *InteractionEvent `json:"event,omitempty"`
+}
+
 // InvokeContext 表示调用方希望追加的上下文约束，可在请求层面覆盖服务端配置。
 type InvokeContext struct {
 	MaxAnalysisRounds   int                `json:"max_analysis_rounds,omitempty"`   // LLM 内部轮询最大次数（0 表示使用服务端配置）
@@ -105,6 +123,7 @@ type InvokeContext struct {
 	IncludeRelatedNodes bool               `json:"include_related_nodes,omitempty"` // 是否启用受控关系补充；这不是“把所有邻接关系节点全部塞进上下文”的开关。
 	PipelineMode        string             `json:"pipeline_mode,omitempty"`         // 管线模式：vertical/polling/full；也决定关系图谱装配强度。
 	DynamicInterfaces   []DynamicInterface `json:"dynamic_interfaces,omitempty"`    // 当前请求临时暴露给模型的外部接口白名单。
+	Interaction         *InteractionContext `json:"interaction,omitempty"`
 }
 
 // InvokeRequest 是 SDK 侧的统一推理请求结构。

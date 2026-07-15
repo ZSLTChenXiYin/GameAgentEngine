@@ -222,3 +222,72 @@ func TestInvokeHandlerAcceptsValidDynamicInterfaces(t *testing.T) {
 		t.Fatalf("did not expect invalid_dynamic_interfaces response, got %s", w.Body.String())
 	}
 }
+
+func TestInvokeHandlerRejectsInvalidInteraction(t *testing.T) {
+	initMiddlewareTestDB(t)
+	h := MakeInvokeHandler(nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/invoke", strings.NewReader(`{
+		"world_id":"w1",
+		"node_id":"n1",
+		"task_type":"custom",
+		"context":{
+			"interaction":{
+				"mode":"group_chat",
+				"speaker_node_id":"player_1",
+				"target_node_id":"npc_1",
+				"participant_node_ids":["player_1", ""]
+			}
+		}
+	}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "invalid_interaction") {
+		t.Fatalf("expected invalid_interaction response, got %s", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "participant_node_ids[1] required") {
+		t.Fatalf("expected participant validation error, got %s", w.Body.String())
+	}
+}
+
+func TestInvokeHandlerAcceptsValidInteraction(t *testing.T) {
+	initMiddlewareTestDB(t)
+	world := &store.NodeModel{UUID: "w1", Name: "World", NodeType: "world", WorldUUID: "w1"}
+	if err := store.CreateNode(world); err != nil {
+		t.Fatalf("create world: %v", err)
+	}
+	node := &store.NodeModel{UUID: "n1", Name: "NPC", NodeType: "npc", WorldUUID: "w1", ParentUUID: &world.UUID}
+	if err := store.CreateNode(node); err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	h := MakeInvokeHandler(engine.NewPipeline(&singleResponseProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/invoke", strings.NewReader(`{
+		"world_id":"w1",
+		"node_id":"n1",
+		"task_type":"custom",
+		"context":{
+			"interaction":{
+				"mode":"direct_dialogue",
+				"speaker_node_id":"player_1",
+				"target_node_id":"npc_1",
+				"scene_node_id":"scene_inn",
+				"participant_node_ids":["player_1", "npc_1"],
+				"audience_scope":"public",
+				"turn_index":2,
+				"event":{"type":"speech"}
+			}
+		}
+	}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected handler to pass validation and complete invoke, got %d body=%s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "invalid_interaction") {
+		t.Fatalf("did not expect invalid_interaction response, got %s", w.Body.String())
+	}
+}

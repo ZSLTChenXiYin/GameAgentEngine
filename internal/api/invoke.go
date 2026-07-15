@@ -253,6 +253,10 @@ func MakeInvokeHandler(p *engine.Pipeline) http.HandlerFunc {
 				errorJSONCode(w, http.StatusBadRequest, "invalid_dynamic_interfaces", err.Error())
 				return
 			}
+			if err := engine.ValidateInteractionContext(req.Context.Interaction); err != nil {
+				errorJSONCode(w, http.StatusBadRequest, "invalid_interaction", err.Error())
+				return
+			}
 		}
 		resp, err := p.Execute(&req)
 		if err != nil {
