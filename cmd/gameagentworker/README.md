@@ -16,6 +16,7 @@ The legacy `GameAgentTestWorker` command remains available as a compatibility wr
 - `push-receiver`: run only the HTTP push receiver
 - `pull-worker`: run only the pull worker polling loop
 - `pull-once`: process at most one pending pull task and exit
+- `play`: run a single-user text-game REPL backed by Engine invoke and worker-side authority state
 
 ## Capabilities
 
@@ -54,6 +55,42 @@ Run one pull step:
 ```powershell
 GameAgentWorker.exe pull-once --consumer game_client
 ```
+
+Run play mode with a local authority state file:
+
+```powershell
+GameAgentWorker.exe play --state-file .\demo-state.yaml --player-node-id player_001 --world-id demo_world
+```
+
+## Play Mode
+
+`play` is the first step toward a real text-game shell instead of a raw engine wrapper.
+
+Current behavior:
+
+- loads authoritative game-side state from a YAML/JSON `--state-file`
+- selects one player actor via `--player-node-id` or `kind=player`
+- uses `/talk <npc>` to lock the current dialogue target
+- sends plain text input to Engine as `npc_dialogue` with `interaction.mode=direct_dialogue`
+- exposes request-scoped `game_client_request_data` so the NPC can query authoritative state during dialogue
+- can run an embedded pull worker with `--auto-worker` enabled so play-mode invoke calls can resolve authority callbacks automatically
+
+Current commands:
+
+- `/help`
+- `/look`
+- `/who`
+- `/state`
+- `/talk <npc>`
+- `/target`
+- `/clear_target`
+- `/exit`
+
+Notes:
+
+- `play` currently focuses on direct dialogue only.
+- structured commands such as gift / show-item / trade will be added in later phases.
+- the state file remains the authority source for high-frequency facts like HP, money, inventory, and scene occupancy.
 
 ## Failure and Long-Task Simulation
 

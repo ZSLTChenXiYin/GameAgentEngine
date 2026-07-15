@@ -17,12 +17,38 @@ func (v *StateView) Actor(id string) (*ActorState, bool) {
 	return actor, ok
 }
 
+func (v *StateView) Actors() []*ActorState {
+	if v == nil || v.state == nil {
+		return nil
+	}
+	actors := make([]*ActorState, 0, len(v.state.Actors))
+	for _, actor := range v.state.Actors {
+		if actor != nil {
+			actors = append(actors, actor)
+		}
+	}
+	return actors
+}
+
 func (v *StateView) Scene(id string) (*SceneState, bool) {
 	if v == nil || v.state == nil {
 		return nil, false
 	}
 	scene, ok := v.state.Scenes[strings.TrimSpace(id)]
 	return scene, ok
+}
+
+func (v *StateView) Scenes() []*SceneState {
+	if v == nil || v.state == nil {
+		return nil
+	}
+	scenes := make([]*SceneState, 0, len(v.state.Scenes))
+	for _, scene := range v.state.Scenes {
+		if scene != nil {
+			scenes = append(scenes, scene)
+		}
+	}
+	return scenes
 }
 
 func (v *StateView) Task(id string) (*QuestState, bool) {
@@ -63,6 +89,52 @@ func (v *StateView) ActorLocation(actorID string) (string, bool) {
 		return "", false
 	}
 	return actor.LocationID, true
+}
+
+func (v *StateView) ActorsAtScene(sceneID string) []*ActorState {
+	trimmed := strings.TrimSpace(sceneID)
+	if trimmed == "" {
+		return nil
+	}
+	actors := make([]*ActorState, 0)
+	for _, actor := range v.Actors() {
+		if actor != nil && strings.TrimSpace(actor.LocationID) == trimmed {
+			actors = append(actors, actor)
+		}
+	}
+	return actors
+}
+
+func (v *StateView) FindActorIDByName(name string) (string, bool) {
+	needle := strings.ToLower(strings.TrimSpace(name))
+	if needle == "" {
+		return "", false
+	}
+	for id, actor := range v.state.Actors {
+		if actor == nil {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(id), needle) || strings.EqualFold(strings.TrimSpace(actor.ID), needle) || strings.EqualFold(strings.TrimSpace(actor.Name), needle) {
+			return actor.ID, true
+		}
+	}
+	return "", false
+}
+
+func (v *StateView) FindSceneIDByName(name string) (string, bool) {
+	needle := strings.ToLower(strings.TrimSpace(name))
+	if needle == "" {
+		return "", false
+	}
+	for id, scene := range v.state.Scenes {
+		if scene == nil {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(id), needle) || strings.EqualFold(strings.TrimSpace(scene.ID), needle) || strings.EqualFold(strings.TrimSpace(scene.Name), needle) {
+			return scene.ID, true
+		}
+	}
+	return "", false
 }
 
 func (v *StateView) SceneOccupants(sceneID string) []string {

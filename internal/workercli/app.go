@@ -16,27 +16,34 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/workerstate"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
 
 type Options struct {
-	CommandName      string
-	DisplayName      string
-	ShortDescription string
+	CommandName       string
+	DisplayName       string
+	ShortDescription  string
 	DefaultLeaseOwner string
-	WorkerID         string
-	DeprecatedAlias  string
+	WorkerID          string
+	DeprecatedAlias   string
 }
 
 type workerConfig struct {
 	EngineBaseURL       string
+	EngineAPIKey        string
 	RuntimeTaskToken    string
 	CallbackToken       string
 	GameHTTPBearerToken string
 	StateFile           string
 	Consumer            string
 	LeaseOwner          string
+	PlayWorldID         string
+	PlayPlayerNodeID    string
+	PlaySessionID       string
+	PlayPipelineMode    string
+	PlayIncludeRelated  bool
+	PlayAutoWorker      bool
 	PushPort            int
 	PollInterval        time.Duration
 	HeartbeatInterval   time.Duration
@@ -72,13 +79,14 @@ type taskExecutionDecision struct {
 }
 
 type app struct {
-	options Options
-	cfg     workerConfig
-	rootCmd *cobra.Command
-	serveCmd *cobra.Command
-	pushCmd *cobra.Command
-	pullCmd *cobra.Command
+	options     Options
+	cfg         workerConfig
+	rootCmd     *cobra.Command
+	serveCmd    *cobra.Command
+	pushCmd     *cobra.Command
+	pullCmd     *cobra.Command
 	pullOnceCmd *cobra.Command
+	playCmd     *cobra.Command
 }
 
 func Main(options Options) {
@@ -110,11 +118,14 @@ func newApp(options Options) *app {
 		options: options,
 		cfg: workerConfig{
 			EngineBaseURL:       "http://127.0.0.1:8080",
+			EngineAPIKey:        "dev-key",
 			RuntimeTaskToken:    "dev-task-token",
 			CallbackToken:       "dev-callback-token",
 			GameHTTPBearerToken: "local-test-token",
 			Consumer:            "game_client",
 			LeaseOwner:          options.DefaultLeaseOwner,
+			PlayIncludeRelated:  true,
+			PlayAutoWorker:      true,
 			PushPort:            9000,
 			PollInterval:        2 * time.Second,
 			HeartbeatInterval:   2 * time.Second,
@@ -179,12 +190,21 @@ func (a *app) initCommands() {
 			return nil
 		},
 	}
+	a.playCmd = &cobra.Command{
+		Use:   "play",
+		Short: "Run a single-user text-game REPL backed by Engine invoke",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.runPlay()
+		},
+	}
 	a.bindCommonFlags(a.rootCmd.PersistentFlags())
-	a.rootCmd.AddCommand(a.serveCmd, a.pushCmd, a.pullCmd, a.pullOnceCmd)
+	a.bindPlayFlags(a.playCmd.Flags())
+	a.rootCmd.AddCommand(a.serveCmd, a.pushCmd, a.pullCmd, a.pullOnceCmd, a.playCmd)
 }
 
 func (a *app) bindCommonFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&a.cfg.EngineBaseURL, "engine-base-url", a.cfg.EngineBaseURL, "Engine base URL")
+	flags.StringVar(&a.cfg.EngineAPIKey, "engine-api-key", a.cfg.EngineAPIKey, "Engine API key for invoke requests")
 	flags.StringVar(&a.cfg.RuntimeTaskToken, "runtime-task-token", a.cfg.RuntimeTaskToken, "Runtime task token for /api/v1/runtime/tasks/*")
 	flags.StringVar(&a.cfg.CallbackToken, "callback-token", a.cfg.CallbackToken, "Callback token for /api/v1/actions/callback")
 	flags.StringVar(&a.cfg.GameHTTPBearerToken, "game-http-bearer-token", a.cfg.GameHTTPBearerToken, "Expected bearer token for push dispatch receiver")
@@ -199,6 +219,15 @@ func (a *app) bindCommonFlags(flags *pflag.FlagSet) {
 	flags.StringSliceVar(&a.cfg.FailInterfaces, "fail-interface", nil, "Interface names that should callback with failed status")
 	flags.StringSliceVar(&a.cfg.LongTaskInterfaces, "long-task-interface", nil, "Interface names that should simulate long-running execution")
 	flags.BoolVar(&a.cfg.Verbose, "verbose", false, "Enable verbose structured worker logs")
+}
+
+func (a *app) bindPlayFlags(flags *pflag.FlagSet) {
+	flags.StringVar(&a.cfg.PlayWorldID, "world-id", a.cfg.PlayWorldID, "World ID used in play mode; defaults to state file world_id")
+	flags.StringVar(&a.cfg.PlayPlayerNodeID, "player-node-id", a.cfg.PlayPlayerNodeID, "Player node ID controlled in play mode")
+	flags.StringVar(&a.cfg.PlaySessionID, "session-id", a.cfg.PlaySessionID, "Optional fixed session ID for play mode")
+	flags.StringVar(&a.cfg.PlayPipelineMode, "pipeline-mode", a.cfg.PlayPipelineMode, "Optional invoke pipeline mode override for play mode")
+	flags.BoolVar(&a.cfg.PlayIncludeRelated, "include-related-nodes", a.cfg.PlayIncludeRelated, "Whether play mode dialogue requests include related nodes")
+	flags.BoolVar(&a.cfg.PlayAutoWorker, "auto-worker", a.cfg.PlayAutoWorker, "Run an embedded pull worker during play mode for authority queries")
 }
 
 func (a *app) runServe(withPush bool, withPull bool) error {
@@ -269,7 +298,7 @@ func (a *app) runPullLoop() error {
 		}
 		time.Sleep(a.cfg.PollInterval)
 	}
-	}
+}
 
 func (a *app) processOnePendingTask() (*sdk.RuntimeTask, bool, error) {
 	pending, err := a.runtimeTaskRequest(http.MethodGet, fmt.Sprintf("/api/v1/runtime/tasks/pending?consumer=%s&limit=1", a.cfg.Consumer), nil)

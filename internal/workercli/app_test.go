@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/workerstate"
 )
 
 func TestDecideExecutionReturnsFailureForConfiguredInterface(t *testing.T) {
@@ -113,5 +115,42 @@ tasks:
 	}
 	if result["world_id"] != "demo_world" {
 		t.Fatalf("expected world_id demo_world, got %#v", result)
+	}
+}
+
+func TestParsePlayCommand(t *testing.T) {
+	cmd := parsePlayCommand("/talk innkeeper")
+	if cmd.Name != "talk" || cmd.Args != "innkeeper" {
+		t.Fatalf("unexpected play command: %#v", cmd)
+	}
+}
+
+func TestResolvePlayPlayerNodeIDPrefersPlayerKind(t *testing.T) {
+	a := newTestApp()
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"npc_1":    {ID: "npc_1", Kind: "npc"},
+			"player_1": {ID: "player_1", Kind: "player"},
+		},
+	})
+	got, err := a.resolvePlayPlayerNodeID(view)
+	if err != nil {
+		t.Fatalf("resolvePlayPlayerNodeID returned error: %v", err)
+	}
+	if got != "player_1" {
+		t.Fatalf("expected player_1, got %q", got)
+	}
+}
+
+func TestResolveSceneActorRequiresSameScene(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_a"},
+			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_b"},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_a"}
+	if _, err := s.resolveSceneActor("innkeeper"); err == nil {
+		t.Fatal("expected same-scene validation error")
 	}
 }
