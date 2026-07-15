@@ -1,13 +1,12 @@
-package main
+package workercli
 
 import "testing"
 
 func TestDecideExecutionReturnsFailureForConfiguredInterface(t *testing.T) {
-	previous := cfg
-	cfg.FailInterfaces = []string{"spawn_item"}
-	t.Cleanup(func() { cfg = previous })
+	a := newTestApp()
+	a.cfg.FailInterfaces = []string{"spawn_item"}
 
-	decision := decideExecution("spawn_item", map[string]any{"node_id": "npc-1"})
+	decision := a.decideExecution("spawn_item", map[string]any{"node_id": "npc-1"})
 	if decision.Status != "failed" {
 		t.Fatalf("expected failed status, got %q", decision.Status)
 	}
@@ -17,11 +16,10 @@ func TestDecideExecutionReturnsFailureForConfiguredInterface(t *testing.T) {
 }
 
 func TestDecideExecutionReturnsLongRunningForConfiguredInterface(t *testing.T) {
-	previous := cfg
-	cfg.LongTaskInterfaces = []string{"game_client_request_data"}
-	t.Cleanup(func() { cfg = previous })
+	a := newTestApp()
+	a.cfg.LongTaskInterfaces = []string{"game_client_request_data"}
 
-	decision := decideExecution("game_client_request_data", map[string]any{"request_data": map[string]any{"label": "scene"}})
+	decision := a.decideExecution("game_client_request_data", map[string]any{"request_data": map[string]any{"label": "scene"}})
 	if !decision.LongRunning {
 		t.Fatal("expected long-running decision")
 	}
@@ -34,7 +32,8 @@ func TestDecideExecutionReturnsLongRunningForConfiguredInterface(t *testing.T) {
 }
 
 func TestBuildFixtureResultForSpawnItemIncludesTarget(t *testing.T) {
-	result := buildFixtureResult("spawn_item", map[string]any{"node_id": "npc-123"}, "success", false)
+	a := newTestApp()
+	result := a.buildFixtureResult("spawn_item", map[string]any{"node_id": "npc-123"}, "success", false)
 	if result["spawned"] != true {
 		t.Fatalf("expected spawned=true, got %#v", result)
 	}
