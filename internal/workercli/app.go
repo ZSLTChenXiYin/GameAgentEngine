@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/workerstate"
 )
 
 type Options struct {
@@ -33,6 +34,7 @@ type workerConfig struct {
 	RuntimeTaskToken    string
 	CallbackToken       string
 	GameHTTPBearerToken string
+	StateFile           string
 	Consumer            string
 	LeaseOwner          string
 	PushPort            int
@@ -186,6 +188,7 @@ func (a *app) bindCommonFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&a.cfg.RuntimeTaskToken, "runtime-task-token", a.cfg.RuntimeTaskToken, "Runtime task token for /api/v1/runtime/tasks/*")
 	flags.StringVar(&a.cfg.CallbackToken, "callback-token", a.cfg.CallbackToken, "Callback token for /api/v1/actions/callback")
 	flags.StringVar(&a.cfg.GameHTTPBearerToken, "game-http-bearer-token", a.cfg.GameHTTPBearerToken, "Expected bearer token for push dispatch receiver")
+	flags.StringVar(&a.cfg.StateFile, "state-file", a.cfg.StateFile, "Optional YAML/JSON authority state file for game-side query responses")
 	flags.StringVar(&a.cfg.Consumer, "consumer", a.cfg.Consumer, "Runtime task consumer")
 	flags.StringVar(&a.cfg.LeaseOwner, "lease-owner", a.cfg.LeaseOwner, "Runtime task lease owner")
 	flags.IntVar(&a.cfg.PushPort, "push-port", a.cfg.PushPort, "Push receiver port")
@@ -441,9 +444,15 @@ func (a *app) buildFixtureResult(interfaceName string, payload map[string]any, s
 	}
 	switch interfaceName {
 	case "game_client_request_data":
-		result["scene"] = "starter_inn"
-		result["world_state"] = map[string]any{"weather": "clear", "threat_level": "low"}
-		result["echoed_payload"] = payload
+		if resolved := a.resolveAuthorityQueryResult(payload, status, longRunning); resolved != nil {
+			for key, value := range resolved {
+				result[key] = value
+			}
+		} else {
+			result["scene"] = "starter_inn"
+			result["world_state"] = map[string]any{"weather": "clear", "threat_level": "low"}
+			result["echoed_payload"] = payload
+		}
 	case "spawn_item":
 		result["spawned"] = true
 		result["item_id"] = "fixture-item-1"
@@ -452,6 +461,118 @@ func (a *app) buildFixtureResult(interfaceName string, payload map[string]any, s
 		result["echoed_payload"] = payload
 	}
 	return result
+}
+
+func (a *app) resolveAuthorityQueryResult(payload map[string]any, status string, longRunning bool) map[string]any {
+	if strings.TrimSpace(a.cfg.StateFile) == "" {
+		return nil
+	}
+	state, err := workerstate.LoadFile(a.cfg.StateFile)
+	if err != nil {
+		a.logJSON("state_file_load_error", map[string]any{"path": a.cfg.StateFile, "error": err.Error()})
+		return map[string]any{
+			"status":       status,
+			"long_running": longRunning,
+			"state_error":  err.Error(),
+		}
+	}
+	view := workerstate.NewStateView(state)
+	queries := extractAuthorityQueries(payload)
+	if len(queries) == 0 {
+		return map[string]any{
+			"status":       status,
+			"long_running": longRunning,
+			"world_id":     view.WorldID(),
+		}
+	}
+	resolved := map[string]any{
+		"status":       status,
+		"long_running": longRunning,
+		"world_id":     view.WorldID(),
+		"queries":      resolveAuthorityQueries(view, queries),
+	}
+	return resolved
+}
+
+type authorityQuery struct {
+	Type   string
+	NodeID string
+	Filter string
+	Limit  int
+}
+
+func extractAuthorityQueries(payload map[string]any) []authorityQuery {
+	if payload == nil {
+		return nil
+	}
+	requestData, ok := payload["request_data"].(map[string]any)
+	if !ok || requestData == nil {
+		requestData = payload
+	}
+	rawQueries, ok := requestData["queries"].([]any)
+	if !ok {
+		return nil
+	}
+	queries := make([]authorityQuery, 0, len(rawQueries))
+	for _, raw := range rawQueries {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		query := authorityQuery{
+			Type:   firstString(item, "type"),
+			NodeID: firstString(item, "node_id"),
+			Filter: firstString(item, "filter"),
+		}
+		if limit, ok := item["limit"].(float64); ok {
+			query.Limit = int(limit)
+		}
+		if strings.TrimSpace(query.Type) != "" {
+			queries = append(queries, query)
+		}
+	}
+	return queries
+}
+
+func resolveAuthorityQueries(view *workerstate.StateView, queries []authorityQuery) []map[string]any {
+	results := make([]map[string]any, 0, len(queries))
+	for _, query := range queries {
+		result := map[string]any{"type": query.Type, "node_id": query.NodeID}
+		switch query.Type {
+		case "player_state":
+			hp, maxHP, ok := view.ActorHP(query.NodeID)
+			if ok {
+				result["hp"] = hp
+				result["max_hp"] = maxHP
+			}
+		case "player_inventory":
+			result["inventory"] = view.ActorInventory(query.NodeID)
+		case "player_wallet":
+			if money, ok := view.ActorMoney(query.NodeID); ok {
+				result["money"] = money
+			}
+		case "player_location", "npc_location":
+			if locationID, ok := view.ActorLocation(query.NodeID); ok {
+				result["location_id"] = locationID
+			}
+		case "scene_state", "room_state":
+			if scene, ok := view.Scene(query.NodeID); ok {
+				result["scene"] = scene
+			}
+		case "task_state":
+			if status, stage, ok := view.QuestStatus(query.NodeID); ok {
+				result["status"] = status
+				result["stage"] = stage
+			}
+		case "item_presence":
+			result["item_id"] = query.Filter
+			result["present"] = view.ItemPresentOnActor(query.NodeID, query.Filter)
+		default:
+			result["unsupported"] = true
+		}
+		results = append(results, result)
+	}
+	return results
 }
 
 func parseRuntimeTaskPayload(raw string) map[string]any {
