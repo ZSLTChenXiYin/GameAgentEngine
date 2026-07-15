@@ -41,12 +41,12 @@ Use this checklist to execute the staged full-functional validation plan.
 
 ## S5 World Evolution and Continuity
 
-- [ ] configure world time settings
-- [ ] execute one world tick
-- [ ] inspect timeline latest/list
-- [ ] inspect state list/get
-- [ ] inspect debug continuity
-- [ ] inspect logs and traces for one request_id
+- [x] configure world time settings
+- [x] execute one world tick
+- [x] inspect timeline latest/list
+- [x] inspect state list/get
+- [x] inspect debug continuity
+- [x] inspect logs and traces for one request_id
 
 ## S6 Runtime Task Delivery
 

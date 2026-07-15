@@ -1,0 +1,6 @@
+{
+  "continuity_rules": [
+    "Do not drop established logistics facts unless explicitly contradicted.",
+    "Preserve the active patrol route when summarizing the new tick."
+  ]
+}

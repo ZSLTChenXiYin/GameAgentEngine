@@ -1,0 +1,27 @@
+{
+  "tick_scale_mode": "flexible",
+  "tick_min_unit": "hour",
+  "tick_step": 1,
+  "tick_units": ["day", "hour"],
+  "time_scale_carry": [
+    {
+      "from": "hour",
+      "to": "day",
+      "base": 24
+    }
+  ],
+  "time_calendar": {
+    "enabled": true,
+    "calendar_name": "Cycle",
+    "units": [
+      {
+        "unit": "day",
+        "value": "12"
+      },
+      {
+        "unit": "hour",
+        "value": "8"
+      }
+    ]
+  }
+}

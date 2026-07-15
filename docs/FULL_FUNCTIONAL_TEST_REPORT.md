@@ -22,7 +22,7 @@
 | S2 Worker self-validation | completed | worker unit tests and build passed |
 | S3 Automated regression | completed | `go test ./...` passed |
 | S4 Base data plane | completed | `docs/tests/full_functional_base_data.ps1` passed against isolated source-built Engine |
-| S5 World evolution and continuity | pending | |
+| S5 World evolution and continuity | completed | `docs/tests/full_functional_continuity.ps1` passed against isolated mock-provider Engine |
 | S6 Runtime task delivery | pending | |
 | S7 Callback/resume orchestration | pending | |
 | S8 Tooling smoke | pending | |
@@ -66,11 +66,21 @@
 
 ## World Evolution and Continuity Results
 
-- world tick:
-- timeline latest/list:
-- state list/get:
-- debug continuity:
-- logs/traces correlation:
+- world tick: passed; `advanced_ticks=2`, request id `6c33c53b-ec44-4423-8144-8f841920cf91`
+- timeline latest/list: passed; latest tick `#1`, latest/list head matched, timeline payload carried `world_time_state`
+- state list/get: passed; continuity state included `world_state`, `story_state`, `story_history`, `tick_policy`, `world_time_state`
+- debug continuity: passed; `logs=2`, `traces=1` in request-scoped continuity bundle
+- logs/traces correlation: passed; request-scoped `logs` and `debug traces` both matched `6c33c53b-ec44-4423-8144-8f841920cf91`
+
+## World Evolution Execution Notes
+
+- script: `powershell -NoProfile -ExecutionPolicy Bypass -File .\docs\tests\full_functional_continuity.ps1 -EngineBaseUrl http://127.0.0.1:18081 -DevCliPath <temp>\GameAgentDevCli.exe -BaseDataResultPath docs\tests\full_functional_base_data_result_s5.json -OutFile docs\tests\full_functional_continuity_result.json`
+- temp config: `C:\Users\808\AppData\Local\Temp\gae-s5-src-20260715123313\gameagentengine.conf.yaml`
+- runtime mode: source-built Engine + mock provider
+- result artifact: `docs/tests/full_functional_continuity_result.json`
+- world id: `7be14a95-387d-4280-8011-b02ed444c0c1`
+- request id: `6c33c53b-ec44-4423-8144-8f841920cf91`
+- latest world time label: `Cycle历 12day 10hour`
 
 ## Runtime Task Delivery Results
 
