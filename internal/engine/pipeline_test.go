@@ -42,8 +42,8 @@ type captureProvider struct {
 }
 
 type sequenceProvider struct {
-	responses []string
-	calls     int
+	responses  []string
+	calls      int
 	lastPrompt string
 }
 
@@ -561,6 +561,85 @@ func TestExecuteDialogueInjectsDynamicInterfacePromptBlock(t *testing.T) {
 		if !strings.Contains(provider.lastPrompt, want) {
 			t.Fatalf("expected prompt to contain %q, got %s", want, provider.lastPrompt)
 		}
+	}
+}
+
+func TestExecuteCustomPlayerInputInterpretUsesDedicatedPromptAndResponse(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"intent ready","player_intent":{"intent":{"type":"speech","actor_node_id":"` + nodeID + `","target_node_id":"npc_1","summary":"询问老板","risk_level":"low","confidence":0.9},"missing_facts":[],"suggested_interaction":{"mode":"direct_dialogue","event_type":"speech","audience_scope":"private","target_node_id":"npc_1"}}}`}
+	pipeline := NewPipeline(provider)
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context: &InvokeContext{
+			PlayerInputInterpret: true,
+			Interaction: &InteractionContext{
+				Mode:          "direct_dialogue",
+				SpeakerNodeID: nodeID,
+				TargetNodeID:  "npc_1",
+				SceneNodeID:   "scene_inn",
+			},
+		},
+		Messages: []ChatMessage{{Role: "user", Content: "我想问老板今晚见没见过这个人"}},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(provider.lastPrompt, "行为意图提案") {
+		t.Fatalf("expected dedicated prompt, got %s", provider.lastPrompt)
+	}
+	if resp.PlayerIntent == nil || resp.PlayerIntent.Intent == nil {
+		t.Fatalf("expected player intent in response, got %#v", resp)
+	}
+	if resp.PlayerIntent.Intent.Type != "speech" {
+		t.Fatalf("unexpected intent type: %#v", resp.PlayerIntent.Intent)
+	}
+}
+
+func TestExecuteCustomPlayerInputInterpretStripsLegacyPrefixFromMessage(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	_, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Messages: []ChatMessage{{Role: "user", Content: "[player_input_interpret]\n我把刀拍在柜台上"}},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(provider.lastMsgs) != 1 || strings.Contains(provider.lastMsgs[0].Content, "[player_input_interpret]") {
+		t.Fatalf("expected sanitized message, got %#v", provider.lastMsgs)
+	}
+	if provider.lastMsgs[0].Content != "我把刀拍在柜台上" {
+		t.Fatalf("unexpected sanitized content: %#v", provider.lastMsgs)
+	}
+	if !strings.Contains(provider.lastPrompt, "行为意图提案") {
+		t.Fatalf("expected dedicated prompt, got %s", provider.lastPrompt)
+	}
+}
+
+func TestExecuteCustomPlayerInputInterpretRejectsInvalidPlayerIntent(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"intent ready","player_intent":{"intent":{"type":"speech","actor_node_id":"` + nodeID + `","risk_level":"critical","confidence":0.9}}}`}
+	pipeline := NewPipeline(provider)
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context:  &InvokeContext{PlayerInputInterpret: true},
+		Messages: []ChatMessage{{Role: "user", Content: "test"}},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp.PlayerIntent != nil {
+		t.Fatalf("expected invalid player intent to be dropped, got %#v", resp.PlayerIntent)
 	}
 }
 

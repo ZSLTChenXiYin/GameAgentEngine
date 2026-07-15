@@ -181,13 +181,14 @@ type InteractionContext struct {
 
 // InvokeContext 表示调用方希望追加的上下文约束，可在请求层面覆盖服务端配置。
 type InvokeContext struct {
-	MaxAnalysisRounds   int                 `json:"max_analysis_rounds,omitempty"`   // LLM 内部轮询最大次数（0 表示使用服务端配置）
-	MaxDepth            int                 `json:"max_depth,omitempty"`             // 上下文向上追溯的最大深度（0 表示使用服务端配置）
-	MemoryLimit         int                 `json:"memory_limit,omitempty"`          // 每次推理最多加载的记忆数量（0 表示使用服务端配置）
-	IncludeRelatedNodes bool                `json:"include_related_nodes,omitempty"` // 是否启用受控关系补充；这不是“把所有邻接关系节点全部塞进上下文”的开关。
-	PipelineMode        string              `json:"pipeline_mode,omitempty"`         // 管线模式：vertical/polling/full；也决定关系图谱装配强度。
-	DynamicInterfaces   []DynamicInterface  `json:"dynamic_interfaces,omitempty"`    // 当前请求临时暴露给模型的外部接口白名单。
-	Interaction         *InteractionContext `json:"interaction,omitempty"`
+	MaxAnalysisRounds    int                 `json:"max_analysis_rounds,omitempty"`    // LLM 内部轮询最大次数（0 表示使用服务端配置）
+	MaxDepth             int                 `json:"max_depth,omitempty"`              // 上下文向上追溯的最大深度（0 表示使用服务端配置）
+	MemoryLimit          int                 `json:"memory_limit,omitempty"`           // 每次推理最多加载的记忆数量（0 表示使用服务端配置）
+	IncludeRelatedNodes  bool                `json:"include_related_nodes,omitempty"`  // 是否启用受控关系补充；这不是“把所有邻接关系节点全部塞进上下文”的开关。
+	PipelineMode         string              `json:"pipeline_mode,omitempty"`          // 管线模式：vertical/polling/full；也决定关系图谱装配强度。
+	PlayerInputInterpret bool                `json:"player_input_interpret,omitempty"` // 当前请求是否走玩家自然语言意图解释路径。
+	DynamicInterfaces    []DynamicInterface  `json:"dynamic_interfaces,omitempty"`     // 当前请求临时暴露给模型的外部接口白名单。
+	Interaction          *InteractionContext `json:"interaction,omitempty"`
 }
 
 // InvokeRequest 是 SDK 侧的统一推理请求结构。

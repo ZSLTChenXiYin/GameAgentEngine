@@ -277,6 +277,103 @@ func appendDynamicInterfaceContext(systemContext string, dynamicInterfaces []Dyn
 	return strings.TrimSpace(systemContext + block)
 }
 
+func buildPlayerIntentPrompt(systemContext string, nodeID string, interaction *InteractionContext) string {
+	targetNodeID := ""
+	sceneNodeID := ""
+	mode := "direct_dialogue"
+	if interaction != nil {
+		targetNodeID = strings.TrimSpace(interaction.TargetNodeID)
+		sceneNodeID = strings.TrimSpace(interaction.SceneNodeID)
+		if strings.TrimSpace(interaction.Mode) != "" {
+			mode = strings.TrimSpace(interaction.Mode)
+		}
+	}
+	return fmt.Sprintf(`你现在不是在直接扮演 NPC 回话，而是在为玩家节点生成“行为意图提案”。
+你必须把玩家输入理解为待验证的主张，而不是已成立事实。玩家自然语言里提到的地点、物品、金钱、任务进度、场景占用、即时状态，都只有在上下文明确给出或后续由权威接口验证后才能当真。
+
+你的任务：
+1. 将玩家输入整理成结构化 player_intent 提案。
+2. 必要时用 request_data 请求权威数据来补事实。
+3. 给出 missing_facts，指出哪些关键事实尚未验证。
+4. 给出 suggested_interaction，说明后续更适合走哪类 interaction。
+5. 不要把提案描述成“已经执行成功”的结果。
+
+输出必须是单个 JSON 对象，不能包含额外文本。
+
+允许输出字段：
+- reply: 可选，给调用方的人类可读摘要，应该简短。
+- request_data: 可选。当缺少权威事实时，用它请求游戏侧或引擎侧数据。
+- player_intent: 必填。结构如下：
+{
+  "intent": {
+    "type": "speech|show_item|gift|trade_request|threaten|move|inspect|use_item|composite",
+    "actor_node_id": "%s",
+    "scene_node_id": "%s",
+    "target_node_id": "%s",
+    "summary": "一句话总结玩家意图",
+    "risk_level": "low|medium|high",
+    "confidence": 0.0,
+    "steps": [
+      {
+        "type": "speech|show_item|gift|trade_request|threaten|move|inspect|use_item",
+        "target_node_id": "可选",
+        "scene_node_id": "可选",
+        "item_id": "可选",
+        "content": "speech 时填写",
+        "args": {},
+        "preconditions": [
+          {
+            "type": "same_scene|target_present|item_present|money_at_least|task_status|scene_flag|location_accessible",
+            "actor_node_id": "%s",
+            "target_node_id": "可选",
+            "scene_node_id": "可选",
+            "item_id": "可选",
+            "task_id": "可选",
+            "expected": "可选",
+            "args": {}
+          }
+        ]
+      }
+    ]
+  },
+  "missing_facts": [
+    {
+      "type": "scene_presence|item_presence|money_state|task_state|scene_state|target_state|location_access",
+      "node_id": "可选",
+      "item_id": "可选",
+      "task_id": "可选",
+      "reason": "为什么缺这个事实"
+    }
+  ],
+  "suggested_interaction": {
+    "mode": "direct_dialogue|group_chat|gift_response|trade_dialogue",
+    "event_type": "speech|show_item|gift|trade_request|threaten|inspect|use_item|move",
+    "audience_scope": "private|public|scene",
+    "target_node_id": "可选"
+  }
+}
+
+request_data 格式：
+{"label":"查询标签","target":"store","queries":[{"type":"node_components","node_id":"节点ID","filter":"","limit":10}]}
+
+推理约束：
+- 如果玩家说“我把沾血的短刀拍在柜台上”，但上下文没有确认玩家有短刀、也没有确认玩家在柜台附近，就必须把它拆成待验证步骤，并补 preconditions 或 missing_facts。
+- 如果玩家输入本质上是“对 NPC 说一句话”，可以把语言内容放入 speech step 的 content 中。
+- 如果一句输入包含多段动作，优先使用 composite，把动作序列拆开。
+- 如果目标不明确，可以保留空 target_node_id，但要在 suggested_interaction 或 missing_facts 中说明。
+- 只有在确实不需要更多权威数据时，才省略 request_data。
+
+当前交互参考：
+- actor_node_id=%s
+- interaction_mode=%s
+- target_node_id=%s
+- scene_node_id=%s
+
+========== 上下文 ==========
+%s
+`, nodeID, sceneNodeID, targetNodeID, nodeID, nodeID, mode, targetNodeID, sceneNodeID, systemContext)
+}
+
 func buildDialoguePrompt(systemContext string, nodeID string) string {
 	return fmt.Sprintf(`你是一个游戏 Agent 系统中的 NPC 角色扮演引擎。
 重要：如果你需要查询更多数据来进行回复，可以在输出中包含 request_data 字段。例如：需要查询某个节点的记忆或组件时，可以输出 request_data 让引擎自动加载。

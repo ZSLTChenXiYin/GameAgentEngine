@@ -427,6 +427,7 @@ type llmParsedOutput struct {
 	RawMemoryUpdates        string
 	RawPlan                 string
 	RawRequestData          string
+	RawPlayerIntent         string
 	RawInterimMemoryUpdates string
 	RawFutureOutline        string
 	RawSubTasks             string
@@ -472,6 +473,9 @@ func (p *Pipeline) parseLLMJSON(content string) *llmParsedOutput {
 	}
 	if rd, ok := raw["request_data"]; ok {
 		out.RawRequestData = string(rd)
+	}
+	if pi, ok := raw["player_intent"]; ok {
+		out.RawPlayerIntent = string(pi)
 	}
 	if wcp, ok := raw["world_change_plan"]; ok {
 		out.RawPlan = string(wcp)

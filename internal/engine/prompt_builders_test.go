@@ -66,3 +66,16 @@ func TestBuildDialogueModeInstructionIncludesThreatenConstraint(t *testing.T) {
 		t.Fatalf("expected threaten guidance, got %q", text)
 	}
 }
+
+func TestBuildPlayerIntentPromptIncludesProposalConstraints(t *testing.T) {
+	text := buildPlayerIntentPrompt("system context", "player_1", &InteractionContext{
+		Mode:         "direct_dialogue",
+		TargetNodeID: "npc_innkeeper",
+		SceneNodeID:  "scene_inn",
+	})
+	for _, want := range []string{"行为意图提案", "player_intent", "missing_facts", "suggested_interaction", "request_data", "后续由权威接口验证后才能当真", "composite"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("expected prompt to contain %q, got %q", want, text)
+		}
+	}
+}

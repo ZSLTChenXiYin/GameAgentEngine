@@ -383,13 +383,14 @@ type InteractionContext struct {
 type InvokeContext struct {
 	// IncludeRelatedNodes 是受控的关系补充开关，不是“把所有关系边另一端节点全部展开”的许可。
 	// 后续实现应允许它按任务/关系类型/方向/hop 数受限扩图，避免关系噪音淹没主上下文。
-	IncludeRelatedNodes bool                `json:"include_related_nodes,omitempty"`
-	MemoryLimit         int                 `json:"memory_limit,omitempty"`
-	MaxDepth            int                 `json:"max_depth,omitempty"`
-	MaxAnalysisRounds   int                 `json:"max_analysis_rounds,omitempty"`
-	PipelineMode        PipelineMode        `json:"pipeline_mode,omitempty"`
-	DynamicInterfaces   []DynamicInterface  `json:"dynamic_interfaces,omitempty"`
-	Interaction         *InteractionContext `json:"interaction,omitempty"`
+	IncludeRelatedNodes  bool                `json:"include_related_nodes,omitempty"`
+	MemoryLimit          int                 `json:"memory_limit,omitempty"`
+	MaxDepth             int                 `json:"max_depth,omitempty"`
+	MaxAnalysisRounds    int                 `json:"max_analysis_rounds,omitempty"`
+	PipelineMode         PipelineMode        `json:"pipeline_mode,omitempty"`
+	PlayerInputInterpret bool                `json:"player_input_interpret,omitempty"`
+	DynamicInterfaces    []DynamicInterface  `json:"dynamic_interfaces,omitempty"`
+	Interaction          *InteractionContext `json:"interaction,omitempty"`
 }
 
 // InvokeResponse 是统一的推理响应结构。

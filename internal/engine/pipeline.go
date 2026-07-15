@@ -217,6 +217,59 @@ func reqInteractionContext(req *InvokeRequest) *InteractionContext {
 	return req.Context.Interaction
 }
 
+func isPlayerInputInterpretRequest(req *InvokeRequest) bool {
+	if req == nil {
+		return false
+	}
+	if req.Context != nil && req.Context.PlayerInputInterpret {
+		return true
+	}
+	for _, msg := range req.Messages {
+		if strings.HasPrefix(strings.TrimSpace(msg.Content), "[player_input_interpret]") {
+			return true
+		}
+	}
+	return false
+}
+
+func stripPlayerInputInterpretPrefix(content string) string {
+	trimmed := strings.TrimSpace(content)
+	const marker = "[player_input_interpret]"
+	if !strings.HasPrefix(trimmed, marker) {
+		return trimmed
+	}
+	return strings.TrimSpace(strings.TrimPrefix(trimmed, marker))
+}
+
+func normalizedPlayerInputMessages(messages []ChatMessage) []ChatMessage {
+	if len(messages) == 0 {
+		return nil
+	}
+	result := make([]ChatMessage, len(messages))
+	for i, msg := range messages {
+		result[i] = msg
+		result[i].Content = stripPlayerInputInterpretPrefix(msg.Content)
+	}
+	return result
+}
+
+func applyParsedPlayerIntent(resp *InvokeResponse, parsed *llmParsedOutput) *InvokeResponse {
+	if resp == nil || parsed == nil || strings.TrimSpace(parsed.RawPlayerIntent) == "" {
+		return resp
+	}
+	var payload PlayerIntentInterpretation
+	if err := json.Unmarshal([]byte(parsed.RawPlayerIntent), &payload); err != nil {
+		log.Printf("[player-intent] parse failed: %v", err)
+		return resp
+	}
+	if err := ValidatePlayerIntentInterpretation(&payload); err != nil {
+		log.Printf("[player-intent] validation failed: %v", err)
+		return resp
+	}
+	resp.PlayerIntent = &payload
+	return resp
+}
+
 func targetDialogueNodeID(req *InvokeRequest, ctx *BuiltContext) string {
 	if ctx != nil && ctx.TargetNode != nil && strings.TrimSpace(ctx.TargetNode.UUID) != "" {
 		return ctx.TargetNode.UUID
@@ -526,23 +579,23 @@ func (p *Pipeline) ResumePausedExecution(callbackID string, result any) (*Invoke
 }
 
 type RoundState struct {
-	Context             *BuiltContext
-	Tree                *TaskTree
-	TreeContext         string
-	SystemPrompt        string
-	Messages            []ChatMessage
-	TargetNodeID        string
-	MaxRounds           int
-	SupplementalContext []string
-	ResolvedDataRequests map[string]string
-	PendingResumePhase  string
-	PendingResponse     *InvokeResponse
+	Context                      *BuiltContext
+	Tree                         *TaskTree
+	TreeContext                  string
+	SystemPrompt                 string
+	Messages                     []ChatMessage
+	TargetNodeID                 string
+	MaxRounds                    int
+	SupplementalContext          []string
+	ResolvedDataRequests         map[string]string
+	PendingResumePhase           string
+	PendingResponse              *InvokeResponse
 	PendingMergedSubTaskResponse *InvokeResponse
-	PendingSubTasks       []SubTaskDeclaration
-	PendingSubTaskResults map[string]*InvokeResponse
-	PendingSubTaskFailed  map[string]string
-	PendingSubTaskResume  *pausedSubTaskResume
-	PendingSummaries      []pausedSummaryMerge
+	PendingSubTasks              []SubTaskDeclaration
+	PendingSubTaskResults        map[string]*InvokeResponse
+	PendingSubTaskFailed         map[string]string
+	PendingSubTaskResume         *pausedSubTaskResume
+	PendingSummaries             []pausedSummaryMerge
 }
 
 type pausedExecutionRuntime struct {
@@ -1716,6 +1769,9 @@ func (p *Pipeline) executeMultiTurnLoop(
 		TargetNodeID: targetNodeID,
 		MaxRounds:    runtime.maxRounds,
 	}
+	if isPlayerInputInterpretRequest(req) {
+		state.Messages = sanitizeRoles(normalizedPlayerInputMessages(req.Messages))
+	}
 	return p.executeMultiTurnLoopInternal(req, ctx, start, requestID, runtime, state, 0, taskPromptFn, toolFn, finalizeFn, executionMode)
 }
 
@@ -1826,13 +1882,29 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 			return resp
 		}
 	default:
-		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-			return treeContext
-		}
-		toolFn = func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
-			_ = nodeID
-			_ = round
-			return requestLLMTools(req, []LLMToolDefinition{builtinStoreRequestTool()})
+		if isPlayerInputInterpretRequest(req) {
+			taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
+				return buildPlayerIntentPrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), nodeID, reqInteractionContext(req))
+			}
+			toolFn = func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
+				_ = nodeID
+				_ = round
+				return requestLLMTools(req, []LLMToolDefinition{builtinStoreRequestTool()})
+			}
+			finalizeFn = func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
+				_ = ctx
+				_ = req
+				return applyParsedPlayerIntent(resp, parsed)
+			}
+		} else {
+			taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
+				return treeContext
+			}
+			toolFn = func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
+				_ = nodeID
+				_ = round
+				return requestLLMTools(req, []LLMToolDefinition{builtinStoreRequestTool()})
+			}
 		}
 	}
 	return p.executeMultiTurnLoopInternal(req, ctx, start, requestID, runtime, state, startRound, taskPromptFn, toolFn, finalizeFn, executionMode)
@@ -2146,6 +2218,7 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 		if finalizeFn != nil {
 			resp = finalizeFn(resp, parsed, state.Context, req)
 		}
+		resp = applyParsedPlayerIntent(resp, parsed)
 
 		p.writeMemories(req, runtime, executionMode, resp.MemoryUpdates)
 		for _, mem := range resp.MemoryUpdates {
@@ -2246,10 +2319,19 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 			return resp, nil
 		}
 	default:
-		systemPrompt = ctxDesc
+		if isPlayerInputInterpretRequest(req) {
+			systemPrompt = buildPlayerIntentPrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), req.NodeID, reqInteractionContext(req))
+		} else {
+			systemPrompt = ctxDesc
+		}
 	}
 
-	llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: systemPrompt, Messages: sanitizeRoles(req.Messages), Tools: p.negotiatedLLMTools(requestDynamicTools(req))})
+	messages := sanitizeRoles(req.Messages)
+	if isPlayerInputInterpretRequest(req) {
+		messages = sanitizeRoles(normalizedPlayerInputMessages(req.Messages))
+	}
+
+	llmResp, err := p.llmProvider.Chat(&LLMChatRequest{SystemPrompt: systemPrompt, Messages: messages, Tools: p.negotiatedLLMTools(requestDynamicTools(req))})
 	if err != nil {
 		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 			Category:   "pipeline_round",
@@ -2290,6 +2372,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 		ActionCalls:   p.executeActions(req, runtime, executionMode, runtime.policyEngine, p.parseActionCalls(parsed.RawActionCalls, req.NodeID)),
 		MemoryUpdates: p.parseMemoryUpdates(parsed.RawMemoryUpdates),
 	}
+	resp = applyParsedPlayerIntent(resp, parsed)
 	if parsed.RawPlan != "" {
 		var wcp WorldChangePlan
 		if err := json.Unmarshal([]byte(parsed.RawPlan), &wcp); err == nil {
@@ -2720,8 +2803,10 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 
 func (p *Pipeline) executeCustom(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {
 	customFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-		_ = nodeID
 		_ = round
+		if isPlayerInputInterpretRequest(req) {
+			return buildPlayerIntentPrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), nodeID, reqInteractionContext(req))
+		}
 		return treeContext
 	}
 	var tree *TaskTree
@@ -2733,5 +2818,13 @@ func (p *Pipeline) executeCustom(req *InvokeRequest, ctx *BuiltContext, start ti
 		_ = round
 		return requestLLMTools(req, []LLMToolDefinition{builtinStoreRequestTool()})
 	}
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, customFn, customToolFn, nil, executionMode)
+	finalizeFn := func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
+		_ = ctx
+		_ = req
+		return applyParsedPlayerIntent(resp, parsed)
+	}
+	if !isPlayerInputInterpretRequest(req) {
+		finalizeFn = nil
+	}
+	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, customFn, customToolFn, finalizeFn, executionMode)
 }

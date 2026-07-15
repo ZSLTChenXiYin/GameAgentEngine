@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -42,6 +41,7 @@ func MakePlayerInputInterpretHandler(p *engine.Pipeline) http.HandlerFunc {
 		if ctx == nil {
 			ctx = &engine.InvokeContext{}
 		}
+		ctx.PlayerInputInterpret = true
 		interaction := ctx.Interaction
 		if interaction == nil {
 			participants := append([]string(nil), req.ParticipantNodeIDs...)
@@ -88,7 +88,7 @@ func MakePlayerInputInterpretHandler(p *engine.Pipeline) http.HandlerFunc {
 			Context:   ctx,
 			Messages: []engine.ChatMessage{{
 				Role:    "user",
-				Content: buildPlayerInputPromptMessage(req.Message),
+				Content: strings.TrimSpace(req.Message),
 			}},
 		}
 		resp, err := p.Execute(invokeReq)
@@ -98,11 +98,6 @@ func MakePlayerInputInterpretHandler(p *engine.Pipeline) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, resp)
 	}
-}
-
-func buildPlayerInputPromptMessage(message string) string {
-	trimmed := strings.TrimSpace(message)
-	return fmt.Sprintf("[player_input_interpret]\n%s", trimmed)
 }
 
 func inferPlayerInputAudienceScope(mode string) string {

@@ -254,6 +254,7 @@ func buildLLMResponseDetail(raw string, parsed *llmParsedOutput) string {
 		data["memory_updates"] = parsed.RawMemoryUpdates
 		data["world_change_plan"] = parsed.RawPlan
 		data["request_data"] = parsed.RawRequestData
+		data["player_intent"] = parsed.RawPlayerIntent
 		data["interim_memory_updates"] = parsed.RawInterimMemoryUpdates
 		data["future_outline"] = parsed.RawFutureOutline
 		data["sub_tasks"] = parsed.RawSubTasks
@@ -274,6 +275,7 @@ func buildLLMResponseDetailWithMetadata(raw string, parsed *llmParsedOutput, met
 		data["memory_updates"] = parsed.RawMemoryUpdates
 		data["world_change_plan"] = parsed.RawPlan
 		data["request_data"] = parsed.RawRequestData
+		data["player_intent"] = parsed.RawPlayerIntent
 		data["interim_memory_updates"] = parsed.RawInterimMemoryUpdates
 		data["future_outline"] = parsed.RawFutureOutline
 		data["sub_tasks"] = parsed.RawSubTasks

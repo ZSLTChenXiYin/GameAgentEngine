@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,17 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
 )
+
+type capturePlayerInputProvider struct {
+	lastReq *engine.LLMChatRequest
+}
+
+func (c *capturePlayerInputProvider) Chat(req *engine.LLMChatRequest) (*engine.LLMResult, error) {
+	c.lastReq = req
+	return &engine.LLMResult{Content: `{"reply":"ok","action_calls":[],"memory_updates":[]}`, Model: "capture-player-input", Tokens: 5}, nil
+}
+
+func (c *capturePlayerInputProvider) ModelName() string { return "capture-player-input" }
 
 func initMiddlewareTestDB(t *testing.T) {
 	t.Helper()
@@ -320,7 +332,8 @@ func TestPlayerInputInterpretHandlerAcceptsValidRequest(t *testing.T) {
 	if err := store.CreateNode(player); err != nil {
 		t.Fatalf("create player node: %v", err)
 	}
-	h := MakePlayerInputInterpretHandler(engine.NewPipeline(&singleResponseProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}))
+	provider := &capturePlayerInputProvider{}
+	h := MakePlayerInputInterpretHandler(engine.NewPipeline(provider))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/player/input/interpret", strings.NewReader(`{
 		"world_id":"w1",
 		"player_node_id":"player_1",
@@ -336,5 +349,20 @@ func TestPlayerInputInterpretHandlerAcceptsValidRequest(t *testing.T) {
 	}
 	if strings.Contains(w.Body.String(), "invalid_interaction") {
 		t.Fatalf("did not expect invalid_interaction, got %s", w.Body.String())
+	}
+	if provider.lastReq == nil {
+		t.Fatal("expected provider request to be captured")
+	}
+	if !strings.Contains(provider.lastReq.SystemPrompt, "行为意图提案") {
+		t.Fatalf("expected player intent prompt, got %s", provider.lastReq.SystemPrompt)
+	}
+	if len(provider.lastReq.Messages) != 1 || strings.Contains(provider.lastReq.Messages[0].Content, "[player_input_interpret]") {
+		t.Fatalf("expected sanitized player message, got %#v", provider.lastReq.Messages)
+	}
+	var body struct {
+		PlayerIntent *json.RawMessage `json:"player_intent,omitempty"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
 	}
 }
