@@ -74,16 +74,31 @@ var serveCmd = &cobra.Command{
 		}
 
 		var provider engine.LLMProvider
-		if config.Global.LLM.APIKey != "" {
-			provider = llm.NewOpenAIProvider(
-				config.Global.LLM.APIKey,
-				config.Global.LLM.BaseURL,
-				config.Global.LLM.Model,
-			)
-			log.Printf("LLM: %s (%s)", config.Global.LLM.Model, config.Global.LLM.BaseURL)
-		} else {
-			log.Print("LLM: no API key configured, using mock provider")
+		switch config.Global.LLM.Provider {
+		case "fixture":
+			fixtureProvider, err := llm.NewFixtureProvider(config.Global.LLM.Model, config.Global.LLM.FixtureFile)
+			if err != nil {
+				log.Fatalf("llm fixture provider: %v", err)
+			}
+			provider = fixtureProvider
+			log.Printf("LLM: fixture provider (%s) file=%s", config.Global.LLM.Model, config.Global.LLM.FixtureFile)
+		case "mock":
 			provider = llm.NewMockProvider()
+			log.Print("LLM: using mock provider by config")
+		case "", "openai":
+			if config.Global.LLM.APIKey != "" {
+				provider = llm.NewOpenAIProvider(
+					config.Global.LLM.APIKey,
+					config.Global.LLM.BaseURL,
+					config.Global.LLM.Model,
+				)
+				log.Printf("LLM: %s (%s)", config.Global.LLM.Model, config.Global.LLM.BaseURL)
+			} else {
+				log.Print("LLM: no API key configured, using mock provider")
+				provider = llm.NewMockProvider()
+			}
+		default:
+			log.Fatalf("unsupported llm.provider: %s", config.Global.LLM.Provider)
 		}
 
 		pipeline := engine.NewPipeline(provider)

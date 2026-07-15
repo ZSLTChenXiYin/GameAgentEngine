@@ -58,6 +58,7 @@ llm:
   model: "deepseek-v4-flash"
   api_key: "sk-xxx"
   base_url: "https://api.deepseek.com"
+  fixture_file: ""
 
 engine:
   execution_mode: "debug"
@@ -74,12 +75,19 @@ llm:
   provider: "openai"
   model: "gpt-4o-mini"
   base_url: "https://api.openai.com/v1"
+  fixture_file: ""
 
 engine:
   execution_mode: "full"
 ```
 
 This means that if you omit these fields from a config file, the engine still falls back to the internal defaults.
+
+`llm.provider` currently supports:
+
+- `openai`: use an OpenAI-compatible chat completions provider
+- `mock`: force the built-in local mock provider
+- `fixture`: replay deterministic responses from `llm.fixture_file` for end-to-end functional testing
 
 `database.driver` currently supports `sqlite`, `mysql`, and `postgres`.
 

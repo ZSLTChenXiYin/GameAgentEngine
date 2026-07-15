@@ -56,6 +56,8 @@ llm:
   api_key: "sk-xxx"
   # API 端点地址
   base_url: "https://api.deepseek.com"
+  # 当 provider=fixture 时使用的本地响应夹具文件路径
+  fixture_file: ""
 
 engine:
   # 执行模式：debug / review / production / full

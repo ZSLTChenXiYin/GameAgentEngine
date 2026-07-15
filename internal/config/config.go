@@ -56,6 +56,7 @@ type LLMConfig struct {
 	Model    string `mapstructure:"model"`
 	APIKey   string `mapstructure:"api_key"`
 	BaseURL  string `mapstructure:"base_url"`
+	FixtureFile string `mapstructure:"fixture_file"`
 }
 
 // EngineConfig 定义推理引擎运行参数。
@@ -145,6 +146,7 @@ func Init(configPath string) error {
 	v.SetDefault("llm.model", "gpt-4o-mini")
 	v.SetDefault("llm.api_key", "")
 	v.SetDefault("llm.base_url", "https://api.openai.com/v1")
+	v.SetDefault("llm.fixture_file", "")
 	v.SetDefault("engine.execution_mode", "full")
 	v.SetDefault("engine.world_lock_enabled", true)
 	v.SetDefault("engine.autonomous_scheduler_enabled", false)
