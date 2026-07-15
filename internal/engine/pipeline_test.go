@@ -564,6 +564,72 @@ func TestExecuteDialogueInjectsDynamicInterfacePromptBlock(t *testing.T) {
 	}
 }
 
+func TestExecuteDialogueUsesInteractionModePromptInstructions(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskNPCDialogue,
+		Context: &InvokeContext{Interaction: &InteractionContext{
+			Mode:          "group_chat",
+			SpeakerNodeID: "player_1",
+			TargetNodeID:  nodeID,
+			Event:         &InteractionEvent{Type: "speech"},
+		}},
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	for _, want := range []string{"交互模式约束：", "当前是群聊/房间对话", "只代表当前目标 NPC 发言"} {
+		if !strings.Contains(provider.lastPrompt, want) {
+			t.Fatalf("expected prompt to contain %q, got %s", want, provider.lastPrompt)
+		}
+	}
+}
+
+func TestExecuteDialogueUsesInteractionTargetNodeID(t *testing.T) {
+	initTestDB(t)
+	world := &store.NodeModel{UUID: store.NewUUID(), Name: "World", NodeType: "world"}
+	if err := store.CreateNode(world); err != nil {
+		t.Fatalf("create world: %v", err)
+	}
+	if err := store.DB.Model(world).Update("world_id", world.ID).Error; err != nil {
+		t.Fatalf("update world id: %v", err)
+	}
+	actor := &store.NodeModel{UUID: store.NewUUID(), Name: "PlayerMirror", NodeType: "npc", WorldID: world.ID, WorldUUID: world.UUID}
+	if err := store.CreateNode(actor); err != nil {
+		t.Fatalf("create actor: %v", err)
+	}
+	target := &store.NodeModel{UUID: store.NewUUID(), Name: "Merchant", NodeType: "npc", WorldID: world.ID, WorldUUID: world.UUID}
+	if err := store.CreateNode(target); err != nil {
+		t.Fatalf("create target: %v", err)
+	}
+
+	provider := &captureProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}
+	pipeline := NewPipeline(provider)
+	if _, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  world.UUID,
+		NodeID:   actor.UUID,
+		TaskType: TaskNPCDialogue,
+		Context: &InvokeContext{Interaction: &InteractionContext{
+			Mode:          "trade_dialogue",
+			SpeakerNodeID: actor.UUID,
+			TargetNodeID:  target.UUID,
+			Event:         &InteractionEvent{Type: "trade_request"},
+		}},
+	}); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(provider.lastPrompt, target.UUID) {
+		t.Fatalf("expected prompt to use interaction target node id %s, got %s", target.UUID, provider.lastPrompt)
+	}
+	if !strings.Contains(provider.lastPrompt, "当前交互是交易/议价对话") {
+		t.Fatalf("expected trade prompt instructions, got %s", provider.lastPrompt)
+	}
+}
+
 func TestExecuteAutonomousActInjectsDynamicInterfacePromptBlock(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)

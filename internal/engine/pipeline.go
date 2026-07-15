@@ -210,6 +210,26 @@ func effectivePipelineMode(runtime *executionConfig) string {
 	return string(runtime.pipelineMode)
 }
 
+func reqInteractionContext(req *InvokeRequest) *InteractionContext {
+	if req == nil || req.Context == nil {
+		return nil
+	}
+	return req.Context.Interaction
+}
+
+func targetDialogueNodeID(req *InvokeRequest, ctx *BuiltContext) string {
+	if ctx != nil && ctx.TargetNode != nil && strings.TrimSpace(ctx.TargetNode.UUID) != "" {
+		return ctx.TargetNode.UUID
+	}
+	if interaction := reqInteractionContext(req); interaction != nil && strings.TrimSpace(interaction.TargetNodeID) != "" {
+		return strings.TrimSpace(interaction.TargetNodeID)
+	}
+	if req == nil {
+		return ""
+	}
+	return req.NodeID
+}
+
 func maxAnalysisRounds(runtime *executionConfig) int {
 	if runtime == nil {
 		return 0
@@ -1684,12 +1704,16 @@ func (p *Pipeline) executeMultiTurnLoop(
 	finalizeFn func(*InvokeResponse, *llmParsedOutput, *BuiltContext, *InvokeRequest) *InvokeResponse,
 	executionMode ExecutionMode,
 ) (*InvokeResponse, error) {
+	targetNodeID := req.NodeID
+	if ctx != nil && ctx.TargetNode != nil && strings.TrimSpace(ctx.TargetNode.UUID) != "" {
+		targetNodeID = ctx.TargetNode.UUID
+	}
 	state := &RoundState{
 		Context:      ctx,
 		Tree:         taskTree,
 		TreeContext:  "",
 		Messages:     sanitizeRoles(req.Messages),
-		TargetNodeID: req.NodeID,
+		TargetNodeID: targetNodeID,
 		MaxRounds:    runtime.maxRounds,
 	}
 	return p.executeMultiTurnLoopInternal(req, ctx, start, requestID, runtime, state, 0, taskPromptFn, toolFn, finalizeFn, executionMode)
@@ -1711,7 +1735,7 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 	switch req.TaskType {
 	case TaskNPCDialogue:
 		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-			return buildDialoguePrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), nodeID)
+			return buildInteractionDialoguePrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), nodeID, reqInteractionContext(req))
 		}
 		toolFn = func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
 			_ = nodeID
@@ -1828,6 +1852,9 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 	executionMode ExecutionMode,
 ) (*InvokeResponse, error) {
 	targetNodeID := req.NodeID
+	if ctx != nil && ctx.TargetNode != nil && strings.TrimSpace(ctx.TargetNode.UUID) != "" {
+		targetNodeID = ctx.TargetNode.UUID
+	}
 	if state == nil {
 		state = &RoundState{
 			Context:      ctx,
@@ -2200,7 +2227,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 	ctxDesc := fmt.Sprintf("世界: %s, 节点: %s, 任务类型: %s", req.WorldID, req.NodeID, req.TaskType)
 	switch req.TaskType {
 	case TaskNPCDialogue:
-		systemPrompt = buildDialoguePrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), req.NodeID)
+		systemPrompt = buildInteractionDialoguePrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), targetDialogueNodeID(req, nil), reqInteractionContext(req))
 	case TaskWorldTick:
 		systemPrompt = buildWorldTickPrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), "", nil, nil, buildWorldTickTimeBlock(req.WorldID), "")
 	case TaskWorldEvent:
@@ -2326,7 +2353,7 @@ func (p *Pipeline) executeDialogue(req *InvokeRequest, ctx *BuiltContext, start 
 	}
 
 	dialogueFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
-		return buildDialoguePrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), nodeID)
+		return buildInteractionDialoguePrompt(appendDynamicInterfaceContext(mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext), requestDynamicInterfaces(req)), nodeID, reqInteractionContext(req))
 	}
 
 	loopRuntime := *runtime

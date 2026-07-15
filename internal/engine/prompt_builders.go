@@ -295,6 +295,64 @@ request_data 格式（可选，需要时添加）：
 `, nodeID, nodeID, systemContext)
 }
 
+func buildInteractionDialoguePrompt(systemContext string, nodeID string, interaction *InteractionContext) string {
+	mode := "direct_dialogue"
+	if interaction != nil && strings.TrimSpace(interaction.Mode) != "" {
+		mode = strings.TrimSpace(interaction.Mode)
+	}
+	modeInstructions := buildDialogueModeInstruction(mode, interaction)
+	return fmt.Sprintf(`你是游戏 Agent 系统中的 NPC 角色扮演引擎。你必须只根据当前上下文中已经确认的事实回应，不能把玩家自然语言中的未证实主张直接当成事实。
+如果你需要查询更多权威数据来进行回复，可以在输出中包含 request_data。你的输出必须是单个 JSON 对象，不能包含任何额外文字。
+
+输出格式：
+{"reply":"NPC 的对话回复","action_calls":[{"action_id":"add_memory","args":{"node_id":"%s","content":"记忆内容","level":"short_term"}}],"memory_updates":[{"node_id":"%s","content":"短期记忆","level":"short_term"}]}
+
+可用 action_id: add_memory, update_mood, send_dialogue, adjust_relation, spawn_item
+memory_updates 的 level 可选: short_term, long_term, shared, world
+
+request_data 格式（可选，需要时添加）：
+{"label":"查询标签","target":"store","queries":[{"type":"node_components","node_id":"节点ID","filter":"","limit":10}]}
+
+交互模式约束：
+%s
+
+========== NPC 角色设定 ==========
+%s
+`, nodeID, nodeID, modeInstructions, systemContext)
+}
+
+func buildDialogueModeInstruction(mode string, interaction *InteractionContext) string {
+	switch mode {
+	case "group_chat":
+		return strings.Join([]string{
+			"- 当前是群聊/房间对话。你只代表当前目标 NPC 发言，不要替其他 NPC 或玩家发言。",
+			"- 默认把对话视为公开场景，可被在场参与者听见；回复时要考虑旁听者存在。",
+			"- 只需给出当前目标 NPC 的单轮回应，不要模拟整段群体连锁对话。",
+		}, "\n")
+	case "gift_response":
+		parts := []string{
+			"- 当前交互是送礼反馈。重点回应礼物、送礼者意图、关系变化和即时态度。",
+			"- 如果礼物属性、归属或可交付性没有权威事实支持，优先 request_data，不要编造。",
+		}
+		if interaction != nil && interaction.Event != nil && strings.TrimSpace(interaction.Event.ItemID) != "" {
+			parts = append(parts, fmt.Sprintf("- 当前事件 item_id=%s，可围绕它表达态度和后续动作倾向。", interaction.Event.ItemID))
+		}
+		return strings.Join(parts, "\n")
+	case "trade_dialogue":
+		return strings.Join([]string{
+			"- 当前交互是交易/议价对话。回复应围绕价格、条件、库存、金钱、信誉与是否愿意成交。",
+			"- 如果库存、金钱、背包或物品归属需要确认，优先 request_data。",
+			"- 不要把交易直接说成已经完成，除非权威状态或动作调用已经支持。",
+		}, "\n")
+	default:
+		return strings.Join([]string{
+			"- 当前交互是点对点对话。你只代表当前目标 NPC 回复当前说话者。",
+			"- 对自然语言中的动作性主张保持事实约束：未被上下文或权威数据证实的地点、物品、状态、任务进度都不能视为既成事实。",
+			"- 缺少关键事实时优先 request_data，而不是脑补。",
+		}, "\n")
+	}
+}
+
 type resourceState struct {
 	Food     int `json:"food,omitempty"`
 	Order    int `json:"order,omitempty"`
