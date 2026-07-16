@@ -60,6 +60,8 @@ func (a *app) runNamedTestScenario(scenario string) error {
 	switch trimmed {
 	case "base-data":
 		return a.runBaseDataScenario()
+	case "continuity":
+		return a.runContinuityScenario()
 	}
 	return fmt.Errorf("worker test scenario %q is not implemented yet", trimmed)
 }

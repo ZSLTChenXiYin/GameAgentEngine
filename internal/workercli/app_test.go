@@ -293,11 +293,11 @@ func TestNewTestCommandRegistersExpectedScenarios(t *testing.T) {
 
 func TestRunNamedTestScenarioReturnsNotImplemented(t *testing.T) {
 	a := newTestApp()
-	err := a.runNamedTestScenario("continuity")
+	err := a.runNamedTestScenario("runtime-tasks")
 	if err == nil {
 		t.Fatal("expected not implemented error")
 	}
-	if got := err.Error(); got != "worker test scenario \"continuity\" is not implemented yet" {
+	if got := err.Error(); got != "worker test scenario \"runtime-tasks\" is not implemented yet" {
 		t.Fatalf("unexpected error: %s", got)
 	}
 }

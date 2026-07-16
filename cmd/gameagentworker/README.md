@@ -127,5 +127,5 @@ Use this worker in the full-functional plan for:
 
 Current migration status:
 
-- `test base-data` is implemented in the worker CLI.
+- `test base-data` and `test continuity` are implemented in the worker CLI.
 - Remaining test scenarios are being migrated from legacy scripts into `gameagentworker test ...`.
