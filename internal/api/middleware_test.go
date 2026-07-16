@@ -304,6 +304,34 @@ func TestInvokeHandlerAcceptsValidInteraction(t *testing.T) {
 	}
 }
 
+func TestInvokeHandlerRejectsNPCDialogueNodeTargetMismatch(t *testing.T) {
+	initMiddlewareTestDB(t)
+	h := MakeInvokeHandler(nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/invoke", strings.NewReader(`{
+		"world_id":"w1",
+		"node_id":"npc_a",
+		"task_type":"npc_dialogue",
+		"context":{
+			"interaction":{
+				"mode":"direct_dialogue",
+				"speaker_node_id":"player_1",
+				"target_node_id":"npc_b",
+				"participant_node_ids":["player_1","npc_b"],
+				"event":{"type":"speech"}
+			}
+		}
+	}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "invalid_interaction_contract") {
+		t.Fatalf("expected invalid_interaction_contract, got %s", w.Body.String())
+	}
+}
+
 func TestPlayerInputInterpretHandlerRejectsMissingFields(t *testing.T) {
 	initMiddlewareTestDB(t)
 	h := MakePlayerInputInterpretHandler(nil)
@@ -367,6 +395,34 @@ func TestPlayerInputInterpretHandlerAcceptsValidRequest(t *testing.T) {
 	}
 }
 
+func TestPlayerInputInterpretHandlerRejectsSpeakerNodeMismatchInExplicitInteraction(t *testing.T) {
+	initMiddlewareTestDB(t)
+	h := MakePlayerInputInterpretHandler(nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/player/input/interpret", strings.NewReader(`{
+		"world_id":"w1",
+		"player_node_id":"player_1",
+		"message":"hello",
+		"context":{
+			"interaction":{
+				"mode":"direct_dialogue",
+				"speaker_node_id":"player_2",
+				"target_node_id":"npc_1",
+				"participant_node_ids":["player_2","npc_1"],
+				"event":{"type":"speech"}
+			}
+		}
+	}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "invalid_interaction_contract") {
+		t.Fatalf("expected invalid_interaction_contract, got %s", w.Body.String())
+	}
+}
+
 func TestExecuteInteractionHandlerRejectsMissingFields(t *testing.T) {
 	initMiddlewareTestDB(t)
 	h := MakeExecuteInteractionHandler(nil)
@@ -420,5 +476,64 @@ func TestExecuteInteractionHandlerAcceptsValidRequest(t *testing.T) {
 	}
 	if strings.Contains(w.Body.String(), "invalid_interaction") {
 		t.Fatalf("did not expect invalid_interaction, got %s", w.Body.String())
+	}
+}
+
+func TestBuildCanonicalInteractionContextDefaults(t *testing.T) {
+	ctx, err := buildCanonicalInteractionContext(interactionContractInput{
+		ActorNodeID:           "player_1",
+		ParticipantNodeIDs:    []string{"player_1", "npc_1", "npc_2"},
+		FallbackTargetToActor: true,
+	}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ctx.Mode != "group_chat" {
+		t.Fatalf("expected group_chat mode, got %#v", ctx)
+	}
+	if ctx.AudienceScope != "public" {
+		t.Fatalf("expected public audience, got %#v", ctx)
+	}
+	if ctx.TargetNodeID != "player_1" {
+		t.Fatalf("expected fallback target to actor, got %#v", ctx)
+	}
+	if ctx.Event == nil || ctx.Event.Type != "speech" {
+		t.Fatalf("expected default speech event, got %#v", ctx)
+	}
+	if got := ctx.Event.Args["input_source"]; got != nil {
+		t.Fatalf("did not expect input_source by default, got %#v", ctx.Event.Args)
+	}
+}
+
+func TestBuildCanonicalInteractionContextAddsInputSource(t *testing.T) {
+	ctx, err := buildCanonicalInteractionContext(interactionContractInput{
+		ActorNodeID:           "player_1",
+		TargetNodeID:          "npc_1",
+		InputSource:           "player_input_interpret",
+		FallbackTargetToActor: true,
+	}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ctx.Event == nil {
+		t.Fatalf("expected event, got %#v", ctx)
+	}
+	if got := ctx.Event.Args["input_source"]; got != "player_input_interpret" {
+		t.Fatalf("expected input_source to be injected, got %#v", ctx.Event.Args)
+	}
+}
+
+func TestBuildCanonicalInteractionContextRejectsExplicitSpeakerConflict(t *testing.T) {
+	_, err := buildCanonicalInteractionContext(interactionContractInput{
+		ActorNodeID:           "player_1",
+		FallbackTargetToActor: true,
+	}, &engine.InteractionContext{
+		SpeakerNodeID: "player_2",
+	})
+	if err == nil {
+		t.Fatal("expected explicit speaker conflict error")
+	}
+	if !strings.Contains(err.Error(), "interaction.speaker_node_id conflicts") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

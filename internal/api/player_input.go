@@ -42,43 +42,19 @@ func MakePlayerInputInterpretHandler(p *engine.Pipeline) http.HandlerFunc {
 			ctx = &engine.InvokeContext{}
 		}
 		ctx.PlayerInputInterpret = true
-		interaction := ctx.Interaction
-		if interaction == nil {
-			participants := append([]string(nil), req.ParticipantNodeIDs...)
-			if len(participants) == 0 {
-				participants = []string{strings.TrimSpace(req.PlayerNodeID)}
-				if strings.TrimSpace(req.TargetNodeID) != "" {
-					participants = append(participants, strings.TrimSpace(req.TargetNodeID))
-				}
-			}
-			mode := "direct_dialogue"
-			if len(participants) > 2 {
-				mode = "group_chat"
-			}
-			interaction = &engine.InteractionContext{
-				Mode:               mode,
-				SpeakerNodeID:      strings.TrimSpace(req.PlayerNodeID),
-				TargetNodeID:       firstNonEmptyString(strings.TrimSpace(req.TargetNodeID), strings.TrimSpace(req.PlayerNodeID)),
-				SceneNodeID:        strings.TrimSpace(req.SceneNodeID),
-				ParticipantNodeIDs: participants,
-				AudienceScope:      inferPlayerInputAudienceScope(mode),
-				Event: &engine.InteractionEvent{
-					Type: "speech",
-					Args: map[string]any{
-						"input_source": "player_input_interpret",
-					},
-				},
-			}
-			ctx.Interaction = interaction
-		}
-		if err := engine.ValidateDynamicInterfaces(ctx.DynamicInterfaces); err != nil {
-			errorJSONCode(w, http.StatusBadRequest, "invalid_dynamic_interfaces", err.Error())
+		interaction, err := buildCanonicalInteractionContext(interactionContractInput{
+			ActorNodeID:           req.PlayerNodeID,
+			TargetNodeID:          req.TargetNodeID,
+			SceneNodeID:           req.SceneNodeID,
+			ParticipantNodeIDs:    req.ParticipantNodeIDs,
+			InputSource:           "player_input_interpret",
+			FallbackTargetToActor: true,
+		}, ctx.Interaction)
+		if err != nil {
+			handleInvokeContractError(w, err)
 			return
 		}
-		if err := engine.ValidateInteractionContext(ctx.Interaction); err != nil {
-			errorJSONCode(w, http.StatusBadRequest, "invalid_interaction", err.Error())
-			return
-		}
+		ctx.Interaction = interaction
 
 		invokeReq := &engine.InvokeRequest{
 			WorldID:   strings.TrimSpace(req.WorldID),
@@ -91,6 +67,10 @@ func MakePlayerInputInterpretHandler(p *engine.Pipeline) http.HandlerFunc {
 				Content: strings.TrimSpace(req.Message),
 			}},
 		}
+		if err := validateInvokeRequestContract(invokeReq); err != nil {
+			handleInvokeContractError(w, err)
+			return
+		}
 		resp, err := p.Execute(invokeReq)
 		if err != nil {
 			errorJSON(w, http.StatusInternalServerError, err.Error())
@@ -98,13 +78,6 @@ func MakePlayerInputInterpretHandler(p *engine.Pipeline) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, resp)
 	}
-}
-
-func inferPlayerInputAudienceScope(mode string) string {
-	if strings.TrimSpace(mode) == "group_chat" {
-		return "public"
-	}
-	return "private"
 }
 
 func firstNonEmptyString(values ...string) string {

@@ -244,19 +244,9 @@ func MakeInvokeHandler(p *engine.Pipeline) http.HandlerFunc {
 			errorJSON(w, 400, "world_id and node_id required")
 			return
 		}
-		if req.Context != nil && req.Context.PipelineMode != "" && !engine.IsValidPipelineMode(string(req.Context.PipelineMode)) {
-			errorJSONCode(w, http.StatusBadRequest, "invalid_pipeline_mode", "context.pipeline_mode must be one of: vertical, polling, full")
+		if err := validateInvokeRequestContract(&req); err != nil {
+			handleInvokeContractError(w, err)
 			return
-		}
-		if req.Context != nil {
-			if err := engine.ValidateDynamicInterfaces(req.Context.DynamicInterfaces); err != nil {
-				errorJSONCode(w, http.StatusBadRequest, "invalid_dynamic_interfaces", err.Error())
-				return
-			}
-			if err := engine.ValidateInteractionContext(req.Context.Interaction); err != nil {
-				errorJSONCode(w, http.StatusBadRequest, "invalid_interaction", err.Error())
-				return
-			}
 		}
 		resp, err := p.Execute(&req)
 		if err != nil {
@@ -264,6 +254,27 @@ func MakeInvokeHandler(p *engine.Pipeline) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, 200, resp)
+	}
+}
+
+func handleInvokeContractError(w http.ResponseWriter, err error) {
+	if err == nil {
+		return
+	}
+	message := err.Error()
+	switch {
+	case strings.Contains(message, "context.pipeline_mode"):
+		errorJSONCode(w, http.StatusBadRequest, "invalid_pipeline_mode", message)
+	case strings.Contains(message, "npc_dialogue node_id must match interaction.target_node_id"), strings.Contains(message, "player_input_interpret node_id must match interaction.speaker_node_id"):
+		errorJSONCode(w, http.StatusBadRequest, "invalid_interaction_contract", message)
+	case strings.Contains(message, "interaction.") && strings.Contains(message, "conflicts with request"):
+		errorJSONCode(w, http.StatusBadRequest, "invalid_interaction_contract", message)
+	case strings.Contains(message, "dynamic_interfaces") || strings.Contains(message, "query_types required") || strings.Contains(message, "args_schema"):
+		errorJSONCode(w, http.StatusBadRequest, "invalid_dynamic_interfaces", message)
+	case strings.Contains(message, "interaction."):
+		errorJSONCode(w, http.StatusBadRequest, "invalid_interaction", message)
+	default:
+		errorJSON(w, http.StatusBadRequest, message)
 	}
 }
 

@@ -55,21 +55,22 @@ func MakeExecuteInteractionHandler(p *engine.Pipeline) http.HandlerFunc {
 		if ctx == nil {
 			ctx = &engine.InvokeContext{}
 		}
-		interaction := buildInteractionContext(req, ctx.Interaction)
+		interaction, err := buildCanonicalInteractionContext(interactionContractInput{
+			ActorNodeID:           req.ActorNodeID,
+			TargetNodeID:          req.TargetNodeID,
+			SceneNodeID:           req.SceneNodeID,
+			ParticipantNodeIDs:    req.ParticipantNodeIDs,
+			Mode:                  req.Mode,
+			AudienceScope:         req.AudienceScope,
+			TurnIndex:             req.TurnIndex,
+			Event:                 req.Event,
+			FallbackTargetToActor: false,
+		}, ctx.Interaction)
+		if err != nil {
+			handleInvokeContractError(w, err)
+			return
+		}
 		ctx.Interaction = interaction
-
-		if ctx.PipelineMode != "" && !engine.IsValidPipelineMode(string(ctx.PipelineMode)) {
-			errorJSONCode(w, http.StatusBadRequest, "invalid_pipeline_mode", "context.pipeline_mode must be one of: vertical, polling, full")
-			return
-		}
-		if err := engine.ValidateDynamicInterfaces(ctx.DynamicInterfaces); err != nil {
-			errorJSONCode(w, http.StatusBadRequest, "invalid_dynamic_interfaces", err.Error())
-			return
-		}
-		if err := engine.ValidateInteractionContext(ctx.Interaction); err != nil {
-			errorJSONCode(w, http.StatusBadRequest, "invalid_interaction", err.Error())
-			return
-		}
 
 		invokeReq := &engine.InvokeRequest{
 			WorldID:   strings.TrimSpace(req.WorldID),
@@ -82,6 +83,10 @@ func MakeExecuteInteractionHandler(p *engine.Pipeline) http.HandlerFunc {
 				Content: strings.TrimSpace(req.Message),
 			}},
 		}
+		if err := validateInvokeRequestContract(invokeReq); err != nil {
+			handleInvokeContractError(w, err)
+			return
+		}
 		resp, err := p.Execute(invokeReq)
 		if err != nil {
 			errorJSON(w, http.StatusInternalServerError, err.Error())
@@ -90,70 +95,6 @@ func MakeExecuteInteractionHandler(p *engine.Pipeline) http.HandlerFunc {
 		writeJSON(w, http.StatusOK, resp)
 	}
 }
-
-func buildInteractionContext(req interactionExecuteRequest, existing *engine.InteractionContext) *engine.InteractionContext {
-	interaction := &engine.InteractionContext{}
-	if existing != nil {
-		copied := *existing
-		if existing.ParticipantNodeIDs != nil {
-			copied.ParticipantNodeIDs = append([]string(nil), existing.ParticipantNodeIDs...)
-		}
-		if existing.Event != nil {
-			eventCopy := *existing.Event
-			if existing.Event.Args != nil {
-				eventCopy.Args = make(map[string]any, len(existing.Event.Args))
-				for k, v := range existing.Event.Args {
-					eventCopy.Args[k] = v
-				}
-			}
-			copied.Event = &eventCopy
-		}
-		interaction = &copied
-	}
-
-	interaction.SpeakerNodeID = firstNonEmptyString(strings.TrimSpace(req.ActorNodeID), interaction.SpeakerNodeID)
-	interaction.TargetNodeID = firstNonEmptyString(strings.TrimSpace(req.TargetNodeID), interaction.TargetNodeID)
-	interaction.SceneNodeID = firstNonEmptyString(strings.TrimSpace(req.SceneNodeID), interaction.SceneNodeID)
-	if req.TurnIndex > 0 {
-		interaction.TurnIndex = req.TurnIndex
-	}
-
-	participants := req.ParticipantNodeIDs
-	if len(participants) == 0 {
-		participants = interaction.ParticipantNodeIDs
-	}
-	interaction.ParticipantNodeIDs = uniqueNonEmptyStrings(participants, []string{interaction.SpeakerNodeID, interaction.TargetNodeID})
-
-	mode := strings.TrimSpace(req.Mode)
-	if mode == "" {
-		mode = strings.TrimSpace(interaction.Mode)
-	}
-	if mode == "" {
-		mode = inferInteractionMode(interaction.ParticipantNodeIDs)
-	}
-	interaction.Mode = mode
-
-	audience := strings.TrimSpace(req.AudienceScope)
-	if audience == "" {
-		audience = strings.TrimSpace(interaction.AudienceScope)
-	}
-	if audience == "" {
-		audience = inferInteractionAudienceScope(mode)
-	}
-	interaction.AudienceScope = audience
-
-	if req.Event != nil {
-		interaction.Event = req.Event
-	}
-	if interaction.Event == nil {
-		interaction.Event = &engine.InteractionEvent{Type: "speech"}
-	}
-	if strings.TrimSpace(interaction.Event.Type) == "" {
-		interaction.Event.Type = "speech"
-	}
-	return interaction
-}
-
 func inferInteractionMode(participants []string) string {
 	if len(participants) > 2 {
 		return "group_chat"
