@@ -83,6 +83,10 @@ type app struct {
 	authority   *workerstate.WorldState
 }
 
+func (a *app) workerControlClient() *sdk.WorkerControlClient {
+	return sdk.NewWorkerControlClient(a.cfg.EngineBaseURL, a.cfg.RuntimeTaskToken, a.cfg.CallbackToken)
+}
+
 func newApp(options Options) *app {
 	if strings.TrimSpace(options.CommandName) == "" {
 		options.CommandName = "gameagentworker"
@@ -257,20 +261,14 @@ func (a *app) processOnePendingTask() (*sdk.RuntimeTask, bool, error) {
 }
 
 func (a *app) processOnePendingTaskDetailed() (*processedTaskResult, bool, error) {
-	pending, err := a.runtimeTaskRequest(http.MethodGet, fmt.Sprintf("/api/v1/runtime/tasks/pending?consumer=%s&limit=1", a.cfg.Consumer), nil)
+	list, err := a.workerControlClient().ListPendingRuntimeTasks(a.cfg.Consumer, 1)
 	if err != nil {
 		return nil, false, err
 	}
-	var list struct {
-		Tasks []sdk.RuntimeTask `json:"tasks"`
-	}
-	if err := json.Unmarshal(pending, &list); err != nil {
-		return nil, false, err
-	}
-	if len(list.Tasks) == 0 {
+	if len(list) == 0 {
 		return nil, false, nil
 	}
-	task := list.Tasks[0]
+	task := list[0]
 	a.logJSON("pull_claiming", map[string]any{"task_id": task.TaskID, "interface_name": task.InterfaceName, "status": task.Status})
 	claimed, err := a.claimTask(task.TaskID)
 	if err != nil {
@@ -304,39 +302,15 @@ func (a *app) processOnePendingTaskDetailed() (*processedTaskResult, bool, error
 }
 
 func (a *app) claimTask(taskID string) (*sdk.RuntimeTask, error) {
-	body := map[string]any{"task_id": taskID, "consumer": a.cfg.Consumer, "lease_owner": a.cfg.LeaseOwner}
-	data, err := a.runtimeTaskRequest(http.MethodPost, "/api/v1/runtime/tasks/claim", body)
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Task *sdk.RuntimeTask `json:"task"`
-	}
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, err
-	}
-	return resp.Task, nil
+	return a.workerControlClient().ClaimRuntimeTask(taskID, a.cfg.Consumer, a.cfg.LeaseOwner)
 }
 
 func (a *app) startTask(taskID, leaseToken string) (*sdk.RuntimeTask, error) {
-	body := map[string]any{"task_id": taskID, "lease_token": leaseToken}
-	data, err := a.runtimeTaskRequest(http.MethodPost, "/api/v1/runtime/tasks/start", body)
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Task *sdk.RuntimeTask `json:"task"`
-	}
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, err
-	}
-	return resp.Task, nil
+	return a.workerControlClient().StartRuntimeTask(taskID, leaseToken)
 }
 
 func (a *app) heartbeatTask(taskID, leaseToken string) error {
-	body := map[string]any{"task_id": taskID, "lease_token": leaseToken}
-	_, err := a.runtimeTaskRequest(http.MethodPost, "/api/v1/runtime/tasks/heartbeat", body)
-	return err
+	return a.workerControlClient().HeartbeatRuntimeTask(taskID, leaseToken)
 }
 
 func (a *app) runLongTask(task *sdk.RuntimeTask, decision taskExecutionDecision) error {
@@ -378,16 +352,7 @@ func (a *app) completeAfterDecision(taskID, callbackID string, decision taskExec
 }
 
 func (a *app) postCallback(callbackID, status string, result map[string]any, requestID string) (*sdk.CallbackResponse, error) {
-	body := map[string]any{"callback_id": callbackID, "status": status, "result": result}
-	data, err := a.callbackRequest(requestID, body)
-	if err != nil {
-		return nil, err
-	}
-	var resp sdk.CallbackResponse
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, err
-	}
-	return &resp, nil
+	return a.workerControlClient().ActionCallback(callbackID, status, result, requestID)
 }
 
 func (a *app) decideExecution(interfaceName string, payload map[string]any) taskExecutionDecision {
@@ -556,19 +521,6 @@ func firstString(payload map[string]any, keys ...string) string {
 
 func callbackRequestID(taskID string) string {
 	return fmt.Sprintf("cb-%s", strings.TrimSpace(taskID))
-}
-
-func (a *app) runtimeTaskRequest(method, path string, body any) ([]byte, error) {
-	return a.doJSONRequest(method, a.cfg.EngineBaseURL+path, map[string]string{
-		"X-Runtime-Task-Token": a.cfg.RuntimeTaskToken,
-	}, body)
-}
-
-func (a *app) callbackRequest(requestID string, body any) ([]byte, error) {
-	return a.doJSONRequest(http.MethodPost, a.cfg.EngineBaseURL+"/api/v1/actions/callback", map[string]string{
-		"X-Callback-Token":      a.cfg.CallbackToken,
-		"X-Callback-Request-Id": requestID,
-	}, body)
 }
 
 func (a *app) doJSONRequest(method, rawURL string, extraHeaders map[string]string, body any) ([]byte, error) {
