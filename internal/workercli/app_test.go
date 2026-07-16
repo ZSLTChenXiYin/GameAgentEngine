@@ -312,6 +312,55 @@ func TestRunPlayMoveUpdatesAuthorityStateAndScene(t *testing.T) {
 	}
 }
 
+func TestRenderInspectionDefaultsToSceneSummary(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_inn"},
+		},
+		Scenes: map[string]*workerstate.SceneState{
+			"scene_inn": {ID: "scene_inn", Name: "Inn", Description: "Warm light."},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_inn"}
+	text, err := s.renderInspection("")
+	if err != nil {
+		t.Fatalf("renderInspection returned error: %v", err)
+	}
+	if !strings.Contains(text, "当前场景: Inn (scene_inn)") {
+		t.Fatalf("unexpected inspection text: %q", text)
+	}
+}
+
+func TestRenderInspectionSupportsActorAndVisibleItem(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_inn"},
+			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_inn", Inventory: []workerstate.InventoryEntry{{ItemID: "knife_bloody", Quantity: 1}}},
+		},
+		Scenes: map[string]*workerstate.SceneState{
+			"scene_inn": {ID: "scene_inn", Name: "Inn"},
+		},
+		Items: map[string]*workerstate.ItemState{
+			"knife_bloody": {ID: "knife_bloody", Name: "Bloody Knife", OwnerID: "npc_1"},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_inn"}
+	actorText, err := s.renderInspection("innkeeper")
+	if err != nil {
+		t.Fatalf("renderInspection actor returned error: %v", err)
+	}
+	if !strings.Contains(actorText, "角色: innkeeper (npc_1)") {
+		t.Fatalf("unexpected actor inspection: %q", actorText)
+	}
+	itemText, err := s.renderInspection("Bloody Knife")
+	if err != nil {
+		t.Fatalf("renderInspection item returned error: %v", err)
+	}
+	if !strings.Contains(itemText, "物品: Bloody Knife (knife_bloody)") {
+		t.Fatalf("unexpected item inspection: %q", itemText)
+	}
+}
+
 func TestRenderSceneSummaryIncludesPromptFlagsAndTarget(t *testing.T) {
 	view := workerstate.NewStateView(&workerstate.WorldState{
 		Actors: map[string]*workerstate.ActorState{

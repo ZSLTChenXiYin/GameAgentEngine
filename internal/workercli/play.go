@@ -224,6 +224,8 @@ func (a *app) executePlayCommand(s *playSession, cmd playCommand) (bool, error) 
 		return false, nil
 	case "move", "go":
 		return false, a.runPlayMove(s, cmd.Args)
+	case "inspect":
+		return false, a.runPlayInspect(s, cmd.Args)
 	case "say":
 		return false, a.runPlaySay(s, cmd.Args)
 	case "ask":
@@ -391,6 +393,19 @@ func (a *app) runPlayMove(s *playSession, args string) error {
 	}
 	s.refreshView(a)
 	a.printPlayExecutionResult(s, result)
+	return nil
+}
+
+func (a *app) runPlayInspect(s *playSession, args string) error {
+	s.refreshView(a)
+	text, err := s.renderInspection(args)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(text) == "" {
+		return errors.New("nothing to inspect")
+	}
+	fmt.Println(text)
 	return nil
 }
 
@@ -767,6 +782,30 @@ func (s *playSession) renderSceneSummary() string {
 	return strings.Join(lines, "\n")
 }
 
+func (s *playSession) renderInspection(arg string) (string, error) {
+	trimmed := strings.TrimSpace(arg)
+	if trimmed == "" {
+		return s.renderSceneSummary(), nil
+	}
+	if sceneID, ok := s.view.FindSceneIDByName(trimmed); ok {
+		if sceneID == s.currentSceneID {
+			return s.renderSceneSummary(), nil
+		}
+		if scene, ok := s.view.Scene(sceneID); ok && scene != nil {
+			return s.renderRemoteScene(scene), nil
+		}
+	}
+	if actor, err := s.resolveSceneActor(trimmed); err == nil {
+		return s.renderActorInspection(actor), nil
+	}
+	if itemID, ok := s.view.FindItemIDByName(trimmed); ok {
+		if text, ok := s.renderVisibleItemInspection(itemID); ok {
+			return text, nil
+		}
+	}
+	return "", fmt.Errorf("cannot inspect %q from the current scene", trimmed)
+}
+
 func (s *playSession) renderOccupants() string {
 	actors := s.view.ActorsAtScene(s.currentSceneID)
 	if len(actors) == 0 {
@@ -788,6 +827,93 @@ func (s *playSession) renderOccupants() string {
 	}
 	sort.Strings(parts)
 	return "同场角色:\n" + strings.Join(parts, "\n")
+}
+
+func (s *playSession) renderRemoteScene(scene *workerstate.SceneState) string {
+	if scene == nil {
+		return ""
+	}
+	lines := []string{fmt.Sprintf("场景: %s (%s)", fallback(scene.Name, scene.ID), scene.ID)}
+	if desc := strings.TrimSpace(scene.Description); desc != "" {
+		lines = append(lines, desc)
+	}
+	if summary := renderSceneFlags(scene.Flags); summary != "" {
+		lines = append(lines, "场景状态: "+summary)
+	}
+	if occupants := s.view.SceneOccupants(scene.ID); len(occupants) > 0 {
+		labels := make([]string, 0, len(occupants))
+		for _, id := range occupants {
+			labels = append(labels, s.actorDisplayName(id))
+		}
+		sort.Strings(labels)
+		lines = append(lines, "已知在场角色: "+strings.Join(labels, ", "))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (s *playSession) renderActorInspection(actor *workerstate.ActorState) string {
+	if actor == nil {
+		return ""
+	}
+	lines := []string{fmt.Sprintf("角色: %s (%s)", fallback(actor.Name, actor.ID), actor.ID)}
+	if strings.TrimSpace(actor.Kind) != "" {
+		lines = append(lines, "类型: "+actor.Kind)
+	}
+	if actor.MaxHP > 0 {
+		lines = append(lines, fmt.Sprintf("HP: %d/%d", actor.HP, actor.MaxHP))
+	}
+	if actor.ID == s.playerNodeID {
+		lines = append(lines, fmt.Sprintf("金钱: %d", actor.Money))
+	}
+	if strings.TrimSpace(actor.LocationID) != "" {
+		lines = append(lines, "位置: "+fallbackSceneName(s.view, actor.LocationID))
+	}
+	if actor.ID == s.currentTargetID {
+		lines = append(lines, "状态: 当前对话目标")
+	}
+	if len(actor.Inventory) > 0 {
+		items := make([]string, 0, len(actor.Inventory))
+		for _, entry := range actor.Inventory {
+			items = append(items, fmt.Sprintf("%s x%d", s.itemDisplayName(entry.ItemID), entry.Quantity))
+		}
+		lines = append(lines, "可见物品: "+strings.Join(items, ", "))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (s *playSession) renderVisibleItemInspection(itemID string) (string, bool) {
+	item, ok := s.view.State().Items[itemID]
+	if !ok || item == nil {
+		return "", false
+	}
+	visible := false
+	location := ""
+	if strings.EqualFold(strings.TrimSpace(item.OwnerID), strings.TrimSpace(s.playerNodeID)) {
+		visible = true
+		location = "你持有"
+	} else if owner, ok := s.view.Actor(item.OwnerID); ok && owner != nil && strings.TrimSpace(owner.LocationID) == strings.TrimSpace(s.currentSceneID) {
+		visible = true
+		location = fmt.Sprintf("由 %s 持有", s.actorDisplayName(owner.ID))
+	} else if strings.TrimSpace(item.SceneID) == strings.TrimSpace(s.currentSceneID) {
+		visible = true
+		location = "位于当前场景"
+	}
+	if !visible {
+		return "", false
+	}
+	lines := []string{fmt.Sprintf("物品: %s (%s)", fallback(item.Name, item.ID), item.ID)}
+	if strings.TrimSpace(location) != "" {
+		lines = append(lines, "位置: "+location)
+	}
+	if len(item.Metadata) > 0 {
+		parts := make([]string, 0, len(item.Metadata))
+		for key, value := range item.Metadata {
+			parts = append(parts, fmt.Sprintf("%s=%v", key, value))
+		}
+		sort.Strings(parts)
+		lines = append(lines, "属性: "+strings.Join(parts, ", "))
+	}
+	return strings.Join(lines, "\n"), true
 }
 
 func (s *playSession) renderPlayerState() string {
@@ -815,6 +941,13 @@ func (s *playSession) renderPlayerState() string {
 		lines = append(lines, "背包: 空")
 	}
 	return strings.Join(lines, "\n")
+}
+
+func (s *playSession) itemDisplayName(itemID string) string {
+	if item, ok := s.view.State().Items[itemID]; ok && item != nil && strings.TrimSpace(item.Name) != "" {
+		return item.Name
+	}
+	return itemID
 }
 
 func (s *playSession) renderTargetStatus() string {
@@ -955,6 +1088,7 @@ func playHelpText() string {
 		"/+target                      查看当前对话目标",
 		"/+room                        查看当前房间/场景参与者",
 		"/+move <scene>                切换到指定场景，并立即刷新本地权威状态",
+		"/+inspect [target]            查看当前场景、角色或可见物品的权威摘要",
 		"/+clear_target                清除当前对话目标",
 		"/+say <message>               向当前房间公开发言，由一个主响应 NPC 回应",
 		"/+ask <npc> <message>         在群聊语境下点名某个 NPC 回应",
