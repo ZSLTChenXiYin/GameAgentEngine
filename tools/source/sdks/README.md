@@ -53,3 +53,9 @@
 - `sdk/types.go`
 
 其它语言 SDK 不要求逐行复制 Go SDK 实现，但应在对外能力、对象模型和接入闭环上尽量保持一致。
+
+
+## Shared Integration Inputs
+
+- [SDK_FIXTURES.md](./SDK_FIXTURES.md) (shared fixture files and sample-data reuse rules)
+- [SDK_CAPABILITY_MATRIX.md](./SDK_CAPABILITY_MATRIX.md) (current per-language implementation status and coverage matrix)
