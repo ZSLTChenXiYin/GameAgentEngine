@@ -4,6 +4,8 @@ import java.nio.charset.StandardCharsets;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
+import java.util.List;
 
 public class GameAgentEngineClient {
     private final String baseUrl;
@@ -26,21 +28,59 @@ public class GameAgentEngineClient {
     }
 
     public String post(String path, String jsonBody) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
+        return post(path, jsonBody, null);
+    }
+
+    public String post(String path, String jsonBody, String callbackRequestId) throws Exception {
+        var builder = HttpRequest.newBuilder()
             .uri(URI.create(baseUrl + path))
             .header("X-API-Key", apiKey)
             .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
+            .header("Content-Type", "application/json");
+        if (callbackRequestId != null && !callbackRequestId.isBlank()) {
+            builder.header("X-Callback-Request-Id", callbackRequestId);
+        }
+        HttpRequest request = builder
             .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
             .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
     }
 
+    private String buildQuery(String[][] pairs) {
+        List<String> items = new ArrayList<>();
+        for (String[] pair : pairs) {
+            if (pair == null || pair.length < 2) {
+                continue;
+            }
+            var key = pair[0];
+            var value = pair[1];
+            if (key == null || value == null || value.isBlank()) {
+                continue;
+            }
+            items.add(URLEncoder.encode(key, StandardCharsets.UTF_8) + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8));
+        }
+        if (items.isEmpty()) {
+            return "";
+        }
+        return "?" + String.join("&", items);
+    }
+
     public String health() throws Exception { return get("/health"); }
     public String version() throws Exception { return get("/api/v1/version"); }
     public String invoke(String jsonBody) throws Exception { return post("/api/v1/invoke", jsonBody); }
+    public String interpretPlayerInput(String jsonBody) throws Exception { return post("/api/v1/player/input/interpret", jsonBody); }
     public String listPendingRuntimeTasks(String consumer, int limit) throws Exception {
         return get("/api/v1/runtime/tasks/pending?consumer=" + URLEncoder.encode(consumer, StandardCharsets.UTF_8) + "&limit=" + limit);
+    }
+    public String listRuntimeTasks(String category, String status, int limit) throws Exception {
+        return get("/api/v1/runtime/tasks" + buildQuery(new String[][]{
+            {"category", category},
+            {"status", status},
+            {"limit", Integer.toString(limit)},
+        }));
+    }
+    public String getRuntimeTask(String taskId) throws Exception {
+        return get("/api/v1/runtime/tasks/" + URLEncoder.encode(taskId, StandardCharsets.UTF_8));
     }
     public String claimRuntimeTask(String taskId, String consumer, String owner) throws Exception {
         return post("/api/v1/runtime/tasks/claim", "{\"task_id\":\"" + taskId + "\",\"consumer\":\"" + consumer + "\",\"lease_owner\":\"" + owner + "\"}");
@@ -48,7 +88,33 @@ public class GameAgentEngineClient {
     public String startRuntimeTask(String taskId, String leaseToken) throws Exception {
         return post("/api/v1/runtime/tasks/start", "{\"task_id\":\"" + taskId + "\",\"lease_token\":\"" + leaseToken + "\"}");
     }
+    public String heartbeatRuntimeTask(String taskId, String leaseToken) throws Exception {
+        return post("/api/v1/runtime/tasks/heartbeat", "{\"task_id\":\"" + taskId + "\",\"lease_token\":\"" + leaseToken + "\"}");
+    }
+    public String releaseRuntimeTask(String taskId, String leaseToken, String errorMessage) throws Exception {
+        return post("/api/v1/runtime/tasks/release", "{\"task_id\":\"" + taskId + "\",\"lease_token\":\"" + leaseToken + "\",\"error_message\":\"" + jsonEscape(errorMessage) + "\"}");
+    }
+    public String requeueRuntimeTask(String taskId, int retryDelayMs, String errorMessage) throws Exception {
+        return post("/api/v1/runtime/tasks/requeue", "{\"task_id\":\"" + taskId + "\",\"retry_delay_ms\":" + retryDelayMs + ",\"error_message\":\"" + jsonEscape(errorMessage) + "\"}");
+    }
+    public String getRuntimeTaskStats() throws Exception {
+        return get("/api/v1/runtime/tasks/stats");
+    }
     public String actionCallback(String callbackId, String status, String resultJson) throws Exception {
-        return post("/api/v1/actions/callback", "{\"callback_id\":\"" + callbackId + "\",\"status\":\"" + status + "\",\"result\":" + resultJson + "}");
+        return actionCallback(callbackId, status, resultJson, null);
+    }
+    public String actionCallback(String callbackId, String status, String resultJson, String callbackRequestId) throws Exception {
+        return post("/api/v1/actions/callback", "{\"callback_id\":\"" + callbackId + "\",\"status\":\"" + status + "\",\"result\":" + resultJson + "}", callbackRequestId);
+    }
+
+    private String jsonEscape(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\r", "\\r")
+            .replace("\n", "\\n");
     }
 }

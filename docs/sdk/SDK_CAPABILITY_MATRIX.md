@@ -17,7 +17,7 @@ Status levels:
 | `cs-sdk` | practical | yes | yes | yes | yes | yes | yes | Unity / .NET oriented, typed POCO client |
 | `gd-sdk` | practical-request-builder | request builders | request builders | request builders | request builders | request builders | partial | Godot-side request construction is in place; execution wrapper still absent |
 | `cpp-sdk` | baseline | partial | partial | no | no | no | no | next-wave upgrade target |
-| `java-sdk` | baseline | partial | partial | no | no | no | no | next-wave upgrade target |
+| `java-sdk` | baseline+worker-loop | yes | yes | yes | yes | no | yes | real HTTP client plus authority-query / callback roundtrip examples; observability surface still shallow |
 | `lua-sdk` | baseline | partial | partial | no | no | no | no | later-stage lightweight integration target |
 | `c-sdk` | baseline | partial | partial | no | no | no | no | later-stage native integration target |
 

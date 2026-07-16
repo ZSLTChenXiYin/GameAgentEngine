@@ -79,10 +79,12 @@
 - 当前覆盖：
   - health / version
   - invoke
+  - player input interpretation
   - pending runtime task list
-  - claim / start runtime task
+  - runtime task list / get / claim / start / heartbeat / release / requeue / stats
   - callback completion
-- 现状：可用于最小外环，但类型覆盖仍弱于 TS / JS / C#
+  - authority query 与 worker roundtrip 示例
+- 现状：已可直接覆盖当前 Engine / Worker 最小联调闭环，但状态、时间线、日志与更完整 typed model 仍弱于 TS / JS / C#
 
 ## C++ SDK
 
