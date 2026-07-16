@@ -31,7 +31,7 @@ func main() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(importCmd)
-	rootCmd.AddCommand(inspectCmd)
+	rootCmd.AddCommand(creatorCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

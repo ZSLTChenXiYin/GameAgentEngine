@@ -8,8 +8,8 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/creatorui"
 )
 
-var inspectCmd = &cobra.Command{
-	Use:   "inspect",
+var creatorCmd = &cobra.Command{
+	Use:   "creator",
 	Short: "Open GameAgentCreator",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := creatorui.Open(); err != nil {
