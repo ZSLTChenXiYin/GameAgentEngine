@@ -1,6 +1,10 @@
 package engine
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
+)
 
 // CanonicalParticipantNodeIDs merges participant lists, drops blanks, and preserves first-seen order.
 func CanonicalParticipantNodeIDs(groups ...[]string) []string {
@@ -24,16 +28,16 @@ func CanonicalParticipantNodeIDs(groups ...[]string) []string {
 
 func InferInteractionMode(participantNodeIDs []string) string {
 	if len(CanonicalParticipantNodeIDs(participantNodeIDs)) > 2 {
-		return "group_chat"
+		return sdk.InteractionModeGroupChat
 	}
-	return "direct_dialogue"
+	return sdk.InteractionModeDirectDialogue
 }
 
 func InferInteractionAudienceScope(mode string) string {
-	if strings.EqualFold(strings.TrimSpace(mode), "group_chat") {
-		return "public"
+	if strings.EqualFold(strings.TrimSpace(mode), sdk.InteractionModeGroupChat) {
+		return sdk.InteractionAudiencePublic
 	}
-	return "private"
+	return sdk.InteractionAudiencePrivate
 }
 
 func NormalizeInteractionSemantics(explicitMode string, explicitAudienceScope string, explicitParticipants []string, fallbackParticipants ...string) (string, string, []string) {

@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
 
 // NodeType 表示节点在实体层级中的类别。
@@ -617,10 +619,10 @@ type SubTaskDeclaration struct {
 var customComponentTypePattern = regexp.MustCompile(`^[a-z][a-z0-9_:-]{1,63}$`)
 var dynamicInterfaceIDPattern = regexp.MustCompile(`^[a-z][a-z0-9_:-]{1,63}$`)
 
-var validInteractionModes = []string{"direct_dialogue", "group_chat", "gift_response", "trade_dialogue"}
-var validInteractionEventTypes = []string{"speech", "gift", "show_item", "trade_request", "threaten"}
-var validInteractionAudienceScopes = []string{"public", "private", "whisper"}
-var validSuggestedInteractionEventTypes = []string{"speech", "gift", "show_item", "trade_request", "threaten"}
+var validInteractionModes = []string{sdk.InteractionModeDirectDialogue, sdk.InteractionModeGroupChat, sdk.InteractionModeGiftResponse, sdk.InteractionModeTradeDialogue}
+var validInteractionEventTypes = []string{sdk.InteractionEventSpeech, sdk.InteractionEventGift, sdk.InteractionEventShowItem, sdk.InteractionEventTradeRequest, sdk.InteractionEventThreaten}
+var validInteractionAudienceScopes = []string{sdk.InteractionAudiencePublic, sdk.InteractionAudiencePrivate, sdk.InteractionAudienceWhisper}
+var validSuggestedInteractionEventTypes = []string{sdk.InteractionEventSpeech, sdk.InteractionEventGift, sdk.InteractionEventShowItem, sdk.InteractionEventTradeRequest, sdk.InteractionEventThreaten}
 var validPlayerIntentTypes = []string{"speech", "show_item", "gift", "trade_request", "threaten", "move", "inspect", "use_item", "composite"}
 var validPlayerIntentRiskLevels = []string{"low", "medium", "high"}
 var validPlayerIntentPreconditionTypes = []string{"same_scene", "target_present", "item_present", "money_at_least", "task_status", "scene_flag", "location_accessible"}
