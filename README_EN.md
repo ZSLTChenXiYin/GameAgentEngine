@@ -256,20 +256,20 @@ Covers world management, node CRUD, memory propagation, autonomous configuration
 
 ## Documentation
 
-- [Getting Started](./docs/GETTING_STARTED_EN.md) -- build your first world from scratch
-- [Architecture](./docs/ARCHITECTURE_EN.md) -- overall design and module boundaries
-- [Core Concepts](./docs/CORE_CONCEPTS_EN.md) -- nodes, components, memories, relations explained
+- [Getting Started](./docs/getting-started/GETTING_STARTED_EN.md) -- build your first world from scratch
+- [Architecture](./docs/architecture/ARCHITECTURE_EN.md) -- overall design and module boundaries
+- [Core Concepts](./docs/architecture/CORE_CONCEPTS_EN.md) -- nodes, components, memories, relations explained
 - [External Interaction Roadmap](./docs/EXTERNAL_INTERACTION_ROADMAP.md) -- Push / Pull / Hybrid task modes
 - [External Interaction Examples](./docs/EXTERNAL_INTERACTION_EXAMPLES.md) -- full game-client integration flows
-- [API Reference](./docs/API_REFERENCE_EN.md) -- all HTTP endpoints
-- [GameAgentDevCli Guide](./docs/GUIDE_GAMEAGENTDEVCLI_EN.md) -- complete CLI reference
-- [GameAgentCreator Guide](./docs/GUIDE_GAMEAGENTCREATOR_EN.md) -- Web editor walkthrough
-- [SDK Reference](./docs/SDK_REFERENCE_EN.md) -- Go SDK methods and types
-- [Configuration](./docs/CONFIGURATION_EN.md) -- static config and dynamic world settings
-- [Autonomous Behavior System](./docs/AUTONOMOUS_BEHAVIOR_EN.md) -- node-level autonomous scheduling
-- [Pipeline Internals](./docs/PIPELINE_INTERNALS_EN.md) -- execution flow details
-- [World Time Tick Reference](./docs/WORLD_TIME_TICK_REFERENCE_EN.md) -- scale modes and advancement rules
-- [Build and Deploy](./docs/BUILD_AND_DEPLOY_EN.md) -- cross-platform compilation and deployment
+- [API Reference](./docs/reference/API_REFERENCE_EN.md) -- all HTTP endpoints
+- [GameAgentDevCli Guide](./docs/guides/GUIDE_GAMEAGENTDEVCLI_EN.md) -- complete CLI reference
+- [GameAgentCreator Guide](./docs/guides/GUIDE_GAMEAGENTCREATOR_EN.md) -- Web editor walkthrough
+- [SDK Reference](./docs/reference/SDK_REFERENCE_EN.md) -- Go SDK methods and types
+- [Configuration](./docs/reference/CONFIGURATION_EN.md) -- static config and dynamic world settings
+- [Autonomous Behavior System](./docs/architecture/AUTONOMOUS_BEHAVIOR_EN.md) -- node-level autonomous scheduling
+- [Pipeline Internals](./docs/architecture/PIPELINE_INTERNALS_EN.md) -- execution flow details
+- [World Time Tick Reference](./docs/reference/WORLD_TIME_TICK_REFERENCE_EN.md) -- scale modes and advancement rules
+- [Build and Deploy](./docs/reference/BUILD_AND_DEPLOY_EN.md) -- cross-platform compilation and deployment
 
 ---
 

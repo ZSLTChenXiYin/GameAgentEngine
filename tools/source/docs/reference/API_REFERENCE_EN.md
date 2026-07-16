@@ -1,6 +1,6 @@
 # API Reference
 
-[**中文**](./API_REFERENCE.md) | **English**
+[**中文**](../reference/API_REFERENCE.md) | **English**
 
 All engine API routes use the `X-API-Key` header unless otherwise noted.
 

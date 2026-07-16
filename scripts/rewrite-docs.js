@@ -1878,20 +1878,20 @@ Notes:
 */});
 
 write('tools/source/gameagentengine.conf.yaml', configTemplate);
-write('docs/AUTONOMOUS_BEHAVIOR.md', autonomousZh);
-write('docs/AUTONOMOUS_BEHAVIOR_EN.md', autonomousEn);
-write('docs/PIPELINE_INTERNALS.md', pipelineZh);
-write('docs/PIPELINE_INTERNALS_EN.md', pipelineEn);
-write('docs/CONFIGURATION.md', configZh);
-write('docs/CONFIGURATION_EN.md', configEn);
-write('docs/GETTING_STARTED.md', gettingStartedZh);
-write('docs/GETTING_STARTED_EN.md', gettingStartedEn);
-write('tools/source/docs/CONFIGURATION.md', packagedConfigZh);
-write('tools/source/docs/CONFIGURATION_EN.md', packagedConfigEn);
-write('tools/source/docs/GETTING_STARTED.md', packagedGettingStartedZh);
-write('tools/source/docs/GETTING_STARTED_EN.md', packagedGettingStartedEn);
+write('docs/architecture/AUTONOMOUS_BEHAVIOR.md', autonomousZh);
+write('docs/architecture/AUTONOMOUS_BEHAVIOR_EN.md', autonomousEn);
+write('docs/architecture/PIPELINE_INTERNALS.md', pipelineZh);
+write('docs/architecture/PIPELINE_INTERNALS_EN.md', pipelineEn);
+write('docs/reference/CONFIGURATION.md', configZh);
+write('docs/reference/CONFIGURATION_EN.md', configEn);
+write('docs/getting-started/GETTING_STARTED.md', gettingStartedZh);
+write('docs/getting-started/GETTING_STARTED_EN.md', gettingStartedEn);
+write('tools/source/docs/reference/CONFIGURATION.md', packagedConfigZh);
+write('tools/source/docs/reference/CONFIGURATION_EN.md', packagedConfigEn);
+write('tools/source/docs/getting-started/GETTING_STARTED.md', packagedGettingStartedZh);
+write('tools/source/docs/getting-started/GETTING_STARTED_EN.md', packagedGettingStartedEn);
 
-for (const file of ['docs/API_REFERENCE.md', 'tools/source/docs/API_REFERENCE.md']) {
+for (const file of ['docs/reference/API_REFERENCE.md', 'tools/source/docs/reference/API_REFERENCE.md']) {
   let content = read(file);
   content = replacePatternOrThrow(
     content,
@@ -1910,7 +1910,7 @@ for (const file of ['docs/API_REFERENCE.md', 'tools/source/docs/API_REFERENCE.md
   write(file, content);
 }
 
-for (const file of ['docs/API_REFERENCE_EN.md', 'tools/source/docs/API_REFERENCE_EN.md']) {
+for (const file of ['docs/reference/API_REFERENCE_EN.md', 'tools/source/docs/reference/API_REFERENCE_EN.md']) {
   let content = read(file);
   content = replacePatternOrThrow(
     content,

@@ -257,20 +257,20 @@ tick, _ := client.AdvanceTick(worldID, "scheduled", "Day 2")
 
 ## 详细介绍
 
-- [入门指南](./docs/GETTING_STARTED.md) — 从零搭建第一个世界
-- [架构说明](./docs/ARCHITECTURE.md) — 整体设计与模块边界
-- [核心概念](./docs/CORE_CONCEPTS.md) — 节点、组件、记忆、关系详解
+- [入门指南](./docs/getting-started/GETTING_STARTED.md) — 从零搭建第一个世界
+- [架构说明](./docs/architecture/ARCHITECTURE.md) — 整体设计与模块边界
+- [核心概念](./docs/architecture/CORE_CONCEPTS.md) — 节点、组件、记忆、关系详解
 - [外部交互路线图](./docs/EXTERNAL_INTERACTION_ROADMAP.md) — Push / Pull / Hybrid 任务模式
 - [外部交互示例](./docs/EXTERNAL_INTERACTION_EXAMPLES.md) — 对接游戏端的完整流程
-- [API 参考](./docs/API_REFERENCE.md) — 全部 HTTP 接口
-- [GameAgentDevCli 指南](./docs/GUIDE_GAMEAGENTDEVCLI.md) — 命令行工具完整手册
-- [GameAgentCreator 指南](./docs/GUIDE_GAMEAGENTCREATOR.md) — Web 编辑器使用说明
-- [SDK 参考](./docs/SDK_REFERENCE.md) — Go SDK 方法列表与类型说明
-- [配置参考](./docs/CONFIGURATION.md) — 静态配置与动态世界设置
-- [自主行为系统](./docs/AUTONOMOUS_BEHAVIOR.md) — 节点级自主调度
-- [推理管线内部实现](./docs/PIPELINE_INTERNALS.md) — Pipeline 执行流程详解
-- [世界时间 Tick 参考](./docs/WORLD_TIME_TICK_REFERENCE.md) — 时间刻度与推进规则
-- [构建与部署](./docs/BUILD_AND_DEPLOY.md) — 多平台编译与部署
+- [API 参考](./docs/reference/API_REFERENCE.md) — 全部 HTTP 接口
+- [GameAgentDevCli 指南](./docs/guides/GUIDE_GAMEAGENTDEVCLI.md) — 命令行工具完整手册
+- [GameAgentCreator 指南](./docs/guides/GUIDE_GAMEAGENTCREATOR.md) — Web 编辑器使用说明
+- [SDK 参考](./docs/reference/SDK_REFERENCE.md) — Go SDK 方法列表与类型说明
+- [配置参考](./docs/reference/CONFIGURATION.md) — 静态配置与动态世界设置
+- [自主行为系统](./docs/architecture/AUTONOMOUS_BEHAVIOR.md) — 节点级自主调度
+- [推理管线内部实现](./docs/architecture/PIPELINE_INTERNALS.md) — Pipeline 执行流程详解
+- [世界时间 Tick 参考](./docs/reference/WORLD_TIME_TICK_REFERENCE.md) — 时间刻度与推进规则
+- [构建与部署](./docs/reference/BUILD_AND_DEPLOY.md) — 多平台编译与部署
 
 ---
 
