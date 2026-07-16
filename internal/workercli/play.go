@@ -95,7 +95,7 @@ func (a *app) runPlay() error {
 	}
 
 	fmt.Printf("进入 play 模式。世界=%s 玩家=%s 场景=%s\n", s.worldID, s.playerNodeID, s.currentSceneID)
-	fmt.Println("输入 /help 查看命令；直接输入文本会发给当前对话目标。")
+	fmt.Println("输入 /+help 查看命令；直接输入文本会发给当前对话目标。")
 	fmt.Println(s.renderSceneSummary())
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -175,7 +175,9 @@ func parsePlayCommand(line string) playCommand {
 	if trimmed == "" {
 		return playCommand{}
 	}
-	parts := strings.Fields(strings.TrimPrefix(trimmed, "/"))
+	body := strings.TrimPrefix(trimmed, "/")
+	body = strings.TrimSpace(strings.TrimPrefix(body, "+"))
+	parts := strings.Fields(body)
 	if len(parts) == 0 {
 		return playCommand{Raw: trimmed}
 	}
@@ -835,22 +837,23 @@ func (s *playSession) sceneParticipantIDs() []string {
 
 func playHelpText() string {
 	return strings.Join([]string{
-		"/help                         查看帮助",
-		"/look                         查看当前场景与同场角色",
-		"/who                          列出当前场景角色",
-		"/state                        查看玩家权威状态摘要",
-		"/talk <npc>                   选择当前对话目标",
-		"/target                       查看当前对话目标",
-		"/room                         查看当前房间/场景参与者",
-		"/clear_target                 清除当前对话目标",
-		"/say <message>                向当前房间公开发言，由一个主响应 NPC 回应",
-		"/ask <npc> <message>          在群聊语境下点名某个 NPC 回应",
-		"/act <text>                   让玩家节点先解释自然语言，再走权威校验、执行和 NPC/群聊响应",
-		"/gift <npc> <item>            向 NPC 送礼，并先在游戏侧权威状态落地",
-		"/show_item <npc> <item>       向 NPC 展示你当前持有的物品",
-		"/trade [npc]                  发起交易/议价对话",
-		"/threaten [npc]               发起威胁式对话",
-		"/exit                         退出 play 模式",
+		"/+help                        查看帮助",
+		"/+look                        查看当前场景与同场角色",
+		"/+who                         列出当前场景角色",
+		"/+state                       查看玩家权威状态摘要",
+		"/+talk <npc>                  选择当前对话目标",
+		"/+target                      查看当前对话目标",
+		"/+room                        查看当前房间/场景参与者",
+		"/+clear_target                清除当前对话目标",
+		"/+say <message>               向当前房间公开发言，由一个主响应 NPC 回应",
+		"/+ask <npc> <message>         在群聊语境下点名某个 NPC 回应",
+		"/+act <text>                  让玩家节点先解释自然语言，再走权威校验、执行和 NPC/群聊响应",
+		"/+gift <npc> <item>           向 NPC 送礼，并先在游戏侧权威状态落地",
+		"/+show_item <npc> <item>      向 NPC 展示你当前持有的物品",
+		"/+trade [npc]                 发起交易/议价对话",
+		"/+threaten [npc]              发起威胁式对话",
+		"/+exit                        退出 play 模式",
+		"兼容旧写法 /cmd               当前仍支持旧的 /help、/talk 这类输入",
 		"直接输入文本                    向当前目标发送自然语言对话",
 	}, "\n")
 }

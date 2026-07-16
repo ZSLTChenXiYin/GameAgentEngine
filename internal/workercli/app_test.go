@@ -150,6 +150,13 @@ func TestParsePlayCommand(t *testing.T) {
 	}
 }
 
+func TestParsePlayCommandSupportsPlusPrefix(t *testing.T) {
+	cmd := parsePlayCommand("/+talk innkeeper")
+	if cmd.Name != "talk" || cmd.Args != "innkeeper" {
+		t.Fatalf("unexpected plus-prefixed play command: %#v", cmd)
+	}
+}
+
 func TestResolvePlayPlayerNodeIDPrefersPlayerKind(t *testing.T) {
 	a := newTestApp()
 	view := workerstate.NewStateView(&workerstate.WorldState{
