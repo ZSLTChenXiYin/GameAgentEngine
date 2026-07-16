@@ -15,6 +15,7 @@ import (
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/external"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/planner"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/store"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
 
 type inferenceLogRequestData struct {
@@ -1215,8 +1216,8 @@ func (p *Pipeline) pauseForPendingSubTaskSummary(executionID string, req *Invoke
 		SubTasks:      append([]SubTaskDeclaration(nil), subTasks...),
 		DataRequest:   dr,
 		ActionCalls: []ActionCall{{
-			ActionID:   "data_request",
-			Mode:       "async",
+			ActionID:   sdk.ActionIDDataRequest,
+			Mode:       sdk.ActionModeAsync,
 			CallbackID: callbackID,
 			Args:       map[string]any{"data_request": *dr},
 		}},
@@ -2092,8 +2093,8 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 						TaskType:      req.TaskType,
 						DataRequest:   &dr,
 						ActionCalls: []ActionCall{{
-							ActionID:   "data_request",
-							Mode:       "async",
+							ActionID:   sdk.ActionIDDataRequest,
+							Mode:       sdk.ActionModeAsync,
 							CallbackID: callbackID,
 							Args:       map[string]any{"data_request": dr},
 						}},
