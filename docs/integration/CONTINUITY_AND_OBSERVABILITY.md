@@ -65,5 +65,3 @@ Detailed historical documents now live under `docs/internal/`:
 
 - [Continuity Debug Workflow](../internal/CONTINUITY_DEBUG_WORKFLOW.md)
 - [Continuity Regression Sample](../internal/CONTINUITY_REGRESSION_SAMPLE.md)
-- [Engine Tooling Sync Report](../internal/ENGINE_TOOLING_SYNC_REPORT.md)
-- [Engine Observability And World Tick Refactor](../internal/engine-observability-and-worldtick.md)

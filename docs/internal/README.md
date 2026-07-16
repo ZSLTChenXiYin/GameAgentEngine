@@ -23,19 +23,15 @@ It is intentionally separate from the public workflow, reference, and onboarding
 - `EXTERNAL_INTERACTION_EXAMPLES.md`
 - `EXTERNAL_INTERACTION_ROADMAP.md`
 - `EXTERNAL_INTERACTION_TEST_MATRIX.md`
-- `RUNTIME_TASK_TOOLING_SYNC.md`
 
 ### Continuity and observability
 
 - `CONTINUITY_DEBUG_WORKFLOW.md`
 - `CONTINUITY_REGRESSION_SAMPLE.md`
-- `ENGINE_TOOLING_SYNC_REPORT.md`
-- `engine-observability-and-worldtick.md`
 
 ### Engine structure and data evolution
 
 - `engine_graph_semantics.md`
-- `DATA_PIPELINE_PLAN.md`
 - `CLONEWORLD_SNAPSHOT_STRATEGY.md`
 - `CLONEWORLD_SNAPSHOT_STRATEGY_EN.md`
 
