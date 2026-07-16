@@ -1,0 +1,30 @@
+{
+  "name": "@gameagentengine/ts-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for GameAgentEngine",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "examples",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "check": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
