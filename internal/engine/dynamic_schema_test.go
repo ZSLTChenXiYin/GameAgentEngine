@@ -167,7 +167,35 @@ func TestValidatePlayerIntentInterpretationRejectsCompositeWithoutSteps(t *testi
 	if err == nil {
 		t.Fatal("expected composite validation error")
 	}
-	if got := err.Error(); got != "player_intent.intent.steps required for composite intent" {
+	if got := err.Error(); got != "player_intent.intent.steps required" {
+		t.Fatalf("unexpected error: %s", got)
+	}
+}
+
+func TestValidatePlayerIntentInterpretationRejectsNonCompositeWithoutSteps(t *testing.T) {
+	err := ValidatePlayerIntentInterpretation(&PlayerIntentInterpretation{
+		Intent: &PlayerIntent{Type: "speech", ActorNodeID: "player_001"},
+	})
+	if err == nil {
+		t.Fatal("expected non-composite validation error")
+	}
+	if got := err.Error(); got != "player_intent.intent.steps required" {
+		t.Fatalf("unexpected error: %s", got)
+	}
+}
+
+func TestValidatePlayerIntentInterpretationRejectsNonCompositeWithMismatchedStepType(t *testing.T) {
+	err := ValidatePlayerIntentInterpretation(&PlayerIntentInterpretation{
+		Intent: &PlayerIntent{
+			Type:        "speech",
+			ActorNodeID: "player_001",
+			Steps:       []PlayerIntentStep{{Type: "show_item", TargetNodeID: "npc_1", ItemID: "knife_bloody"}},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected mismatched step type validation error")
+	}
+	if got := err.Error(); got != "player_intent.intent.steps[0]: type must match intent.type speech" {
 		t.Fatalf("unexpected error: %s", got)
 	}
 }
@@ -190,13 +218,26 @@ func TestValidatePlayerIntentInterpretationRejectsInvalidStepPayload(t *testing.
 
 func TestValidatePlayerIntentInterpretationRejectsLegacyMissingFactTypes(t *testing.T) {
 	err := ValidatePlayerIntentInterpretation(&PlayerIntentInterpretation{
-		Intent: &PlayerIntent{Type: "speech", ActorNodeID: "player_001"},
+		Intent: &PlayerIntent{Type: "speech", ActorNodeID: "player_001", Steps: []PlayerIntentStep{{Type: "speech", Content: "hello"}}},
 		MissingFacts: []MissingFact{{Type: "scene_presence"}},
 	})
 	if err == nil {
 		t.Fatal("expected missing fact validation error")
 	}
 	if got := err.Error(); got != "player_intent.missing_facts[0].type must be one of: player_location, target_location, item_presence, scene_state, task_state, wallet_state" {
+		t.Fatalf("unexpected error: %s", got)
+	}
+}
+
+func TestValidatePlayerIntentInterpretationRejectsUnsupportedSuggestedInteractionEventType(t *testing.T) {
+	err := ValidatePlayerIntentInterpretation(&PlayerIntentInterpretation{
+		Intent: &PlayerIntent{Type: "move", ActorNodeID: "player_001", Steps: []PlayerIntentStep{{Type: "move", Args: map[string]any{"destination_scene_id": "scene_inn"}}}},
+		SuggestedInteraction: &SuggestedInteraction{Mode: "direct_dialogue", EventType: "move", AudienceScope: "private"},
+	})
+	if err == nil {
+		t.Fatal("expected suggested interaction event_type validation error")
+	}
+	if got := err.Error(); got != "player_intent.suggested_interaction.event_type must be one of: speech, gift, show_item, trade_request, threaten" {
 		t.Fatalf("unexpected error: %s", got)
 	}
 }

@@ -93,3 +93,21 @@ func TestBuildPlayerIntentPromptUsesCurrentAudienceScopeVocabulary(t *testing.T)
 		t.Fatalf("expected legacy scene audience scope to be removed, got %q", text)
 	}
 }
+
+func TestBuildPlayerIntentPromptAvoidsLegacySuggestedInteractionEventTypes(t *testing.T) {
+	text := buildPlayerIntentPrompt("system context", "player_1", &InteractionContext{
+		Mode:         "direct_dialogue",
+		TargetNodeID: "npc_innkeeper",
+		SceneNodeID:  "scene_inn",
+	})
+	if !strings.Contains(text, `"event_type": "speech|show_item|gift|trade_request|threaten"`) {
+		t.Fatalf("expected current suggested interaction event type vocabulary, got %q", text)
+	}
+	for _, legacy := range []string{"inspect", "use_item", "move"} {
+		if strings.Contains(text, legacy) && strings.Contains(text, `"event_type":`) {
+			if strings.Contains(text, `"event_type": "speech|show_item|gift|trade_request|threaten|inspect|use_item|move"`) {
+				t.Fatalf("expected legacy suggested interaction event types to be removed, got %q", text)
+			}
+		}
+	}
+}

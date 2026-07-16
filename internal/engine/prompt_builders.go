@@ -347,7 +347,7 @@ func buildPlayerIntentPrompt(systemContext string, nodeID string, interaction *I
   ],
   "suggested_interaction": {
     "mode": "direct_dialogue|group_chat|gift_response|trade_dialogue",
-    "event_type": "speech|show_item|gift|trade_request|threaten|inspect|use_item|move",
+    "event_type": "speech|show_item|gift|trade_request|threaten",
     "audience_scope": "private|public|whisper",
     "target_node_id": "可选"
   }
@@ -361,6 +361,7 @@ request_data 格式：
 - 如果玩家输入本质上是“对 NPC 说一句话”，可以把语言内容放入 speech step 的 content 中。
 - 如果一句输入包含多段动作，优先使用 composite，把动作序列拆开。
 - 如果目标不明确，可以保留空 target_node_id，但要在 suggested_interaction 或 missing_facts 中说明。
+- suggested_interaction 只描述后续适合触发哪类 NPC/群聊交互；像 move、inspect、use_item 这类纯玩家侧步骤不要伪装成 interaction event_type。
 - 只有在确实不需要更多权威数据时，才省略 request_data。
 
 当前交互参考：

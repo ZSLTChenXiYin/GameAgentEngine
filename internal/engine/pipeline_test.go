@@ -567,7 +567,7 @@ func TestExecuteDialogueInjectsDynamicInterfacePromptBlock(t *testing.T) {
 func TestExecuteCustomPlayerInputInterpretUsesDedicatedPromptAndResponse(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
-	provider := &captureProvider{response: `{"reply":"intent ready","player_intent":{"intent":{"type":"speech","actor_node_id":"` + nodeID + `","target_node_id":"npc_1","summary":"询问老板","risk_level":"low","confidence":0.9},"missing_facts":[],"suggested_interaction":{"mode":"direct_dialogue","event_type":"speech","audience_scope":"private","target_node_id":"npc_1"}}}`}
+	provider := &captureProvider{response: `{"reply":"intent ready","player_intent":{"intent":{"type":"speech","actor_node_id":"` + nodeID + `","target_node_id":"npc_1","summary":"询问老板","risk_level":"low","confidence":0.9,"steps":[{"type":"speech","target_node_id":"npc_1","content":"我想问老板今晚见没见过这个人"}]},"missing_facts":[],"suggested_interaction":{"mode":"direct_dialogue","event_type":"speech","audience_scope":"private","target_node_id":"npc_1"}}}`}
 	pipeline := NewPipeline(provider)
 	resp, err := pipeline.Execute(&InvokeRequest{
 		WorldID:  worldID,
@@ -640,6 +640,46 @@ func TestExecuteCustomPlayerInputInterpretRejectsInvalidPlayerIntent(t *testing.
 	}
 	if resp.PlayerIntent != nil {
 		t.Fatalf("expected invalid player intent to be dropped, got %#v", resp.PlayerIntent)
+	}
+}
+
+func TestExecuteCustomPlayerInputInterpretRejectsPlayerIntentWithoutSteps(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"intent ready","player_intent":{"intent":{"type":"speech","actor_node_id":"` + nodeID + `","risk_level":"low","confidence":0.9}}}`}
+	pipeline := NewPipeline(provider)
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context:  &InvokeContext{PlayerInputInterpret: true},
+		Messages: []ChatMessage{{Role: "user", Content: "test"}},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp.PlayerIntent != nil {
+		t.Fatalf("expected step-less player intent to be dropped, got %#v", resp.PlayerIntent)
+	}
+}
+
+func TestExecuteCustomPlayerInputInterpretRejectsUnsupportedSuggestedInteractionEventType(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	provider := &captureProvider{response: `{"reply":"intent ready","player_intent":{"intent":{"type":"move","actor_node_id":"` + nodeID + `","risk_level":"low","confidence":0.9,"steps":[{"type":"move","args":{"destination_scene_id":"scene_inn"}}]},"suggested_interaction":{"mode":"direct_dialogue","event_type":"move","audience_scope":"private"}}}`}
+	pipeline := NewPipeline(provider)
+	resp, err := pipeline.Execute(&InvokeRequest{
+		WorldID:  worldID,
+		NodeID:   nodeID,
+		TaskType: TaskCustom,
+		Context:  &InvokeContext{PlayerInputInterpret: true},
+		Messages: []ChatMessage{{Role: "user", Content: "test"}},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if resp.PlayerIntent != nil {
+		t.Fatalf("expected unsupported suggested interaction event type to be dropped, got %#v", resp.PlayerIntent)
 	}
 }
 

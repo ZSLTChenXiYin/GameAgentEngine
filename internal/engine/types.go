@@ -620,6 +620,7 @@ var dynamicInterfaceIDPattern = regexp.MustCompile(`^[a-z][a-z0-9_:-]{1,63}$`)
 var validInteractionModes = []string{"direct_dialogue", "group_chat", "gift_response", "trade_dialogue"}
 var validInteractionEventTypes = []string{"speech", "gift", "show_item", "trade_request", "threaten"}
 var validInteractionAudienceScopes = []string{"public", "private", "whisper"}
+var validSuggestedInteractionEventTypes = []string{"speech", "gift", "show_item", "trade_request", "threaten"}
 var validPlayerIntentTypes = []string{"speech", "show_item", "gift", "trade_request", "threaten", "move", "inspect", "use_item", "composite"}
 var validPlayerIntentRiskLevels = []string{"low", "medium", "high"}
 var validPlayerIntentPreconditionTypes = []string{"same_scene", "target_present", "item_present", "money_at_least", "task_status", "scene_flag", "location_accessible"}
@@ -720,8 +721,8 @@ func ValidatePlayerIntentInterpretation(payload *PlayerIntentInterpretation) err
 		if mode := strings.TrimSpace(payload.SuggestedInteraction.Mode); mode != "" && !slices.Contains(validInteractionModes, mode) {
 			return fmt.Errorf("player_intent.suggested_interaction.mode must be one of: %s", strings.Join(validInteractionModes, ", "))
 		}
-		if eventType := strings.TrimSpace(payload.SuggestedInteraction.EventType); eventType != "" && !slices.Contains(validInteractionEventTypes, eventType) {
-			return fmt.Errorf("player_intent.suggested_interaction.event_type must be one of: %s", strings.Join(validInteractionEventTypes, ", "))
+		if eventType := strings.TrimSpace(payload.SuggestedInteraction.EventType); eventType != "" && !slices.Contains(validSuggestedInteractionEventTypes, eventType) {
+			return fmt.Errorf("player_intent.suggested_interaction.event_type must be one of: %s", strings.Join(validSuggestedInteractionEventTypes, ", "))
 		}
 		if scope := strings.TrimSpace(payload.SuggestedInteraction.AudienceScope); scope != "" && !slices.Contains(validInteractionAudienceScopes, scope) {
 			return fmt.Errorf("player_intent.suggested_interaction.audience_scope must be one of: %s", strings.Join(validInteractionAudienceScopes, ", "))
@@ -750,10 +751,16 @@ func ValidatePlayerIntent(intent *PlayerIntent) error {
 	if intent.Confidence < 0 || intent.Confidence > 1 {
 		return fmt.Errorf("player_intent.intent.confidence must be between 0 and 1")
 	}
-	if intentType == "composite" && len(intent.Steps) == 0 {
-		return fmt.Errorf("player_intent.intent.steps required for composite intent")
+	if len(intent.Steps) == 0 {
+		return fmt.Errorf("player_intent.intent.steps required")
+	}
+	if intentType != "composite" && len(intent.Steps) != 1 {
+		return fmt.Errorf("player_intent.intent.steps must contain exactly 1 step for non-composite intent")
 	}
 	for i, step := range intent.Steps {
+		if intentType != "composite" && strings.TrimSpace(step.Type) != intentType {
+			return fmt.Errorf("player_intent.intent.steps[%d]: type must match intent.type %s", i, intentType)
+		}
 		if err := ValidatePlayerIntentStep(step); err != nil {
 			return fmt.Errorf("player_intent.intent.steps[%d]: %w", i, err)
 		}
