@@ -1,24 +1,22 @@
 # GameAgentEngine C++ SDK
 
-This SDK is the C++ baseline client for GameAgentEngine.
+This SDK is the C++ baseline for native-side GameAgentEngine integration.
+
+## Current Status
+
+This is now a minimal practical request-builder layer rather than a pure path-only scaffold.
+
+It still does not provide a full HTTP transport implementation, but it now covers the main request shapes needed to integrate native code with Engine and Worker loops.
 
 ## Current Scope
 
-- baseline HTTP access layer
-- health / version / invoke / runtime-task / callback entrypoints
-- minimal integration examples
-
-## Status
-
-This directory currently provides a baseline scaffold, not full parity with the Go SDK yet.
-
-## Notes
-
-- intended as the native-plugin and engine-bridge baseline
-- favors explicit HTTP wrapper structure over framework-specific bindings
+- health / version / invoke request construction
+- runtime task pending / get / claim / start request construction
+- callback request construction
+- minimal loop example for pull-task handling
 
 ## Included Examples
 
 - `examples/health.cpp`
 - `examples/invoke_dialogue.cpp`
-
+- `examples/task_pull_once.cpp`

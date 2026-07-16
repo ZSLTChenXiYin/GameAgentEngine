@@ -1,24 +1,23 @@
 # GameAgentEngine Java SDK
 
-This SDK is the Java baseline client for GameAgentEngine.
+This SDK is the Java baseline for GameAgentEngine integration.
+
+## Current Status
+
+This is now a minimal practical HTTP client rather than a read-only placeholder.
+
+It still does not provide full typed model coverage, but it now supports the main outer loop: health, invoke, pending tasks, claim/start, and callback.
 
 ## Current Scope
 
-- baseline HTTP access layer
-- health / version / invoke / runtime-task / callback entrypoints
-- minimal integration examples
-
-## Status
-
-This directory currently provides a baseline scaffold, not full parity with the Go SDK yet.
-
-## Notes
-
-- intended as the JVM-side baseline for service bridges and tooling
-- favors simple HttpClient + String payload patterns first
+- health and version
+- invoke
+- pending runtime task list
+- claim / start runtime task
+- callback completion
 
 ## Included Examples
 
 - `examples/HealthExample.java`
 - `examples/InvokeDialogueExample.java`
-
+- `examples/TaskPullOnceExample.java`
