@@ -15,11 +15,11 @@ Status levels:
 | `ts-sdk` | practical | yes | yes | yes | yes | yes | yes | strongest non-Go SDK so far |
 | `js-sdk` | practical | yes | yes | yes | yes | yes | yes | plain Node.js / script-friendly twin to ts-sdk |
 | `cs-sdk` | practical | yes | yes | yes | yes | yes | yes | Unity / .NET oriented, typed POCO client |
-| `gd-sdk` | practical-request-builder | request builders | request builders | request builders | request builders | request builders | partial | Godot-side request construction is in place; execution wrapper still absent |
-| `cpp-sdk` | baseline | partial | partial | no | no | no | no | next-wave upgrade target |
+| `gd-sdk` | practical-request-builder | request builders | request builders | request builders | request builders | request builders | yes | Godot-side request construction now includes worker authority-query and roundtrip examples; execution wrapper still absent |
+| `cpp-sdk` | baseline+worker-examples | partial | partial | partial | partial | no | yes | request-builder surface now covers pull/callback helper sequence plus worker examples |
 | `java-sdk` | baseline+worker-loop | yes | yes | yes | yes | no | yes | real HTTP client plus authority-query / callback roundtrip examples; observability surface still shallow |
-| `lua-sdk` | baseline | partial | partial | no | no | no | no | later-stage lightweight integration target |
-| `c-sdk` | baseline | partial | partial | no | no | no | no | later-stage native integration target |
+| `lua-sdk` | baseline+worker-examples | partial | partial | partial | partial | no | yes | lightweight request helper now mirrors the worker loop and authority-query sequence |
+| `c-sdk` | baseline+worker-examples | partial | partial | partial | partial | no | yes | path/payload helper set plus worker examples; caller still owns transport |
 
 ## 2. What “practical” Means Here
 
@@ -47,9 +47,8 @@ These are the SDKs that already map directly onto the current Engine / Worker de
 
 Remaining order in the current plan:
 
-1. `cpp-sdk`
-2. `java-sdk`
-3. `lua-sdk`
-4. `c-sdk`
+1. `lua-sdk`
+2. `c-sdk`
+3. `cpp-sdk` observability / typed-model depth
 
-The next upgrade target after this matrix phase is still the lower-tier SDK set, not a rework of the already practical SDKs.
+The next upgrade target after this matrix phase is still observability / typed-model depth for the lower-tier SDK set, not a rework of the already practical SDKs.

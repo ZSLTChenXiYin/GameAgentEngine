@@ -156,6 +156,8 @@
 - 与 `GameAgentWorker serve` 配合的 pull / callback 示例
 - 与 `GameAgentWorker play` 相关的 invoke / authority query 示例
 
+对于原生侧或脚本侧的 request-builder SDK，如果当前不内置 HTTP 传输层，上述示例至少也应给出完整的请求构造序列与推荐的 Worker 配合方式，避免外围接入方自行猜测接口顺序。
+
 ## 8. 错误模型要求
 
 每个 SDK 至少要统一处理：

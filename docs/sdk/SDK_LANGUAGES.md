@@ -70,6 +70,7 @@
   - callback 请求构造
   - world settings / state components / timelines / logs / debug traces 请求构造
   - world tick advance 请求构造
+- 附带示例：worker authority query / runtime roundtrip
 - 备注：返回 Godot 友好的请求字典，由项目自行接 HTTP 层
 
 ## Java SDK
@@ -91,33 +92,33 @@
 - 目录：`tools/source/sdks/cpp-sdk`
 - 定位：原生侧集成的请求构造基线
 - 当前覆盖：
-  - health / version / invoke 请求构造
-  - runtime task pending / get / claim / start 请求构造
+  - health / version / invoke / player input interpret 请求构造
+  - runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats 请求构造
   - callback 请求构造
-  - pull-task 最小循环示例
-- 现状：不内置完整 HTTP 传输层
+  - worker authority query / runtime roundtrip 示例
+- 现状：不内置完整 HTTP 传输层，但已给出和 Worker 对接所需的最小请求序列
 
 ## C SDK
 
 - 目录：`tools/source/sdks/c-sdk`
 - 定位：最低依赖的原生侧集成基线
 - 当前覆盖：
-  - health / version / invoke 路径辅助
-  - pending task 路径辅助
-  - claim / start / callback payload 构造
-  - pull-task 最小循环示例
-- 现状：不内置 HTTP 传输层
+  - health / version / invoke / player input interpret 路径辅助
+  - runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats 路径 / payload 辅助
+  - callback payload 构造
+  - worker authority query / runtime roundtrip 示例
+- 现状：不内置 HTTP 传输层，但已覆盖和 Worker 联调的基础请求拼装
 
 ## Lua SDK
 
 - 目录：`tools/source/sdks/lua-sdk`
 - 定位：轻量脚本侧集成基线
 - 当前覆盖：
-  - health / version / invoke path 和 request helper
-  - runtime task pending / get / claim / start helper
-  - callback payload helper
-  - pull-task 最小循环示例
-- 现状：不内置 HTTP 传输层
+  - health / version / invoke / player input interpret path 和 request helper
+  - runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats helper
+  - callback payload / request helper
+  - worker authority query / runtime roundtrip 示例
+- 现状：不内置 HTTP 传输层，但请求构造层已能直接承接 Worker 联调顺序
 
 ## 统一要求
 
