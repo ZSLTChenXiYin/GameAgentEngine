@@ -29,7 +29,6 @@ func main() {
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(versionCmd)
-	rootCmd.AddCommand(initCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
