@@ -230,6 +230,8 @@ func (a *app) executePlayCommand(s *playSession, cmd playCommand) (bool, error) 
 		return false, a.runPlayMove(s, cmd.Args)
 	case "inspect":
 		return false, a.runPlayInspect(s, cmd.Args)
+	case "use_item", "use":
+		return false, a.runPlayUseItem(s, cmd.Args)
 	case "say":
 		return false, a.runPlaySay(s, cmd.Args)
 	case "ask":
@@ -436,6 +438,45 @@ func (a *app) runPlayInspect(s *playSession, args string) error {
 		return errors.New("nothing to inspect")
 	}
 	fmt.Println(text)
+	return nil
+}
+
+func (a *app) runPlayUseItem(s *playSession, args string) error {
+	itemArg := strings.TrimSpace(args)
+	if itemArg == "" {
+		return errors.New("/+use_item requires an item name or id")
+	}
+	s.refreshView(a)
+	itemID, itemLabel, err := s.resolvePlayerInventoryItem(itemArg)
+	if err != nil {
+		return err
+	}
+	a.authorityMu.Lock()
+	result, err := playerintent.Execute(a.authority, &sdk.PlayerIntentInterpretation{
+		Intent: &sdk.PlayerIntent{
+			Type:        "use_item",
+			ActorNodeID: s.playerNodeID,
+			SceneNodeID: s.currentSceneID,
+			RiskLevel:   "low",
+			Summary:     fmt.Sprintf("use %s", itemLabel),
+			Steps: []sdk.PlayerIntentStep{{
+				Type:    "use_item",
+				ItemID:  itemID,
+				Args:    map[string]any{"item_id": itemID},
+				Content: fmt.Sprintf("use %s", itemLabel),
+				Preconditions: []sdk.PlayerIntentPrecondition{{
+					Type:   "item_present",
+					ItemID: itemID,
+				}},
+			}},
+		},
+	})
+	a.authorityMu.Unlock()
+	if err != nil {
+		return err
+	}
+	s.refreshView(a)
+	a.printPlayExecutionResult(s, result)
 	return nil
 }
 
@@ -1136,6 +1177,7 @@ func playHelpText() string {
 		"/+room                        查看当前房间/场景参与者",
 		"/+move <scene>                切换到指定场景，并立即刷新本地权威状态",
 		"/+inspect [target]            查看当前场景、角色或可见物品的权威摘要",
+		"/+use_item <item>             对当前持有物品执行确定性使用校验",
 		"/+clear_target                清除当前对话目标",
 		"/+say <message>               向当前房间公开发言，由一个主响应 NPC 回应",
 		"/+ask <npc> <message>         在群聊语境下点名某个 NPC 回应",

@@ -395,6 +395,28 @@ func TestRenderInspectionSupportsActorAndVisibleItem(t *testing.T) {
 	}
 }
 
+func TestRunPlayUseItemRequiresOwnedItem(t *testing.T) {
+	a := newTestApp()
+	a.setAuthorityState(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_inn", Inventory: []workerstate.InventoryEntry{{ItemID: "apple", Quantity: 1}}},
+		},
+		Scenes: map[string]*workerstate.SceneState{
+			"scene_inn": {ID: "scene_inn", Name: "Inn"},
+		},
+		Items: map[string]*workerstate.ItemState{
+			"apple": {ID: "apple", Name: "Apple", OwnerID: "player_1"},
+		},
+	})
+	s := &playSession{view: a.authorityView(), playerNodeID: "player_1", currentSceneID: "scene_inn"}
+	if err := a.runPlayUseItem(s, "Apple"); err != nil {
+		t.Fatalf("runPlayUseItem returned error: %v", err)
+	}
+	if err := a.runPlayUseItem(s, "Knife"); err == nil {
+		t.Fatal("expected missing item error")
+	}
+}
+
 func TestRenderSceneSummaryIncludesPromptFlagsAndTarget(t *testing.T) {
 	view := workerstate.NewStateView(&workerstate.WorldState{
 		Actors: map[string]*workerstate.ActorState{
