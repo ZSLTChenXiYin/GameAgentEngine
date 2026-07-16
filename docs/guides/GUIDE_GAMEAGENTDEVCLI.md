@@ -9,13 +9,14 @@ GameAgentDevCli 是通过 HTTP API 操作 GameAgentEngine 的命令行工具。
 ## 当前能力
 
 - 节点、组件、记忆、关系 CRUD
+- world 导入、导出、快照、恢复与验证
 - 世界设置、世界策略、计划审批
 - world tick、事件影响、scope advance、timeline replan
 - continuity 状态组件和 timeline 归档访问
 - logs、traces、continuity 调试、node graph 调试
-- snapshot 保存、校验、恢复、删除
 - 打开 Creator
 - runtime task 管理
+- verify / action callback 等运行时辅助入口
 
 ---
 
@@ -85,6 +86,15 @@ GameAgentDevCli debug continuity <world-id>
 GameAgentDevCli logs --world <world-id> --limit 10
 GameAgentDevCli debug traces --world <world-id> --limit 10
 GameAgentDevCli debug node-graph <node-id>
+GameAgentDevCli status
+GameAgentDevCli version
+```
+
+如果只是先确认服务是否在线、鉴权是否正确，优先跑：
+
+```bash
+GameAgentDevCli status
+GameAgentDevCli version
 ```
 
 ---
@@ -173,6 +183,31 @@ GameAgentDevCli task requeue <task-id> --retry-delay-ms 1500 --reason "manual re
 ```bash
 GameAgentDevCli creator
 ```
+
+`creator` 现在就是 DevCli 侧正式的浏览器入口。此前一些“inspect/打开编辑器”类历史命名已经不再作为主工作流保留。
+
+---
+
+## 导入、导出与校验
+
+当前围绕世界资产的主命令已经集中在 DevCli：
+
+```bash
+GameAgentDevCli import tools/source/demo-world.yaml
+GameAgentDevCli world export <world-id> --format yaml --out exported-world.yaml
+GameAgentDevCli world snapshot <world-id> --out runtime-snapshot.json
+GameAgentDevCli world save <world-id> demo-save
+GameAgentDevCli world restore <snapshot-world-id> restored-world
+GameAgentDevCli world validate-snapshot <snapshot-world-id>
+GameAgentDevCli verify import tools/source/demo-world.yaml
+GameAgentDevCli verify demo
+```
+
+约束上应这样理解：
+
+- Engine 保持运行时内核，不承担这些外围工作流入口
+- 资产导入导出、快照校验、演示验证属于 DevCli 职责
+- 游戏侧异步闭环和 REPL 试玩属于 Worker 职责
 
 
 ---

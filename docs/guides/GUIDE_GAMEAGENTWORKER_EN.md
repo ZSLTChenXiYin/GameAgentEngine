@@ -235,46 +235,67 @@ If `--auto-worker` is disabled and a turn pauses on `game_client_request_data`, 
 Current commands:
 
 ```text
+/+help
+/+look
+/+who
+/+state
+/+inventory
+/+quests
+/+talk <npc>
+/+next_target
+/+prev_target
+/+target
+/+room
+/+move <scene>
+/+inspect [target]
+/+use_item <item>
+/+clear_target
+/+say <message>
+/+ask <npc> <message>
+/+act <text>
+/+gift <npc> <item>
+/+show_item <npc> <item>
+/+trade [npc]
+/+threaten [npc]
+/+exit
+
+# legacy aliases remain supported
 /help
 /look
-/who
-/state
-/talk <npc>
-/target
-/room
-/clear_target
-/say <message>
-/ask <npc> <message>
-/act <text>
-/gift <npc> <item>
-/show_item <npc> <item>
-/trade [npc]
-/threaten [npc]
-/exit
+...
 ```
 
 What they do:
 
 | Command | Purpose |
 | --- | --- |
-| `/help` | show help |
-| `/look` | show current scene summary and occupants |
-| `/who` | list actors in the current scene |
-| `/state` | show authoritative player summary such as HP, money, inventory, and location |
-| `/talk <npc>` | set the current private dialogue target |
-| `/target` | show the current dialogue target |
-| `/room` | show room participants |
-| `/clear_target` | clear the current dialogue target |
-| `/say <message>` | speak publicly in the room; one primary NPC responds |
-| `/ask <npc> <message>` | ask one named NPC to respond inside group-chat context |
-| `/act <text>` | map natural language into player intent, then validate, execute, and bridge into NPC or group-chat response |
-| `/gift <npc> <item>` | commit the gift in authoritative state first, then ask the NPC to react |
-| `/show_item <npc> <item>` | verify the player actually has the item, then show it to the NPC |
-| `/trade [npc]` | start trade / bargaining dialogue |
-| `/threaten [npc]` | start threat-based dialogue |
-| `/exit` | leave play mode |
+| `/+help` | show help |
+| `/+look` | show current scene summary, prompt, and occupants |
+| `/+who` | list actors in the current scene |
+| `/+state` | show authoritative player summary such as HP, money, inventory, and location |
+| `/+inventory` | show detailed inventory |
+| `/+quests` | show quest and story-state summary |
+| `/+talk <npc>` | set the current private dialogue target |
+| `/+next_target` / `/+prev_target` | cycle between dialogue-capable NPCs in the current scene |
+| `/+target` | show the current dialogue target |
+| `/+room` | show room participants and the current group-chat primary responder |
+| `/+move <scene>` | execute deterministic player movement against authoritative state |
+| `/+inspect [target]` | inspect the current scene, one actor, or one visible item |
+| `/+use_item <item>` | execute deterministic item-use validation for an owned item |
+| `/+clear_target` | clear the current dialogue target |
+| `/+say <message>` | speak publicly in the room; the current group-chat primary responder answers |
+| `/+ask <npc> <message>` | ask one named NPC to answer inside group-chat context |
+| `/+act <text>` | map natural language into player intent, then validate, execute, and bridge into NPC or group-chat response |
+| `/+gift <npc> <item>` | commit the gift in authoritative state first, then ask the NPC to react |
+| `/+show_item <npc> <item>` | verify the player actually has the item, then show it to the NPC |
+| `/+trade [npc]` | start trade / bargaining dialogue |
+| `/+threaten [npc]` | start threat-based dialogue |
+| `/+exit` | leave play mode |
 
-If you type plain text directly, it is sent to the current `/talk` target as `direct_dialogue`.
+Also note:
+
+- legacy `/help` and `/talk` style aliases still work.
+- If you type plain text directly, it is sent to the current `/+talk` target as `direct_dialogue`.
 
 ---
 
@@ -288,7 +309,8 @@ Its flow is not “text equals truth”. It is:
 2. produce a structured player intent
 3. validate that intent against worker authority state
 4. execute only validated changes in game-side state
-5. bridge the result into NPC dialogue or group-chat response
+5. surface the interpreted intent, missing facts, and suggested follow-up interaction inside play
+6. bridge the result into NPC dialogue or group-chat response
 
 This is the correct base for future natural-language player control because it preserves:
 
@@ -329,8 +351,10 @@ These cover the main high-frequency authoritative facts discussed so far:
 `play` already supports group-chat entrypoints, but still has explicit limits:
 
 - group chat still selects one primary responder per turn; it is not multi-NPC parallel cluster reasoning
+- the primary group-chat responder is now explicit: current target first, otherwise a stable scene-default NPC
 - `action_calls` are displayed but not automatically committed locally
 - high-risk natural-language actions must still pass authority validation
+- `/act` now prints interpreted intent, steps, missing facts, and suggested interaction details for debugging
 
 So the current version is suitable for:
 

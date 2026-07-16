@@ -235,46 +235,67 @@ GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_w
 当前 `play` 支持：
 
 ```text
+/+help
+/+look
+/+who
+/+state
+/+inventory
+/+quests
+/+talk <npc>
+/+next_target
+/+prev_target
+/+target
+/+room
+/+move <scene>
+/+inspect [target]
+/+use_item <item>
+/+clear_target
+/+say <message>
+/+ask <npc> <message>
+/+act <text>
+/+gift <npc> <item>
+/+show_item <npc> <item>
+/+trade [npc]
+/+threaten [npc]
+/+exit
+
+# 兼容旧写法
 /help
 /look
-/who
-/state
-/talk <npc>
-/target
-/room
-/clear_target
-/say <message>
-/ask <npc> <message>
-/act <text>
-/gift <npc> <item>
-/show_item <npc> <item>
-/trade [npc]
-/threaten [npc]
-/exit
+...
 ```
 
 各命令职责如下：
 
 | 命令 | 作用 |
 | --- | --- |
-| `/help` | 查看帮助 |
-| `/look` | 查看当前场景摘要和同场角色 |
-| `/who` | 列出当前场景角色 |
-| `/state` | 查看玩家权威状态摘要，如 HP、金钱、背包、位置 |
-| `/talk <npc>` | 选择当前私聊对象 |
-| `/target` | 查看当前对话目标 |
-| `/room` | 查看当前房间参与者 |
-| `/clear_target` | 清除当前对话目标 |
-| `/say <message>` | 面向当前房间公开发言，由一个主响应 NPC 回应 |
-| `/ask <npc> <message>` | 在群聊语境下点名某个 NPC 回应 |
-| `/act <text>` | 将自然语言先映射为玩家意图，再做权威校验、执行与后续 NPC / 群聊响应 |
-| `/gift <npc> <item>` | 先在权威状态里完成赠礼落地，再请求 NPC 给出反馈 |
-| `/show_item <npc> <item>` | 校验玩家确实持有该物品后，再向 NPC 展示 |
-| `/trade [npc]` | 发起交易 / 议价对话 |
-| `/threaten [npc]` | 发起威胁式对话 |
-| `/exit` | 退出 play 模式 |
+| `/+help` | 查看帮助 |
+| `/+look` | 查看当前场景摘要、提示和同场角色 |
+| `/+who` | 列出当前场景角色 |
+| `/+state` | 查看玩家权威状态摘要，如 HP、金钱、背包、位置 |
+| `/+inventory` | 查看背包详情 |
+| `/+quests` | 查看任务 / 剧情状态摘要 |
+| `/+talk <npc>` | 选择当前私聊对象 |
+| `/+next_target` / `/+prev_target` | 在当前场景的可对话 NPC 之间切换 |
+| `/+target` | 查看当前对话目标 |
+| `/+room` | 查看当前房间参与者和当前群聊主响应者 |
+| `/+move <scene>` | 在游戏侧权威状态里执行确定性移动 |
+| `/+inspect [target]` | 查看当前场景、角色或可见物品的权威摘要 |
+| `/+use_item <item>` | 对当前持有物品执行确定性使用校验 |
+| `/+clear_target` | 清除当前对话目标 |
+| `/+say <message>` | 面向当前房间公开发言，由当前群聊主响应 NPC 回应 |
+| `/+ask <npc> <message>` | 在群聊语境下点名某个 NPC 回应 |
+| `/+act <text>` | 将自然语言先映射为玩家意图，再做权威校验、执行与后续 NPC / 群聊响应 |
+| `/+gift <npc> <item>` | 先在权威状态里完成赠礼落地，再请求 NPC 给出反馈 |
+| `/+show_item <npc> <item>` | 校验玩家确实持有该物品后，再向 NPC 展示 |
+| `/+trade [npc]` | 发起交易 / 议价对话 |
+| `/+threaten [npc]` | 发起威胁式对话 |
+| `/+exit` | 退出 play 模式 |
 
-此外，直接输入普通文本时，会把文本发给当前 `/talk` 选中的 NPC，作为 `direct_dialogue` 处理。
+此外：
+
+- 旧写法 `/help`、`/talk` 这类输入仍兼容。
+- 直接输入普通文本时，会把文本发给当前 `/+talk` 选中的 NPC，作为 `direct_dialogue` 处理。
 
 ---
 
@@ -288,7 +309,8 @@ GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_w
 2. 生成玩家意图结构
 3. 用 Worker 当前加载的权威状态做校验
 4. 仅当校验通过时，才在游戏侧状态中执行
-5. 再将执行后的互动桥接为 NPC 对话或群聊响应
+5. 在 play 中显式展示解释结果、缺失事实、建议交互
+6. 再将执行后的互动桥接为 NPC 对话或群聊响应
 
 这条链路正是后续玩家自然语言控制的正确基础，因为它保留了：
 
@@ -329,8 +351,10 @@ GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_w
 `play` 已经支持群聊入口，但目前仍有明确边界：
 
 - 群聊回合当前仍由一个主响应 NPC 回应，不是多 NPC 并行推理集群
+- 群聊主响应者规则当前是显式的：优先当前 target，否则回退到当前场景中稳定可预测的默认 NPC
 - `action_calls` 当前只展示，不在本地直接自动落地
 - 高风险自然语言动作仍必须经过权威校验，不能绕过游戏侧真值
+- `/act` 当前已显式展示解释出的 intent、steps、missing facts 和 suggested interaction，便于调试自然语言控制链路
 
 所以当前版本适合做：
 

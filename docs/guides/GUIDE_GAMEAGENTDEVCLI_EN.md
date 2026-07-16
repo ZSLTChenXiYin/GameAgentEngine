@@ -9,13 +9,14 @@ GameAgentDevCli is the command-line tool for operating GameAgentEngine through t
 ## Current Scope
 
 - node / component / memory / relation CRUD
+- world import, export, snapshot, restore, and validation
 - world settings, world policy, and plan approval
 - world tick, event impact, scope advance, and timeline replan
 - continuity state components and timeline archive access
 - logs, traces, continuity debugging, and node graph debugging
-- snapshot save, validation, restore, and deletion
 - opening Creator
 - task management (`task` commands)
+- verify and action-callback helper entrypoints
 
 ---
 
@@ -139,3 +140,49 @@ If your game side consumes pull tasks, the smallest stable loop is:
 6. keep heartbeat if execution is long-running
 
 The callback response now includes post-process metadata from the Engine, so SDK or custom worker code can tell whether the callback only completed, resumed execution, or triggered memory write post-processing.
+
+---
+
+## Basic Operational Checks
+
+When you only need to verify service reachability or version alignment, start with:
+
+```bash
+GameAgentDevCli status
+GameAgentDevCli version
+```
+
+These are better first checks than jumping directly into world or task commands when you are not yet sure the service endpoint and API key are correct.
+
+---
+
+## Import, Export, and Verification
+
+World-asset lifecycle commands are now expected to live in DevCli:
+
+```bash
+GameAgentDevCli import tools/source/demo-world.yaml
+GameAgentDevCli world export <world-id> --format yaml --out exported-world.yaml
+GameAgentDevCli world snapshot <world-id> --out runtime-snapshot.json
+GameAgentDevCli world save <world-id> demo-save
+GameAgentDevCli world restore <snapshot-world-id> restored-world
+GameAgentDevCli world validate-snapshot <snapshot-world-id>
+GameAgentDevCli verify import tools/source/demo-world.yaml
+GameAgentDevCli verify demo
+```
+
+The intended boundary is:
+
+- Engine remains the runtime kernel
+- DevCli owns import/export/snapshot/verification workflows
+- Worker owns game-side async loops and play-mode REPL
+
+---
+
+## Opening Creator
+
+```bash
+GameAgentDevCli creator
+```
+
+`creator` is now the canonical DevCli browser entrypoint. Older naming ideas around “inspect/open editor” are no longer the main workflow surface.
