@@ -296,13 +296,7 @@ func (a *app) runPlayAct(s *playSession, args string) error {
 			IncludeRelatedNodes: a.cfg.PlayIncludeRelated,
 			PipelineMode:        a.cfg.PlayPipelineMode,
 			DynamicInterfaces: []sdk.DynamicInterface{
-				sdk.NewDynamicDataRequest(
-					"play_authority",
-					"game_client_request_data",
-					sdk.WithDescription("Query authoritative game-side state such as HP, inventory, money, quest, scene, occupancy, and immediate room state during play mode."),
-					sdk.WithQueryTypes("player_state", "player_inventory", "player_wallet", "player_location", "npc_location", "scene_state", "room_state", "task_state", "item_presence"),
-					sdk.WithMaxQueries(8),
-				),
+				sdk.NewAuthorityDataRequest("play_authority", 8),
 			},
 		},
 	})
@@ -516,13 +510,7 @@ func (a *app) invokePlayInteraction(s *playSession, spec playInteractionSpec) er
 	ctx := &sdk.InvokeContext{
 		IncludeRelatedNodes: a.cfg.PlayIncludeRelated,
 		DynamicInterfaces: []sdk.DynamicInterface{
-			sdk.NewDynamicDataRequest(
-				"play_authority",
-				"game_client_request_data",
-				sdk.WithDescription("Query authoritative game-side state such as HP, inventory, money, quest, scene, occupancy, and immediate room state during play mode."),
-				sdk.WithQueryTypes("player_state", "player_inventory", "player_wallet", "player_location", "npc_location", "scene_state", "room_state", "task_state", "item_presence"),
-				sdk.WithMaxQueries(8),
-			),
+			sdk.NewAuthorityDataRequest("play_authority", 8),
 		},
 	}
 	if mode := strings.TrimSpace(a.cfg.PlayPipelineMode); mode != "" {

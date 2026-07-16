@@ -1,5 +1,30 @@
 package sdk
 
+const (
+	AuthorityInterfaceGameClientRequestData = "game_client_request_data"
+	AuthorityQueryPlayerState               = "player_state"
+	AuthorityQueryPlayerInventory           = "player_inventory"
+	AuthorityQueryPlayerWallet              = "player_wallet"
+	AuthorityQueryPlayerLocation            = "player_location"
+	AuthorityQueryNPCLocation               = "npc_location"
+	AuthorityQuerySceneState                = "scene_state"
+	AuthorityQueryRoomState                 = "room_state"
+	AuthorityQueryTaskState                 = "task_state"
+	AuthorityQueryItemPresence              = "item_presence"
+)
+
+var defaultAuthorityQueryTypes = []string{
+	AuthorityQueryPlayerState,
+	AuthorityQueryPlayerInventory,
+	AuthorityQueryPlayerWallet,
+	AuthorityQueryPlayerLocation,
+	AuthorityQueryNPCLocation,
+	AuthorityQuerySceneState,
+	AuthorityQueryRoomState,
+	AuthorityQueryTaskState,
+	AuthorityQueryItemPresence,
+}
+
 // NewInvokeContext returns a request-scoped invoke context ready for fluent edits.
 func NewInvokeContext() *InvokeContext {
 	return &InvokeContext{}
@@ -65,6 +90,18 @@ func NewDynamicAction(id, externalInterface string, options ...DynamicActionOpti
 		}
 	}
 	return di
+}
+
+// NewAuthorityDataRequest builds the standard game-client authority query interface.
+func NewAuthorityDataRequest(id string, maxQueries int) DynamicInterface {
+	options := []DynamicDataRequestOption{
+		WithDescription("Query authoritative game-side state such as HP, inventory, money, quest, scene, occupancy, and immediate room state."),
+		WithQueryTypes(defaultAuthorityQueryTypes...),
+	}
+	if maxQueries > 0 {
+		options = append(options, WithMaxQueries(maxQueries))
+	}
+	return NewDynamicDataRequest(id, AuthorityInterfaceGameClientRequestData, options...)
 }
 
 // WithDescription sets the model-facing description.

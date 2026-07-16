@@ -88,3 +88,27 @@ func TestInvokeContextAddDynamicInterfacesAppends(t *testing.T) {
 		t.Fatalf("expected appended interfaces, got %#v", ctx.DynamicInterfaces)
 	}
 }
+
+func TestNewAuthorityDataRequestBuilder(t *testing.T) {
+	di := NewAuthorityDataRequest("play_authority", 8)
+	if di.ID != "play_authority" {
+		t.Fatalf("unexpected id: %#v", di)
+	}
+	if di.Kind != DynamicInterfaceDataRequest {
+		t.Fatalf("unexpected kind: %#v", di)
+	}
+	if di.ExternalInterface != AuthorityInterfaceGameClientRequestData {
+		t.Fatalf("unexpected external interface: %#v", di)
+	}
+	if di.MaxQueries != 8 {
+		t.Fatalf("unexpected max queries: %#v", di)
+	}
+	if len(di.QueryTypes) != len(defaultAuthorityQueryTypes) {
+		t.Fatalf("unexpected query types: %#v", di.QueryTypes)
+	}
+	for i, want := range defaultAuthorityQueryTypes {
+		if di.QueryTypes[i] != want {
+			t.Fatalf("unexpected query type at %d: got=%q want=%q", i, di.QueryTypes[i], want)
+		}
+	}
+}
