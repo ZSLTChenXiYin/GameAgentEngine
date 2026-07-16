@@ -1,5 +1,10 @@
 # Documentation Index
 
+This directory is the full repository documentation set.
+
+- `docs/` is the source-of-truth documentation tree for contributors and integrators.
+- `tools/source/docs/` is the packaged subset copied into release artifacts.
+
 ## Getting Started
 
 - [Getting Started (ZH)](./getting-started/GETTING_STARTED.md)
@@ -15,6 +20,16 @@
 - [Workflow Overview (EN)](./guides/GUIDE_WORKFLOW_OVERVIEW_EN.md)
 - [GameAgentCreator Guide (ZH)](./guides/GUIDE_GAMEAGENTCREATOR.md)
 - [GameAgentCreator Guide (EN)](./guides/GUIDE_GAMEAGENTCREATOR_EN.md)
+
+## Integration
+
+- [External Interaction Overview](./integration/EXTERNAL_INTERACTION.md)
+- [Continuity and Observability](./integration/CONTINUITY_AND_OBSERVABILITY.md)
+
+## Gameplay
+
+- [Player Interaction Overview](./gameplay/PLAYER_INTERACTION.md)
+- [Game State Authority Boundary](./gameplay/GAME_STATE_AUTHORITY.md)
 
 ## Reference
 
@@ -40,20 +55,14 @@
 - [Pipeline Internals (ZH)](./architecture/PIPELINE_INTERNALS.md)
 - [Pipeline Internals (EN)](./architecture/PIPELINE_INTERNALS_EN.md)
 
-## Pending Reorganization
-
-- Integration, gameplay, and internal design documents remain temporarily in the docs root and will be consolidated in later phases.
-
-## Integration
-
-- [External Interaction Overview](./integration/EXTERNAL_INTERACTION.md)
-- [Continuity and Observability](./integration/CONTINUITY_AND_OBSERVABILITY.md)
-
-## Gameplay
-
-- [Player Interaction Overview](./gameplay/PLAYER_INTERACTION.md)
-- [Game State Authority Boundary](./gameplay/GAME_STATE_AUTHORITY.md)
-
 ## SDKs
 
 - Multi-language SDK baseline lives in `tools/source/sdks/README.md` and `tools/source/sdks/SDK_BASELINE.md`
+
+## Internal Design Notes
+
+These files are implementation notes, staged plans, or deep-dive design records. They are intentionally separated from the public workflow/reference path.
+
+- Internal notes root: `docs/internal/`
+- [CloneWorld Snapshot Strategy (ZH)](./internal/CLONEWORLD_SNAPSHOT_STRATEGY.md)
+- [CloneWorld Snapshot Strategy (EN)](./internal/CLONEWORLD_SNAPSHOT_STRATEGY_EN.md)
