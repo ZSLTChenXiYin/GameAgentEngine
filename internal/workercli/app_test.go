@@ -274,10 +274,10 @@ func TestResolvePlayResponseReturnsResumedResponse(t *testing.T) {
 }
 
 func TestHasPendingDataRequestDetectsAsyncCallback(t *testing.T) {
-	if !hasPendingDataRequest(&sdk.InvokeResponse{ActionCalls: []sdk.ActionCall{{ActionID: "data_request", Mode: "async"}}}) {
+	if !(&sdk.InvokeResponse{ActionCalls: []sdk.ActionCall{{ActionID: sdk.ActionIDDataRequest, Mode: sdk.ActionModeAsync}}}).HasPendingDataRequest() {
 		t.Fatal("expected pending data request detection")
 	}
-	if hasPendingDataRequest(&sdk.InvokeResponse{ActionCalls: []sdk.ActionCall{{ActionID: "spawn_item", Mode: "async"}}}) {
+	if (&sdk.InvokeResponse{ActionCalls: []sdk.ActionCall{{ActionID: "spawn_item", Mode: sdk.ActionModeAsync}}}).HasPendingDataRequest() {
 		t.Fatal("did not expect non-data_request action to be treated as pending data request")
 	}
 }

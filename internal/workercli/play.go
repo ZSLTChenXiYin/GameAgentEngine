@@ -556,7 +556,7 @@ func (a *app) invokePlayInteraction(s *playSession, spec playInteractionSpec) er
 
 func (a *app) resolvePlayResponse(resp *sdk.InvokeResponse) (*sdk.InvokeResponse, error) {
 	current := resp
-	for current != nil && hasPendingDataRequest(current) {
+	for current != nil && current.HasPendingDataRequest() {
 		if !a.cfg.PlayAutoWorker {
 			return current, errors.New("play response paused for authority data; enable --auto-worker")
 		}
@@ -570,18 +570,6 @@ func (a *app) resolvePlayResponse(resp *sdk.InvokeResponse) (*sdk.InvokeResponse
 		current = processed.Callback.Resumed
 	}
 	return current, nil
-}
-
-func hasPendingDataRequest(resp *sdk.InvokeResponse) bool {
-	if resp == nil {
-		return false
-	}
-	for _, call := range resp.ActionCalls {
-		if strings.EqualFold(strings.TrimSpace(call.ActionID), "data_request") && strings.EqualFold(strings.TrimSpace(call.Mode), "async") {
-			return true
-		}
-	}
-	return false
 }
 
 func uniqueParticipantIDs(explicit []string, defaults ...string) []string {
