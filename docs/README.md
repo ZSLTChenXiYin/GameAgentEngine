@@ -49,3 +49,7 @@
 
 - [Player Interaction Overview](./gameplay/PLAYER_INTERACTION.md)
 - [Game State Authority Boundary](./gameplay/GAME_STATE_AUTHORITY.md)
+
+## SDKs
+
+- Multi-language SDK baseline lives in `tools/source/sdks/README.md` and `tools/source/sdks/SDK_BASELINE.md`
