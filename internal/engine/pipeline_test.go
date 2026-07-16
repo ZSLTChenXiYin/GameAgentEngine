@@ -2494,6 +2494,70 @@ func TestExecuteUsesExternalInterfaceConfigForAsyncAction(t *testing.T) {
 	}
 }
 
+func TestExecuteUsesExternalInterfaceConfigSnapshotForGameClientRuntimeTask(t *testing.T) {
+	initTestDB(t)
+	worldID, nodeID := createWorldAndNode(t)
+	previousInterfaces := config.Global.ExternalInterfaces
+	autoRequeue := true
+	config.Global.ExternalInterfaces = map[string]config.ExternalInterfaceConfig{
+		"game_client_request_data": {
+			Category:                       "external_query",
+			DeliveryMode:                   "pull",
+			Consumer:                       "game_client",
+			ResumePolicy:                   "resume_paused_execution",
+			MaxAttempts:                    4,
+			HeartbeatTimeoutAutoRequeue:    &autoRequeue,
+			HeartbeatTimeoutRequeueDelayMs: 3200,
+			HeartbeatTimeoutReason:         "query timeout requeue",
+		},
+	}
+	defer func() {
+		config.Global.ExternalInterfaces = previousInterfaces
+	}()
+
+	provider := &stubProvider{response: `{"reply":"need-client","request_data":{"label":"fetch-scene","target":"game_client","queries":[{"type":"node_detail","node_id":"` + nodeID + `"}]}}`}
+	pipeline := NewPipeline(provider)
+
+	resp, err := pipeline.Execute(&InvokeRequest{WorldID: worldID, NodeID: nodeID, TaskType: TaskCustom})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(resp.ActionCalls) != 1 || resp.ActionCalls[0].CallbackID == "" {
+		t.Fatalf("expected paused external query callback, got %+v", resp.ActionCalls)
+	}
+	task, err := store.GetRuntimeTaskByCallbackID(resp.ActionCalls[0].CallbackID)
+	if err != nil {
+		t.Fatalf("get runtime task: %v", err)
+	}
+	if task.InterfaceName != "game_client_request_data" || task.Consumer != "game_client" {
+		t.Fatalf("unexpected runtime task routing: %+v", task)
+	}
+	if task.MaxAttempts != 4 {
+		t.Fatalf("expected task max_attempts from interface config, got %+v", task)
+	}
+	var taskPayload struct {
+		ResumePolicy           string `json:"resume_policy"`
+		MaxAttempts            int    `json:"max_attempts"`
+		HeartbeatTimeoutPolicy struct {
+			AutoRequeue    bool   `json:"auto_requeue"`
+			RequeueDelayMs int    `json:"requeue_delay_ms"`
+			Reason         string `json:"reason"`
+		} `json:"heartbeat_timeout_policy"`
+	}
+	if err := json.Unmarshal([]byte(task.PayloadJSON), &taskPayload); err != nil {
+		t.Fatalf("unmarshal runtime task payload: %v", err)
+	}
+	if taskPayload.ResumePolicy != "resume_paused_execution" {
+		t.Fatalf("expected payload resume_policy snapshot, got %+v", taskPayload)
+	}
+	if taskPayload.MaxAttempts != 4 {
+		t.Fatalf("expected payload max_attempts 4, got %+v", taskPayload)
+	}
+	if !taskPayload.HeartbeatTimeoutPolicy.AutoRequeue || taskPayload.HeartbeatTimeoutPolicy.RequeueDelayMs != 3200 || taskPayload.HeartbeatTimeoutPolicy.Reason != "query timeout requeue" {
+		t.Fatalf("unexpected heartbeat timeout policy snapshot: %+v", taskPayload.HeartbeatTimeoutPolicy)
+	}
+}
+
 func TestExecuteDynamicActionAliasUsesConfiguredInterface(t *testing.T) {
 	initTestDB(t)
 	worldID, nodeID := createWorldAndNode(t)
