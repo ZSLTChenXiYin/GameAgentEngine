@@ -136,3 +136,41 @@ func TestBuildInteractionSpecUsesSuggestedInteraction(t *testing.T) {
 		t.Fatalf("unexpected interaction spec: %#v", spec)
 	}
 }
+
+func TestValidateUsesCanonicalMissingFactTypes(t *testing.T) {
+	view := workerstate.NewStateView(sampleState())
+	payload := &sdk.PlayerIntentInterpretation{Intent: &sdk.PlayerIntent{
+		Type:         "show_item",
+		ActorNodeID:  "player_1",
+		TargetNodeID: "npc_2",
+		SceneNodeID:  "scene_inn",
+		RiskLevel:    "low",
+		Steps: []sdk.PlayerIntentStep{{
+			Type:          "show_item",
+			TargetNodeID:  "npc_2",
+			ItemID:        "ring_missing",
+			Preconditions: []sdk.PlayerIntentPrecondition{{Type: "same_scene"}, {Type: "item_present", ItemID: "ring_missing"}},
+		}},
+	}}
+	result := Validate(view, payload)
+	if result.OK {
+		t.Fatalf("expected validation failure, got %#v", result)
+	}
+	seen := map[string]bool{}
+	for _, issue := range result.Issues {
+		if issue.MissingFact != nil {
+			seen[issue.MissingFact.Type] = true
+		}
+	}
+	if !seen["target_location"] {
+		t.Fatalf("expected target_location missing fact, got %#v", result.Issues)
+	}
+	if !seen["item_presence"] {
+		t.Fatalf("expected item_presence missing fact, got %#v", result.Issues)
+	}
+	for invalid := range map[string]bool{"scene_presence": true, "target_state": true, "money_state": true, "location_access": true} {
+		if seen[invalid] {
+			t.Fatalf("unexpected legacy missing fact type %q in %#v", invalid, result.Issues)
+		}
+	}
+}

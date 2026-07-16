@@ -58,7 +58,7 @@ func validateStep(view *workerstate.StateView, intent *sdk.PlayerIntent, step sd
 	}
 	if sceneID != "" && targetID != "" {
 		if targetScene, ok := view.ActorLocation(targetID); !ok || strings.TrimSpace(targetScene) != sceneID {
-			issues = append(issues, ValidationIssue{StepIndex: index, Code: "target_not_in_scene", Message: fmt.Sprintf("target %s is not in scene %s", targetID, sceneID), MissingFact: &sdk.MissingFact{Type: "scene_presence", NodeID: targetID, Reason: "target not present in required scene"}})
+			issues = append(issues, ValidationIssue{StepIndex: index, Code: "target_not_in_scene", Message: fmt.Sprintf("target %s is not in scene %s", targetID, sceneID), MissingFact: &sdk.MissingFact{Type: "target_location", NodeID: targetID, Reason: "target not present in required scene"}})
 		}
 	}
 	return issues
@@ -73,7 +73,7 @@ func validatePrecondition(view *workerstate.StateView, intent *sdk.PlayerIntent,
 		actorScene, actorOK := view.ActorLocation(actorID)
 		targetScene, targetOK := view.ActorLocation(targetID)
 		if !actorOK || !targetOK || actorScene == "" || targetScene == "" || actorScene != targetScene {
-			return ValidationIssue{StepIndex: index, Code: "same_scene_failed", Message: fmt.Sprintf("actor %s and target %s are not in the same scene", actorID, targetID), MissingFact: &sdk.MissingFact{Type: "scene_presence", NodeID: targetID, Reason: "same_scene precondition failed"}}, true
+			return ValidationIssue{StepIndex: index, Code: "same_scene_failed", Message: fmt.Sprintf("actor %s and target %s are not in the same scene", actorID, targetID), MissingFact: &sdk.MissingFact{Type: "target_location", NodeID: targetID, Reason: "same_scene precondition failed"}}, true
 		}
 	case "target_present":
 		if sceneID == "" {
@@ -82,7 +82,7 @@ func validatePrecondition(view *workerstate.StateView, intent *sdk.PlayerIntent,
 			}
 		}
 		if targetScene, ok := view.ActorLocation(targetID); !ok || strings.TrimSpace(targetScene) != strings.TrimSpace(sceneID) {
-			return ValidationIssue{StepIndex: index, Code: "target_present_failed", Message: fmt.Sprintf("target %s is not present in scene %s", targetID, sceneID), MissingFact: &sdk.MissingFact{Type: "target_state", NodeID: targetID, Reason: "target_present precondition failed"}}, true
+			return ValidationIssue{StepIndex: index, Code: "target_present_failed", Message: fmt.Sprintf("target %s is not present in scene %s", targetID, sceneID), MissingFact: &sdk.MissingFact{Type: "target_location", NodeID: targetID, Reason: "target_present precondition failed"}}, true
 		}
 	case "item_present":
 		if !view.ItemPresentOnActor(actorID, pre.ItemID) {
@@ -92,7 +92,7 @@ func validatePrecondition(view *workerstate.StateView, intent *sdk.PlayerIntent,
 		money, ok := view.ActorMoney(actorID)
 		minimum := intArg(pre.Args, "amount")
 		if !ok || money < minimum {
-			return ValidationIssue{StepIndex: index, Code: "money_at_least_failed", Message: fmt.Sprintf("actor %s money %d below required %d", actorID, money, minimum), MissingFact: &sdk.MissingFact{Type: "money_state", NodeID: actorID, Reason: "money_at_least precondition failed"}}, true
+			return ValidationIssue{StepIndex: index, Code: "money_at_least_failed", Message: fmt.Sprintf("actor %s money %d below required %d", actorID, money, minimum), MissingFact: &sdk.MissingFact{Type: "wallet_state", NodeID: actorID, Reason: "money_at_least precondition failed"}}, true
 		}
 	case "task_status":
 		status, _, ok := view.QuestStatus(pre.TaskID)
@@ -108,10 +108,10 @@ func validatePrecondition(view *workerstate.StateView, intent *sdk.PlayerIntent,
 		}
 	case "location_accessible":
 		if sceneID == "" {
-			return ValidationIssue{StepIndex: index, Code: "location_accessible_failed", Message: "scene_node_id required for location_accessible", MissingFact: &sdk.MissingFact{Type: "location_access", Reason: "scene id required"}}, true
+			return ValidationIssue{StepIndex: index, Code: "location_accessible_failed", Message: "scene_node_id required for location_accessible", MissingFact: &sdk.MissingFact{Type: "player_location", Reason: "scene id required"}}, true
 		}
 		if _, ok := view.Scene(sceneID); !ok {
-			return ValidationIssue{StepIndex: index, Code: "location_accessible_failed", Message: fmt.Sprintf("scene %s not found", sceneID), MissingFact: &sdk.MissingFact{Type: "location_access", NodeID: sceneID, Reason: "scene not found"}}, true
+			return ValidationIssue{StepIndex: index, Code: "location_accessible_failed", Message: fmt.Sprintf("scene %s not found", sceneID), MissingFact: &sdk.MissingFact{Type: "scene_state", NodeID: sceneID, Reason: "scene not found"}}, true
 		}
 	}
 	return ValidationIssue{}, false

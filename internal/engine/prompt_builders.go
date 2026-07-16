@@ -338,7 +338,7 @@ func buildPlayerIntentPrompt(systemContext string, nodeID string, interaction *I
   },
   "missing_facts": [
     {
-      "type": "scene_presence|item_presence|money_state|task_state|scene_state|target_state|location_access",
+      "type": "player_location|target_location|item_presence|scene_state|task_state|wallet_state",
       "node_id": "可选",
       "item_id": "可选",
       "task_id": "可选",

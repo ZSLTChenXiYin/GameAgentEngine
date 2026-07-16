@@ -161,3 +161,16 @@ func TestValidatePlayerIntentInterpretationRejectsInvalidStepPayload(t *testing.
 		t.Fatalf("unexpected error: %s", got)
 	}
 }
+
+func TestValidatePlayerIntentInterpretationRejectsLegacyMissingFactTypes(t *testing.T) {
+	err := ValidatePlayerIntentInterpretation(&PlayerIntentInterpretation{
+		Intent: &PlayerIntent{Type: "speech", ActorNodeID: "player_001"},
+		MissingFacts: []MissingFact{{Type: "scene_presence"}},
+	})
+	if err == nil {
+		t.Fatal("expected missing fact validation error")
+	}
+	if got := err.Error(); got != "player_intent.missing_facts[0].type must be one of: player_location, target_location, item_presence, scene_state, task_state, wallet_state" {
+		t.Fatalf("unexpected error: %s", got)
+	}
+}
