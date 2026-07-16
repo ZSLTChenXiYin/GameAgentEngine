@@ -70,6 +70,8 @@ func (a *app) runNamedTestScenario(scenario string) error {
 		return a.runToolingSmokeScenario()
 	case "machine-scenario":
 		return a.runMachineScenario()
+	case "all":
+		return a.runAllTestScenarios()
 	}
 	return fmt.Errorf("worker test scenario %q is not implemented yet", trimmed)
 }

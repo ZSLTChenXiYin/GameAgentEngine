@@ -127,5 +127,5 @@ Use this worker in the full-functional plan for:
 
 Current migration status:
 
-- `test base-data`, `test continuity`, `test runtime-tasks`, `test callback-resume`, `test tooling-smoke`, and `test machine-scenario` are implemented in the worker CLI.
-- Remaining test scenarios are being migrated from legacy scripts into `gameagentworker test ...`.
+- `test base-data`, `test continuity`, `test runtime-tasks`, `test callback-resume`, `test tooling-smoke`, `test machine-scenario`, and `test all` are implemented in the worker CLI.
+- Legacy executable test scenarios have been migrated into `gameagentworker test ...`; the remaining cleanup is removing non-data leftovers from `tools/source/tests`.
