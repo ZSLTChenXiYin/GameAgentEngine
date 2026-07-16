@@ -253,6 +253,25 @@ func TestResolveGroupChatTargetDefaultsToFirstNPC(t *testing.T) {
 	}
 }
 
+func TestRenderSceneSummaryIncludesPromptFlagsAndTarget(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_inn"},
+			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_inn"},
+		},
+		Scenes: map[string]*workerstate.SceneState{
+			"scene_inn": {ID: "scene_inn", Name: "Inn", Description: "Warm light and wooden tables.", Flags: map[string]any{"open": true}},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_inn", currentTargetID: "npc_1"}
+	text := s.renderSceneSummary()
+	for _, want := range []string{"当前场景: Inn (scene_inn)", "当前目标: innkeeper", "场景状态: open=true", "直接输入文本可与 innkeeper 对话", "同场角色:"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("expected scene summary to contain %q, got %q", want, text)
+		}
+	}
+}
+
 func TestPrintPlayExecutionResultShowsOutcomeSummaries(t *testing.T) {
 	a := newTestApp()
 	s := &playSession{view: workerstate.NewStateView(&workerstate.WorldState{}), playerNodeID: "player_1"}

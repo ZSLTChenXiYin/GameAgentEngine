@@ -713,6 +713,15 @@ func (s *playSession) renderSceneSummary() string {
 	if desc := strings.TrimSpace(scene.Description); desc != "" {
 		lines = append(lines, desc)
 	}
+	if strings.TrimSpace(s.currentTargetID) != "" {
+		lines = append(lines, fmt.Sprintf("当前目标: %s", s.actorDisplayName(s.currentTargetID)))
+	}
+	if summary := renderSceneFlags(scene.Flags); summary != "" {
+		lines = append(lines, "场景状态: "+summary)
+	}
+	if prompt := s.renderScenePrompt(); prompt != "" {
+		lines = append(lines, prompt)
+	}
 	lines = append(lines, s.renderOccupants())
 	return strings.Join(lines, "\n")
 }
@@ -792,6 +801,37 @@ func (s *playSession) renderRoomState() string {
 		return "房间参与者: 无"
 	}
 	return "房间参与者:\n" + strings.Join(parts, "\n")
+}
+
+func (s *playSession) renderScenePrompt() string {
+	participants := s.sceneParticipantIDs()
+	npcs := make([]string, 0, len(participants))
+	for _, id := range participants {
+		if id == s.playerNodeID {
+			continue
+		}
+		npcs = append(npcs, s.actorDisplayName(id))
+	}
+	if len(npcs) == 0 {
+		return "提示: 当前场景没有可互动 NPC。"
+	}
+	sort.Strings(npcs)
+	if strings.TrimSpace(s.currentTargetID) != "" {
+		return fmt.Sprintf("提示: 直接输入文本可与 %s 对话，也可用 /+say 发起房间公开发言。", s.actorDisplayName(s.currentTargetID))
+	}
+	return fmt.Sprintf("提示: 可用 /+talk <npc> 选择目标。当前可互动对象: %s。", strings.Join(npcs, ", "))
+}
+
+func renderSceneFlags(flags map[string]any) string {
+	if len(flags) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(flags))
+	for key, value := range flags {
+		parts = append(parts, fmt.Sprintf("%s=%v", key, value))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, ", ")
 }
 
 func (s *playSession) resolveGroupChatTarget(preferred string) (string, []string, error) {
