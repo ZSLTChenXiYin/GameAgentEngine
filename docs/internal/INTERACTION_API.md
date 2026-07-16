@@ -109,12 +109,15 @@
 
 ## 8. play 模式映射
 
-- `/talk innkeeper`
+- `/+talk innkeeper`
   - `mode=direct_dialogue`
-- `/say 大家今晚都看见了什么？`
+- `直接输入文本`（在已选择对话目标时）
+  - `mode=direct_dialogue`
+- `/+say 大家今晚都看见了什么？`
   - `mode=group_chat`
-- `/ask guard 你看见谁进门了？`
+- `/+ask guard 你看见谁进门了？`
   - `mode=group_chat`，但 `target_node_id=guard`
-- `/gift innkeeper silver_ring`
+- `/+gift innkeeper silver_ring`
   - 游戏侧先落地，再调用 `mode=gift_response`
 
+正式文档面现在统一使用 `/+cmd + 参数` 风格。旧写法 `/talk`、`/ask` 等别名仅作为兼容输入存在。

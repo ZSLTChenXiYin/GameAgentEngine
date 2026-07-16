@@ -1,9 +1,9 @@
 # Documentation Index
 
-This directory is the full repository documentation set.
+This directory is the canonical repository documentation set.
 
 - `docs/` is the source-of-truth documentation tree for contributors and integrators.
-- `tools/source/` now keeps packaged runtime assets only, not a mirrored docs tree.
+- `tools/source/` now keeps packaged runtime assets only.
 
 ## Getting Started
 
@@ -64,7 +64,7 @@ This directory is the full repository documentation set.
 
 ## Internal Design Notes
 
-These files are implementation notes, staged plans, or deep-dive design records. They are intentionally separated from the public workflow/reference path.
+These files are implementation notes, staged plans, or deep-dive design records. They are intentionally separated from the public workflow/reference path and may lag behind the public guides when a refactor is still in flight.
 
 - Internal notes root: `docs/internal/`
 - [CloneWorld Snapshot Strategy (ZH)](./internal/CLONEWORLD_SNAPSHOT_STRATEGY.md)

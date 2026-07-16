@@ -4,14 +4,13 @@ This file records the current post-cleanup roadmap so future implementation does
 
 ## Planning Update
 
-Current priority has changed:
+Current execution order has changed again after the kernel / play restructuring completed:
 
-1. finish Engine kernel capabilities first
-2. continue Worker play only after the kernel-side interaction and intent foundation is solid enough
-3. keep documentation cleanup and broader doc-system slimming later
+1. finish the remaining documentation cleanup and workflow alignment
+2. reorganize SDK-facing documentation and responsibility boundaries
+3. run packaged-artifact acceptance after structural cleanup stabilizes
 
-That means the roadmap is no longer "docs first" after cleanup.
-The next major implementation focus is now Engine kernel completion.
+Engine kernel completion and Worker play deepening are no longer the active unfinished focus areas in this roadmap.
 
 ## F1 Engine core purification
 
@@ -52,6 +51,8 @@ Status: completed.
 5. verify Engine-side authority-query / runtime-task / callback-resume behavior still matches the intended embedding boundary
 6. reduce Worker-side ad-hoc glue where the contract really belongs to Engine
 
+Status: completed.
+
 ## F4 Worker play deepening
 
 - evolve play into a real text-game shell instead of a thin engine wrapper
@@ -64,6 +65,8 @@ Status: completed.
 2. deepen room feedback, target switching, and interaction presentation
 3. improve `/act` bridge quality after kernel-side intent contract is stable
 4. revisit group-chat behavior and decide whether to keep one-primary-responder mode or extend it
+
+Status: completed.
 
 ## F5 Documentation centralization and slimming
 
@@ -79,12 +82,14 @@ Status: completed.
 3. keep only docs that still define active contracts, boundaries, or design rationale
 4. make sure `docs/` remains the only formal documentation tree
 
-Status: partially completed, but now absorbed into F3 as a kernel-completion priority.
+Status: in progress.
 
 ## F6 tests consolidation
 
 - keep `tools/source/tests` data-only
 - move remaining procedural flows into Worker commands
+
+Status: completed for the current worker-driven test workflow baseline.
 
 ## F7 SDK doc and responsibility reorganization
 
@@ -92,9 +97,13 @@ Status: partially completed, but now absorbed into F3 as a kernel-completion pri
 - keep SDK folders code-and-examples only
 - continue aligning SDK outward-facing responsibilities with the Go SDK baseline
 
+Status: pending.
+
 ## F8 Packaged artifact acceptance
 
 - verify Engine / DevCli / Worker / Creator packaged workflow after structural cleanup
+
+Status: pending.
 
 ## Deferred But Tracked
 
