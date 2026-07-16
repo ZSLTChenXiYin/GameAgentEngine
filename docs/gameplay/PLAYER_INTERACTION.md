@@ -41,11 +41,14 @@
 
 当前 `GameAgentWorker play` 中，REPL 命令大致可映射为：
 
-- `/talk <npc>`：建立直接对话目标
-- `/say <message>`：向当前会话或群体发言
-- `/ask <npc> <message>`：面向指定对象发起发言
-- `/gift <npc> <item>`：先由游戏侧执行赠礼，再请求 Engine 生成反馈
-- `/show_item <npc> <item>`：先校验物品存在，再请求目标反应
+- `/+talk <npc>`：建立直接对话目标；之后直接输入文本会发给该目标
+- `/+say <message>`：向当前房间公开发言，由当前群聊主响应者优先回应
+- `/+ask <npc> <message>`：在群聊语境下点名某个 NPC 回应
+- `/+act <message>`：先解释玩家意图，再由游戏侧做真值校验和状态落地，必要时再桥接到 Engine 生成反馈
+- `/+gift <npc> <item>`：先由游戏侧执行赠礼，再请求 Engine 生成反馈
+- `/+show_item <npc> <item>`：先校验物品存在，再请求目标反应
+
+旧写法 `/talk`、`/say`、`/ask` 等别名当前仍兼容，但正式文档统一使用 `/+cmd + 参数` 的输入形式。
 
 ## 6. 当前限制
 

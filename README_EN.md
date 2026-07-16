@@ -191,8 +191,8 @@ For scripting and CI integration:
 # CRUD
 GameAgentDevCli node create --type world --name "My World"
 GameAgentDevCli node list --world <id>
-GameAgentDevCli component add <node-id> --type autonomous
-GameAgentDevCli memory add <node-id> --content "..."
+GameAgentDevCli component create --node <node-id> --type autonomous
+GameAgentDevCli memory create --node <node-id> --content "..."
 GameAgentDevCli relation create --source <a> --target <b> --type ally
 
 # World operations
@@ -232,7 +232,9 @@ It is not just a temporary test script wrapper. It is the canonical game-side wo
 
 - for integration tests, it closes the push / pull / callback loop
 - for local development, it hosts YAML / JSON authority state and simulates async game-side interfaces
-- for play mode, it exposes `/talk`, `/ask`, `/gift`, `/trade`, and related REPL flows to validate Engine-driven text-game interaction
+- for play mode, it exposes `/+talk`, `/+say`, `/+ask`, `/+act`, `/+gift`, `/+trade`, and related REPL flows to validate Engine-driven text-game interaction
+
+Direct free text goes to the current dialogue target. `/+say` is for room-wide public speech, and `/+act` first performs player-intent interpretation plus authority validation before deciding whether to trigger follow-up NPC or scene feedback. Legacy `/talk` and `/ask` aliases still work, but the `/+cmd` form is now the documented surface.
 
 ### Go SDK
 

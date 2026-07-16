@@ -192,8 +192,8 @@ Engine 当前形成四个直接配套的开发工具入口：
 # CRUD
 GameAgentDevCli node create --type world --name "世界"
 GameAgentDevCli node list --world <id>
-GameAgentDevCli component add <node-id> --type autonomous
-GameAgentDevCli memory add <node-id> --content "..."
+GameAgentDevCli component create --node <node-id> --type autonomous
+GameAgentDevCli memory create --node <node-id> --content "..."
 GameAgentDevCli relation create --source <a> --target <b> --type ally
 
 # 世界运行
@@ -233,7 +233,9 @@ GameAgentWorker test all
 
 - 集成测试时，承担外部 worker 的 push / pull / callback 闭环
 - 开发时，承载 YAML / JSON 权威状态并模拟游戏侧异步接口
-- 试玩时，提供 `/talk`、`/ask`、`/gift`、`/trade` 等 REPL 入口，验证 Engine 驱动的文字游戏体验
+- 试玩时，提供 `/+talk`、`/+say`、`/+ask`、`/+act`、`/+gift`、`/+trade` 等 REPL 入口，验证 Engine 驱动的文字游戏体验
+
+`play` 的直接文本输入会发给当前对话目标；`/+say` 用于房间公开发言；`/+act` 先做玩家意图解释和权威校验，再决定是否触发后续 NPC / 场景反馈。旧写法 `/talk`、`/ask` 仍兼容，但文档以 `/+cmd` 形式为准。
 
 ### Go SDK
 

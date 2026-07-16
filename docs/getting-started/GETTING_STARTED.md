@@ -189,8 +189,15 @@ GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_w
 
 - 读取 YAML / JSON 权威状态
 - 选择玩家节点
-- 让你通过 `/talk`、`/ask`、`/gift`、`/trade` 等命令进入文字游戏 REPL
+- 让你通过 `/+talk`、`/+say`、`/+ask`、`/+act`、`/+gift`、`/+trade` 等命令进入文字游戏 REPL
 - 在对话过程中按需向游戏侧权威状态查询 HP、背包、金钱、任务和场景即时状态
+
+补充说明：
+
+- 直接输入自然语言，会发送给当前对话目标
+- `/+say` 用于当前房间的公开发言
+- `/+act` 会先把自然语言解释为玩家意图，再基于权威状态做校验与落地
+- 旧写法 `/talk`、`/ask` 仍兼容，但建议统一使用 `/+cmd`
 
 如果你不是要试玩，而是要验证 Runtime Task 的 push / pull / callback 闭环，可以改用：
 

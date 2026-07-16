@@ -189,8 +189,15 @@ This command:
 
 - loads YAML / JSON authority state
 - selects the player node
-- lets you use `/talk`, `/ask`, `/gift`, `/trade`, and related commands in the text-game REPL
+- lets you use `/+talk`, `/+say`, `/+ask`, `/+act`, `/+gift`, `/+trade`, and related commands in the text-game REPL
 - serves high-frequency authoritative facts such as HP, inventory, money, quest state, and scene occupancy during dialogue
+
+Additional notes:
+
+- direct free text is sent to the current dialogue target
+- `/+say` is for room-wide public speech
+- `/+act` first turns natural language into player intent, then validates and executes it against authority state
+- legacy `/talk` and `/ask` aliases still work, but `/+cmd` is the recommended documented form
 
 If you are not testing play mode and only want the Runtime Task push / pull / callback loop, use:
 
