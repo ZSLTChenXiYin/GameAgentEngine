@@ -253,6 +253,41 @@ func TestResolveGroupChatTargetDefaultsToFirstNPC(t *testing.T) {
 	}
 }
 
+func TestResolveDirectDialogueTargetAutoSelectsOnlyNPC(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_a"},
+			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_a"},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_a"}
+	targetID, err := s.resolveDirectDialogueTarget()
+	if err != nil {
+		t.Fatalf("resolveDirectDialogueTarget returned error: %v", err)
+	}
+	if targetID != "npc_1" {
+		t.Fatalf("expected npc_1, got %q", targetID)
+	}
+}
+
+func TestResolveDirectDialogueTargetRequiresExplicitChoiceWhenMultipleNPCs(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_a"},
+			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_a"},
+			"npc_2":    {ID: "npc_2", Name: "guard", Kind: "npc", LocationID: "scene_a"},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_a"}
+	_, err := s.resolveDirectDialogueTarget()
+	if err == nil {
+		t.Fatal("expected explicit target selection error")
+	}
+	if !strings.Contains(err.Error(), "multiple dialogue targets are available") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRenderSceneSummaryIncludesPromptFlagsAndTarget(t *testing.T) {
 	view := workerstate.NewStateView(&workerstate.WorldState{
 		Actors: map[string]*workerstate.ActorState{

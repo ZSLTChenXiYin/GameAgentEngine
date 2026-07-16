@@ -260,9 +260,11 @@ func (a *app) setPlayTarget(s *playSession, arg string) error {
 }
 
 func (a *app) runPlayDialogue(s *playSession, input string) error {
-	if strings.TrimSpace(s.currentTargetID) == "" {
-		return errors.New("no active talk target; use /talk <npc>")
+	targetID, err := s.resolveDirectDialogueTarget()
+	if err != nil {
+		return err
 	}
+	s.currentTargetID = targetID
 	return a.invokePlayInteraction(s, playInteractionSpec{
 		Mode:          sdk.InteractionModeDirectDialogue,
 		AudienceScope: sdk.InteractionAudiencePrivate,
@@ -832,6 +834,35 @@ func renderSceneFlags(flags map[string]any) string {
 	}
 	sort.Strings(parts)
 	return strings.Join(parts, ", ")
+}
+
+func (s *playSession) resolveDirectDialogueTarget() (string, error) {
+	if strings.TrimSpace(s.currentTargetID) != "" {
+		actor, ok := s.view.Actor(s.currentTargetID)
+		if ok && actor != nil && actor.ID != s.playerNodeID && strings.TrimSpace(actor.LocationID) == strings.TrimSpace(s.currentSceneID) {
+			return s.currentTargetID, nil
+		}
+	}
+	actors := s.view.ActorsAtScene(s.currentSceneID)
+	npcs := make([]*workerstate.ActorState, 0, len(actors))
+	for _, actor := range actors {
+		if actor == nil || actor.ID == s.playerNodeID {
+			continue
+		}
+		npcs = append(npcs, actor)
+	}
+	if len(npcs) == 0 {
+		return "", errors.New("no NPC is available for direct dialogue in the current scene")
+	}
+	if len(npcs) == 1 {
+		return npcs[0].ID, nil
+	}
+	labels := make([]string, 0, len(npcs))
+	for _, actor := range npcs {
+		labels = append(labels, s.actorDisplayName(actor.ID))
+	}
+	sort.Strings(labels)
+	return "", fmt.Errorf("multiple dialogue targets are available (%s); use /+talk <npc>", strings.Join(labels, ", "))
 }
 
 func (s *playSession) resolveGroupChatTarget(preferred string) (string, []string, error) {
