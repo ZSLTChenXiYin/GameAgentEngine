@@ -6,7 +6,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
+
+	"github.com/spf13/cobra"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/workerstate"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
@@ -262,4 +265,48 @@ func TestHasPendingDataRequestDetectsAsyncCallback(t *testing.T) {
 	if hasPendingDataRequest(&sdk.InvokeResponse{ActionCalls: []sdk.ActionCall{{ActionID: "spawn_item", Mode: "async"}}}) {
 		t.Fatal("did not expect non-data_request action to be treated as pending data request")
 	}
+}
+
+func TestNewTestCommandRegistersExpectedScenarios(t *testing.T) {
+	a := newTestApp()
+	if a.testCmd == nil {
+		t.Fatal("expected test command to be initialized")
+	}
+	got := make([]string, 0, len(a.testCmd.Commands()))
+	for _, cmd := range a.testCmd.Commands() {
+		got = append(got, cmd.Name())
+	}
+	want := []string{"all", "base-data", "callback-resume", "continuity", "machine-scenario", "runtime-tasks", "tooling-smoke"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected test scenarios: got=%v want=%v", got, want)
+	}
+	baseData := findSubcommandByName(a.testCmd, "base-data")
+	if baseData == nil {
+		t.Fatal("expected base-data subcommand")
+	}
+	for _, name := range []string{"engine-exe", "devcli-exe", "worker-exe", "tests-dir", "out", "engine-port", "push-port", "keep-temp", "json"} {
+		if baseData.Flags().Lookup(name) == nil {
+			t.Fatalf("expected flag %q on base-data subcommand", name)
+		}
+	}
+}
+
+func TestRunNamedTestScenarioReturnsNotImplemented(t *testing.T) {
+	a := newTestApp()
+	err := a.runNamedTestScenario("base-data")
+	if err == nil {
+		t.Fatal("expected not implemented error")
+	}
+	if got := err.Error(); got != "worker test scenario \"base-data\" is not implemented yet" {
+		t.Fatalf("unexpected error: %s", got)
+	}
+}
+
+func findSubcommandByName(root *cobra.Command, name string) *cobra.Command {
+	for _, cmd := range root.Commands() {
+		if cmd.Name() == name {
+			return cmd
+		}
+	}
+	return nil
 }

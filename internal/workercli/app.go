@@ -36,9 +36,15 @@ type workerConfig struct {
 	RuntimeTaskToken    string
 	CallbackToken       string
 	GameHTTPBearerToken string
+	TestsDir            string
 	StateFile           string
 	Consumer            string
 	LeaseOwner          string
+	TestEngineExePath   string
+	TestDevCLIExePath   string
+	TestWorkerExePath   string
+	TestOutFile         string
+	TestScenario        string
 	PlayWorldID         string
 	PlayPlayerNodeID    string
 	PlaySessionID       string
@@ -46,10 +52,14 @@ type workerConfig struct {
 	PlayIncludeRelated  bool
 	PlayAutoWorker      bool
 	PushPort            int
+	TestEnginePort      int
+	TestPushPort        int
 	PollInterval        time.Duration
 	HeartbeatInterval   time.Duration
 	CallbackDelay       time.Duration
 	LongTaskDuration    time.Duration
+	TestKeepTemp        bool
+	TestJSON            bool
 	Verbose             bool
 	FailInterfaces      []string
 	LongTaskInterfaces  []string
@@ -95,6 +105,7 @@ type app struct {
 	pullCmd     *cobra.Command
 	pullOnceCmd *cobra.Command
 	playCmd     *cobra.Command
+	testCmd     *cobra.Command
 }
 
 func Main(options Options) {
@@ -130,11 +141,14 @@ func newApp(options Options) *app {
 			RuntimeTaskToken:    "dev-task-token",
 			CallbackToken:       "dev-callback-token",
 			GameHTTPBearerToken: "local-test-token",
+			TestsDir:            "tools/source/tests",
 			Consumer:            "game_client",
 			LeaseOwner:          options.DefaultLeaseOwner,
 			PlayIncludeRelated:  true,
 			PlayAutoWorker:      true,
 			PushPort:            9000,
+			TestEnginePort:      18080,
+			TestPushPort:        19000,
 			PollInterval:        2 * time.Second,
 			HeartbeatInterval:   2 * time.Second,
 			CallbackDelay:       250 * time.Millisecond,
@@ -220,9 +234,10 @@ func (a *app) initCommands() {
 			return a.runPlay()
 		},
 	}
+	a.testCmd = a.newTestCommand()
 	a.bindCommonFlags(a.rootCmd.PersistentFlags())
 	a.bindPlayFlags(a.playCmd.Flags())
-	a.rootCmd.AddCommand(a.serveCmd, a.pushCmd, a.pullCmd, a.pullOnceCmd, a.playCmd)
+	a.rootCmd.AddCommand(a.serveCmd, a.pushCmd, a.pullCmd, a.pullOnceCmd, a.playCmd, a.testCmd)
 }
 
 func (a *app) bindCommonFlags(flags *pflag.FlagSet) {

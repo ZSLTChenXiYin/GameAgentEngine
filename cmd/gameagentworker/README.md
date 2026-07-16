@@ -17,6 +17,7 @@ Packaged integration-test fixtures and helper scripts now live under `tools/sour
 - `pull-worker`: run only the pull worker polling loop
 - `pull-once`: process at most one pending pull task and exit
 - `play`: run a single-user text-game REPL backed by Engine invoke and worker-side authority state
+- `test <scenario>`: run packaged worker-side full-functional scenarios; current subcommands are `base-data`, `continuity`, `runtime-tasks`, `callback-resume`, `tooling-smoke`, `machine-scenario`, and `all`
 
 ## Capabilities
 
