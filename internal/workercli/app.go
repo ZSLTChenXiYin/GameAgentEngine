@@ -63,22 +63,6 @@ type workerConfig struct {
 	LongTaskInterfaces  []string
 }
 
-type runtimeTaskPayload struct {
-	TaskType          string         `json:"task_type"`
-	WorldID           string         `json:"world_id"`
-	NodeID            string         `json:"node_id"`
-	RequestID         string         `json:"request_id"`
-	CallbackID        string         `json:"callback_id"`
-	ResumeExecutionID string         `json:"resume_execution_id"`
-	ResumePolicy      string         `json:"resume_policy"`
-	ExternalInterface string         `json:"external_interface"`
-	RequestData       map[string]any `json:"request_data"`
-	ActionID          string         `json:"action_id"`
-	DeliveryMode      string         `json:"delivery_mode"`
-	PrimaryTransport  string         `json:"primary_transport"`
-	Consumer          string         `json:"consumer"`
-}
-
 type taskExecutionDecision struct {
 	Status       string
 	Result       map[string]any
@@ -296,7 +280,7 @@ func (a *app) processOnePendingTaskDetailed() (*processedTaskResult, bool, error
 	if err != nil {
 		return &processedTaskResult{Task: claimed}, true, err
 	}
-	decision := a.decideExecution(started.InterfaceName, parseRuntimeTaskPayload(started.PayloadJSON))
+	decision := a.decideExecution(started.InterfaceName, started.ParsePayloadJSON())
 	if decision.LongRunning {
 		if err := a.runLongTask(started, decision); err != nil {
 			return &processedTaskResult{Task: started}, true, err
@@ -556,17 +540,6 @@ func resolveAuthorityQueries(view *workerstate.StateView, queries []sdk.Authorit
 		results = append(results, result)
 	}
 	return results
-}
-
-func parseRuntimeTaskPayload(raw string) map[string]any {
-	if strings.TrimSpace(raw) == "" {
-		return nil
-	}
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return map[string]any{"raw_payload_json": raw}
-	}
-	return payload
 }
 
 func firstString(payload map[string]any, keys ...string) string {

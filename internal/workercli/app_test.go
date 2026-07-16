@@ -57,7 +57,7 @@ func TestBuildFixtureResultForSpawnItemIncludesTarget(t *testing.T) {
 }
 
 func TestParseRuntimeTaskPayloadFallsBackToRawPayloadJSON(t *testing.T) {
-	payload := parseRuntimeTaskPayload("not-json")
+	payload := sdk.ParseRuntimeTaskPayloadJSON("not-json")
 	if payload["raw_payload_json"] != "not-json" {
 		t.Fatalf("expected raw payload fallback, got %#v", payload)
 	}
