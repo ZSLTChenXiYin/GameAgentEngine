@@ -792,6 +792,11 @@ func (s *playSession) refreshView(a *app) {
 		if locationID, ok := view.ActorLocation(s.playerNodeID); ok {
 			s.currentSceneID = locationID
 		}
+		if strings.TrimSpace(s.currentTargetID) != "" {
+			if actor, ok := view.Actor(s.currentTargetID); !ok || actor == nil || strings.TrimSpace(actor.LocationID) != strings.TrimSpace(s.currentSceneID) {
+				s.currentTargetID = ""
+			}
+		}
 	}
 }
 
