@@ -124,3 +124,8 @@ Use this worker in the full-functional plan for:
 - hybrid fallback checks
 - callback and paused execution resume validation
 - callback post-process validation
+
+Current migration status:
+
+- `test base-data` is implemented in the worker CLI.
+- Remaining test scenarios are being migrated from legacy scripts into `gameagentworker test ...`.

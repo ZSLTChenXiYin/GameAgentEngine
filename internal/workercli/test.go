@@ -1,6 +1,7 @@
 package workercli
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -56,5 +57,13 @@ func (a *app) runNamedTestScenario(scenario string) error {
 	if trimmed == "" {
 		return fmt.Errorf("test scenario is required")
 	}
+	switch trimmed {
+	case "base-data":
+		return a.runBaseDataScenario()
+	}
 	return fmt.Errorf("worker test scenario %q is not implemented yet", trimmed)
+}
+
+func jsonMarshalIndent(v any) ([]byte, error) {
+	return json.MarshalIndent(v, "", "  ")
 }
