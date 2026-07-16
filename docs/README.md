@@ -11,6 +11,8 @@
 - [GameAgentDevCli Guide (EN)](./guides/GUIDE_GAMEAGENTDEVCLI_EN.md)
 - [GameAgentWorker Guide (ZH)](./guides/GUIDE_GAMEAGENTWORKER.md)
 - [GameAgentWorker Guide (EN)](./guides/GUIDE_GAMEAGENTWORKER_EN.md)
+- [Workflow Overview (ZH)](./guides/GUIDE_WORKFLOW_OVERVIEW.md)
+- [Workflow Overview (EN)](./guides/GUIDE_WORKFLOW_OVERVIEW_EN.md)
 - [GameAgentCreator Guide (ZH)](./guides/GUIDE_GAMEAGENTCREATOR.md)
 - [GameAgentCreator Guide (EN)](./guides/GUIDE_GAMEAGENTCREATOR_EN.md)
 
