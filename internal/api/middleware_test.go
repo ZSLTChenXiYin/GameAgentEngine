@@ -366,3 +366,59 @@ func TestPlayerInputInterpretHandlerAcceptsValidRequest(t *testing.T) {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 }
+
+func TestExecuteInteractionHandlerRejectsMissingFields(t *testing.T) {
+	initMiddlewareTestDB(t)
+	h := MakeExecuteInteractionHandler(nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/interactions/execute", strings.NewReader(`{
+		"world_id":"w1",
+		"message":"hello"
+	}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "actor_node_id") {
+		t.Fatalf("expected missing actor_node_id error, got %s", w.Body.String())
+	}
+}
+
+func TestExecuteInteractionHandlerAcceptsValidRequest(t *testing.T) {
+	initMiddlewareTestDB(t)
+	world := &store.NodeModel{UUID: "w1", Name: "World", NodeType: "world", WorldUUID: "w1"}
+	if err := store.CreateNode(world); err != nil {
+		t.Fatalf("create world: %v", err)
+	}
+	actor := &store.NodeModel{UUID: "player_1", Name: "Player", NodeType: "npc", WorldUUID: "w1", ParentUUID: &world.UUID}
+	if err := store.CreateNode(actor); err != nil {
+		t.Fatalf("create actor node: %v", err)
+	}
+	target := &store.NodeModel{UUID: "npc_1", Name: "Innkeeper", NodeType: "npc", WorldUUID: "w1", ParentUUID: &world.UUID}
+	if err := store.CreateNode(target); err != nil {
+		t.Fatalf("create target node: %v", err)
+	}
+	h := MakeExecuteInteractionHandler(engine.NewPipeline(&singleResponseProvider{response: `{"reply":"ok","action_calls":[],"memory_updates":[]}`}))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/interactions/execute", strings.NewReader(`{
+		"world_id":"w1",
+		"actor_node_id":"player_1",
+		"target_node_id":"npc_1",
+		"scene_node_id":"scene_inn",
+		"message":"老板，今晚见过这把刀的主人吗？",
+		"participant_node_ids":["player_1","npc_1"],
+		"mode":"direct_dialogue",
+		"audience_scope":"private",
+		"turn_index":3,
+		"event":{"type":"speech"}
+	}`))
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "invalid_interaction") {
+		t.Fatalf("did not expect invalid_interaction, got %s", w.Body.String())
+	}
+}

@@ -512,23 +512,8 @@ func (a *app) invokePlayInteraction(s *playSession, spec playInteractionSpec) er
 		return errors.New("interaction target is required")
 	}
 	s.turnIndex++
-	interaction := &sdk.InteractionContext{
-		Mode:               spec.Mode,
-		SpeakerNodeID:      s.playerNodeID,
-		TargetNodeID:       spec.TargetNodeID,
-		SceneNodeID:        s.currentSceneID,
-		ParticipantNodeIDs: uniqueParticipantIDs(spec.Participants, s.playerNodeID, spec.TargetNodeID),
-		AudienceScope:      spec.AudienceScope,
-		TurnIndex:          s.turnIndex,
-		Event: &sdk.InteractionEvent{
-			Type:   spec.EventType,
-			ItemID: spec.ItemID,
-			Args:   spec.EventArgs,
-		},
-	}
 	ctx := &sdk.InvokeContext{
 		IncludeRelatedNodes: a.cfg.PlayIncludeRelated,
-		Interaction:         interaction,
 		DynamicInterfaces: []sdk.DynamicInterface{
 			sdk.NewDynamicDataRequest(
 				"play_authority",
@@ -542,13 +527,24 @@ func (a *app) invokePlayInteraction(s *playSession, spec playInteractionSpec) er
 	if mode := strings.TrimSpace(a.cfg.PlayPipelineMode); mode != "" {
 		ctx.PipelineMode = mode
 	}
-	resp, err := s.client.Invoke(&sdk.InvokeRequest{
-		WorldID:   s.worldID,
-		NodeID:    spec.TargetNodeID,
-		TaskType:  "npc_dialogue",
-		SessionID: s.sessionID,
-		Context:   ctx,
-		Messages:  []sdk.ChatMessage{{Role: "user", Content: spec.Input}},
+	resp, err := s.client.ExecuteInteraction(&sdk.InteractionExecuteRequest{
+		WorldID:            s.worldID,
+		ActorNodeID:        s.playerNodeID,
+		TargetNodeID:       spec.TargetNodeID,
+		SceneNodeID:        s.currentSceneID,
+		SessionID:          s.sessionID,
+		TaskType:           "npc_dialogue",
+		Message:            spec.Input,
+		ParticipantNodeIDs: uniqueParticipantIDs(spec.Participants, s.playerNodeID, spec.TargetNodeID),
+		Mode:               spec.Mode,
+		AudienceScope:      spec.AudienceScope,
+		TurnIndex:          s.turnIndex,
+		Event: &sdk.InteractionEvent{
+			Type:   spec.EventType,
+			ItemID: spec.ItemID,
+			Args:   spec.EventArgs,
+		},
+		Context: ctx,
 	})
 	if err != nil {
 		return err

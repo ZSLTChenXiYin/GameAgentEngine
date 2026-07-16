@@ -618,6 +618,19 @@ func (c *Client) InterpretPlayerInput(req *PlayerInputInterpretRequest) (*Invoke
 	return &resp, nil
 }
 
+// ExecuteInteraction calls the first-class interaction endpoint for actor->target dialogue or group chat.
+func (c *Client) ExecuteInteraction(req *InteractionExecuteRequest) (*InvokeResponse, error) {
+	data, err := c.do("POST", "/api/v1/interactions/execute", req)
+	if err != nil {
+		return nil, err
+	}
+	var resp InvokeResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // TickRequest 描述世界刻推进请求体。
 type TickRequest struct {
 	TickType        string `json:"tick_type"`

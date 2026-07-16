@@ -167,6 +167,22 @@ type PlayerInputInterpretRequest struct {
 	Context            *InvokeContext `json:"context,omitempty"`
 }
 
+type InteractionExecuteRequest struct {
+	WorldID            string            `json:"world_id"`
+	ActorNodeID        string            `json:"actor_node_id"`
+	TargetNodeID       string            `json:"target_node_id"`
+	SceneNodeID        string            `json:"scene_node_id,omitempty"`
+	SessionID          string            `json:"session_id,omitempty"`
+	TaskType           string            `json:"task_type,omitempty"`
+	Message            string            `json:"message"`
+	ParticipantNodeIDs []string          `json:"participant_node_ids,omitempty"`
+	Mode               string            `json:"mode,omitempty"`
+	AudienceScope      string            `json:"audience_scope,omitempty"`
+	TurnIndex          int               `json:"turn_index,omitempty"`
+	Event              *InteractionEvent `json:"event,omitempty"`
+	Context            *InvokeContext    `json:"context,omitempty"`
+}
+
 type InteractionContext struct {
 	Mode               string            `json:"mode,omitempty"`
 	SpeakerNodeID      string            `json:"speaker_node_id,omitempty"`

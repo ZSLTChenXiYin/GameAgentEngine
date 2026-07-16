@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -269,6 +270,7 @@ func TestHasPendingDataRequestDetectsAsyncCallback(t *testing.T) {
 
 func TestNewTestCommandRegistersExpectedScenarios(t *testing.T) {
 	got := SupportedTestScenarios()
+	sort.Strings(got)
 	want := []string{"all", "base-data", "callback-resume", "continuity", "machine-scenario", "runtime-tasks", "tooling-smoke"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected test scenarios: got=%v want=%v", got, want)
