@@ -34,6 +34,7 @@ It is intentionally separate from the public workflow, reference, and onboarding
 - `engine_graph_semantics.md`
 - `CLONEWORLD_SNAPSHOT_STRATEGY.md`
 - `CLONEWORLD_SNAPSHOT_STRATEGY_EN.md`
+- `ENGINE_KERNELIZATION_MEMO.md`
 
 ### Creator terminology
 
