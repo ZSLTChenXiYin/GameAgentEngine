@@ -22,7 +22,9 @@ GameAgentWorker play --state-file demo-state.yaml --world-id demo_world --player
 
 这个目录不再维护独立的多语言文档副本。
 
-完整文档请统一查看仓库根目录 `README.md`、`docs/` 目录，或项目 GitHub 上对应的文档页面。
+如果你在源码仓库中工作，完整文档请查看仓库根目录 `README.md` 与 `docs/` 目录。
+
+如果你当前使用的是打包产物目录，请直接查看项目 GitHub 上对应的文档页面；打包产物本身不再附带完整 `docs/` 树。
 
 ## 许可证
 
