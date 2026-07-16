@@ -9,10 +9,11 @@
 - [SDK Baseline](./SDK_BASELINE.md)
 - [SDK Shared Fixtures](./SDK_FIXTURES.md)
 - [SDK Capability Matrix](./SDK_CAPABILITY_MATRIX.md)
+- [Language SDK Status](./SDK_LANGUAGES.md)
 
 ## 当前语言目录
 
-代码仍位于：
+代码仍位于下列目录，但这些目录应尽量只保留源码、示例与构建文件，不再承载正式文档：
 
 - `tools/source/sdks/ts-sdk`
 - `tools/source/sdks/js-sdk`
@@ -27,3 +28,9 @@ Go SDK 仍然是当前语义基线，位于：
 
 - `sdk/client.go`
 - `sdk/types.go`
+
+## 文档约束
+
+- 正式文档统一收口到 `docs/`
+- `tools/source/sdks/*` 不再放置分散 README
+- 如需补 SDK 说明，优先补到 `docs/sdk/`
