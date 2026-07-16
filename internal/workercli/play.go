@@ -211,6 +211,10 @@ func (a *app) executePlayCommand(s *playSession, cmd playCommand) (bool, error) 
 		return false, nil
 	case "talk":
 		return false, a.setPlayTarget(s, cmd.Args)
+	case "next_target", "next":
+		return false, a.cyclePlayTarget(s, 1)
+	case "prev_target", "prev":
+		return false, a.cyclePlayTarget(s, -1)
 	case "target":
 		fmt.Println(s.renderTargetStatus())
 		return false, nil
@@ -260,6 +264,32 @@ func (a *app) setPlayTarget(s *playSession, arg string) error {
 		label = fmt.Sprintf("%s (%s)", target.Name, target.ID)
 	}
 	fmt.Printf("当前对话目标: %s\n", label)
+	return nil
+}
+
+func (a *app) cyclePlayTarget(s *playSession, step int) error {
+	s.refreshView(a)
+	targets := s.sceneDialogueTargets()
+	if len(targets) == 0 {
+		return errors.New("current scene has no NPC target to cycle")
+	}
+	current := -1
+	for i, id := range targets {
+		if id == s.currentTargetID {
+			current = i
+			break
+		}
+	}
+	if current < 0 {
+		current = 0
+		if step < 0 {
+			current = len(targets) - 1
+		}
+	} else {
+		current = (current + step + len(targets)) % len(targets)
+	}
+	s.currentTargetID = targets[current]
+	fmt.Printf("当前对话目标: %s\n", s.actorDisplayName(s.currentTargetID))
 	return nil
 }
 
@@ -829,6 +859,21 @@ func (s *playSession) renderOccupants() string {
 	return "同场角色:\n" + strings.Join(parts, "\n")
 }
 
+func (s *playSession) sceneDialogueTargets() []string {
+	actors := s.view.ActorsAtScene(s.currentSceneID)
+	targets := make([]string, 0, len(actors))
+	for _, actor := range actors {
+		if actor == nil || actor.ID == s.playerNodeID {
+			continue
+		}
+		targets = append(targets, actor.ID)
+	}
+	sort.SliceStable(targets, func(i, j int) bool {
+		return s.actorDisplayName(targets[i]) < s.actorDisplayName(targets[j])
+	})
+	return targets
+}
+
 func (s *playSession) renderRemoteScene(scene *workerstate.SceneState) string {
 	if scene == nil {
 		return ""
@@ -1085,6 +1130,8 @@ func playHelpText() string {
 		"/+who                         列出当前场景角色",
 		"/+state                       查看玩家权威状态摘要",
 		"/+talk <npc>                  选择当前对话目标",
+		"/+next_target                 切换到当前场景中的下一个对话目标",
+		"/+prev_target                 切换到当前场景中的上一个对话目标",
 		"/+target                      查看当前对话目标",
 		"/+room                        查看当前房间/场景参与者",
 		"/+move <scene>                切换到指定场景，并立即刷新本地权威状态",

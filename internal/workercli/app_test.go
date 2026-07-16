@@ -288,6 +288,40 @@ func TestResolveDirectDialogueTargetRequiresExplicitChoiceWhenMultipleNPCs(t *te
 	}
 }
 
+func TestSceneDialogueTargetsAndCyclePlayTarget(t *testing.T) {
+	a := newTestApp()
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_a"},
+			"npc_2":    {ID: "npc_2", Name: "guard", Kind: "npc", LocationID: "scene_a"},
+			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_a"},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_a"}
+	targets := s.sceneDialogueTargets()
+	if len(targets) != 2 || targets[0] != "npc_2" || targets[1] != "npc_1" {
+		t.Fatalf("unexpected dialogue targets order: %#v", targets)
+	}
+	if err := a.cyclePlayTarget(s, 1); err != nil {
+		t.Fatalf("cyclePlayTarget returned error: %v", err)
+	}
+	if s.currentTargetID != "npc_2" {
+		t.Fatalf("expected first cycled target npc_2, got %q", s.currentTargetID)
+	}
+	if err := a.cyclePlayTarget(s, 1); err != nil {
+		t.Fatalf("cyclePlayTarget returned error: %v", err)
+	}
+	if s.currentTargetID != "npc_1" {
+		t.Fatalf("expected second cycled target npc_1, got %q", s.currentTargetID)
+	}
+	if err := a.cyclePlayTarget(s, -1); err != nil {
+		t.Fatalf("cyclePlayTarget returned error: %v", err)
+	}
+	if s.currentTargetID != "npc_2" {
+		t.Fatalf("expected cycled-back target npc_2, got %q", s.currentTargetID)
+	}
+}
+
 func TestRunPlayMoveUpdatesAuthorityStateAndScene(t *testing.T) {
 	a := newTestApp()
 	a.setAuthorityState(&workerstate.WorldState{
