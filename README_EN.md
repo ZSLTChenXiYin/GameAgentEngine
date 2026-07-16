@@ -259,8 +259,9 @@ Covers world management, node CRUD, memory propagation, autonomous configuration
 - [Getting Started](./docs/getting-started/GETTING_STARTED_EN.md) -- build your first world from scratch
 - [Architecture](./docs/architecture/ARCHITECTURE_EN.md) -- overall design and module boundaries
 - [Core Concepts](./docs/architecture/CORE_CONCEPTS_EN.md) -- nodes, components, memories, relations explained
-- [External Interaction Roadmap](./docs/EXTERNAL_INTERACTION_ROADMAP.md) -- Push / Pull / Hybrid task modes
-- [External Interaction Examples](./docs/EXTERNAL_INTERACTION_EXAMPLES.md) -- full game-client integration flows
+- [External Interaction Overview](./docs/integration/EXTERNAL_INTERACTION.md) -- Push / Pull / Hybrid, callback, and worker closure
+- [Player Interaction Overview](./docs/gameplay/PLAYER_INTERACTION.md) -- player input, group chat, natural-language intent, and validation boundaries
+- [Game State Authority Boundary](./docs/gameplay/GAME_STATE_AUTHORITY.md) -- ownership rules between Engine and the game side
 - [API Reference](./docs/reference/API_REFERENCE_EN.md) -- all HTTP endpoints
 - [GameAgentDevCli Guide](./docs/guides/GUIDE_GAMEAGENTDEVCLI_EN.md) -- complete CLI reference
 - [GameAgentCreator Guide](./docs/guides/GUIDE_GAMEAGENTCREATOR_EN.md) -- Web editor walkthrough

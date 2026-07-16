@@ -39,3 +39,13 @@
 ## Pending Reorganization
 
 - Integration, gameplay, and internal design documents remain temporarily in the docs root and will be consolidated in later phases.
+
+## Integration
+
+- [External Interaction Overview](./integration/EXTERNAL_INTERACTION.md)
+- [Continuity and Observability](./integration/CONTINUITY_AND_OBSERVABILITY.md)
+
+## Gameplay
+
+- [Player Interaction Overview](./gameplay/PLAYER_INTERACTION.md)
+- [Game State Authority Boundary](./gameplay/GAME_STATE_AUTHORITY.md)

@@ -260,8 +260,9 @@ tick, _ := client.AdvanceTick(worldID, "scheduled", "Day 2")
 - [入门指南](./docs/getting-started/GETTING_STARTED.md) — 从零搭建第一个世界
 - [架构说明](./docs/architecture/ARCHITECTURE.md) — 整体设计与模块边界
 - [核心概念](./docs/architecture/CORE_CONCEPTS.md) — 节点、组件、记忆、关系详解
-- [外部交互路线图](./docs/EXTERNAL_INTERACTION_ROADMAP.md) — Push / Pull / Hybrid 任务模式
-- [外部交互示例](./docs/EXTERNAL_INTERACTION_EXAMPLES.md) — 对接游戏端的完整流程
+- [外部交互总览](./docs/integration/EXTERNAL_INTERACTION.md) — Push / Pull / Hybrid、callback 与 worker 闭环
+- [玩家交互总览](./docs/gameplay/PLAYER_INTERACTION.md) — 玩家输入、群聊、自然语言意图与校验边界
+- [游戏状态权威边界](./docs/gameplay/GAME_STATE_AUTHORITY.md) — Engine 与游戏侧的数据所有权约束
 - [API 参考](./docs/reference/API_REFERENCE.md) — 全部 HTTP 接口
 - [GameAgentDevCli 指南](./docs/guides/GUIDE_GAMEAGENTDEVCLI.md) — 命令行工具完整手册
 - [GameAgentCreator 指南](./docs/guides/GUIDE_GAMEAGENTCREATOR.md) — Web 编辑器使用说明

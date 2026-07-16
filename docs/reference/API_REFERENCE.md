@@ -13,9 +13,9 @@
 
 多数写操作接口同时支持 `Idempotency-Key` 请求头，便于对 Tick、复制、导入等长流程做安全重试。
 
-如果你要看完整接入样例，而不是逐个接口查字段，建议同时阅读 [外部交互接入示例](../EXTERNAL_INTERACTION_EXAMPLES.md)。
+如果你要看完整接入样例，而不是逐个接口查字段，建议同时阅读 [外部交互接入示例](../integration/EXTERNAL_INTERACTION.md)。
 
-如果你要确认这些接口路径当前有哪些自动化保障，可以继续看 [外部交互测试矩阵](../EXTERNAL_INTERACTION_TEST_MATRIX.md)。
+如果你要确认这些接口路径当前有哪些自动化保障，可以继续看 [外部交互测试矩阵](../integration/EXTERNAL_INTERACTION.md)。
 
 ---
 
