@@ -1,5 +1,7 @@
 package sdk
 
+import "strings"
+
 const (
 	PlayerIntentTypeSpeech       = "speech"
 	PlayerIntentTypeShowItem     = "show_item"
@@ -103,4 +105,20 @@ func ValidPlayerIntentPreconditionTypes() []string {
 
 func ValidMissingFactTypes() []string {
 	return append([]string(nil), playerIntentMissingFactTypes...)
+}
+
+func IsFollowupInteractionEventType(eventType string) bool {
+	switch strings.TrimSpace(eventType) {
+	case InteractionEventSpeech, InteractionEventGift, InteractionEventShowItem, InteractionEventTradeRequest, InteractionEventThreaten:
+		return true
+	default:
+		return false
+	}
+}
+
+func RequiresFollowupInteraction(stepType string, suggested *SuggestedInteraction) bool {
+	if suggested != nil && strings.TrimSpace(suggested.EventType) != "" {
+		return true
+	}
+	return IsFollowupInteractionEventType(stepType)
 }

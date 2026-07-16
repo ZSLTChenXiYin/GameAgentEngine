@@ -18,7 +18,7 @@ func BuildInteractionSpec(payload *sdk.PlayerIntentInterpretation, actorNodeID s
 		return nil, fmt.Errorf("player intent has no executable steps")
 	}
 	primary := steps[0]
-	if !requiresFollowupInteraction(primary.Type, payload.SuggestedInteraction) {
+	if !sdk.RequiresFollowupInteraction(primary.Type, payload.SuggestedInteraction) {
 		return nil, nil
 	}
 	spec := &InteractionSpec{
@@ -49,18 +49,6 @@ func BuildInteractionSpec(payload *sdk.PlayerIntentInterpretation, actorNodeID s
 	spec.Input = buildInteractionInput(intent, steps)
 	_ = fallbackSceneID
 	return spec, nil
-}
-
-func requiresFollowupInteraction(stepType string, suggested *sdk.SuggestedInteraction) bool {
-	if suggested != nil && strings.TrimSpace(suggested.EventType) != "" {
-		return true
-	}
-	switch strings.TrimSpace(stepType) {
-	case sdk.InteractionEventSpeech, sdk.InteractionEventGift, sdk.InteractionEventShowItem, sdk.InteractionEventTradeRequest, sdk.InteractionEventThreaten:
-		return true
-	default:
-		return false
-	}
 }
 
 func buildInteractionInput(intent *sdk.PlayerIntent, steps []sdk.PlayerIntentStep) string {
