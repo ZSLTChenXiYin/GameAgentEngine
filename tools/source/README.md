@@ -1,7 +1,5 @@
 # GameAgentEngine Packaged Assets
 
-**中文** | [**English**](./README_EN.md)
-
 这个目录用于承载打包产物随附的运行资产，而不是完整仓库文档。
 
 ## 本目录当前应只包含
@@ -22,9 +20,9 @@ GameAgentWorker play --state-file demo-state.yaml --world-id demo_world --player
 
 ## 文档说明
 
-完整文档不再随 `tools/source/` 复制。
+这个目录不再维护独立的多语言文档副本。
 
-请统一查看仓库 `docs/` 目录，或项目 GitHub 上对应的文档页面。
+完整文档请统一查看仓库根目录 `README.md`、`docs/` 目录，或项目 GitHub 上对应的文档页面。
 
 ## 许可证
 
