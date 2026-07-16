@@ -293,11 +293,11 @@ func TestNewTestCommandRegistersExpectedScenarios(t *testing.T) {
 
 func TestRunNamedTestScenarioReturnsNotImplemented(t *testing.T) {
 	a := newTestApp()
-	err := a.runNamedTestScenario("machine-scenario")
+	err := a.runNamedTestScenario("all")
 	if err == nil {
 		t.Fatal("expected not implemented error")
 	}
-	if got := err.Error(); got != "worker test scenario \"machine-scenario\" is not implemented yet" {
+	if got := err.Error(); got != "worker test scenario \"all\" is not implemented yet" {
 		t.Fatalf("unexpected error: %s", got)
 	}
 }
