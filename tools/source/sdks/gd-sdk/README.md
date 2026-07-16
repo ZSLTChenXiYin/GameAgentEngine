@@ -1,32 +1,27 @@
 # GameAgentEngine GDScript SDK
 
-This SDK is the GDScript baseline client for GameAgentEngine.
+This SDK is the Godot-friendly baseline client surface for GameAgentEngine.
 
-## Current Scope
+## Current Status
 
-- baseline HTTP client wrapper
-- health / version / invoke / runtime-task / callback entrypoints
-- minimal examples for external integration flows
-- aligned terminology with the Go SDK baseline
+This is now a practical first version for request construction and integration wiring rather than a pure path-only scaffold.
 
-## Status
+It still does not provide full Go SDK parity, but it already covers the main request shapes needed for Godot-side Engine / Worker integration.
 
-This directory currently provides a baseline scaffold, not full parity with the Go SDK yet.
+## Current Capability Scope
 
-## Recommended Use
-
-Use this SDK when you need to:
-
-- connect a GDScript runtime to GameAgentEngine
-- trigger `invoke`
-- consume pull tasks
-- callback task results
-- inspect state / timelines / logs
+- health and version request builders
+- invoke and player input interpretation request builders
+- runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats request builders
+- callback request builder
+- world settings / state components / timelines / logs / debug traces request builders
+- world tick advance request builder
 
 ## Notes
 
 - intended as the Godot-friendly baseline client
-- focuses on lightweight HTTPRequest-based integration patterns
+- focuses on lightweight `HTTPRequest` / `HTTPClient` integration patterns
+- returns request dictionaries so Godot projects can route them through their own async HTTP layer
 
 ## Included Examples
 
@@ -34,3 +29,10 @@ Use this SDK when you need to:
 - `examples/invoke_dialogue.gd`
 - `examples/task_pull_once.gd`
 
+## Not Yet Included
+
+Not yet at Go SDK parity:
+
+- built-in async HTTP execution wrapper around `HTTPRequest`
+- full worlds / nodes / components / memories / relations CRUD surface
+- higher-level Godot gameplay helpers for `play`-style flows
