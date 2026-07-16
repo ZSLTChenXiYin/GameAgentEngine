@@ -137,6 +137,29 @@ func TestBuildInteractionSpecUsesSuggestedInteraction(t *testing.T) {
 	}
 }
 
+func TestBuildInteractionSpecReturnsNilForPurePlayerSideMove(t *testing.T) {
+	payload := &sdk.PlayerIntentInterpretation{
+		Intent: &sdk.PlayerIntent{
+			Type:        "move",
+			ActorNodeID: "player_1",
+			SceneNodeID: "scene_square",
+			RiskLevel:   "low",
+			Steps: []sdk.PlayerIntentStep{{
+				Type:        "move",
+				SceneNodeID: "scene_square",
+				Args:        map[string]any{"destination_scene_id": "scene_square"},
+			}},
+		},
+	}
+	spec, err := BuildInteractionSpec(payload, "player_1", "scene_inn")
+	if err != nil {
+		t.Fatalf("BuildInteractionSpec returned error: %v", err)
+	}
+	if spec != nil {
+		t.Fatalf("expected no follow-up interaction spec for move intent, got %#v", spec)
+	}
+}
+
 func TestValidateUsesCanonicalMissingFactTypes(t *testing.T) {
 	view := workerstate.NewStateView(sampleState())
 	payload := &sdk.PlayerIntentInterpretation{Intent: &sdk.PlayerIntent{
