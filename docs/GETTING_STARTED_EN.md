@@ -126,7 +126,7 @@ GameAgentDevCli node create --world <world-id> --type location --name "Starter V
 The simplest path is through DevCli:
 
 ```bash
-GameAgentDevCli inspect
+GameAgentDevCli creator
 ```
 
 If that launcher path is inconvenient in your environment, you can also open:

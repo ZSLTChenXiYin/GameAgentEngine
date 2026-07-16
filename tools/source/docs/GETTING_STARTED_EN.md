@@ -16,7 +16,7 @@ GameAgentEngine serve
 GameAgentDevCli node create --type world --name "New World"
 
 # 3. Open Creator
-GameAgentDevCli inspect
+GameAgentDevCli creator
 ```
 
 If you want world time advancement, configure `world_time_settings` first in Creator's `Settings` page.

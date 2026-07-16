@@ -37,7 +37,7 @@ GameAgentEngine 就是为解决这些问题设计的。
 ```
 GameAgentEngine serve
 GameAgentDevCli node create --type world --name "新世界"
-GameAgentDevCli inspect
+GameAgentDevCli creator
 ```
 
 时间推进前需要在 Creator 的 Settings 页面配置 `world_time_settings`。

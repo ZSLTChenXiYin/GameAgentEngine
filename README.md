@@ -128,7 +128,7 @@ GameAgentEngine serve
 GameAgentDevCli node create --type world --name "我的世界"
 
 # 打开可视化编辑器
-GameAgentDevCli inspect
+GameAgentDevCli creator
 ```
 
 ### 添加 NPC 并推进时间
@@ -208,7 +208,7 @@ GameAgentDevCli task start <task-id> <lease-token>
 # 调试与观测
 GameAgentDevCli logs --world <world-id>
 GameAgentDevCli debug traces --world <world-id>
-GameAgentDevCli inspect
+GameAgentDevCli creator
 ```
 
 ### GameAgentWorker — 独立 Worker / REPL / 集成测试入口

@@ -22,7 +22,7 @@ GameAgentDevCli world settings set <world-id> --world-time-settings-file world-t
 GameAgentDevCli world tick <world-id>
 GameAgentDevCli state get <world-id> world_time_state
 GameAgentDevCli timeline latest <world-id>
-GameAgentDevCli inspect
+GameAgentDevCli creator
 ```
 
 如果你使用随包附带的 `demo-world.yaml`，可以先导入它，再配合 `GameAgentWorker play --state-file demo-state.yaml --world-id demo_world --player-node-id player_001` 直接体验文字游戏式交互。

@@ -128,7 +128,7 @@ GameAgentEngine serve
 GameAgentDevCli node create --type world --name "My World"
 
 # Open the visual editor
-GameAgentDevCli inspect
+GameAgentDevCli creator
 ```
 
 ### Add an NPC and Advance Time
@@ -207,7 +207,7 @@ GameAgentDevCli task start <task-id> <lease-token>
 # Debugging and observability
 GameAgentDevCli logs --world <world-id>
 GameAgentDevCli debug traces --world <world-id>
-GameAgentDevCli inspect
+GameAgentDevCli creator
 ```
 
 ### GameAgentWorker -- Standalone Worker / REPL / Integration Test Entry

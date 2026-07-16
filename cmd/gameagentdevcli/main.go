@@ -189,6 +189,7 @@ func main() {
 	rootCmd.AddCommand(timelineCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(logsCmd)
+	rootCmd.AddCommand(creatorCmd)
 	rootCmd.AddCommand(inspectCmd)
 	rootCmd.AddCommand(resetCmd)
 	rootCmd.AddCommand(verifyCmd)

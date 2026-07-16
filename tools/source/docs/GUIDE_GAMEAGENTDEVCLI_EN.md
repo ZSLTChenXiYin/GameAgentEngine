@@ -20,5 +20,5 @@ GameAgentDevCli world settings set <world-id> --world-time-settings-file world-t
 GameAgentDevCli world tick <world-id>
 GameAgentDevCli state get <world-id> world_time_state
 GameAgentDevCli timeline latest <world-id>
-GameAgentDevCli inspect
+GameAgentDevCli creator
 ```

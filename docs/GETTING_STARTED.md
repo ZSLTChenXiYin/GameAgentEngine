@@ -126,7 +126,7 @@ GameAgentDevCli node create --world <world-id> --type location --name "起始村
 推荐直接用 DevCli 打开：
 
 ```bash
-GameAgentDevCli inspect
+GameAgentDevCli creator
 ```
 
 如果你的环境不方便走这个入口，也可以直接打开：
