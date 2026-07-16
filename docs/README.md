@@ -9,6 +9,8 @@
 
 - [GameAgentDevCli Guide (ZH)](./guides/GUIDE_GAMEAGENTDEVCLI.md)
 - [GameAgentDevCli Guide (EN)](./guides/GUIDE_GAMEAGENTDEVCLI_EN.md)
+- [GameAgentWorker Guide (ZH)](./guides/GUIDE_GAMEAGENTWORKER.md)
+- [GameAgentWorker Guide (EN)](./guides/GUIDE_GAMEAGENTWORKER_EN.md)
 - [GameAgentCreator Guide (ZH)](./guides/GUIDE_GAMEAGENTCREATOR.md)
 - [GameAgentCreator Guide (EN)](./guides/GUIDE_GAMEAGENTCREATOR_EN.md)
 

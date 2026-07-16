@@ -9,6 +9,8 @@
 
 - [GameAgentDevCli Guide (ZH)](./guides/GUIDE_GAMEAGENTDEVCLI.md)
 - [GameAgentDevCli Guide (EN)](./guides/GUIDE_GAMEAGENTDEVCLI_EN.md)
+- [GameAgentWorker Guide (ZH)](./guides/GUIDE_GAMEAGENTWORKER.md)
+- [GameAgentWorker Guide (EN)](./guides/GUIDE_GAMEAGENTWORKER_EN.md)
 - [GameAgentCreator Guide (ZH)](./guides/GUIDE_GAMEAGENTCREATOR.md)
 - [GameAgentCreator Guide (EN)](./guides/GUIDE_GAMEAGENTCREATOR_EN.md)
 
@@ -23,6 +25,6 @@
 - [World Time Tick Reference (ZH)](./reference/WORLD_TIME_TICK_REFERENCE.md)
 - [World Time Tick Reference (EN)](./reference/WORLD_TIME_TICK_REFERENCE_EN.md)
 
-## Pending Reorganization
+## Packaged Notes
 
-- Additional packaged docs are still being consolidated.
+- Use `GameAgentWorker` for worker-side integration tests, authority-state hosting, and play-mode validation.
