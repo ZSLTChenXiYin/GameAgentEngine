@@ -160,6 +160,28 @@ func TestBuildInteractionSpecReturnsNilForPurePlayerSideMove(t *testing.T) {
 	}
 }
 
+func TestBuildInteractionSpecReturnsNilForUseItemWithoutSuggestedInteraction(t *testing.T) {
+	payload := &sdk.PlayerIntentInterpretation{
+		Intent: &sdk.PlayerIntent{
+			Type:        "use_item",
+			ActorNodeID: "player_1",
+			SceneNodeID: "scene_inn",
+			RiskLevel:   "low",
+			Steps: []sdk.PlayerIntentStep{{
+				Type:   "use_item",
+				ItemID: "apple",
+			}},
+		},
+	}
+	spec, err := BuildInteractionSpec(payload, "player_1", "scene_inn")
+	if err != nil {
+		t.Fatalf("BuildInteractionSpec returned error: %v", err)
+	}
+	if spec != nil {
+		t.Fatalf("expected no follow-up interaction spec for use_item intent, got %#v", spec)
+	}
+}
+
 func TestValidateUsesCanonicalMissingFactTypes(t *testing.T) {
 	view := workerstate.NewStateView(sampleState())
 	payload := &sdk.PlayerIntentInterpretation{Intent: &sdk.PlayerIntent{

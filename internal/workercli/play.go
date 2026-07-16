@@ -384,6 +384,12 @@ func (a *app) runPlayAct(s *playSession, args string) error {
 		}
 		return err
 	}
+	if bridge == nil {
+		if result != nil {
+			fmt.Printf("[system] executed %d step(s) without follow-up interaction\n", len(result.Outcomes))
+		}
+		return nil
+	}
 	if len(participants) > 0 {
 		bridge.Participants = uniqueParticipantIDs(participants, bridge.Participants...)
 	}
