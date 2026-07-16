@@ -1,6 +1,6 @@
 # SDK Baseline Specification
 
-本文件定义 `tools/source/sdks` 下所有多语言 SDK 的统一最低交付标准。
+本文件定义多语言 SDK 的统一最低交付标准。
 
 ## 1. 目标
 
@@ -19,7 +19,6 @@
 
 ```text
 <lang>-sdk/
-├── README.md
 ├── src/ 或等价源码目录
 ├── examples/
 ├── tests/            # 如果语言生态允许
@@ -170,7 +169,7 @@
 
 一个语言 SDK 只有在满足以下条件后才算达标：
 
-1. README 可独立指导接入
+1. 文档可独立指导接入
 2. 示例可以覆盖最小闭环
 3. 核心能力矩阵至少覆盖 S1
 4. 与当前 Engine / Worker 工作流术语一致

@@ -3,7 +3,7 @@
 This directory is the full repository documentation set.
 
 - `docs/` is the source-of-truth documentation tree for contributors and integrators.
-- `tools/source/docs/` is the packaged subset copied into release artifacts.
+- `tools/source/` now keeps packaged runtime assets only, not a mirrored docs tree.
 
 ## Getting Started
 
@@ -57,7 +57,10 @@ This directory is the full repository documentation set.
 
 ## SDKs
 
-- Multi-language SDK baseline lives in `tools/source/sdks/README.md` and `tools/source/sdks/SDK_BASELINE.md`
+- [SDK Overview](./sdk/README.md)
+- [SDK Baseline](./sdk/SDK_BASELINE.md)
+- [SDK Shared Fixtures](./sdk/SDK_FIXTURES.md)
+- [SDK Capability Matrix](./sdk/SDK_CAPABILITY_MATRIX.md)
 
 ## Internal Design Notes
 

@@ -107,9 +107,9 @@ Their main current use is:
 
 Shared SDK references live in:
 
-- `tools/source/sdks/README.md`
-- `tools/source/sdks/SDK_FIXTURES.md`
-- `tools/source/sdks/SDK_CAPABILITY_MATRIX.md`
+- `docs/sdk/README.md`
+- `docs/sdk/SDK_FIXTURES.md`
+- `docs/sdk/SDK_CAPABILITY_MATRIX.md`
 
 ---
 
@@ -147,6 +147,6 @@ If you want to read the docs in workflow order, use this path:
 4. `docs/gameplay/PLAYER_INTERACTION.md`
 5. `docs/gameplay/GAME_STATE_AUTHORITY.md`
 6. `docs/integration/EXTERNAL_INTERACTION.md`
-7. `tools/source/sdks/README.md`
+7. `docs/sdk/README.md`
 
 That sequence matches the current real project workflow better than reading purely by subsystem.

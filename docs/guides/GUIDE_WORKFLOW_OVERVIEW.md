@@ -107,9 +107,9 @@ GameAgentWorker test all
 
 共享 SDK 说明见：
 
-- `tools/source/sdks/README.md`
-- `tools/source/sdks/SDK_FIXTURES.md`
-- `tools/source/sdks/SDK_CAPABILITY_MATRIX.md`
+- `docs/sdk/README.md`
+- `docs/sdk/SDK_FIXTURES.md`
+- `docs/sdk/SDK_CAPABILITY_MATRIX.md`
 
 ---
 
@@ -148,6 +148,6 @@ GameAgentWorker test all
 4. `docs/gameplay/PLAYER_INTERACTION.md`
 5. `docs/gameplay/GAME_STATE_AUTHORITY.md`
 6. `docs/integration/EXTERNAL_INTERACTION.md`
-7. `tools/source/sdks/README.md`
+7. `docs/sdk/README.md`
 
 这条路径更贴近当前项目的真实使用顺序。
