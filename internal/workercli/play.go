@@ -213,6 +213,10 @@ func (a *app) executePlayCommand(s *playSession, cmd playCommand) (bool, error) 
 		s.refreshView(a)
 		fmt.Println(s.renderInventory())
 		return false, nil
+	case "quests", "tasks":
+		s.refreshView(a)
+		fmt.Println(s.renderQuestLog())
+		return false, nil
 	case "talk":
 		return false, a.setPlayTarget(s, cmd.Args)
 	case "next_target", "next":
@@ -1057,6 +1061,49 @@ func (s *playSession) renderInventory() string {
 	return strings.Join(lines, "\n")
 }
 
+func (s *playSession) renderQuestLog() string {
+	actor, _ := s.view.Actor(s.playerNodeID)
+	lines := []string{"任务日志:"}
+	if actor != nil && len(actor.QuestStates) > 0 {
+		playerTasks := make([]string, 0, len(actor.QuestStates))
+		for taskID, status := range actor.QuestStates {
+			label := taskID
+			if task, ok := s.view.Task(taskID); ok && task != nil && strings.TrimSpace(task.Name) != "" {
+				label = task.Name
+			}
+			playerTasks = append(playerTasks, fmt.Sprintf("- %s (%s): %s", label, taskID, status))
+		}
+		sort.Strings(playerTasks)
+		lines = append(lines, playerTasks...)
+	}
+	globalTasks := s.view.State().Tasks
+	if len(globalTasks) == 0 && len(lines) == 1 {
+		return lines[0] + "\n- 无"
+	}
+	if len(globalTasks) > 0 {
+		entries := make([]string, 0, len(globalTasks))
+		for taskID, task := range globalTasks {
+			if task == nil {
+				continue
+			}
+			label := fallback(task.Name, taskID)
+			line := fmt.Sprintf("- %s (%s): %s", label, taskID, fallback(task.Status, "unknown"))
+			if strings.TrimSpace(task.Stage) != "" {
+				line += fmt.Sprintf(" [stage=%s]", task.Stage)
+			}
+			entries = append(entries, line)
+		}
+		sort.Strings(entries)
+		if len(entries) > 0 {
+			lines = append(lines, entries...)
+		}
+	}
+	if len(lines) == 1 {
+		lines = append(lines, "- 无")
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (s *playSession) itemDisplayName(itemID string) string {
 	if item, ok := s.view.State().Items[itemID]; ok && item != nil && strings.TrimSpace(item.Name) != "" {
 		return item.Name
@@ -1199,6 +1246,7 @@ func playHelpText() string {
 		"/+who                         列出当前场景角色",
 		"/+state                       查看玩家权威状态摘要",
 		"/+inventory                   查看背包详情",
+		"/+quests                      查看任务/剧情状态摘要",
 		"/+talk <npc>                  选择当前对话目标",
 		"/+next_target                 切换到当前场景中的下一个对话目标",
 		"/+prev_target                 切换到当前场景中的上一个对话目标",

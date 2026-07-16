@@ -436,6 +436,24 @@ func TestRenderInventoryShowsDetailedEntries(t *testing.T) {
 	}
 }
 
+func TestRenderQuestLogShowsPlayerAndGlobalTaskState(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Name: "Hero", QuestStates: map[string]string{"task_case": "active"}},
+		},
+		Tasks: map[string]*workerstate.QuestState{
+			"task_case": {ID: "task_case", Name: "Case File", Status: "active", Stage: "investigate"},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1"}
+	text := s.renderQuestLog()
+	for _, want := range []string{"任务日志:", "- Case File (task_case): active", "[stage=investigate]"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("expected quest log to contain %q, got %q", want, text)
+		}
+	}
+}
+
 func TestRenderSceneSummaryIncludesPromptFlagsAndTarget(t *testing.T) {
 	view := workerstate.NewStateView(&workerstate.WorldState{
 		Actors: map[string]*workerstate.ActorState{
