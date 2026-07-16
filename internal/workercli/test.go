@@ -62,6 +62,8 @@ func (a *app) runNamedTestScenario(scenario string) error {
 		return a.runBaseDataScenario()
 	case "continuity":
 		return a.runContinuityScenario()
+	case "runtime-tasks":
+		return a.runRuntimeTasksScenario()
 	}
 	return fmt.Errorf("worker test scenario %q is not implemented yet", trimmed)
 }
