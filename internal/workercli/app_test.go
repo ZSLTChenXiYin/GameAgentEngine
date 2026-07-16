@@ -587,6 +587,51 @@ func TestPrintPlayExecutionResultRefreshesSceneAfterMove(t *testing.T) {
 	}
 }
 
+func TestRenderPlayIntentInterpretationShowsIntentStepsFactsAndSuggestion(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Name: "Hero", Kind: "player", LocationID: "scene_inn"},
+			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_inn"},
+		},
+		Scenes: map[string]*workerstate.SceneState{
+			"scene_inn": {ID: "scene_inn", Name: "Inn"},
+		},
+		Items: map[string]*workerstate.ItemState{
+			"knife_bloody": {ID: "knife_bloody", Name: "Bloody Knife", OwnerID: "player_1"},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_inn"}
+	text := renderPlayIntentInterpretation(&sdk.PlayerIntentInterpretation{
+		Intent: &sdk.PlayerIntent{
+			Type:         sdk.PlayerIntentTypeComposite,
+			ActorNodeID:  "player_1",
+			SceneNodeID:  "scene_inn",
+			TargetNodeID: "npc_1",
+			Summary:      "show knife and question innkeeper",
+			RiskLevel:    sdk.PlayerIntentRiskMedium,
+			Confidence:   0.9,
+			Steps: []sdk.PlayerIntentStep{
+				{Type: sdk.PlayerIntentTypeShowItem, TargetNodeID: "npc_1", ItemID: "knife_bloody", Preconditions: []sdk.PlayerIntentPrecondition{{Type: sdk.PlayerIntentPreconditionSameScene}}},
+				{Type: sdk.PlayerIntentTypeSpeech, TargetNodeID: "npc_1", Content: "did you see the owner?"},
+			},
+		},
+		MissingFacts:         []sdk.MissingFact{{Type: sdk.MissingFactTargetLocation, NodeID: "npc_1", Reason: "target location must be authoritative"}},
+		SuggestedInteraction: &sdk.SuggestedInteraction{Mode: sdk.InteractionModeDirectDialogue, EventType: sdk.InteractionEventShowItem, AudienceScope: sdk.InteractionAudiencePrivate, TargetNodeID: "npc_1"},
+	}, s)
+	for _, want := range []string{
+		"[system] interpreted intent: composite",
+		"summary=show knife and question innkeeper",
+		"step 1: show_item, target=innkeeper, item=Bloody Knife, preconditions=same_scene",
+		"step 2: speech, target=innkeeper, content=did you see the owner?",
+		"missing fact: target_location, node=innkeeper, reason=target location must be authoritative",
+		"suggested interaction: mode=direct_dialogue, event=show_item, audience=private, target=innkeeper",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("expected interpretation text to contain %q, got %q", want, text)
+		}
+	}
+}
+
 func TestResolvePlayResponseReturnsResumedResponse(t *testing.T) {
 	a := newTestApp()
 	a.cfg.PlayAutoWorker = true

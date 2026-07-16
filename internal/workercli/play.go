@@ -361,6 +361,9 @@ func (a *app) runPlayAct(s *playSession, args string) error {
 		}
 		return errors.New("player intent interpretation missing")
 	}
+	if text := renderPlayIntentInterpretation(resp.PlayerIntent, s); strings.TrimSpace(text) != "" {
+		fmt.Println(text)
+	}
 	validation := playerintent.Validate(s.view, resp.PlayerIntent)
 	if !validation.OK {
 		for _, issue := range validation.Issues {
@@ -733,6 +736,145 @@ func (a *app) printPlayExecutionResult(s *playSession, result *playerintent.Exec
 			fmt.Println(s.renderSceneSummary())
 		}
 	}
+}
+
+func renderPlayIntentInterpretation(payload *sdk.PlayerIntentInterpretation, s *playSession) string {
+	if payload == nil || payload.Intent == nil {
+		return ""
+	}
+	intent := payload.Intent
+	lines := make([]string, 0, 8)
+	primary := fmt.Sprintf("[system] interpreted intent: %s", strings.TrimSpace(intent.Type))
+	meta := make([]string, 0, 4)
+	if summary := strings.TrimSpace(intent.Summary); summary != "" {
+		meta = append(meta, "summary="+summary)
+	}
+	if risk := strings.TrimSpace(intent.RiskLevel); risk != "" {
+		meta = append(meta, "risk="+risk)
+	}
+	if intent.Confidence > 0 {
+		meta = append(meta, fmt.Sprintf("confidence=%.2f", intent.Confidence))
+	}
+	if targetID := strings.TrimSpace(intent.TargetNodeID); targetID != "" {
+		meta = append(meta, "target="+displayActorOrID(s, targetID))
+	}
+	if sceneID := strings.TrimSpace(intent.SceneNodeID); sceneID != "" {
+		meta = append(meta, "scene="+displaySceneOrID(s, sceneID))
+	}
+	if len(meta) > 0 {
+		primary += " [" + strings.Join(meta, ", ") + "]"
+	}
+	lines = append(lines, primary)
+	for i, step := range intent.Steps {
+		lines = append(lines, fmt.Sprintf("[system] step %d: %s", i+1, renderPlayIntentStep(step, s)))
+	}
+	for _, item := range payload.MissingFacts {
+		if strings.TrimSpace(item.Type) == "" {
+			continue
+		}
+		lines = append(lines, "[system] missing fact: "+renderMissingFact(item, s))
+	}
+	if suggested := payload.SuggestedInteraction; suggested != nil {
+		segments := make([]string, 0, 4)
+		if mode := strings.TrimSpace(suggested.Mode); mode != "" {
+			segments = append(segments, "mode="+mode)
+		}
+		if eventType := strings.TrimSpace(suggested.EventType); eventType != "" {
+			segments = append(segments, "event="+eventType)
+		}
+		if scope := strings.TrimSpace(suggested.AudienceScope); scope != "" {
+			segments = append(segments, "audience="+scope)
+		}
+		if targetID := strings.TrimSpace(suggested.TargetNodeID); targetID != "" {
+			segments = append(segments, "target="+displayActorOrID(s, targetID))
+		}
+		if len(segments) > 0 {
+			lines = append(lines, "[system] suggested interaction: "+strings.Join(segments, ", "))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderPlayIntentStep(step sdk.PlayerIntentStep, s *playSession) string {
+	parts := []string{strings.TrimSpace(step.Type)}
+	if targetID := strings.TrimSpace(step.TargetNodeID); targetID != "" {
+		parts = append(parts, "target="+displayActorOrID(s, targetID))
+	}
+	if sceneID := strings.TrimSpace(step.SceneNodeID); sceneID != "" {
+		parts = append(parts, "scene="+displaySceneOrID(s, sceneID))
+	}
+	if itemID := strings.TrimSpace(step.ItemID); itemID != "" {
+		parts = append(parts, "item="+displayItemOrID(s, itemID))
+	}
+	if content := strings.TrimSpace(step.Content); content != "" {
+		parts = append(parts, "content="+content)
+	}
+	if len(step.Preconditions) > 0 {
+		preconditions := make([]string, 0, len(step.Preconditions))
+		for _, pre := range step.Preconditions {
+			if trimmed := strings.TrimSpace(pre.Type); trimmed != "" {
+				preconditions = append(preconditions, trimmed)
+			}
+		}
+		if len(preconditions) > 0 {
+			parts = append(parts, "preconditions="+strings.Join(preconditions, "+"))
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+func renderMissingFact(item sdk.MissingFact, s *playSession) string {
+	parts := []string{strings.TrimSpace(item.Type)}
+	if nodeID := strings.TrimSpace(item.NodeID); nodeID != "" {
+		parts = append(parts, "node="+displayNodeContext(s, nodeID))
+	}
+	if itemID := strings.TrimSpace(item.ItemID); itemID != "" {
+		parts = append(parts, "item="+displayItemOrID(s, itemID))
+	}
+	if taskID := strings.TrimSpace(item.TaskID); taskID != "" {
+		parts = append(parts, "task="+taskID)
+	}
+	if reason := strings.TrimSpace(item.Reason); reason != "" {
+		parts = append(parts, "reason="+reason)
+	}
+	return strings.Join(parts, ", ")
+}
+
+func displayActorOrID(s *playSession, actorID string) string {
+	if s == nil || s.view == nil {
+		return actorID
+	}
+	if actor, ok := s.view.Actor(actorID); ok && actor != nil {
+		return fallback(actor.Name, actor.ID)
+	}
+	return actorID
+}
+
+func displaySceneOrID(s *playSession, sceneID string) string {
+	if s == nil || s.view == nil {
+		return sceneID
+	}
+	return fallbackSceneName(s.view, sceneID)
+}
+
+func displayItemOrID(s *playSession, itemID string) string {
+	if s == nil || s.view == nil {
+		return itemID
+	}
+	return s.itemDisplayName(itemID)
+}
+
+func displayNodeContext(s *playSession, nodeID string) string {
+	if s == nil || s.view == nil {
+		return nodeID
+	}
+	if actor, ok := s.view.Actor(nodeID); ok && actor != nil {
+		return fallback(actor.Name, actor.ID)
+	}
+	if scene, ok := s.view.Scene(nodeID); ok && scene != nil {
+		return fallback(scene.Name, scene.ID)
+	}
+	return nodeID
 }
 
 func uniqueParticipantIDs(explicit []string, defaults ...string) []string {
