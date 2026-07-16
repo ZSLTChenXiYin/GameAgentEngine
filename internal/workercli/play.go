@@ -327,6 +327,7 @@ func (a *app) runPlayAct(s *playSession, args string) error {
 		return execErr
 	}
 	s.refreshView(a)
+	a.printPlayExecutionResult(s, result)
 	bridge, err := playerintent.BuildInteractionSpec(resp.PlayerIntent, s.playerNodeID, s.currentSceneID)
 	if err != nil {
 		if result != nil {
@@ -570,6 +571,25 @@ func (a *app) resolvePlayResponse(resp *sdk.InvokeResponse) (*sdk.InvokeResponse
 		current = processed.Callback.Resumed
 	}
 	return current, nil
+}
+
+func (a *app) printPlayExecutionResult(s *playSession, result *playerintent.ExecutionResult) {
+	if result == nil || len(result.Outcomes) == 0 {
+		return
+	}
+	for _, outcome := range result.Outcomes {
+		message := strings.TrimSpace(outcome.Summary)
+		if message == "" {
+			message = fmt.Sprintf("%s applied", strings.TrimSpace(outcome.Type))
+		}
+		fmt.Printf("[system] %s\n", message)
+	}
+	if strings.TrimSpace(s.currentSceneID) != "" {
+		if actor, ok := s.view.Actor(s.playerNodeID); ok && actor != nil && strings.TrimSpace(actor.LocationID) != strings.TrimSpace(s.currentSceneID) {
+			s.currentSceneID = actor.LocationID
+			fmt.Println(s.renderSceneSummary())
+		}
+	}
 }
 
 func uniqueParticipantIDs(explicit []string, defaults ...string) []string {

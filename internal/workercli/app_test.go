@@ -1,6 +1,7 @@
 package workercli
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,10 +9,12 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/spf13/pflag"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/playerintent"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/workerstate"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
@@ -240,6 +243,64 @@ func TestResolveGroupChatTargetDefaultsToFirstNPC(t *testing.T) {
 	}
 	if len(participants) != 3 {
 		t.Fatalf("expected 3 participants, got %#v", participants)
+	}
+}
+
+func TestPrintPlayExecutionResultShowsOutcomeSummaries(t *testing.T) {
+	a := newTestApp()
+	s := &playSession{view: workerstate.NewStateView(&workerstate.WorldState{}), playerNodeID: "player_1"}
+	stdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe returned error: %v", err)
+	}
+	os.Stdout = w
+	a.printPlayExecutionResult(s, &playerintent.ExecutionResult{Outcomes: []playerintent.StepOutcome{{Type: "move", Applied: true, Summary: "moved player_1 to scene_square"}}})
+	_ = w.Close()
+	os.Stdout = stdout
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatalf("ReadFrom returned error: %v", err)
+	}
+	if !strings.Contains(buf.String(), "moved player_1 to scene_square") {
+		t.Fatalf("expected printed execution summary, got %q", buf.String())
+	}
+}
+
+func TestPrintPlayExecutionResultRefreshesSceneAfterMove(t *testing.T) {
+	a := newTestApp()
+	a.setAuthorityState(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_square"},
+		},
+		Scenes: map[string]*workerstate.SceneState{
+			"scene_inn":    {ID: "scene_inn", Name: "Inn"},
+			"scene_square": {ID: "scene_square", Name: "Square", Occupants: []string{"player_1"}},
+		},
+	})
+	s := &playSession{
+		view:           a.authorityView(),
+		playerNodeID:   "player_1",
+		currentSceneID: "scene_inn",
+	}
+	stdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe returned error: %v", err)
+	}
+	os.Stdout = w
+	a.printPlayExecutionResult(s, &playerintent.ExecutionResult{Outcomes: []playerintent.StepOutcome{{Type: "move", Applied: true, Summary: "moved player_1 to scene_square"}}})
+	_ = w.Close()
+	os.Stdout = stdout
+	if s.currentSceneID != "scene_square" {
+		t.Fatalf("expected current scene to refresh to scene_square, got %q", s.currentSceneID)
+	}
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatalf("ReadFrom returned error: %v", err)
+	}
+	if !strings.Contains(buf.String(), "scene_square") {
+		t.Fatalf("expected refreshed scene output, got %q", buf.String())
 	}
 }
 
