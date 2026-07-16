@@ -476,7 +476,15 @@ func (a *app) resolveAuthorityQueryResult(payload map[string]any, status string,
 	if view == nil {
 		return nil
 	}
-	queries := extractAuthorityQueries(payload)
+	queries, err := sdk.ExtractAuthorityQueries(payload)
+	if err != nil {
+		return map[string]any{
+			"status":       status,
+			"long_running": longRunning,
+			"world_id":     view.WorldID(),
+			"request_error": err.Error(),
+		}
+	}
 	if len(queries) == 0 {
 		return map[string]any{
 			"status":       status,
@@ -509,47 +517,7 @@ func (a *app) loadAuthorityView() (*workerstate.StateView, error) {
 	return a.authorityView(), nil
 }
 
-type authorityQuery struct {
-	Type   string
-	NodeID string
-	Filter string
-	Limit  int
-}
-
-func extractAuthorityQueries(payload map[string]any) []authorityQuery {
-	if payload == nil {
-		return nil
-	}
-	requestData, ok := payload["request_data"].(map[string]any)
-	if !ok || requestData == nil {
-		requestData = payload
-	}
-	rawQueries, ok := requestData["queries"].([]any)
-	if !ok {
-		return nil
-	}
-	queries := make([]authorityQuery, 0, len(rawQueries))
-	for _, raw := range rawQueries {
-		item, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		query := authorityQuery{
-			Type:   firstString(item, "type"),
-			NodeID: firstString(item, "node_id"),
-			Filter: firstString(item, "filter"),
-		}
-		if limit, ok := item["limit"].(float64); ok {
-			query.Limit = int(limit)
-		}
-		if strings.TrimSpace(query.Type) != "" {
-			queries = append(queries, query)
-		}
-	}
-	return queries
-}
-
-func resolveAuthorityQueries(view *workerstate.StateView, queries []authorityQuery) []map[string]any {
+func resolveAuthorityQueries(view *workerstate.StateView, queries []sdk.AuthorityQuery) []map[string]any {
 	results := make([]map[string]any, 0, len(queries))
 	for _, query := range queries {
 		result := map[string]any{"type": query.Type, "node_id": query.NodeID}

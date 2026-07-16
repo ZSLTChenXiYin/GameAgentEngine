@@ -126,6 +126,20 @@ tasks:
 	}
 }
 
+func TestBuildFixtureResultReturnsRequestErrorForMalformedAuthorityPayload(t *testing.T) {
+	a := newTestApp()
+	a.setAuthorityState(&workerstate.WorldState{WorldID: "world_1"})
+	result := a.buildFixtureResult(sdk.AuthorityInterfaceGameClientRequestData, map[string]any{
+		"request_data": map[string]any{"queries": "bad-shape"},
+	}, "success", false)
+	if result["request_error"] == nil {
+		t.Fatalf("expected request_error, got %#v", result)
+	}
+	if result["world_id"] != "world_1" {
+		t.Fatalf("expected world_id world_1, got %#v", result)
+	}
+}
+
 func TestParsePlayCommand(t *testing.T) {
 	cmd := parsePlayCommand("/talk innkeeper")
 	if cmd.Name != "talk" || cmd.Args != "innkeeper" {
