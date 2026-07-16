@@ -19,6 +19,73 @@ type AuthorityQuery struct {
 	Limit  int    `json:"limit,omitempty"`
 }
 
+// AuthorityQueryResponse describes the typed worker-side response for one
+// authority query batch while remaining JSON-compatible for callbacks.
+type AuthorityQueryResponse struct {
+	Status       string                 `json:"status,omitempty"`
+	LongRunning  bool                   `json:"long_running"`
+	WorldID      string                 `json:"world_id,omitempty"`
+	Queries      []AuthorityQueryResult `json:"queries,omitempty"`
+	RequestError string                 `json:"request_error,omitempty"`
+	StateError   string                 `json:"state_error,omitempty"`
+}
+
+// AuthorityQueryResult captures one resolved authority-side fact lookup.
+type AuthorityQueryResult struct {
+	Type        string                    `json:"type"`
+	NodeID      string                    `json:"node_id,omitempty"`
+	HP          *int                      `json:"hp,omitempty"`
+	MaxHP       *int                      `json:"max_hp,omitempty"`
+	Inventory   []AuthorityInventoryEntry `json:"inventory,omitempty"`
+	Money       *int                      `json:"money,omitempty"`
+	LocationID  string                    `json:"location_id,omitempty"`
+	Scene       *AuthoritySceneSnapshot   `json:"scene,omitempty"`
+	Status      string                    `json:"status,omitempty"`
+	Stage       string                    `json:"stage,omitempty"`
+	ItemID      string                    `json:"item_id,omitempty"`
+	Present     *bool                     `json:"present,omitempty"`
+	Unsupported bool                      `json:"unsupported,omitempty"`
+}
+
+// AuthorityInventoryEntry mirrors the callback JSON shape used for inventory lookups.
+type AuthorityInventoryEntry struct {
+	ItemID   string         `json:"item_id"`
+	Quantity int            `json:"quantity,omitempty"`
+	Equipped bool           `json:"equipped,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+
+// AuthoritySceneSnapshot mirrors the callback JSON shape used for scene/room lookups.
+type AuthoritySceneSnapshot struct {
+	ID          string         `json:"id"`
+	Name        string         `json:"name,omitempty"`
+	Kind        string         `json:"kind,omitempty"`
+	Occupants   []string       `json:"occupants,omitempty"`
+	Flags       map[string]any `json:"flags,omitempty"`
+	Description string         `json:"description,omitempty"`
+}
+
+// Fields exposes the response as callback-ready fields while keeping internal generation typed.
+func (r AuthorityQueryResponse) Fields() map[string]any {
+	fields := map[string]any{
+		"status":       r.Status,
+		"long_running": r.LongRunning,
+	}
+	if strings.TrimSpace(r.WorldID) != "" {
+		fields["world_id"] = r.WorldID
+	}
+	if len(r.Queries) > 0 {
+		fields["queries"] = append([]AuthorityQueryResult(nil), r.Queries...)
+	}
+	if strings.TrimSpace(r.RequestError) != "" {
+		fields["request_error"] = r.RequestError
+	}
+	if strings.TrimSpace(r.StateError) != "" {
+		fields["state_error"] = r.StateError
+	}
+	return fields
+}
+
 // DecodeAuthorityDataRequest unwraps either a raw request payload or a
 // runtime-task payload containing request_data.
 func DecodeAuthorityDataRequest(payload map[string]any) (*AuthorityDataRequest, error) {

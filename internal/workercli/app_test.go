@@ -108,21 +108,12 @@ tasks:
 		},
 	}, "success", false)
 
-	queries, ok := result["queries"].([]map[string]any)
-	if ok {
-		_ = queries
-	}
-	rawQueries, ok := result["queries"].([]map[string]any)
-	if ok && len(rawQueries) > 0 {
-		return
-	}
-	list, ok := result["queries"].([]any)
-	if !ok || len(list) != 7 {
+	queries, ok := result["queries"].([]sdk.AuthorityQueryResult)
+	if !ok || len(queries) != 7 {
 		t.Fatalf("expected 7 resolved queries, got %#v", result["queries"])
 	}
-	first := list[0].(map[string]any)
-	if first["hp"] != 15 || first["max_hp"] != 20 {
-		t.Fatalf("unexpected player_state result: %#v", first)
+	if queries[0].HP == nil || *queries[0].HP != 15 || queries[0].MaxHP == nil || *queries[0].MaxHP != 20 {
+		t.Fatalf("unexpected player_state result: %#v", queries[0])
 	}
 	if result["world_id"] != "demo_world" {
 		t.Fatalf("expected world_id demo_world, got %#v", result)

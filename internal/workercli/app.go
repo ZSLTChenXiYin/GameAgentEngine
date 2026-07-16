@@ -393,7 +393,7 @@ func (a *app) buildFixtureResult(interfaceName string, payload map[string]any, s
 	switch interfaceName {
 	case sdk.AuthorityInterfaceGameClientRequestData:
 		if resolved := a.resolveAuthorityQueryResult(payload, status, longRunning); resolved != nil {
-			for key, value := range resolved {
+			for key, value := range resolved.Fields() {
 				result[key] = value
 			}
 		} else {
@@ -411,41 +411,27 @@ func (a *app) buildFixtureResult(interfaceName string, payload map[string]any, s
 	return result
 }
 
-func (a *app) resolveAuthorityQueryResult(payload map[string]any, status string, longRunning bool) map[string]any {
+func (a *app) resolveAuthorityQueryResult(payload map[string]any, status string, longRunning bool) *sdk.AuthorityQueryResponse {
 	view, err := a.loadAuthorityView()
 	if err != nil {
-		return map[string]any{
-			"status":       status,
-			"long_running": longRunning,
-			"state_error":  err.Error(),
-		}
+		return &sdk.AuthorityQueryResponse{Status: status, LongRunning: longRunning, StateError: err.Error()}
 	}
 	if view == nil {
 		return nil
 	}
 	queries, err := sdk.ExtractAuthorityQueries(payload)
 	if err != nil {
-		return map[string]any{
-			"status":       status,
-			"long_running": longRunning,
-			"world_id":     view.WorldID(),
-			"request_error": err.Error(),
-		}
+		return &sdk.AuthorityQueryResponse{Status: status, LongRunning: longRunning, WorldID: view.WorldID(), RequestError: err.Error()}
 	}
 	if len(queries) == 0 {
-		return map[string]any{
-			"status":       status,
-			"long_running": longRunning,
-			"world_id":     view.WorldID(),
-		}
+		return &sdk.AuthorityQueryResponse{Status: status, LongRunning: longRunning, WorldID: view.WorldID()}
 	}
-	resolved := map[string]any{
-		"status":       status,
-		"long_running": longRunning,
-		"world_id":     view.WorldID(),
-		"queries":      resolveAuthorityQueries(view, queries),
+	return &sdk.AuthorityQueryResponse{
+		Status:      status,
+		LongRunning: longRunning,
+		WorldID:     view.WorldID(),
+		Queries:     resolveAuthorityQueries(view, queries),
 	}
-	return resolved
 }
 
 func (a *app) loadAuthorityView() (*workerstate.StateView, error) {
@@ -464,45 +450,84 @@ func (a *app) loadAuthorityView() (*workerstate.StateView, error) {
 	return a.authorityView(), nil
 }
 
-func resolveAuthorityQueries(view *workerstate.StateView, queries []sdk.AuthorityQuery) []map[string]any {
-	results := make([]map[string]any, 0, len(queries))
+func resolveAuthorityQueries(view *workerstate.StateView, queries []sdk.AuthorityQuery) []sdk.AuthorityQueryResult {
+	results := make([]sdk.AuthorityQueryResult, 0, len(queries))
 	for _, query := range queries {
-		result := map[string]any{"type": query.Type, "node_id": query.NodeID}
+		result := sdk.AuthorityQueryResult{Type: query.Type, NodeID: query.NodeID}
 		switch query.Type {
 		case sdk.AuthorityQueryPlayerState:
 			hp, maxHP, ok := view.ActorHP(query.NodeID)
 			if ok {
-				result["hp"] = hp
-				result["max_hp"] = maxHP
+				result.HP = intPtr(hp)
+				result.MaxHP = intPtr(maxHP)
 			}
 		case sdk.AuthorityQueryPlayerInventory:
-			result["inventory"] = view.ActorInventory(query.NodeID)
+			result.Inventory = authorityInventoryEntries(view.ActorInventory(query.NodeID))
 		case sdk.AuthorityQueryPlayerWallet:
 			if money, ok := view.ActorMoney(query.NodeID); ok {
-				result["money"] = money
+				result.Money = intPtr(money)
 			}
 		case sdk.AuthorityQueryPlayerLocation, sdk.AuthorityQueryNPCLocation:
 			if locationID, ok := view.ActorLocation(query.NodeID); ok {
-				result["location_id"] = locationID
+				result.LocationID = locationID
 			}
 		case sdk.AuthorityQuerySceneState, sdk.AuthorityQueryRoomState:
 			if scene, ok := view.Scene(query.NodeID); ok {
-				result["scene"] = scene
+				result.Scene = authoritySceneSnapshot(scene)
 			}
 		case sdk.AuthorityQueryTaskState:
 			if status, stage, ok := view.QuestStatus(query.NodeID); ok {
-				result["status"] = status
-				result["stage"] = stage
+				result.Status = status
+				result.Stage = stage
 			}
 		case sdk.AuthorityQueryItemPresence:
-			result["item_id"] = query.Filter
-			result["present"] = view.ItemPresentOnActor(query.NodeID, query.Filter)
+			result.ItemID = query.Filter
+			present := view.ItemPresentOnActor(query.NodeID, query.Filter)
+			result.Present = boolPtr(present)
 		default:
-			result["unsupported"] = true
+			result.Unsupported = true
 		}
 		results = append(results, result)
 	}
 	return results
+}
+
+func authorityInventoryEntries(entries []workerstate.InventoryEntry) []sdk.AuthorityInventoryEntry {
+	if len(entries) == 0 {
+		return nil
+	}
+	items := make([]sdk.AuthorityInventoryEntry, 0, len(entries))
+	for _, entry := range entries {
+		items = append(items, sdk.AuthorityInventoryEntry{
+			ItemID:   entry.ItemID,
+			Quantity: entry.Quantity,
+			Equipped: entry.Equipped,
+			Metadata: entry.Metadata,
+		})
+	}
+	return items
+}
+
+func authoritySceneSnapshot(scene *workerstate.SceneState) *sdk.AuthoritySceneSnapshot {
+	if scene == nil {
+		return nil
+	}
+	return &sdk.AuthoritySceneSnapshot{
+		ID:          scene.ID,
+		Name:        scene.Name,
+		Kind:        scene.Kind,
+		Occupants:   append([]string(nil), scene.Occupants...),
+		Flags:       scene.Flags,
+		Description: scene.Description,
+	}
+}
+
+func intPtr(value int) *int {
+	return &value
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 func firstString(payload map[string]any, keys ...string) string {
