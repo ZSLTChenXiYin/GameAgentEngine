@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
 
 func builtinStoreRequestTool() LLMToolDefinition {
@@ -280,7 +282,7 @@ func appendDynamicInterfaceContext(systemContext string, dynamicInterfaces []Dyn
 func buildPlayerIntentPrompt(systemContext string, nodeID string, interaction *InteractionContext) string {
 	targetNodeID := ""
 	sceneNodeID := ""
-	mode := "direct_dialogue"
+	mode := sdk.InteractionModeDirectDialogue
 	if interaction != nil {
 		targetNodeID = strings.TrimSpace(interaction.TargetNodeID)
 		sceneNodeID = strings.TrimSpace(interaction.SceneNodeID)
@@ -306,16 +308,16 @@ func buildPlayerIntentPrompt(systemContext string, nodeID string, interaction *I
 - player_intent: 必填。结构如下：
 {
   "intent": {
-    "type": "speech|show_item|gift|trade_request|threaten|move|inspect|use_item|composite",
+    "type": "%s",
     "actor_node_id": "%s",
     "scene_node_id": "%s",
     "target_node_id": "%s",
     "summary": "一句话总结玩家意图",
-    "risk_level": "low|medium|high",
+    "risk_level": "%s",
     "confidence": 0.0,
     "steps": [
       {
-        "type": "speech|show_item|gift|trade_request|threaten|move|inspect|use_item",
+        "type": "%s",
         "target_node_id": "可选",
         "scene_node_id": "可选",
         "item_id": "可选",
@@ -323,7 +325,7 @@ func buildPlayerIntentPrompt(systemContext string, nodeID string, interaction *I
         "args": {},
         "preconditions": [
           {
-            "type": "same_scene|target_present|item_present|money_at_least|task_status|scene_flag|location_accessible",
+            "type": "%s",
             "actor_node_id": "%s",
             "target_node_id": "可选",
             "scene_node_id": "可选",
@@ -338,7 +340,7 @@ func buildPlayerIntentPrompt(systemContext string, nodeID string, interaction *I
   },
   "missing_facts": [
     {
-      "type": "player_location|target_location|item_presence|scene_state|task_state|wallet_state",
+      "type": "%s",
       "node_id": "可选",
       "item_id": "可选",
       "task_id": "可选",
@@ -346,9 +348,9 @@ func buildPlayerIntentPrompt(systemContext string, nodeID string, interaction *I
     }
   ],
   "suggested_interaction": {
-    "mode": "direct_dialogue|group_chat|gift_response|trade_dialogue",
-    "event_type": "speech|show_item|gift|trade_request|threaten",
-    "audience_scope": "private|public|whisper",
+    "mode": "%s",
+    "event_type": "%s",
+    "audience_scope": "%s",
     "target_node_id": "可选"
   }
 }
@@ -372,7 +374,25 @@ request_data 格式：
 
 ========== 上下文 ==========
 %s
-`, nodeID, sceneNodeID, targetNodeID, nodeID, nodeID, mode, targetNodeID, sceneNodeID, systemContext)
+`,
+		strings.Join(sdk.ValidPlayerIntentTypes(), "|"),
+		nodeID,
+		sceneNodeID,
+		targetNodeID,
+		strings.Join(sdk.ValidPlayerIntentRiskLevels(), "|"),
+		strings.Join(sdk.ValidPlayerIntentStepTypes(), "|"),
+		strings.Join(sdk.ValidPlayerIntentPreconditionTypes(), "|"),
+		nodeID,
+		strings.Join(sdk.ValidMissingFactTypes(), "|"),
+		strings.Join([]string{sdk.InteractionModeDirectDialogue, sdk.InteractionModeGroupChat, sdk.InteractionModeGiftResponse, sdk.InteractionModeTradeDialogue}, "|"),
+		strings.Join([]string{sdk.InteractionEventSpeech, sdk.InteractionEventShowItem, sdk.InteractionEventGift, sdk.InteractionEventTradeRequest, sdk.InteractionEventThreaten}, "|"),
+		strings.Join([]string{sdk.InteractionAudiencePrivate, sdk.InteractionAudiencePublic, sdk.InteractionAudienceWhisper}, "|"),
+		nodeID,
+		mode,
+		targetNodeID,
+		sceneNodeID,
+		systemContext,
+	)
 }
 
 func buildDialoguePrompt(systemContext string, nodeID string) string {

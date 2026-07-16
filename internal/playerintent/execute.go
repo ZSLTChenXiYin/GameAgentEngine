@@ -34,19 +34,19 @@ func executeStep(state *workerstate.WorldState, intent *sdk.PlayerIntent, step s
 	targetID := firstNonEmpty(strings.TrimSpace(step.TargetNodeID), strings.TrimSpace(intent.TargetNodeID))
 	sceneID := firstNonEmpty(strings.TrimSpace(step.SceneNodeID), strings.TrimSpace(intent.SceneNodeID))
 	switch strings.TrimSpace(step.Type) {
-	case "gift":
+	case sdk.PlayerIntentTypeGift:
 		if err := transferInventoryItem(state, actorID, targetID, step.ItemID, 1); err != nil {
 			return StepOutcome{}, err
 		}
 		return StepOutcome{StepIndex: index, Type: step.Type, Applied: true, Summary: fmt.Sprintf("gifted %s to %s", step.ItemID, targetID)}, nil
-	case "move":
+	case sdk.PlayerIntentTypeMove:
 		if err := moveActorToScene(state, actorID, sceneID); err != nil {
 			return StepOutcome{}, err
 		}
 		return StepOutcome{StepIndex: index, Type: step.Type, Applied: true, Summary: fmt.Sprintf("moved %s to %s", actorID, sceneID)}, nil
-	case "use_item":
+	case sdk.PlayerIntentTypeUseItem:
 		return StepOutcome{StepIndex: index, Type: step.Type, Applied: true, Summary: fmt.Sprintf("validated use_item for %s", step.ItemID)}, nil
-	case "speech", "show_item", "trade_request", "threaten", "inspect":
+	case sdk.PlayerIntentTypeSpeech, sdk.PlayerIntentTypeShowItem, sdk.PlayerIntentTypeTradeRequest, sdk.PlayerIntentTypeThreaten, sdk.PlayerIntentTypeInspect:
 		return StepOutcome{StepIndex: index, Type: step.Type, Applied: true, Summary: fmt.Sprintf("validated %s for target %s", step.Type, targetID)}, nil
 	default:
 		return StepOutcome{}, fmt.Errorf("unsupported player intent step type: %s", step.Type)
@@ -57,7 +57,7 @@ func intentExecutionSteps(intent *sdk.PlayerIntent) []sdk.PlayerIntentStep {
 	if intent == nil {
 		return nil
 	}
-	if strings.TrimSpace(intent.Type) == "composite" {
+	if strings.TrimSpace(intent.Type) == sdk.PlayerIntentTypeComposite {
 		return append([]sdk.PlayerIntentStep(nil), intent.Steps...)
 	}
 	return []sdk.PlayerIntentStep{{

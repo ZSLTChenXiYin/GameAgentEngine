@@ -623,10 +623,11 @@ var validInteractionModes = []string{sdk.InteractionModeDirectDialogue, sdk.Inte
 var validInteractionEventTypes = []string{sdk.InteractionEventSpeech, sdk.InteractionEventGift, sdk.InteractionEventShowItem, sdk.InteractionEventTradeRequest, sdk.InteractionEventThreaten}
 var validInteractionAudienceScopes = []string{sdk.InteractionAudiencePublic, sdk.InteractionAudiencePrivate, sdk.InteractionAudienceWhisper}
 var validSuggestedInteractionEventTypes = []string{sdk.InteractionEventSpeech, sdk.InteractionEventGift, sdk.InteractionEventShowItem, sdk.InteractionEventTradeRequest, sdk.InteractionEventThreaten}
-var validPlayerIntentTypes = []string{"speech", "show_item", "gift", "trade_request", "threaten", "move", "inspect", "use_item", "composite"}
-var validPlayerIntentRiskLevels = []string{"low", "medium", "high"}
-var validPlayerIntentPreconditionTypes = []string{"same_scene", "target_present", "item_present", "money_at_least", "task_status", "scene_flag", "location_accessible"}
-var validMissingFactTypes = []string{"player_location", "target_location", "item_presence", "scene_state", "task_state", "wallet_state"}
+var validPlayerIntentTypes = sdk.ValidPlayerIntentTypes()
+var validPlayerIntentStepTypes = sdk.ValidPlayerIntentStepTypes()
+var validPlayerIntentRiskLevels = sdk.ValidPlayerIntentRiskLevels()
+var validPlayerIntentPreconditionTypes = sdk.ValidPlayerIntentPreconditionTypes()
+var validMissingFactTypes = sdk.ValidMissingFactTypes()
 
 func IsValidNodeType(nodeType string) bool {
 	return slices.Contains(ValidNodeTypes(), NodeType(nodeType))
@@ -756,11 +757,11 @@ func ValidatePlayerIntent(intent *PlayerIntent) error {
 	if len(intent.Steps) == 0 {
 		return fmt.Errorf("player_intent.intent.steps required")
 	}
-	if intentType != "composite" && len(intent.Steps) != 1 {
+	if intentType != sdk.PlayerIntentTypeComposite && len(intent.Steps) != 1 {
 		return fmt.Errorf("player_intent.intent.steps must contain exactly 1 step for non-composite intent")
 	}
 	for i, step := range intent.Steps {
-		if intentType != "composite" && strings.TrimSpace(step.Type) != intentType {
+		if intentType != sdk.PlayerIntentTypeComposite && strings.TrimSpace(step.Type) != intentType {
 			return fmt.Errorf("player_intent.intent.steps[%d]: type must match intent.type %s", i, intentType)
 		}
 		if err := ValidatePlayerIntentStep(step); err != nil {
@@ -775,36 +776,36 @@ func ValidatePlayerIntentStep(step PlayerIntentStep) error {
 	if stepType == "" {
 		return fmt.Errorf("type required")
 	}
-	if !slices.Contains(validPlayerIntentTypes, stepType) || stepType == "composite" {
-		return fmt.Errorf("type must be one of: speech, show_item, gift, trade_request, threaten, move, inspect, use_item")
+	if !slices.Contains(validPlayerIntentStepTypes, stepType) {
+		return fmt.Errorf("type must be one of: %s", strings.Join(validPlayerIntentStepTypes, ", "))
 	}
 	switch stepType {
-	case "speech":
+	case sdk.PlayerIntentTypeSpeech:
 		if strings.TrimSpace(step.Content) == "" {
 			return fmt.Errorf("content required")
 		}
-	case "show_item", "gift":
+	case sdk.PlayerIntentTypeShowItem, sdk.PlayerIntentTypeGift:
 		if strings.TrimSpace(step.TargetNodeID) == "" {
 			return fmt.Errorf("target_node_id required")
 		}
 		if strings.TrimSpace(step.ItemID) == "" {
 			return fmt.Errorf("item_id required")
 		}
-	case "trade_request", "threaten":
+	case sdk.PlayerIntentTypeTradeRequest, sdk.PlayerIntentTypeThreaten:
 		if strings.TrimSpace(step.TargetNodeID) == "" {
 			return fmt.Errorf("target_node_id required")
 		}
-	case "move":
+	case sdk.PlayerIntentTypeMove:
 		if strings.TrimSpace(step.TargetNodeID) == "" {
 			if destination, _ := step.Args["destination_scene_id"].(string); strings.TrimSpace(destination) == "" {
 				return fmt.Errorf("target_node_id or args.destination_scene_id required")
 			}
 		}
-	case "inspect":
+	case sdk.PlayerIntentTypeInspect:
 		if strings.TrimSpace(step.TargetNodeID) == "" && strings.TrimSpace(step.ItemID) == "" {
 			return fmt.Errorf("target_node_id or item_id required")
 		}
-	case "use_item":
+	case sdk.PlayerIntentTypeUseItem:
 		if strings.TrimSpace(step.ItemID) == "" {
 			return fmt.Errorf("item_id required")
 		}
