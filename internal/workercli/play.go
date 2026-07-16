@@ -222,6 +222,8 @@ func (a *app) executePlayCommand(s *playSession, cmd playCommand) (bool, error) 
 		s.refreshView(a)
 		fmt.Println(s.renderRoomState())
 		return false, nil
+	case "move", "go":
+		return false, a.runPlayMove(s, cmd.Args)
 	case "say":
 		return false, a.runPlaySay(s, cmd.Args)
 	case "ask":
@@ -353,6 +355,43 @@ func (a *app) runPlayAct(s *playSession, args string) error {
 		TargetNodeID:  bridge.TargetNodeID,
 		Participants:  bridge.Participants,
 	})
+}
+
+func (a *app) runPlayMove(s *playSession, args string) error {
+	destinationArg := strings.TrimSpace(args)
+	if destinationArg == "" {
+		return errors.New("/+move requires a scene name or id")
+	}
+	s.refreshView(a)
+	destinationID, ok := s.view.FindSceneIDByName(destinationArg)
+	if !ok {
+		destinationID = destinationArg
+	}
+	a.authorityMu.Lock()
+	result, err := playerintent.Execute(a.authority, &sdk.PlayerIntentInterpretation{
+		Intent: &sdk.PlayerIntent{
+			Type:        "move",
+			ActorNodeID: s.playerNodeID,
+			SceneNodeID: destinationID,
+			RiskLevel:   "low",
+			Steps: []sdk.PlayerIntentStep{{
+				Type:        "move",
+				SceneNodeID: destinationID,
+				Args:        map[string]any{"destination_scene_id": destinationID},
+				Preconditions: []sdk.PlayerIntentPrecondition{{
+					Type:        "location_accessible",
+					SceneNodeID: destinationID,
+				}},
+			}},
+		},
+	})
+	a.authorityMu.Unlock()
+	if err != nil {
+		return err
+	}
+	s.refreshView(a)
+	a.printPlayExecutionResult(s, result)
+	return nil
 }
 
 func (a *app) runPlaySay(s *playSession, args string) error {
@@ -915,6 +954,7 @@ func playHelpText() string {
 		"/+talk <npc>                  选择当前对话目标",
 		"/+target                      查看当前对话目标",
 		"/+room                        查看当前房间/场景参与者",
+		"/+move <scene>                切换到指定场景，并立即刷新本地权威状态",
 		"/+clear_target                清除当前对话目标",
 		"/+say <message>               向当前房间公开发言，由一个主响应 NPC 回应",
 		"/+ask <npc> <message>         在群聊语境下点名某个 NPC 回应",

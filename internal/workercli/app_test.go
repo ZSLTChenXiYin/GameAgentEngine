@@ -288,6 +288,30 @@ func TestResolveDirectDialogueTargetRequiresExplicitChoiceWhenMultipleNPCs(t *te
 	}
 }
 
+func TestRunPlayMoveUpdatesAuthorityStateAndScene(t *testing.T) {
+	a := newTestApp()
+	a.setAuthorityState(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_inn"},
+		},
+		Scenes: map[string]*workerstate.SceneState{
+			"scene_inn":    {ID: "scene_inn", Name: "Inn", Occupants: []string{"player_1"}},
+			"scene_square": {ID: "scene_square", Name: "Square"},
+		},
+	})
+	s := &playSession{view: a.authorityView(), playerNodeID: "player_1", currentSceneID: "scene_inn"}
+	if err := a.runPlayMove(s, "Square"); err != nil {
+		t.Fatalf("runPlayMove returned error: %v", err)
+	}
+	if s.currentSceneID != "scene_square" {
+		t.Fatalf("expected current scene scene_square, got %q", s.currentSceneID)
+	}
+	view := a.authorityView()
+	if locationID, ok := view.ActorLocation("player_1"); !ok || locationID != "scene_square" {
+		t.Fatalf("expected player moved to scene_square, got %q ok=%v", locationID, ok)
+	}
+}
+
 func TestRenderSceneSummaryIncludesPromptFlagsAndTarget(t *testing.T) {
 	view := workerstate.NewStateView(&workerstate.WorldState{
 		Actors: map[string]*workerstate.ActorState{
