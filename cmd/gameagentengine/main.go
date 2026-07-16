@@ -27,7 +27,6 @@ func init() {
 // main 执行根命令并处理退出码。
 func main() {
 	rootCmd.AddCommand(serveCmd)
-	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(versionCmd)
 
 	if err := rootCmd.Execute(); err != nil {

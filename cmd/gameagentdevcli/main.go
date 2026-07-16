@@ -191,6 +191,7 @@ func main() {
 	rootCmd.AddCommand(logsCmd)
 	rootCmd.AddCommand(creatorCmd)
 	rootCmd.AddCommand(resetCmd)
+	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(verifyCmd)
 	rootCmd.AddCommand(devCliVersionCmd)
 	rootCmd.AddCommand(debugCmd)
