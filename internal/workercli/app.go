@@ -444,7 +444,7 @@ func (a *app) buildFixtureResult(interfaceName string, payload map[string]any, s
 		"source":         "fixture",
 	}
 	switch interfaceName {
-	case "game_client_request_data":
+	case sdk.AuthorityInterfaceGameClientRequestData:
 		if resolved := a.resolveAuthorityQueryResult(payload, status, longRunning); resolved != nil {
 			for key, value := range resolved {
 				result[key] = value
@@ -554,32 +554,32 @@ func resolveAuthorityQueries(view *workerstate.StateView, queries []authorityQue
 	for _, query := range queries {
 		result := map[string]any{"type": query.Type, "node_id": query.NodeID}
 		switch query.Type {
-		case "player_state":
+		case sdk.AuthorityQueryPlayerState:
 			hp, maxHP, ok := view.ActorHP(query.NodeID)
 			if ok {
 				result["hp"] = hp
 				result["max_hp"] = maxHP
 			}
-		case "player_inventory":
+		case sdk.AuthorityQueryPlayerInventory:
 			result["inventory"] = view.ActorInventory(query.NodeID)
-		case "player_wallet":
+		case sdk.AuthorityQueryPlayerWallet:
 			if money, ok := view.ActorMoney(query.NodeID); ok {
 				result["money"] = money
 			}
-		case "player_location", "npc_location":
+		case sdk.AuthorityQueryPlayerLocation, sdk.AuthorityQueryNPCLocation:
 			if locationID, ok := view.ActorLocation(query.NodeID); ok {
 				result["location_id"] = locationID
 			}
-		case "scene_state", "room_state":
+		case sdk.AuthorityQuerySceneState, sdk.AuthorityQueryRoomState:
 			if scene, ok := view.Scene(query.NodeID); ok {
 				result["scene"] = scene
 			}
-		case "task_state":
+		case sdk.AuthorityQueryTaskState:
 			if status, stage, ok := view.QuestStatus(query.NodeID); ok {
 				result["status"] = status
 				result["stage"] = stage
 			}
-		case "item_presence":
+		case sdk.AuthorityQueryItemPresence:
 			result["item_id"] = query.Filter
 			result["present"] = view.ItemPresentOnActor(query.NodeID, query.Filter)
 		default:

@@ -31,9 +31,9 @@ func TestDecideExecutionReturnsFailureForConfiguredInterface(t *testing.T) {
 
 func TestDecideExecutionReturnsLongRunningForConfiguredInterface(t *testing.T) {
 	a := newTestApp()
-	a.cfg.LongTaskInterfaces = []string{"game_client_request_data"}
+	a.cfg.LongTaskInterfaces = []string{sdk.AuthorityInterfaceGameClientRequestData}
 
-	decision := a.decideExecution("game_client_request_data", map[string]any{"request_data": map[string]any{"label": "scene"}})
+	decision := a.decideExecution(sdk.AuthorityInterfaceGameClientRequestData, map[string]any{"request_data": map[string]any{"label": "scene"}})
 	if !decision.LongRunning {
 		t.Fatal("expected long-running decision")
 	}
@@ -91,16 +91,16 @@ tasks:
 
 	a := newTestApp()
 	a.cfg.StateFile = path
-	result := a.buildFixtureResult("game_client_request_data", map[string]any{
+	result := a.buildFixtureResult(sdk.AuthorityInterfaceGameClientRequestData, map[string]any{
 		"request_data": map[string]any{
 			"queries": []any{
-				map[string]any{"type": "player_state", "node_id": "player_001"},
-				map[string]any{"type": "player_wallet", "node_id": "player_001"},
-				map[string]any{"type": "player_inventory", "node_id": "player_001"},
-				map[string]any{"type": "player_location", "node_id": "player_001"},
-				map[string]any{"type": "scene_state", "node_id": "scene_inn"},
-				map[string]any{"type": "task_state", "node_id": "task_case"},
-				map[string]any{"type": "item_presence", "node_id": "player_001", "filter": "knife_bloody"},
+				map[string]any{"type": sdk.AuthorityQueryPlayerState, "node_id": "player_001"},
+				map[string]any{"type": sdk.AuthorityQueryPlayerWallet, "node_id": "player_001"},
+				map[string]any{"type": sdk.AuthorityQueryPlayerInventory, "node_id": "player_001"},
+				map[string]any{"type": sdk.AuthorityQueryPlayerLocation, "node_id": "player_001"},
+				map[string]any{"type": sdk.AuthorityQuerySceneState, "node_id": "scene_inn"},
+				map[string]any{"type": sdk.AuthorityQueryTaskState, "node_id": "task_case"},
+				map[string]any{"type": sdk.AuthorityQueryItemPresence, "node_id": "player_001", "filter": "knife_bloody"},
 			},
 		},
 	}, "success", false)
@@ -236,11 +236,11 @@ func TestResolvePlayResponseReturnsResumedResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/runtime/tasks/pending":
-			_ = json.NewEncoder(w).Encode(map[string]any{"tasks": []map[string]any{{"task_id": "task_1", "interface_name": "game_client_request_data", "callback_id": "cb_1", "payload_json": `{"request_data":{"queries":[{"type":"scene_state","node_id":"scene_inn"}]}}`, "status": "pending"}}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"tasks": []map[string]any{{"task_id": "task_1", "interface_name": sdk.AuthorityInterfaceGameClientRequestData, "callback_id": "cb_1", "payload_json": `{"request_data":{"queries":[{"type":"scene_state","node_id":"scene_inn"}]}}`, "status": "pending"}}})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/runtime/tasks/claim":
-			_ = json.NewEncoder(w).Encode(map[string]any{"task": map[string]any{"task_id": "task_1", "interface_name": "game_client_request_data", "callback_id": "cb_1", "payload_json": `{"request_data":{"queries":[{"type":"scene_state","node_id":"scene_inn"}]}}`, "status": "claimed", "lease_token": "lease_1"}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"task": map[string]any{"task_id": "task_1", "interface_name": sdk.AuthorityInterfaceGameClientRequestData, "callback_id": "cb_1", "payload_json": `{"request_data":{"queries":[{"type":"scene_state","node_id":"scene_inn"}]}}`, "status": "claimed", "lease_token": "lease_1"}})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/runtime/tasks/start":
-			_ = json.NewEncoder(w).Encode(map[string]any{"task": map[string]any{"task_id": "task_1", "interface_name": "game_client_request_data", "callback_id": "cb_1", "payload_json": `{"request_data":{"queries":[{"type":"scene_state","node_id":"scene_inn"}]}}`, "status": "running", "lease_token": "lease_1"}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"task": map[string]any{"task_id": "task_1", "interface_name": sdk.AuthorityInterfaceGameClientRequestData, "callback_id": "cb_1", "payload_json": `{"request_data":{"queries":[{"type":"scene_state","node_id":"scene_inn"}]}}`, "status": "running", "lease_token": "lease_1"}})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/actions/callback":
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "resumed": map[string]any{"request_id": "req_2", "task_type": "npc_dialogue", "execution_mode": "production", "reply": "Innkeeper responds.", "action_calls": []any{}, "memory_updates": []any{}}})
 		default:
