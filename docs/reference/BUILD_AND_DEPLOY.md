@@ -16,19 +16,24 @@ GameAgentEngine-{os}-{arch}-v0.4.6/
 ├── GameAgentDevCli(.exe)
 ├── GameAgentWorker(.exe)
 ├── gameagentengine.conf.yaml
+├── demo-world.yaml
+├── demo-state.yaml
 ├── README.md
-├── README_EN.md
-├── docs/
+├── sdks/
+├── tests/
 └── web/
     └── GameAgentCreator/
 ```
 
-当前打包内容包含 `tools/source/` 中的文档、配置和静态资源，因此也会带上：
+当前打包内容来自 `tools/source/` 的运行资产树，因此包含：
 
-- `demo-world.yaml`
-- `demo-state.yaml`
+- 配置模板
+- demo world / authority state 文件
+- `tests/` 下的 Worker / SDK 共用测试数据
+- `sdks/` 下的多语言 SDK 源码与示例
+- Creator 静态资源
 
-当前打包内容仍不包含单独的 `web/Demo/` 页面。
+当前包内不再附带完整仓库 `docs/` 树；文档入口以包内 `README.md`、仓库根 README 和 GitHub 文档页面为准。
 
 ---
 
@@ -73,7 +78,8 @@ Linux 或 macOS：
 - 编译 `GameAgentEngine`、`GameAgentDevCli` 与 `GameAgentWorker`
 - 注入版本号
 - 重新生成 `tools/source/web/GameAgentCreator/js/component-meta.js`
-- 复制 `tools/source/` 下的配置、文档和 Creator 静态资源
+- 复制 `tools/source/` 下的运行资产树
+- 在打包输出目录内回写 Creator 最低兼容版本号，不改动源码目录
 - 输出 zip 包
 
 ---

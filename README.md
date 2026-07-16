@@ -109,7 +109,7 @@ tools\scripts\build.bat
 bash tools/scripts/build.sh
 ```
 
-产物在 `dist/` 目录下，包含引擎、命令行工具、配置文件、文档和 Web 编辑器。
+产物在 `dist/` 目录下，包含引擎、命令行工具、配置模板、demo / tests 数据、多语言 SDK 示例与 Creator Web 静态资源。
 
 ### 启动
 

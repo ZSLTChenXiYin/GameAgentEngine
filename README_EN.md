@@ -109,7 +109,7 @@ tools\scripts\build.bat
 bash tools/scripts/build.sh
 ```
 
-Output goes to `dist/`, containing the engine binary, CLI, config file, docs, and Web editor.
+Output goes to `dist/`, containing the engine binaries, CLI tools, config template, demo / test assets, multi-language SDK examples, and Creator Web static assets.
 
 ### Start
 

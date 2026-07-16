@@ -1,10 +1,10 @@
 #!/bin/bash
-# GameAgentEngine 多平台编译打包脚�?
-# 用法:
-#   ./build.sh                       编译当前平台
-#   ./build.sh windows/amd64         编译指定平台
-#   ./build.sh linux/amd64 darwin/arm64  编译多个平台
-#   ./build.sh all/all               自动编译全部平台
+# GameAgentEngine cross-platform packaging script
+# Usage:
+#   ./build.sh                       build current platform
+#   ./build.sh windows/amd64         build one target
+#   ./build.sh linux/amd64 darwin/arm64  build multiple targets
+#   ./build.sh all/all               build all supported targets
 
 set -euo pipefail
 
@@ -92,24 +92,24 @@ for target in "${TARGETS[@]}"; do
     -o "${OUT}/GameAgentDevCli${EXT}" \
     ./cmd/gameagentdevcli/
 
-
   echo "[${GOOS}/${GOARCH}] Building GameAgentWorker..."
   GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 go build \
     -trimpath \
     -ldflags="${LDFLAGS}" \
     -o "${OUT}/GameAgentWorker${EXT}" \
     ./cmd/gameagentworker/
-  # Inject version into Creator JS before copying
-  if [ -f "${SOURCE_DIR}/web/GameAgentCreator/js/version.js" ]; then
-    sed -i.bak "s/CREATOR_MIN_COMPATIBLE = \"v[0-9]\+\.[0-9]\+\.[0-9]\+\"/CREATOR_MIN_COMPATIBLE = \"${VERSION}\"/" "${SOURCE_DIR}/web/GameAgentCreator/js/version.js"
-    rm -f "${SOURCE_DIR}/web/GameAgentCreator/js/version.js.bak"
-  fi
 
   if [ -f "gameagentengine.conf.yaml" ]; then
     cp gameagentengine.conf.yaml "${OUT}/"
   fi
   if [ -d "${SOURCE_DIR}" ]; then
     cp -r "${SOURCE_DIR}/"* "${OUT}/" 2>/dev/null || true
+  fi
+
+  # Inject version into packaged Creator asset without mutating source files
+  if [ -f "${OUT}/web/GameAgentCreator/js/version.js" ]; then
+    sed -i.bak "s/CREATOR_MIN_COMPATIBLE = \"v[0-9]\+\.[0-9]\+\.[0-9]\+\"/CREATOR_MIN_COMPATIBLE = \"${VERSION}\"/" "${OUT}/web/GameAgentCreator/js/version.js"
+    rm -f "${OUT}/web/GameAgentCreator/js/version.js.bak"
   fi
 
   echo "[${GOOS}/${GOARCH}] -> ${OUT}/"
@@ -126,6 +126,3 @@ for target in "${TARGETS[@]}"; do
   echo "  ${OUTPUT_DIR}/GameAgentEngine-${target%%/*}-${target##*/}-${VERSION}/"
 done
 echo "========================================="
-
-
-

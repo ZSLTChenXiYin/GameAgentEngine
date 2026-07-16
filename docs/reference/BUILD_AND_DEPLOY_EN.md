@@ -16,19 +16,24 @@ GameAgentEngine-{os}-{arch}-v0.4.6/
 ├── GameAgentDevCli(.exe)
 ├── GameAgentWorker(.exe)
 ├── gameagentengine.conf.yaml
+├── demo-world.yaml
+├── demo-state.yaml
 ├── README.md
-├── README_EN.md
-├── docs/
+├── sdks/
+├── tests/
 └── web/
     └── GameAgentCreator/
 ```
 
-Packaged builds now include the docs, config, and static assets from `tools/source/`, which means they also ship with:
+Packaged builds now come from the runtime-asset tree under `tools/source/`, so they include:
 
-- `demo-world.yaml`
-- `demo-state.yaml`
+- the config template
+- demo world / authority-state files
+- shared Worker / SDK test data under `tests/`
+- multi-language SDK source and examples under `sdks/`
+- Creator static assets
 
-Packaged builds still do not include a standalone `web/Demo/` page.
+Packaged builds no longer ship the full repository `docs/` tree. Use the bundled `README.md`, the repository root README, and the GitHub-hosted docs as the primary documentation entrypoints.
 
 ---
 
@@ -71,7 +76,8 @@ The packaging scripts automatically:
 - build `GameAgentEngine`, `GameAgentDevCli`, and `GameAgentWorker`
 - inject version values
 - regenerate `tools/source/web/GameAgentCreator/js/component-meta.js`
-- copy config, docs, and Creator static assets from `tools/source/`
+- copy the runtime asset tree from `tools/source/`
+- rewrite the packaged Creator minimum-compatible version in the output directory without mutating source files
 - emit zip archives
 
 ---
