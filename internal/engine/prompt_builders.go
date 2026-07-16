@@ -348,7 +348,7 @@ func buildPlayerIntentPrompt(systemContext string, nodeID string, interaction *I
   "suggested_interaction": {
     "mode": "direct_dialogue|group_chat|gift_response|trade_dialogue",
     "event_type": "speech|show_item|gift|trade_request|threaten|inspect|use_item|move",
-    "audience_scope": "private|public|scene",
+    "audience_scope": "private|public|whisper",
     "target_node_id": "可选"
   }
 }

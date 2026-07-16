@@ -79,3 +79,17 @@ func TestBuildPlayerIntentPromptIncludesProposalConstraints(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildPlayerIntentPromptUsesCurrentAudienceScopeVocabulary(t *testing.T) {
+	text := buildPlayerIntentPrompt("system context", "player_1", &InteractionContext{
+		Mode:         "direct_dialogue",
+		TargetNodeID: "npc_innkeeper",
+		SceneNodeID:  "scene_inn",
+	})
+	if !strings.Contains(text, `"audience_scope": "private|public|whisper"`) {
+		t.Fatalf("expected prompt to advertise whisper audience scope, got %q", text)
+	}
+	if strings.Contains(text, `"audience_scope": "private|public|scene"`) {
+		t.Fatalf("expected legacy scene audience scope to be removed, got %q", text)
+	}
+}

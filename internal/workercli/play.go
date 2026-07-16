@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/playerintent"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/workerstate"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
@@ -596,26 +597,7 @@ func hasPendingDataRequest(resp *sdk.InvokeResponse) bool {
 }
 
 func uniqueParticipantIDs(explicit []string, defaults ...string) []string {
-	seen := map[string]struct{}{}
-	result := make([]string, 0, len(explicit)+len(defaults))
-	appendID := func(id string) {
-		trimmed := strings.TrimSpace(id)
-		if trimmed == "" {
-			return
-		}
-		if _, ok := seen[trimmed]; ok {
-			return
-		}
-		seen[trimmed] = struct{}{}
-		result = append(result, trimmed)
-	}
-	for _, id := range explicit {
-		appendID(id)
-	}
-	for _, id := range defaults {
-		appendID(id)
-	}
-	return result
+	return engine.CanonicalParticipantNodeIDs(explicit, defaults)
 }
 
 func (a *app) transferInventoryItem(fromActorID, toActorID, itemID string, quantity int) error {

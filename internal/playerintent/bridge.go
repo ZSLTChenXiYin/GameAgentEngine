@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
 
@@ -35,10 +36,13 @@ func BuildInteractionSpec(payload *sdk.PlayerIntentInterpretation, actorNodeID s
 	if strings.TrimSpace(primary.ItemID) != "" {
 		spec.ItemID = primary.ItemID
 	}
-	spec.Participants = uniqueIDs(actorNodeID, spec.TargetNodeID)
-	if strings.EqualFold(strings.TrimSpace(spec.Mode), "group_chat") {
-		spec.AudienceScope = firstNonEmpty(spec.AudienceScope, "public")
-	}
+	spec.Mode, spec.AudienceScope, spec.Participants = engine.NormalizeInteractionSemantics(
+		spec.Mode,
+		spec.AudienceScope,
+		nil,
+		actorNodeID,
+		spec.TargetNodeID,
+	)
 	spec.Input = buildInteractionInput(intent, steps)
 	_ = fallbackSceneID
 	return spec, nil
@@ -70,21 +74,4 @@ func buildInteractionInput(intent *sdk.PlayerIntent, steps []sdk.PlayerIntentSte
 		parts = append(parts, segment)
 	}
 	return strings.Join(parts, "；")
-}
-
-func uniqueIDs(values ...string) []string {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		out = append(out, trimmed)
-	}
-	return out
 }

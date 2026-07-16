@@ -102,6 +102,32 @@ func TestValidateInteractionContextRejectsDuplicateParticipants(t *testing.T) {
 	}
 }
 
+func TestNormalizeInteractionSemanticsDefaultsDirectDialogue(t *testing.T) {
+	mode, audienceScope, participants := NormalizeInteractionSemantics("", "", nil, "player_1", "npc_1")
+	if mode != "direct_dialogue" {
+		t.Fatalf("expected direct_dialogue, got %q", mode)
+	}
+	if audienceScope != "private" {
+		t.Fatalf("expected private audience, got %q", audienceScope)
+	}
+	if len(participants) != 2 || participants[0] != "player_1" || participants[1] != "npc_1" {
+		t.Fatalf("unexpected participants: %#v", participants)
+	}
+}
+
+func TestNormalizeInteractionSemanticsDefaultsGroupChat(t *testing.T) {
+	mode, audienceScope, participants := NormalizeInteractionSemantics("", "", []string{"player_1", "npc_1", "npc_2"}, "player_1", "npc_1")
+	if mode != "group_chat" {
+		t.Fatalf("expected group_chat, got %q", mode)
+	}
+	if audienceScope != "public" {
+		t.Fatalf("expected public audience, got %q", audienceScope)
+	}
+	if len(participants) != 3 {
+		t.Fatalf("unexpected participants: %#v", participants)
+	}
+}
+
 func TestValidatePlayerIntentInterpretationAcceptsCompositeIntent(t *testing.T) {
 	err := ValidatePlayerIntentInterpretation(&PlayerIntentInterpretation{
 		Intent: &PlayerIntent{

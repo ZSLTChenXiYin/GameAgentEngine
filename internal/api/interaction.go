@@ -96,37 +96,13 @@ func MakeExecuteInteractionHandler(p *engine.Pipeline) http.HandlerFunc {
 	}
 }
 func inferInteractionMode(participants []string) string {
-	if len(participants) > 2 {
-		return "group_chat"
-	}
-	return "direct_dialogue"
+	return engine.InferInteractionMode(participants)
 }
 
 func inferInteractionAudienceScope(mode string) string {
-	if strings.TrimSpace(mode) == "group_chat" {
-		return "public"
-	}
-	return "private"
+	return engine.InferInteractionAudienceScope(mode)
 }
 
 func uniqueNonEmptyStrings(values ...[]string) []string {
-	seen := map[string]struct{}{}
-	result := make([]string, 0)
-	appendOne := func(value string) {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			return
-		}
-		if _, ok := seen[trimmed]; ok {
-			return
-		}
-		seen[trimmed] = struct{}{}
-		result = append(result, trimmed)
-	}
-	for _, group := range values {
-		for _, value := range group {
-			appendOne(value)
-		}
-	}
-	return result
+	return engine.CanonicalParticipantNodeIDs(values...)
 }

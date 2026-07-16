@@ -67,9 +67,15 @@ func buildCanonicalInteractionContext(input interactionContractInput, existing *
 	if len(participants) == 0 {
 		participants = interaction.ParticipantNodeIDs
 	}
-	interaction.ParticipantNodeIDs = uniqueNonEmptyStrings(participants, []string{interaction.SpeakerNodeID, interaction.TargetNodeID})
+	mode, audienceScope, canonicalParticipants := engine.NormalizeInteractionSemantics(
+		input.Mode,
+		input.AudienceScope,
+		participants,
+		interaction.SpeakerNodeID,
+		interaction.TargetNodeID,
+	)
+	interaction.ParticipantNodeIDs = canonicalParticipants
 
-	mode := strings.TrimSpace(input.Mode)
 	if mode == "" {
 		mode = strings.TrimSpace(interaction.Mode)
 	}
@@ -78,14 +84,13 @@ func buildCanonicalInteractionContext(input interactionContractInput, existing *
 	}
 	interaction.Mode = mode
 
-	audience := strings.TrimSpace(input.AudienceScope)
-	if audience == "" {
-		audience = strings.TrimSpace(interaction.AudienceScope)
+	if audienceScope == "" {
+		audienceScope = strings.TrimSpace(interaction.AudienceScope)
 	}
-	if audience == "" {
-		audience = inferInteractionAudienceScope(mode)
+	if audienceScope == "" {
+		audienceScope = inferInteractionAudienceScope(mode)
 	}
-	interaction.AudienceScope = audience
+	interaction.AudienceScope = audienceScope
 
 	if input.Event != nil {
 		interaction.Event = cloneInteractionEvent(input.Event)
@@ -193,8 +198,8 @@ func validateExplicitInteractionOverrides(input interactionContractInput, existi
 		return fmt.Errorf("interaction.turn_index conflicts with request turn_index")
 	}
 	if len(input.ParticipantNodeIDs) > 0 && len(existing.ParticipantNodeIDs) > 0 {
-		canonicalInput := uniqueNonEmptyStrings(input.ParticipantNodeIDs)
-		canonicalExisting := uniqueNonEmptyStrings(existing.ParticipantNodeIDs)
+		canonicalInput := engine.CanonicalParticipantNodeIDs(input.ParticipantNodeIDs)
+		canonicalExisting := engine.CanonicalParticipantNodeIDs(existing.ParticipantNodeIDs)
 		if strings.Join(canonicalInput, "\x00") != strings.Join(canonicalExisting, "\x00") {
 			return fmt.Errorf("interaction.participant_node_ids conflicts with request participant_node_ids")
 		}
