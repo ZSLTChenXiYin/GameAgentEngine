@@ -293,11 +293,11 @@ func TestNewTestCommandRegistersExpectedScenarios(t *testing.T) {
 
 func TestRunNamedTestScenarioReturnsNotImplemented(t *testing.T) {
 	a := newTestApp()
-	err := a.runNamedTestScenario("callback-resume")
+	err := a.runNamedTestScenario("tooling-smoke")
 	if err == nil {
 		t.Fatal("expected not implemented error")
 	}
-	if got := err.Error(); got != "worker test scenario \"callback-resume\" is not implemented yet" {
+	if got := err.Error(); got != "worker test scenario \"tooling-smoke\" is not implemented yet" {
 		t.Fatalf("unexpected error: %s", got)
 	}
 }
