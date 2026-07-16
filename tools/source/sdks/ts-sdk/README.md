@@ -70,6 +70,68 @@ Use this SDK when you need to:
 - `examples/health.ts`
 - `examples/invoke_dialogue.ts`
 - `examples/task_pull_once.ts`
+- `examples/worker_runtime_roundtrip.ts`
+- `examples/worker_authority_query.ts`
+
+## GameAgentWorker Integration Flows
+
+### 1. Pull task claim / start / callback roundtrip
+
+When Engine has already produced a pending runtime task and you want a TypeScript tool to complete the worker-side callback path:
+
+```bash
+node dist/examples/worker_runtime_roundtrip.js
+```
+
+Recommended environment variables:
+
+```bash
+GAE_SERVER=http://127.0.0.1:8080
+GAE_KEY=dev-key
+GAE_CONSUMER=game_client
+GAE_OWNER=ts-sdk-roundtrip
+GAE_CALLBACK_STATUS=success
+```
+
+This example:
+
+- lists one pending runtime task
+- claims it
+- starts it
+- callbacks a deterministic result payload
+- prints whether resume / post-process happened
+
+### 2. Authority query / resume preparation flow
+
+When you want to trigger one Engine invoke that emits `game_client_request_data`, then hand the pending runtime task to `GameAgentWorker`:
+
+```bash
+node dist/examples/worker_authority_query.js
+```
+
+Recommended environment variables:
+
+```bash
+GAE_SERVER=http://127.0.0.1:8080
+GAE_KEY=dev-key
+GAE_WORLD_ID=demo_world
+GAE_NODE_ID=innkeeper_001
+GAE_DYNAMIC_INTERFACES_FILE=tools/source/tests/runtime_task_dynamic_interfaces.json
+GAE_PIPELINE_MODE=full
+```
+
+This example:
+
+- invokes one dialogue request with request-scoped dynamic interfaces
+- prints the Engine response summary
+- finds the pending runtime task created for `game_client_request_data`
+- prints the exact consumer and task metadata for `GameAgentWorker pull-once`
+
+Typical follow-up command:
+
+```bash
+GameAgentWorker pull-once --consumer game_client
+```
 
 ## Not Yet Included
 

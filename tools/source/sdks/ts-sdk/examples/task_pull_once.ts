@@ -10,8 +10,15 @@ async function main() {
   const claimed = await client.claimRuntimeTask(task.task_id, consumer, owner);
   const lease = claimed?.task?.lease_token;
   if (!lease) throw new Error('missing lease token');
-  await client.startRuntimeTask(task.task_id, lease);
-  console.log('Started task', task.task_id);
+  const started = await client.startRuntimeTask(task.task_id, lease);
+  console.log(JSON.stringify({
+    task_id: task.task_id,
+    interface_name: task.interface_name,
+    claimed_status: claimed?.task?.status,
+    started_status: started?.task?.status,
+    lease_token_present: Boolean(lease),
+    callback_id: started?.task?.callback_id || task.callback_id,
+  }, null, 2));
 }
 
 main().catch((err) => {
