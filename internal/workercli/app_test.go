@@ -59,6 +59,31 @@ func TestBuildFixtureResultForSpawnItemIncludesTarget(t *testing.T) {
 	}
 }
 
+func TestPrepareBaseDataFixtureWritesIntoWorkspaceTmp(t *testing.T) {
+	dir := t.TempDir()
+	fixturePath := filepath.Join(dir, "base.yaml")
+	if err := os.WriteFile(fixturePath, []byte("world:\n  name: DemoWorld\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	a := newTestApp()
+	path, err := a.prepareBaseDataFixture(fixturePath, "RenamedWorld", "testrun")
+	if err != nil {
+		t.Fatalf("prepareBaseDataFixture returned error: %v", err)
+	}
+	defer os.Remove(path)
+	normalized := filepath.ToSlash(path)
+	if !strings.Contains(normalized, "tmp/worker-tests/base-data/") {
+		t.Fatalf("expected generated fixture under tmp/worker-tests/base-data, got %q", path)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read generated fixture: %v", err)
+	}
+	if !strings.Contains(string(raw), "RenamedWorld") {
+		t.Fatalf("expected generated fixture to contain renamed world, got %q", string(raw))
+	}
+}
+
 func TestParseRuntimeTaskPayloadFallsBackToRawPayloadJSON(t *testing.T) {
 	payload := sdk.ParseRuntimeTaskPayloadJSON("not-json")
 	if payload["raw_payload_json"] != "not-json" {

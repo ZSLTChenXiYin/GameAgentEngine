@@ -14,12 +14,12 @@ import (
 )
 
 type baseDataResult struct {
-	RunSuffix        string                 `json:"run_suffix"`
-	WorldName        string                 `json:"world_name"`
-	WorldID          string                 `json:"world_id"`
-	StressWorldName  string                 `json:"stress_world_name"`
-	StressWorldID    string                 `json:"stress_world_id"`
-	Checks           []workertest.CheckResult `json:"checks"`
+	RunSuffix       string                   `json:"run_suffix"`
+	WorldName       string                   `json:"world_name"`
+	WorldID         string                   `json:"world_id"`
+	StressWorldName string                   `json:"stress_world_name"`
+	StressWorldID   string                   `json:"stress_world_id"`
+	Checks          []workertest.CheckResult `json:"checks"`
 }
 
 func (a *app) runBaseDataScenario() error {
@@ -318,7 +318,9 @@ func (a *app) executeBaseDataScenario() (*baseDataResult, error) {
 	if _, err := devcli.Run("component", "delete", componentID); err != nil {
 		return nil, err
 	}
-	if err := a.assertNotFound(func() error { return client.EngineJSON("GET", "/api/v1/components/"+componentID, nil, nil, &sdk.Component{}) }, "component still exists after delete"); err != nil {
+	if err := a.assertNotFound(func() error {
+		return client.EngineJSON("GET", "/api/v1/components/"+componentID, nil, nil, &sdk.Component{})
+	}, "component still exists after delete"); err != nil {
 		return nil, err
 	}
 	collector.Add("component", "delete", "devcli->http", "passed", "component_id="+componentID)
@@ -334,7 +336,9 @@ func (a *app) executeBaseDataScenario() (*baseDataResult, error) {
 	if err := client.EngineJSON("DELETE", "/api/v1/relations/"+relationID, nil, nil, nil); err != nil {
 		return nil, err
 	}
-	if err := a.assertNotFound(func() error { return client.EngineJSON("GET", "/api/v1/relations/"+relationID, nil, nil, &sdk.Relation{}) }, "relation still exists after delete"); err != nil {
+	if err := a.assertNotFound(func() error {
+		return client.EngineJSON("GET", "/api/v1/relations/"+relationID, nil, nil, &sdk.Relation{})
+	}, "relation still exists after delete"); err != nil {
 		return nil, err
 	}
 	collector.Add("relation", "delete", "http", "passed", "relation_id="+relationID)
@@ -376,7 +380,11 @@ func (a *app) prepareBaseDataFixture(fixturePath, worldName, runSuffix string) (
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(os.TempDir(), fmt.Sprintf("full-functional-base-data-%s.yaml", runSuffix))
+	baseDir := filepath.Join("tmp", "worker-tests", "base-data")
+	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+		return "", err
+	}
+	path := filepath.Join(baseDir, fmt.Sprintf("full-functional-base-data-%s.yaml", runSuffix))
 	if err := os.WriteFile(path, encoded, 0o644); err != nil {
 		return "", err
 	}

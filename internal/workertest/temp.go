@@ -9,7 +9,11 @@ import (
 
 func MakeTempRoot(prefix string) (string, error) {
 	stamp := time.Now().Format("20060102150405")
-	return os.MkdirTemp("", fmt.Sprintf("%s-%s-", prefix, stamp))
+	baseDir := filepath.Join("tmp", "worker-tests")
+	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+		return "", err
+	}
+	return os.MkdirTemp(baseDir, fmt.Sprintf("%s-%s-", prefix, stamp))
 }
 
 func RemoveTempRoot(path string, keep bool) error {
