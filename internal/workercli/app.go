@@ -1,11 +1,9 @@
 package workercli
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -521,40 +519,6 @@ func firstString(payload map[string]any, keys ...string) string {
 
 func callbackRequestID(taskID string) string {
 	return fmt.Sprintf("cb-%s", strings.TrimSpace(taskID))
-}
-
-func (a *app) doJSONRequest(method, rawURL string, extraHeaders map[string]string, body any) ([]byte, error) {
-	var reader io.Reader
-	if body != nil {
-		data, err := json.Marshal(body)
-		if err != nil {
-			return nil, err
-		}
-		reader = bytes.NewReader(data)
-	}
-	req, err := http.NewRequest(method, rawURL, reader)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	for key, value := range extraHeaders {
-		if strings.TrimSpace(value) != "" {
-			req.Header.Set(key, value)
-		}
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("%s %s failed: %d %s", method, rawURL, resp.StatusCode, strings.TrimSpace(string(data)))
-	}
-	return data, nil
 }
 
 func (a *app) writeJSON(w http.ResponseWriter, status int, value any) {
