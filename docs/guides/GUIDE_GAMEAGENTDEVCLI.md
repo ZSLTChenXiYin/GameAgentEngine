@@ -174,7 +174,6 @@ GameAgentDevCli task requeue <task-id> --retry-delay-ms 1500 --reason "manual re
 GameAgentDevCli creator
 ```
 
-兼容旧命令：`GameAgentDevCli inspect`
 
 ---
 
