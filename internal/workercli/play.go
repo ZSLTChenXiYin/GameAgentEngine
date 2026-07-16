@@ -209,6 +209,10 @@ func (a *app) executePlayCommand(s *playSession, cmd playCommand) (bool, error) 
 		s.refreshView(a)
 		fmt.Println(s.renderPlayerState())
 		return false, nil
+	case "inventory", "bag":
+		s.refreshView(a)
+		fmt.Println(s.renderInventory())
+		return false, nil
 	case "talk":
 		return false, a.setPlayTarget(s, cmd.Args)
 	case "next_target", "next":
@@ -1029,6 +1033,30 @@ func (s *playSession) renderPlayerState() string {
 	return strings.Join(lines, "\n")
 }
 
+func (s *playSession) renderInventory() string {
+	actor, ok := s.view.Actor(s.playerNodeID)
+	if !ok || actor == nil {
+		return fmt.Sprintf("背包: 玩家 %s 不存在", s.playerNodeID)
+	}
+	lines := []string{fmt.Sprintf("背包: %s", fallback(actor.Name, actor.ID))}
+	if len(actor.Inventory) == 0 {
+		lines = append(lines, "- 空")
+		return strings.Join(lines, "\n")
+	}
+	entries := make([]string, 0, len(actor.Inventory))
+	for _, entry := range actor.Inventory {
+		label := s.itemDisplayName(entry.ItemID)
+		line := fmt.Sprintf("- %s (%s) x%d", label, entry.ItemID, entry.Quantity)
+		if entry.Equipped {
+			line += " [equipped]"
+		}
+		entries = append(entries, line)
+	}
+	sort.Strings(entries)
+	lines = append(lines, entries...)
+	return strings.Join(lines, "\n")
+}
+
 func (s *playSession) itemDisplayName(itemID string) string {
 	if item, ok := s.view.State().Items[itemID]; ok && item != nil && strings.TrimSpace(item.Name) != "" {
 		return item.Name
@@ -1170,6 +1198,7 @@ func playHelpText() string {
 		"/+look                        查看当前场景与同场角色",
 		"/+who                         列出当前场景角色",
 		"/+state                       查看玩家权威状态摘要",
+		"/+inventory                   查看背包详情",
 		"/+talk <npc>                  选择当前对话目标",
 		"/+next_target                 切换到当前场景中的下一个对话目标",
 		"/+prev_target                 切换到当前场景中的上一个对话目标",

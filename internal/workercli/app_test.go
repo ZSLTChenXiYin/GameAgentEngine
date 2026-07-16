@@ -417,6 +417,25 @@ func TestRunPlayUseItemRequiresOwnedItem(t *testing.T) {
 	}
 }
 
+func TestRenderInventoryShowsDetailedEntries(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Name: "Hero", Kind: "player", Inventory: []workerstate.InventoryEntry{{ItemID: "apple", Quantity: 2}, {ItemID: "knife_bloody", Quantity: 1, Equipped: true}}},
+		},
+		Items: map[string]*workerstate.ItemState{
+			"apple":        {ID: "apple", Name: "Apple"},
+			"knife_bloody": {ID: "knife_bloody", Name: "Bloody Knife"},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1"}
+	text := s.renderInventory()
+	for _, want := range []string{"背包: Hero", "- Apple (apple) x2", "- Bloody Knife (knife_bloody) x1 [equipped]"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("expected inventory text to contain %q, got %q", want, text)
+		}
+	}
+}
+
 func TestRenderSceneSummaryIncludesPromptFlagsAndTarget(t *testing.T) {
 	view := workerstate.NewStateView(&workerstate.WorldState{
 		Actors: map[string]*workerstate.ActorState{
