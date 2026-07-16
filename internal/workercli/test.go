@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -17,27 +16,6 @@ var supportedTestScenarios = []string{
 	"tooling-smoke",
 	"machine-scenario",
 	"all",
-}
-
-func (a *app) newTestCommand() *cobra.Command {
-	testCmd := &cobra.Command{
-		Use:   "test",
-		Short: "Run packaged worker-side full-functional scenarios",
-	}
-	for _, scenario := range supportedTestScenarios {
-		scenario := scenario
-		cmd := &cobra.Command{
-			Use:   scenario,
-			Short: fmt.Sprintf("Run the %s worker test scenario", scenario),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				a.cfg.TestScenario = scenario
-				return a.runNamedTestScenario(scenario)
-			},
-		}
-		a.bindTestFlags(cmd.Flags())
-		testCmd.AddCommand(cmd)
-	}
-	return testCmd
 }
 
 func (a *app) bindTestFlags(flags *pflag.FlagSet) {

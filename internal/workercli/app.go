@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/workerstate"
@@ -99,21 +98,6 @@ type app struct {
 	cfg         workerConfig
 	authorityMu sync.RWMutex
 	authority   *workerstate.WorldState
-	rootCmd     *cobra.Command
-	serveCmd    *cobra.Command
-	pushCmd     *cobra.Command
-	pullCmd     *cobra.Command
-	pullOnceCmd *cobra.Command
-	playCmd     *cobra.Command
-	testCmd     *cobra.Command
-}
-
-func Main(options Options) {
-	a := newApp(options)
-	if err := a.rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
 }
 
 func newApp(options Options) *app {
@@ -155,7 +139,6 @@ func newApp(options Options) *app {
 			LongTaskDuration:    6 * time.Second,
 		},
 	}
-	a.initCommands()
 	return a
 }
 
@@ -182,62 +165,6 @@ func (a *app) authorityView() *workerstate.StateView {
 		return nil
 	}
 	return workerstate.NewStateView(a.authority)
-}
-
-func (a *app) initCommands() {
-	a.rootCmd = &cobra.Command{
-		Use:   a.options.DisplayName,
-		Short: a.options.ShortDescription,
-	}
-	if strings.TrimSpace(a.options.DeprecatedAlias) != "" {
-		a.rootCmd.Deprecated = fmt.Sprintf("use %s instead", a.options.CommandName)
-	}
-	a.serveCmd = &cobra.Command{
-		Use:   "serve",
-		Short: "Run both push receiver and pull worker loops",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.runServe(true, true)
-		},
-	}
-	a.pushCmd = &cobra.Command{
-		Use:   "push-receiver",
-		Short: "Run only the push receiver",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.runServe(true, false)
-		},
-	}
-	a.pullCmd = &cobra.Command{
-		Use:   "pull-worker",
-		Short: "Run only the pull worker loop",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.runServe(false, true)
-		},
-	}
-	a.pullOnceCmd = &cobra.Command{
-		Use:   "pull-once",
-		Short: "Claim, execute, and callback one pull task if present",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			_, processed, err := a.processOnePendingTask()
-			if err != nil {
-				return err
-			}
-			if !processed {
-				a.logJSON("pull_noop", map[string]any{"consumer": a.cfg.Consumer})
-			}
-			return nil
-		},
-	}
-	a.playCmd = &cobra.Command{
-		Use:   "play",
-		Short: "Run a single-user text-game REPL backed by Engine invoke",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.runPlay()
-		},
-	}
-	a.testCmd = a.newTestCommand()
-	a.bindCommonFlags(a.rootCmd.PersistentFlags())
-	a.bindPlayFlags(a.playCmd.Flags())
-	a.rootCmd.AddCommand(a.serveCmd, a.pushCmd, a.pullCmd, a.pullOnceCmd, a.playCmd, a.testCmd)
 }
 
 func (a *app) bindCommonFlags(flags *pflag.FlagSet) {

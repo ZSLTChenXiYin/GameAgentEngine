@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/workerstate"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
@@ -268,24 +268,16 @@ func TestHasPendingDataRequestDetectsAsyncCallback(t *testing.T) {
 }
 
 func TestNewTestCommandRegistersExpectedScenarios(t *testing.T) {
-	a := newTestApp()
-	if a.testCmd == nil {
-		t.Fatal("expected test command to be initialized")
-	}
-	got := make([]string, 0, len(a.testCmd.Commands()))
-	for _, cmd := range a.testCmd.Commands() {
-		got = append(got, cmd.Name())
-	}
+	got := SupportedTestScenarios()
 	want := []string{"all", "base-data", "callback-resume", "continuity", "machine-scenario", "runtime-tasks", "tooling-smoke"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected test scenarios: got=%v want=%v", got, want)
 	}
-	baseData := findSubcommandByName(a.testCmd, "base-data")
-	if baseData == nil {
-		t.Fatal("expected base-data subcommand")
-	}
+	a := newTestApp()
+	flags := pflag.NewFlagSet("base-data", pflag.ContinueOnError)
+	a.bindTestFlags(flags)
 	for _, name := range []string{"engine-exe", "devcli-exe", "worker-exe", "tests-dir", "out", "engine-port", "push-port", "keep-temp", "json"} {
-		if baseData.Flags().Lookup(name) == nil {
+		if flags.Lookup(name) == nil {
 			t.Fatalf("expected flag %q on base-data subcommand", name)
 		}
 	}
@@ -300,13 +292,4 @@ func TestRunNamedTestScenarioReturnsNotImplemented(t *testing.T) {
 	if got := err.Error(); got != "worker test scenario \"unknown-scenario\" is not implemented yet" {
 		t.Fatalf("unexpected error: %s", got)
 	}
-}
-
-func findSubcommandByName(root *cobra.Command, name string) *cobra.Command {
-	for _, cmd := range root.Commands() {
-		if cmd.Name() == name {
-			return cmd
-		}
-	}
-	return nil
 }

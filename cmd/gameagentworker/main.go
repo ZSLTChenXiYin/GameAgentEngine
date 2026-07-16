@@ -1,13 +1,13 @@
 package main
 
-import "github.com/ZSLTChenXiYin/GameAgentEngine/internal/workercli"
+import (
+	"fmt"
+	"os"
+)
 
 func main() {
-	workercli.Main(workercli.Options{
-		CommandName:       "gameagentworker",
-		DisplayName:       "GameAgentWorker",
-		ShortDescription:  "Deterministic external worker for GameAgentEngine integration and play scenarios",
-		DefaultLeaseOwner: "gameagentworker",
-		WorkerID:          "gameagentworker",
-	})
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
