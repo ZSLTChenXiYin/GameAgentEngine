@@ -14,6 +14,7 @@ GameAgentEngine v0.4.6 提供源码构建和预编译打包两种使用方式。
 GameAgentEngine-{os}-{arch}-v0.4.6/
 ├── GameAgentEngine(.exe)
 ├── GameAgentDevCli(.exe)
+├── GameAgentWorker(.exe)
 ├── gameagentengine.conf.yaml
 ├── README.md
 ├── README_EN.md
@@ -42,6 +43,7 @@ GameAgentEngine-{os}-{arch}-v0.4.6/
 ```bash
 go build -o GameAgentEngine ./cmd/gameagentengine/
 go build -o GameAgentDevCli ./cmd/gameagentdevcli/
+go build -o GameAgentWorker ./cmd/gameagentworker/
 ```
 
 ---
@@ -68,7 +70,7 @@ Linux 或 macOS：
 
 打包脚本会自动：
 
-- 编译 `GameAgentEngine` 与 `GameAgentDevCli`
+- 编译 `GameAgentEngine`、`GameAgentDevCli` 与 `GameAgentWorker`
 - 注入版本号
 - 重新生成 `tools/source/web/GameAgentCreator/js/component-meta.js`
 - 复制 `tools/source/` 下的配置、文档和 Creator 静态资源
@@ -84,6 +86,8 @@ GameAgentEngine serve
 ```
 
 如果你需要管理世界、打开 Creator、推进 Tick，使用同目录下的 `GameAgentDevCli`。
+
+如果你需要模拟游戏侧异步接口、跑内置集成测试场景，或进入 REPL 试玩，使用同目录下的 `GameAgentWorker`。
 
 ---
 

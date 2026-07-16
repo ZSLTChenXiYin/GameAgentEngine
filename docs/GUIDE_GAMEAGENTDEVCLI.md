@@ -171,7 +171,7 @@ GameAgentDevCli task requeue <task-id> --retry-delay-ms 1500 --reason "manual re
 ## 打开 Creator
 
 ```bash
-GameAgentDevCli creator
+GameAgentDevCli inspect
 ```
 
 ---

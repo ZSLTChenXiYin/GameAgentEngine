@@ -14,6 +14,7 @@ Each release package is structured as `dist/GameAgentEngine-{os}-{arch}-v0.4.6/`
 GameAgentEngine-{os}-{arch}-v0.4.6/
 ├── GameAgentEngine(.exe)
 ├── GameAgentDevCli(.exe)
+├── GameAgentWorker(.exe)
 ├── gameagentengine.conf.yaml
 ├── README.md
 ├── README_EN.md
@@ -40,6 +41,7 @@ Prerequisite:
 ```bash
 go build -o GameAgentEngine ./cmd/gameagentengine/
 go build -o GameAgentDevCli ./cmd/gameagentdevcli/
+go build -o GameAgentWorker ./cmd/gameagentworker/
 ```
 
 ---
@@ -66,7 +68,7 @@ All platforms:
 
 The packaging scripts automatically:
 
-- build `GameAgentEngine` and `GameAgentDevCli`
+- build `GameAgentEngine`, `GameAgentDevCli`, and `GameAgentWorker`
 - inject version values
 - regenerate `tools/source/web/GameAgentCreator/js/component-meta.js`
 - copy config, docs, and Creator static assets from `tools/source/`
@@ -82,6 +84,8 @@ GameAgentEngine serve
 ```
 
 Use the bundled `GameAgentDevCli` to manage worlds, open Creator, and run ticks.
+
+Use the bundled `GameAgentWorker` to simulate game-side async interfaces, run packaged integration scenarios, and enter play-mode REPL.
 
 ---
 

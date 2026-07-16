@@ -142,11 +142,28 @@ GameAgentDevCli world tick <world-id>
 
 > **Note:** Before running `world tick`, configure `world_time_settings` in Creator's Settings page. Without a world-time configuration, time advancement is intentionally blocked -- this is a design constraint, not a bug.
 
+### Try the Demo World and Text-Game Shell Directly
+
+The repository ships with a minimal demo asset pair:
+
+- `tools/source/demo-world.yaml` -- demo world imported into the Engine
+- `tools/source/demo-state.yaml` -- authority state file consumed by `GameAgentWorker play`
+
+Shortest path:
+
+```bash
+GameAgentEngine serve
+GameAgentDevCli import tools/source/demo-world.yaml
+GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+```
+
+This lets the Engine drive NPC behavior while the worker-side state file remains the authority source for HP, inventory, money, quest state, and scene occupancy.
+
 ---
 
 ## Toolchain
 
-The Engine ships with three developer tools:
+The Engine now ships with four first-class developer tool entrypoints:
 
 ### GameAgentCreator -- Visual Web Editor
 
@@ -192,6 +209,30 @@ GameAgentDevCli logs --world <world-id>
 GameAgentDevCli debug traces --world <world-id>
 GameAgentDevCli inspect
 ```
+
+### GameAgentWorker -- Standalone Worker / REPL / Integration Test Entry
+
+Use it for external async callback simulation, local game-side authority state, play-mode REPL, and packaged integration tests:
+
+```bash
+# Run push receiver and pull worker together
+GameAgentWorker serve --verbose
+
+# Process one pending pull task
+GameAgentWorker pull-once --consumer game_client
+
+# Enter text-game REPL
+GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+
+# Run packaged integration scenarios
+GameAgentWorker test all
+```
+
+It is not just a temporary test script wrapper. It is the canonical game-side worker in this repository:
+
+- for integration tests, it closes the push / pull / callback loop
+- for local development, it hosts YAML / JSON authority state and simulates async game-side interfaces
+- for play mode, it exposes `/talk`, `/ask`, `/gift`, `/trade`, and related REPL flows to validate Engine-driven text-game interaction
 
 ### Go SDK
 

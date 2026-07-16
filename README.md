@@ -164,7 +164,7 @@ GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_w
 
 ## 工具链
 
-Engine 附带三套开发工具：
+Engine 当前形成四个直接配套的开发工具入口：
 
 ### GameAgentCreator — Web 可视化编辑器
 
@@ -210,6 +210,30 @@ GameAgentDevCli logs --world <world-id>
 GameAgentDevCli debug traces --world <world-id>
 GameAgentDevCli inspect
 ```
+
+### GameAgentWorker — 独立 Worker / REPL / 集成测试入口
+
+适用于外部异步回调模拟、游戏侧本地状态承载、REPL 试玩和集成测试：
+
+```bash
+# 同时运行 push receiver 和 pull worker
+GameAgentWorker serve --verbose
+
+# 单次处理一个 pull task
+GameAgentWorker pull-once --consumer game_client
+
+# 进入文字游戏 REPL
+GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+
+# 运行打包内置的集成测试场景
+GameAgentWorker test all
+```
+
+它的定位不是临时测试脚本集合，而是项目内正式的游戏侧 worker：
+
+- 集成测试时，承担外部 worker 的 push / pull / callback 闭环
+- 开发时，承载 YAML / JSON 权威状态并模拟游戏侧异步接口
+- 试玩时，提供 `/talk`、`/ask`、`/gift`、`/trade` 等 REPL 入口，验证 Engine 驱动的文字游戏体验
 
 ### Go SDK
 

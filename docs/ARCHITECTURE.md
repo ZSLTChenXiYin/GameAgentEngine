@@ -2,7 +2,7 @@
 
 **中文** | [**English**](./ARCHITECTURE_EN.md)
 
-GameAgentEngine v0.4.6 由后端 Engine、HTTP API、Go SDK、DevCli 和 Creator 组成。
+GameAgentEngine v0.4.6 由后端 Engine、HTTP API、Go SDK、DevCli、Worker 和 Creator 组成。
 
 ---
 
@@ -14,6 +14,7 @@ flowchart TB
         Creator["GameAgentCreator\nWeb 编辑器"]
         DevCli["GameAgentDevCli\nCLI 工具"]
         SDK["Go SDK"]
+        Worker["GameAgentWorker\n外部 Worker / REPL"]
     end
 
     subgraph Backend ["GameAgentEngine"]
@@ -28,6 +29,7 @@ flowchart TB
     Creator --> API
     DevCli --> SDK
     SDK --> API
+    Worker --> SDK
     API --> SVC
     SVC --> ENG
     ENG --> STORE
@@ -36,7 +38,7 @@ flowchart TB
     STORE --> DB["SQLite / MySQL"]
 ```
 
-当前前端工具只保留 Creator。
+当前可视化前端工具仍只有 Creator，但本地开发与集成测试工具链已经同时包含 Worker。
 
 ---
 
@@ -78,8 +80,9 @@ flowchart TB
 - 时间线、日志、快照元数据
 - `world_settings`、`world_policy`、传播状态持久化
 
-### SDK / DevCli / Creator
+### SDK / DevCli / Worker / Creator
 
 - SDK：HTTP API 的 Go 封装
 - DevCli：命令行建模、推进、调试与运维入口
+- Worker：游戏侧异步接口模拟、pull consumer、callback 闭环、play REPL 与内置集成测试入口
 - Creator：可视化建模、配置、推进与排查入口

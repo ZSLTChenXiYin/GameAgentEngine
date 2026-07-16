@@ -13,6 +13,7 @@ By the end of this guide, you should be able to:
 - start a local Engine service
 - create a world root node with DevCli
 - continue editing nodes, components, and relations in Creator
+- use Worker for local play REPL or game-side async simulation
 - understand when `world_time_settings` must be configured first
 
 ---
@@ -173,3 +174,32 @@ These endpoints quickly show whether:
 - write retries are becoming frequent
 - the batched log queue is backing up
 - world-level lock contention is increasing
+
+---
+
+## Step 8: Use Worker to Validate the Game-Side Loop
+
+If you want to verify the external worker, authority state file, NPC dialogue flow, and callback path together, the shortest path is to start `GameAgentWorker` directly:
+
+```bash
+GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+```
+
+This command:
+
+- loads YAML / JSON authority state
+- selects the player node
+- lets you use `/talk`, `/ask`, `/gift`, `/trade`, and related commands in the text-game REPL
+- serves high-frequency authoritative facts such as HP, inventory, money, quest state, and scene occupancy during dialogue
+
+If you are not testing play mode and only want the Runtime Task push / pull / callback loop, use:
+
+```bash
+GameAgentWorker serve --verbose
+```
+
+If you only want to validate the packaged scenarios in the current build, run:
+
+```bash
+GameAgentWorker test all
+```

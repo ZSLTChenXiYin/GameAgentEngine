@@ -13,6 +13,7 @@
 - 启动本地 Engine 服务
 - 使用 DevCli 创建世界根节点
 - 在 Creator 中继续编辑节点、组件、关系
+- 使用 Worker 进入本地 play REPL 或模拟游戏侧异步接口
 - 理解什么时候必须先配置 `world_time_settings`
 
 ---
@@ -173,3 +174,32 @@ GameAgentDevCli inspect
 - 是否出现频繁写重试
 - 日志批量队列是否积压
 - 世界级锁是否出现争用
+
+---
+
+## 第八步：用 Worker 体验游戏侧闭环
+
+如果你要验证外部 worker、权威状态文件、NPC 对话和 callback 流程是否打通，最短路径是直接启动 `GameAgentWorker`：
+
+```bash
+GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+```
+
+这条命令会：
+
+- 读取 YAML / JSON 权威状态
+- 选择玩家节点
+- 让你通过 `/talk`、`/ask`、`/gift`、`/trade` 等命令进入文字游戏 REPL
+- 在对话过程中按需向游戏侧权威状态查询 HP、背包、金钱、任务和场景即时状态
+
+如果你不是要试玩，而是要验证 Runtime Task 的 push / pull / callback 闭环，可以改用：
+
+```bash
+GameAgentWorker serve --verbose
+```
+
+如果你只想快速验证当前打包内容里的内置场景，可以直接运行：
+
+```bash
+GameAgentWorker test all
+```
