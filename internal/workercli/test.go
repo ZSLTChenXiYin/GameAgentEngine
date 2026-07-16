@@ -66,6 +66,8 @@ func (a *app) runNamedTestScenario(scenario string) error {
 		return a.runRuntimeTasksScenario()
 	case "callback-resume":
 		return a.runCallbackResumeScenario()
+	case "tooling-smoke":
+		return a.runToolingSmokeScenario()
 	}
 	return fmt.Errorf("worker test scenario %q is not implemented yet", trimmed)
 }
