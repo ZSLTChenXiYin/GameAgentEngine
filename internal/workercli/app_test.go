@@ -230,17 +230,57 @@ func TestResolveGroupChatTargetDefaultsToFirstNPC(t *testing.T) {
 			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_a"},
 			"npc_2":    {ID: "npc_2", Name: "guard", Kind: "npc", LocationID: "scene_a"},
 		},
+		Scenes: map[string]*workerstate.SceneState{
+			"scene_a": {ID: "scene_a", Occupants: []string{"player_1", "npc_2", "npc_1"}},
+		},
 	})
 	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_a"}
 	targetID, participants, err := s.resolveGroupChatTarget("")
 	if err != nil {
 		t.Fatalf("resolveGroupChatTarget returned error: %v", err)
 	}
-	if targetID == "" || targetID == "player_1" {
-		t.Fatalf("expected npc target, got %q", targetID)
+	if targetID != "npc_2" {
+		t.Fatalf("expected npc_2 as deterministic primary target, got %q", targetID)
 	}
 	if len(participants) != 3 {
 		t.Fatalf("expected 3 participants, got %#v", participants)
+	}
+}
+
+func TestSceneParticipantIDsPreferSceneOccupantOrder(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_a"},
+			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_a"},
+			"npc_2":    {ID: "npc_2", Name: "guard", Kind: "npc", LocationID: "scene_a"},
+		},
+		Scenes: map[string]*workerstate.SceneState{
+			"scene_a": {ID: "scene_a", Occupants: []string{"player_1", "npc_2", "npc_1"}},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_a"}
+	got := s.sceneParticipantIDs()
+	want := []string{"player_1", "npc_2", "npc_1"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected participant order: got=%v want=%v", got, want)
+	}
+}
+
+func TestGroupChatPrimaryTargetUsesCurrentTargetWhenAvailable(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_a"},
+			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_a"},
+			"npc_2":    {ID: "npc_2", Name: "guard", Kind: "npc", LocationID: "scene_a"},
+		},
+		Scenes: map[string]*workerstate.SceneState{
+			"scene_a": {ID: "scene_a", Occupants: []string{"player_1", "npc_2", "npc_1"}},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_a", currentTargetID: "npc_2"}
+	targetID, ok := s.groupChatPrimaryTargetID()
+	if !ok || targetID != "npc_2" {
+		t.Fatalf("expected current target npc_2 to remain primary, got %q ok=%v", targetID, ok)
 	}
 }
 
@@ -454,16 +494,37 @@ func TestRenderSceneSummaryIncludesPromptFlagsAndTarget(t *testing.T) {
 		Actors: map[string]*workerstate.ActorState{
 			"player_1": {ID: "player_1", Kind: "player", LocationID: "scene_inn"},
 			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_inn"},
+			"npc_2":    {ID: "npc_2", Name: "guard", Kind: "npc", LocationID: "scene_inn"},
 		},
 		Scenes: map[string]*workerstate.SceneState{
-			"scene_inn": {ID: "scene_inn", Name: "Inn", Description: "Warm light and wooden tables.", Flags: map[string]any{"open": true}},
+			"scene_inn": {ID: "scene_inn", Name: "Inn", Description: "Warm light and wooden tables.", Flags: map[string]any{"open": true}, Occupants: []string{"player_1", "npc_1", "npc_2"}},
 		},
 	})
 	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_inn", currentTargetID: "npc_1"}
 	text := s.renderSceneSummary()
-	for _, want := range []string{"当前场景: Inn (scene_inn)", "当前目标: innkeeper", "场景状态: open=true", "直接输入文本可与 innkeeper 对话", "同场角色:"} {
+	for _, want := range []string{"当前场景: Inn (scene_inn)", "当前目标: innkeeper", "场景状态: open=true", "直接输入文本可与 innkeeper 对话；/+say 会让 innkeeper 作为当前群聊主响应者回话", "同场角色:"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("expected scene summary to contain %q, got %q", want, text)
+		}
+	}
+}
+
+func TestRenderRoomStateShowsPrimaryResponder(t *testing.T) {
+	view := workerstate.NewStateView(&workerstate.WorldState{
+		Actors: map[string]*workerstate.ActorState{
+			"player_1": {ID: "player_1", Name: "Hero", Kind: "player", LocationID: "scene_inn"},
+			"npc_1":    {ID: "npc_1", Name: "innkeeper", Kind: "npc", LocationID: "scene_inn"},
+			"npc_2":    {ID: "npc_2", Name: "guard", Kind: "npc", LocationID: "scene_inn"},
+		},
+		Scenes: map[string]*workerstate.SceneState{
+			"scene_inn": {ID: "scene_inn", Occupants: []string{"player_1", "npc_2", "npc_1"}},
+		},
+	})
+	s := &playSession{view: view, playerNodeID: "player_1", currentSceneID: "scene_inn", currentTargetID: "npc_2"}
+	text := s.renderRoomState()
+	for _, want := range []string{"群聊主响应者: guard", "- Hero [you] (player_1)", "- guard [target] [primary] (npc_2)", "- innkeeper (npc_1)"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("expected room state to contain %q, got %q", want, text)
 		}
 	}
 }

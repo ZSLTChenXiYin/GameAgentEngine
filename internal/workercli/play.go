@@ -1131,6 +1131,13 @@ func (s *playSession) renderTargetStatus() string {
 
 func (s *playSession) renderRoomState() string {
 	participants := s.sceneParticipantIDs()
+	primaryTargetID, hasPrimary := s.groupChatPrimaryTargetID()
+	lines := make([]string, 0, len(participants)+2)
+	if hasPrimary {
+		lines = append(lines, fmt.Sprintf("群聊主响应者: %s", s.actorDisplayName(primaryTargetID)))
+	} else {
+		lines = append(lines, "群聊主响应者: 无")
+	}
 	parts := make([]string, 0, len(participants))
 	for _, id := range participants {
 		label := s.actorDisplayName(id)
@@ -1140,18 +1147,24 @@ func (s *playSession) renderRoomState() string {
 		if id == s.currentTargetID {
 			label += " [target]"
 		}
+		if hasPrimary && id == primaryTargetID {
+			label += " [primary]"
+		}
 		parts = append(parts, fmt.Sprintf("- %s (%s)", label, id))
 	}
 	sort.Strings(parts)
 	if len(parts) == 0 {
 		return "房间参与者: 无"
 	}
-	return "房间参与者:\n" + strings.Join(parts, "\n")
+	lines = append(lines, "房间参与者:")
+	lines = append(lines, parts...)
+	return strings.Join(lines, "\n")
 }
 
 func (s *playSession) renderScenePrompt() string {
 	participants := s.sceneParticipantIDs()
 	npcs := make([]string, 0, len(participants))
+	primaryTargetID, hasPrimary := s.groupChatPrimaryTargetID()
 	for _, id := range participants {
 		if id == s.playerNodeID {
 			continue
@@ -1163,7 +1176,13 @@ func (s *playSession) renderScenePrompt() string {
 	}
 	sort.Strings(npcs)
 	if strings.TrimSpace(s.currentTargetID) != "" {
+		if hasPrimary {
+			return fmt.Sprintf("提示: 直接输入文本可与 %s 对话；/+say 会让 %s 作为当前群聊主响应者回话。", s.actorDisplayName(s.currentTargetID), s.actorDisplayName(primaryTargetID))
+		}
 		return fmt.Sprintf("提示: 直接输入文本可与 %s 对话，也可用 /+say 发起房间公开发言。", s.actorDisplayName(s.currentTargetID))
+	}
+	if hasPrimary {
+		return fmt.Sprintf("提示: 可用 /+talk <npc> 选择目标。当前可互动对象: %s。/+say 默认由 %s 主回应。", strings.Join(npcs, ", "), s.actorDisplayName(primaryTargetID))
 	}
 	return fmt.Sprintf("提示: 可用 /+talk <npc> 选择目标。当前可互动对象: %s。", strings.Join(npcs, ", "))
 }
@@ -1224,30 +1243,55 @@ func (s *playSession) resolveGroupChatTarget(preferred string) (string, []string
 		}
 		return target.ID, participants, nil
 	}
-	if strings.TrimSpace(s.currentTargetID) != "" {
-		for _, id := range participants {
-			if id == s.currentTargetID {
-				return s.currentTargetID, participants, nil
-			}
-		}
-	}
-	for _, id := range participants {
-		if id != s.playerNodeID {
-			return id, participants, nil
-		}
+	if targetID, ok := s.groupChatPrimaryTargetID(); ok {
+		return targetID, participants, nil
 	}
 	return "", nil, errors.New("no NPC participant available in current scene")
 }
 
 func (s *playSession) sceneParticipantIDs() []string {
-	actors := s.view.ActorsAtScene(s.currentSceneID)
-	ids := make([]string, 0, len(actors))
-	for _, actor := range actors {
-		if actor != nil {
+	scene, ok := s.view.Scene(s.currentSceneID)
+	if !ok || scene == nil {
+		actors := s.view.ActorsAtScene(s.currentSceneID)
+		ids := make([]string, 0, len(actors))
+		for _, actor := range actors {
+			if actor != nil {
+				ids = append(ids, actor.ID)
+			}
+		}
+		return uniqueParticipantIDs(ids)
+	}
+	ids := make([]string, 0, len(scene.Occupants))
+	for _, occupantID := range scene.Occupants {
+		if actor, ok := s.view.Actor(occupantID); ok && actor != nil && strings.TrimSpace(actor.LocationID) == strings.TrimSpace(s.currentSceneID) {
 			ids = append(ids, actor.ID)
 		}
 	}
-	return uniqueParticipantIDs(ids)
+	leftovers := make([]string, 0)
+	for _, actor := range s.view.ActorsAtScene(s.currentSceneID) {
+		if actor != nil {
+			leftovers = append(leftovers, actor.ID)
+		}
+	}
+	sort.SliceStable(leftovers, func(i, j int) bool {
+		return s.actorDisplayName(leftovers[i]) < s.actorDisplayName(leftovers[j])
+	})
+	return uniqueParticipantIDs(ids, leftovers...)
+}
+
+func (s *playSession) groupChatPrimaryTargetID() (string, bool) {
+	targets := s.sceneDialogueTargets()
+	if len(targets) == 0 {
+		return "", false
+	}
+	if strings.TrimSpace(s.currentTargetID) != "" {
+		for _, id := range targets {
+			if id == s.currentTargetID {
+				return id, true
+			}
+		}
+	}
+	return targets[0], true
 }
 
 func playHelpText() string {
@@ -1263,11 +1307,12 @@ func playHelpText() string {
 		"/+prev_target                 切换到当前场景中的上一个对话目标",
 		"/+target                      查看当前对话目标",
 		"/+room                        查看当前房间/场景参与者",
+		"                             并显示当前群聊主响应 NPC",
 		"/+move <scene>                切换到指定场景，并立即刷新本地权威状态",
 		"/+inspect [target]            查看当前场景、角色或可见物品的权威摘要",
 		"/+use_item <item>             对当前持有物品执行确定性使用校验",
 		"/+clear_target                清除当前对话目标",
-		"/+say <message>               向当前房间公开发言，由一个主响应 NPC 回应",
+		"/+say <message>               向当前房间公开发言，由当前群聊主响应 NPC 回应",
 		"/+ask <npc> <message>         在群聊语境下点名某个 NPC 回应",
 		"/+act <text>                  让玩家节点先解释自然语言，再走权威校验、执行和 NPC/群聊响应",
 		"/+gift <npc> <item>           向 NPC 送礼，并先在游戏侧权威状态落地",
