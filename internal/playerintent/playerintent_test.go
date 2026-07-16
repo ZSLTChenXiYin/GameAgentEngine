@@ -126,13 +126,13 @@ func TestBuildInteractionSpecUsesSuggestedInteraction(t *testing.T) {
 			Confidence:   0.8,
 			Steps:        []sdk.PlayerIntentStep{{Type: "speech", TargetNodeID: "npc_1", Content: "where did he go?"}},
 		},
-		SuggestedInteraction: &sdk.SuggestedInteraction{Mode: "group_chat", EventType: "speech", AudienceScope: "public", TargetNodeID: "npc_1"},
+		SuggestedInteraction: &sdk.SuggestedInteraction{Mode: sdk.InteractionModeGroupChat, EventType: sdk.InteractionEventSpeech, AudienceScope: sdk.InteractionAudiencePublic, TargetNodeID: "npc_1"},
 	}
 	spec, err := BuildInteractionSpec(payload, "player_1", "scene_inn")
 	if err != nil {
 		t.Fatalf("BuildInteractionSpec returned error: %v", err)
 	}
-	if spec.Mode != "group_chat" || spec.AudienceScope != "public" || spec.TargetNodeID != "npc_1" {
+	if spec.Mode != sdk.InteractionModeGroupChat || spec.AudienceScope != sdk.InteractionAudiencePublic || spec.TargetNodeID != "npc_1" {
 		t.Fatalf("unexpected interaction spec: %#v", spec)
 	}
 }

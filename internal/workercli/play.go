@@ -262,9 +262,9 @@ func (a *app) runPlayDialogue(s *playSession, input string) error {
 		return errors.New("no active talk target; use /talk <npc>")
 	}
 	return a.invokePlayInteraction(s, playInteractionSpec{
-		Mode:          "direct_dialogue",
-		AudienceScope: "private",
-		EventType:     "speech",
+		Mode:          sdk.InteractionModeDirectDialogue,
+		AudienceScope: sdk.InteractionAudiencePrivate,
+		EventType:     sdk.InteractionEventSpeech,
 		Input:         input,
 		TargetNodeID:  s.currentTargetID,
 		Participants:  []string{s.playerNodeID, s.currentTargetID},
@@ -361,9 +361,9 @@ func (a *app) runPlaySay(s *playSession, args string) error {
 		return err
 	}
 	return a.invokePlayInteraction(s, playInteractionSpec{
-		Mode:          "group_chat",
-		AudienceScope: "public",
-		EventType:     "speech",
+		Mode:          sdk.InteractionModeGroupChat,
+		AudienceScope: sdk.InteractionAudiencePublic,
+		EventType:     sdk.InteractionEventSpeech,
 		Input:         text,
 		TargetNodeID:  targetID,
 		Participants:  participants,
@@ -387,9 +387,9 @@ func (a *app) runPlayAsk(s *playSession, args string) error {
 	}
 	s.currentTargetID = targetID
 	return a.invokePlayInteraction(s, playInteractionSpec{
-		Mode:          "group_chat",
-		AudienceScope: "public",
-		EventType:     "speech",
+		Mode:          sdk.InteractionModeGroupChat,
+		AudienceScope: sdk.InteractionAudiencePublic,
+		EventType:     sdk.InteractionEventSpeech,
 		Input:         text,
 		TargetNodeID:  targetID,
 		Participants:  participants,
@@ -417,9 +417,9 @@ func (a *app) runPlayGift(s *playSession, args string) error {
 	s.currentTargetID = target.ID
 	fmt.Printf("[system] 你将 %s 交给了 %s。\n", itemLabel, s.actorDisplayName(target.ID))
 	return a.invokePlayInteraction(s, playInteractionSpec{
-		Mode:          "gift_response",
-		AudienceScope: "private",
-		EventType:     "gift",
+		Mode:          sdk.InteractionModeGiftResponse,
+		AudienceScope: sdk.InteractionAudiencePrivate,
+		EventType:     sdk.InteractionEventGift,
 		ItemID:        itemID,
 		Input:         fmt.Sprintf("玩家向你赠送了物品 %s。请基于权威状态和场景事实回应。", itemID),
 		TargetNodeID:  target.ID,
@@ -443,9 +443,9 @@ func (a *app) runPlayShowItem(s *playSession, args string) error {
 	}
 	s.currentTargetID = target.ID
 	return a.invokePlayInteraction(s, playInteractionSpec{
-		Mode:          "direct_dialogue",
-		AudienceScope: "private",
-		EventType:     "show_item",
+		Mode:          sdk.InteractionModeDirectDialogue,
+		AudienceScope: sdk.InteractionAudiencePrivate,
+		EventType:     sdk.InteractionEventShowItem,
 		ItemID:        itemID,
 		Input:         fmt.Sprintf("玩家向你展示了物品 %s。请基于权威状态和场景事实回应。", itemLabel),
 		TargetNodeID:  target.ID,
@@ -468,9 +468,9 @@ func (a *app) runPlayTrade(s *playSession, args string) error {
 	}
 	s.currentTargetID = target.ID
 	return a.invokePlayInteraction(s, playInteractionSpec{
-		Mode:          "trade_dialogue",
-		AudienceScope: "private",
-		EventType:     "trade_request",
+		Mode:          sdk.InteractionModeTradeDialogue,
+		AudienceScope: sdk.InteractionAudiencePrivate,
+		EventType:     sdk.InteractionEventTradeRequest,
 		Input:         "玩家想和你谈交易或议价。请基于当前权威状态、库存、金钱和关系回应。",
 		TargetNodeID:  target.ID,
 		Participants:  []string{s.playerNodeID, target.ID},
@@ -492,9 +492,9 @@ func (a *app) runPlayThreaten(s *playSession, args string) error {
 	}
 	s.currentTargetID = target.ID
 	return a.invokePlayInteraction(s, playInteractionSpec{
-		Mode:          "direct_dialogue",
-		AudienceScope: "private",
-		EventType:     "threaten",
+		Mode:          sdk.InteractionModeDirectDialogue,
+		AudienceScope: sdk.InteractionAudiencePrivate,
+		EventType:     sdk.InteractionEventThreaten,
 		Input:         "玩家正在以威胁性的方式逼迫你回应。请基于场景、关系和即时风险判断回应。",
 		TargetNodeID:  target.ID,
 		Participants:  []string{s.playerNodeID, target.ID},

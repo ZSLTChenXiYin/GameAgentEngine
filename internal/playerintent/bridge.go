@@ -19,8 +19,8 @@ func BuildInteractionSpec(payload *sdk.PlayerIntentInterpretation, actorNodeID s
 	}
 	primary := steps[0]
 	spec := &InteractionSpec{
-		Mode:          "direct_dialogue",
-		AudienceScope: "private",
+		Mode:          sdk.InteractionModeDirectDialogue,
+		AudienceScope: sdk.InteractionAudiencePrivate,
 		EventType:     primary.Type,
 		TargetNodeID:  firstNonEmpty(primary.TargetNodeID, intent.TargetNodeID),
 	}
