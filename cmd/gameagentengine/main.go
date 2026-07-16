@@ -30,8 +30,6 @@ func main() {
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(importCmd)
-	rootCmd.AddCommand(creatorCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
