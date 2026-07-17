@@ -1,19 +1,19 @@
-# SDK Overview
+# SDK 文档总览
 
-本目录用于集中存放 GameAgentEngine 多语言 SDK 的正式文档。
+本目录集中存放 GameAgentEngine 多语言 SDK 的正式文档。
 
-目标是把 SDK 的总体说明、基线规范、共享夹具与能力矩阵从源码目录收回到统一的 `docs/` 文档体系中。
+目标是把 SDK 的总体说明、基线规范、共享夹具与能力矩阵，从源码目录回收到统一的 `docs/` 文档体系中。
 
 ## 当前文档
 
-- [SDK Baseline](./SDK_BASELINE.md)
-- [SDK Shared Fixtures](./SDK_FIXTURES.md)
-- [SDK Capability Matrix](./SDK_CAPABILITY_MATRIX.md)
-- [Language SDK Status](./SDK_LANGUAGES.md)
+- [SDK 基线规范](./SDK_BASELINE.md)
+- [SDK 共享夹具与输入](./SDK_FIXTURES.md)
+- [SDK 能力矩阵](./SDK_CAPABILITY_MATRIX.md)
+- [各语言 SDK 状态](./SDK_LANGUAGES.md)
 
 ## 当前语言目录
 
-代码仍位于下列目录，但这些目录应尽量只保留源码、示例与构建文件，不再承载正式文档：
+代码仍位于下列目录，但这些目录应尽量只保留源码、示例与构建文件，不再承载正式说明文档：
 
 - `tools/source/sdks/ts-sdk`
 - `tools/source/sdks/js-sdk`
@@ -31,6 +31,6 @@ Go SDK 仍然是当前语义基线，位于：
 
 ## 文档约束
 
-- 正式文档统一收口到 `docs/`
+- 正式 SDK 文档统一收口到 `docs/sdk/`
 - `tools/source/sdks/*` 不再放置分散 README
 - 如需补 SDK 说明，优先补到 `docs/sdk/`

@@ -1,11 +1,11 @@
-# Language SDK Status
+# 各语言 SDK 状态
 
 本文档集中记录各语言 SDK 的定位、当前覆盖范围与附带示例，替代原先散落在 `tools/source/sdks/*/README.md` 下的说明文件。
 
 ## TypeScript SDK
 
 - 目录：`tools/source/sdks/ts-sdk`
-- 定位：当前最完整的外围脚本/工具链基线之一
+- 定位：当前最完整的外围脚本 / 工具链基线之一
 - 当前覆盖：
   - health / version
   - invoke
@@ -96,7 +96,7 @@
   - runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats 请求构造
   - callback 请求构造
   - worker authority query / runtime roundtrip 示例
-- 现状：不内置完整 HTTP 传输层，但已给出和 Worker 对接所需的最小请求序列
+- 现状：不内置完整 HTTP 传输层，但已给出与 Worker 对接所需的最小请求序列
 
 ## C SDK
 
@@ -107,7 +107,7 @@
   - runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats 路径 / payload 辅助
   - callback payload 构造
   - worker authority query / runtime roundtrip 示例
-- 现状：不内置 HTTP 传输层，但已覆盖和 Worker 联调的基础请求拼装
+- 现状：不内置 HTTP 传输层，但已覆盖与 Worker 联调的基础请求拼装
 
 ## Lua SDK
 

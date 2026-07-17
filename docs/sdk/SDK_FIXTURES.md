@@ -1,59 +1,59 @@
-# SDK Shared Fixtures and Integration Inputs
+# SDK 共享夹具与集成输入
 
-This document defines the shared fixture files and integration inputs that SDK examples should reuse whenever possible.
+本文件定义 SDK 示例应优先复用的共享夹具文件与集成输入。
 
-The goal is to keep all SDK examples aligned to the same Engine / Worker semantics instead of letting each language drift into its own ad-hoc sample data.
+目标是让各语言 SDK 示例都对齐到同一套 Engine / Worker 语义，而不是各自漂移到独立的临时样例数据。
 
-## 1. Primary Fixture Directory
+## 1. 主夹具目录
 
-Shared worker-side and runtime-task fixture data lives in:
+共享的 worker 侧与 runtime-task 夹具数据位于：
 
 ```text
 tools/source/tests/
 ```
 
-SDK examples should prefer these files before inventing new sample payloads.
+SDK 示例在新增样例数据前，应优先复用这些文件。
 
-## 2. Core Shared Files
+## 2. 核心共享文件
 
-| File | Purpose | Typical Consumers |
+| 文件 | 用途 | 典型使用方 |
 | --- | --- | --- |
-| `runtime_task_dynamic_interfaces.json` | Request-scoped `game_client_request_data` example used to trigger authority-query runtime tasks | ts/js/cs SDK worker authority-query examples, future Java/Lua/C++ examples |
-| `runtime_task_dynamic_action_trade.json` | Pull-mode external action example | Worker runtime-task scenarios, future pull examples |
-| `runtime_task_delivery_fixture.json` | Fixture LLM output used by worker runtime-task integration testing | `GameAgentWorker test runtime-tasks`, future SDK orchestration docs |
-| `machine_scenario_fixture.json` | End-to-end worker + continuity + callback-resume fixture | `GameAgentWorker test machine-scenario`, future SDK smoke loops |
-| `callback_resume_fixture.json` | Callback-resume base fixture | Worker callback-resume scenario |
-| `callback_resume_dynamic_actions.json` | Dynamic action follow-up fixture for callback-resume | Worker callback-resume scenario |
-| `full_functional_base_data_world.yaml` | Base importable world fixture for worker-side full-functional scenarios | Engine / Worker test bootstrap |
-| `world_time_settings_flexible.json` | Flexible world-time settings sample | continuity / machine scenario / future SDK settings examples |
-| `state_world_state.json` | Example `world_state` continuity payload | SDK state-component examples |
-| `state_story_state.json` | Example `story_state` continuity payload | SDK state-component examples |
-| `state_story_history.json` | Example `story_history` continuity payload | SDK continuity examples |
-| `state_tick_policy.json` | Example `tick_policy` continuity payload | SDK continuity examples |
+| `runtime_task_dynamic_interfaces.json` | 用于触发 authority-query runtime task 的 request-scoped `game_client_request_data` 示例 | ts/js/cs SDK worker authority-query 示例，以及后续 Java/Lua/C++ 示例 |
+| `runtime_task_dynamic_action_trade.json` | pull 模式 external action 示例 | Worker runtime-task 场景、后续 pull 示例 |
+| `runtime_task_delivery_fixture.json` | worker runtime-task 集成测试使用的 LLM 输出夹具 | `GameAgentWorker test runtime-tasks`、后续 SDK 编排文档 |
+| `machine_scenario_fixture.json` | 端到端 worker + continuity + callback-resume 夹具 | `GameAgentWorker test machine-scenario`、后续 SDK smoke loop |
+| `callback_resume_fixture.json` | callback-resume 基础夹具 | Worker callback-resume 场景 |
+| `callback_resume_dynamic_actions.json` | callback-resume 的 dynamic action 后续夹具 | Worker callback-resume 场景 |
+| `full_functional_base_data_world.yaml` | worker 侧 full-functional 场景的基础可导入 world 夹具 | Engine / Worker 测试引导 |
+| `world_time_settings_flexible.json` | 灵活 world-time settings 样例 | continuity / machine scenario / 后续 SDK settings 示例 |
+| `state_world_state.json` | `world_state` 连续性载荷示例 | SDK state-component 示例 |
+| `state_story_state.json` | `story_state` 连续性载荷示例 | SDK state-component 示例 |
+| `state_story_history.json` | `story_history` 连续性载荷示例 | SDK continuity 示例 |
+| `state_tick_policy.json` | `tick_policy` 连续性载荷示例 | SDK continuity 示例 |
 
-## 3. Repository-Level Demo Assets
+## 3. 仓库级 Demo 资产
 
-These are not under `tools/source/tests`, but they are still shared integration assets:
+以下文件不在 `tools/source/tests` 下，但仍属于共享集成资产：
 
-| File | Purpose |
+| 文件 | 用途 |
 | --- | --- |
-| `tools/source/demo-world.yaml` | Demo world import used by Engine / DevCli / Worker quick-start |
-| `tools/source/demo-state.yaml` | Worker play-mode authority-state sample |
+| `tools/source/demo-world.yaml` | Engine / DevCli / Worker 快速开始使用的 demo world 导入文件 |
+| `tools/source/demo-state.yaml` | Worker play 模式的 authority-state 样例 |
 
-## 4. Fixture Usage Rules
+## 4. 夹具使用规则
 
-SDK examples should follow these rules:
+SDK 示例应遵守以下规则：
 
-1. reuse `runtime_task_dynamic_interfaces.json` for authority-query examples;
-2. reuse `tools/source/demo-world.yaml` and `tools/source/demo-state.yaml` for play-mode-facing walkthroughs;
-3. avoid embedding large inline JSON blobs in every language example when a shared file already exists;
-4. if one SDK needs a new fixture, add it under `tools/source/tests/` only when it is reusable by at least one other SDK or Worker scenario.
+1. authority-query 示例优先复用 `runtime_task_dynamic_interfaces.json`；
+2. 面向 play 模式的演示优先复用 `tools/source/demo-world.yaml` 和 `tools/source/demo-state.yaml`；
+3. 如果共享文件已存在，不要在每种语言示例里继续内嵌大段 JSON；
+4. 若某个 SDK 需要新增夹具，仅当它至少还能复用于另一个 SDK 或 Worker 场景时，才加入 `tools/source/tests/`。
 
-## 5. Current Shared Example Patterns
+## 5. 当前共享示例模式
 
-At the moment, the practical SDK examples converge around two shared patterns:
+当前 practical SDK 示例主要收敛到两种共享模式：
 
 - runtime task pull / claim / start / callback roundtrip
-- authority query trigger via `game_client_request_data`, then hand-off to `GameAgentWorker pull-once`
+- 通过 `game_client_request_data` 触发 authority query，再移交给 `GameAgentWorker pull-once`
 
-These two patterns are the baseline for language-to-language consistency.
+这两种模式是跨语言一致性的当前基线。

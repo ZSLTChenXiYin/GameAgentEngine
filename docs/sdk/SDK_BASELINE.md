@@ -1,4 +1,4 @@
-# SDK Baseline Specification
+# SDK 基线规范
 
 本文件定义多语言 SDK 的统一最低交付标准。
 
@@ -49,7 +49,7 @@
 ### S3：生态增强层（按语言价值补充）
 
 - 包管理发布元数据
-- 针对 Unity / Godot / Node.js / native plugin 的接入示例
+- 面向 Unity / Godot / Node.js / native plugin 的接入示例
 - 更完整的 typed enums / constants / helper builders
 
 ## 4. 最低对象模型
