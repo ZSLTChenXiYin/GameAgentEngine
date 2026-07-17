@@ -23,13 +23,17 @@ This directory is the canonical repository documentation set.
 
 ## Integration
 
-- [External Interaction Overview](./integration/EXTERNAL_INTERACTION.md)
-- [Continuity and Observability](./integration/CONTINUITY_AND_OBSERVABILITY.md)
+- [External Interaction Overview (ZH)](./integration/EXTERNAL_INTERACTION.md)
+- [External Interaction Overview (EN)](./integration/EXTERNAL_INTERACTION_EN.md)
+- [Continuity and Observability (ZH)](./integration/CONTINUITY_AND_OBSERVABILITY.md)
+- [Continuity and Observability (EN)](./integration/CONTINUITY_AND_OBSERVABILITY_EN.md)
 
 ## Gameplay
 
-- [Player Interaction Overview](./gameplay/PLAYER_INTERACTION.md)
-- [Game State Authority Boundary](./gameplay/GAME_STATE_AUTHORITY.md)
+- [Player Interaction Overview (ZH)](./gameplay/PLAYER_INTERACTION.md)
+- [Player Interaction Overview (EN)](./gameplay/PLAYER_INTERACTION_EN.md)
+- [Game State Authority Boundary (ZH)](./gameplay/GAME_STATE_AUTHORITY.md)
+- [Game State Authority Boundary (EN)](./gameplay/GAME_STATE_AUTHORITY_EN.md)
 
 ## Reference
 

@@ -25,7 +25,7 @@ Engine 当前支持三种对外任务投递模式：
 ## 3. 推荐接入模式
 
 | 场景 | 推荐模式 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | Engine 与游戏逻辑服务位于同一受控网络 | `push` | 链路最短，时延最低 |
 | 游戏客户端不方便暴露入站服务 | `pull` | 由客户端或 bridge 主动领取任务 |
 | 希望优先主动派发，但必须保留失败回退 | `hybrid` | push 失败后回落到 pull 队列 |
@@ -61,41 +61,40 @@ Engine 当前支持三种对外任务投递模式：
 4. Creator `Tasks` 页面
 5. Creator `Continuity` / `Logs` / `Traces` 页面
 
-## 7. Supplemental Material
+## 7. 补充材料
 
-This page is now the canonical external-interaction workflow entrypoint.
+本页现在是外部交互工作流的规范主入口。
 
-Keep detailed implementation-only notes under `docs/internal/` only when they still define a live contract or an unfinished future roadmap.
+仅当实现细节仍构成活跃契约或未完成未来路线图时，才把实现性笔记继续保留在 `docs/internal/`。
 
+## 8. 推荐接入模式扩展
 
-## 8. Recommended Integration Patterns
+当前外部交互基线可视为三种稳定模式：
 
-Treat the current external-interaction baseline as three stable patterns:
+- push：Engine 通过已配置的适配器派发，游戏侧通过 callback 完成
+- pull：游戏侧或 bridge 领取 runtime task、执行，再通过 callback 报告完成
+- hybrid：Engine 优先 push，派发失败后回落到 pull 队列消费
 
-- push: Engine dispatches through a configured adapter and the game side completes through callback
-- pull: the game side or a bridge claims runtime tasks, executes them, then reports completion through callback
-- hybrid: Engine prefers push first, then falls back into pull-style queue consumption when dispatch fails
+当前边界注意事项：
 
-Important current boundaries:
+- `fallback_transport` 目前表示回落到 pull 队列消费，而不是自动切换到另一种 push 适配器
+- `max_attempts` 约束的是 pull / hybrid 的领取重试行为，而不是完整死信系统
+- `record_only`、`write_memory` 等 callback post-process 行为应被视为任务快照行为
 
-- `fallback_transport` currently means falling back into pull-style queue consumption, not switching to another push adapter automatically
-- `max_attempts` constrains pull / hybrid claim-retry behavior rather than acting as a full dead-letter subsystem
-- callback post-process behavior such as `record_only` or `write_memory` should be treated as task-snapshot behavior
+## 9. 当前自动化覆盖边界
 
-## 9. Current Automated Coverage Boundary
+当前自动化外部交互基线覆盖：
 
-The current automated external-interaction baseline covers:
+- push 派发状态迁移和可观测字段
+- pull 队列 claim / start / heartbeat / release / requeue 路径
+- hybrid push 失败后回落到已释放的 pull 任务
+- callback 完成、暂停执行自动恢复，以及 `resume_policy = none` 行为
+- heartbeat 超时标记、自动 requeue 快照策略、重试耗尽和重复超时诊断
+- 基于 request-id 的 callback 重放保护
 
-- push dispatch state transition and observability fields
-- pull queue claim / start / heartbeat / release / requeue paths
-- hybrid push-failure fallback into released pull tasks
-- callback completion, paused-execution auto-resume, and `resume_policy = none` behavior
-- heartbeat-timeout marking, auto-requeue snapshot policy, retry exhaustion, and repeated-timeout diagnostics
-- request-id-based callback replay protection
+仍待增强的部分：
 
-Still future enhancement areas:
-
-- finer governance policies by `consumer` or `category`
-- richer multi-stage hybrid fallback state machines
-- stronger callback replay protection beyond request-id occupation
-- batch operator intervention flows on top of diagnostic views
+- 按 `consumer` 或 `category` 做更细的治理策略
+- 更丰富的多阶段 hybrid 回退状态机
+- 超出 request-id 占用之外的更强 callback 重放保护
+- 在诊断视图之上增加批量人工干预流程
