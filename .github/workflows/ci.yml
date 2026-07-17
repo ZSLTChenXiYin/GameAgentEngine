@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  go-build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build all packages
+        run: go build ./...
+
+      - name: Run tests
+        run: go test ./...
+
+  package-smoke-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run packaging script
+        run: bash tools/scripts/build.sh linux/amd64
+
+      - name: Verify packaged asset tree
+        run: |
+          test -f dist/GameAgentEngine-linux-amd64-v0.5.0/GameAgentEngine
+          test -f dist/GameAgentEngine-linux-amd64-v0.5.0/GameAgentDevCli
+          test -f dist/GameAgentEngine-linux-amd64-v0.5.0/GameAgentWorker
+          test -f dist/GameAgentEngine-linux-amd64-v0.5.0/gameagentengine.conf.yaml
+          test -f dist/GameAgentEngine-linux-amd64-v0.5.0/workerhome/demo/demo-world.yaml
+          test -f dist/GameAgentEngine-linux-amd64-v0.5.0/workerhome/demo/demo-state.yaml
+          test -f dist/GameAgentEngine-linux-amd64-v0.5.0/workerhome/fixtures/runtime_task_dynamic_interfaces.json
+          test -f dist/GameAgentEngine-linux-amd64-v0.5.0/web/GameAgentCreator/index.html
+
+  package-smoke-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run packaging script
+        shell: cmd
+        run: tools\scripts\build.bat windows/amd64
+
+      - name: Verify packaged asset tree
+        shell: powershell
+        run: |
+          if (-not (Test-Path 'dist/GameAgentEngine-windows-amd64-v0.5.0/GameAgentEngine.exe')) { throw 'missing GameAgentEngine.exe' }
+          if (-not (Test-Path 'dist/GameAgentEngine-windows-amd64-v0.5.0/GameAgentDevCli.exe')) { throw 'missing GameAgentDevCli.exe' }
+          if (-not (Test-Path 'dist/GameAgentEngine-windows-amd64-v0.5.0/GameAgentWorker.exe')) { throw 'missing GameAgentWorker.exe' }
+          if (-not (Test-Path 'dist/GameAgentEngine-windows-amd64-v0.5.0/gameagentengine.conf.yaml')) { throw 'missing gameagentengine.conf.yaml' }
+          if (-not (Test-Path 'dist/GameAgentEngine-windows-amd64-v0.5.0/workerhome/demo/demo-world.yaml')) { throw 'missing demo-world.yaml' }
+          if (-not (Test-Path 'dist/GameAgentEngine-windows-amd64-v0.5.0/workerhome/demo/demo-state.yaml')) { throw 'missing demo-state.yaml' }
+          if (-not (Test-Path 'dist/GameAgentEngine-windows-amd64-v0.5.0/workerhome/fixtures/runtime_task_dynamic_interfaces.json')) { throw 'missing runtime_task_dynamic_interfaces.json' }
+          if (-not (Test-Path 'dist/GameAgentEngine-windows-amd64-v0.5.0/web/GameAgentCreator/index.html')) { throw 'missing Creator index.html' }

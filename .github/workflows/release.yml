@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: linux/amd64
+            artifact_name: release-linux-amd64
+          - runner: ubuntu-latest
+            target: linux/arm64
+            artifact_name: release-linux-arm64
+          - runner: ubuntu-latest
+            target: darwin/amd64
+            artifact_name: release-darwin-amd64
+          - runner: ubuntu-latest
+            target: darwin/arm64
+            artifact_name: release-darwin-arm64
+          - runner: windows-latest
+            target: windows/amd64
+            artifact_name: release-windows-amd64
+          - runner: windows-latest
+            target: windows/arm64
+            artifact_name: release-windows-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Package on Unix
+        if: runner.os != 'Windows'
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: bash tools/scripts/build.sh ${{ matrix.target }}
+
+      - name: Package on Windows
+        if: runner.os == 'Windows'
+        shell: cmd
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: tools\scripts\build.bat ${{ matrix.target }}
+
+      - name: Upload packaged zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: package
+    steps:
+      - name: Download packaged zips
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*.zip
+          generate_release_notes: true

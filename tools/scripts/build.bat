@@ -8,7 +8,7 @@ REM ============ CONFIG ============
 set ALL_PLATFORMS=windows/amd64 windows/arm64 linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
 set SOURCE_DIR=tools\source
 set OUTPUT_DIR=dist
-set VERSION=v0.5.0
+if "%VERSION%"=="" set VERSION=v0.5.0
 REM ================================
 
 REM Detect current platform
@@ -27,7 +27,7 @@ if "%~1"=="" (
   if not errorlevel 1 set TARGETS=%ALL_PLATFORMS%
 )
 
-set LDFLAGS=-s -w -X "github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=%VERSION%" -X "github.com/ZSLTChenXiYin/GameAgentEngine/cmd/gameagentdevcli.devCliVersion=%VERSION%"
+set LDFLAGS=-s -w -X "github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=%VERSION%" -X "github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.MinCompatibleVersion=%VERSION%" -X "github.com/ZSLTChenXiYin/GameAgentEngine/cmd/gameagentdevcli.devCliVersion=%VERSION%"
 
 echo =========================================
 echo  GameAgentEngine Build Script

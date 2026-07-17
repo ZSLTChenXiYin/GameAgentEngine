@@ -21,7 +21,7 @@ ALL_PLATFORMS=(
 )
 SOURCE_DIR="tools/source"
 OUTPUT_DIR="dist"
-VERSION="v0.5.0"
+VERSION="${VERSION:-v0.5.0}"
 # ==============================
 
 detect_os="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -54,7 +54,7 @@ else
   done
 fi
 
-LDFLAGS="-s -w -X github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=${VERSION} -X github.com/ZSLTChenXiYin/GameAgentEngine/cmd/gameagentdevcli.devCliVersion=${VERSION}"
+LDFLAGS="-s -w -X github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.Version=${VERSION} -X github.com/ZSLTChenXiYin/GameAgentEngine/internal/version.MinCompatibleVersion=${VERSION} -X github.com/ZSLTChenXiYin/GameAgentEngine/cmd/gameagentdevcli.devCliVersion=${VERSION}"
 
 echo "========================================="
 echo " GameAgentEngine Build Script"
