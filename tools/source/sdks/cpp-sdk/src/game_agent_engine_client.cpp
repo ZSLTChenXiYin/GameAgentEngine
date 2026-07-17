@@ -9,6 +9,54 @@ std::string GameAgentEngineClient::healthPath() const { return base_url_ + "/hea
 std::string GameAgentEngineClient::versionPath() const { return base_url_ + "/api/v1/version"; }
 std::string GameAgentEngineClient::invokePath() const { return base_url_ + "/api/v1/invoke"; }
 std::string GameAgentEngineClient::interpretPlayerInputPath() const { return base_url_ + "/api/v1/player/input/interpret"; }
+std::string GameAgentEngineClient::advanceTickPath(const std::string& worldId) const {
+    return base_url_ + "/api/v1/worlds/" + worldId + "/ticks/advance";
+}
+
+std::string GameAgentEngineClient::worldSettingsPath(const std::string& worldId) const {
+    return base_url_ + "/api/v1/worlds/" + worldId + "/settings";
+}
+
+std::string GameAgentEngineClient::stateComponentsPath(const std::string& worldId) const {
+    return base_url_ + "/api/v1/worlds/" + worldId + "/state-components";
+}
+
+std::string GameAgentEngineClient::stateComponentPath(const std::string& worldId, const std::string& componentType) const {
+    return base_url_ + "/api/v1/worlds/" + worldId + "/state-components/" + componentType;
+}
+
+std::string GameAgentEngineClient::timelinesPath(const std::string& worldId, int limit) const {
+    std::ostringstream path;
+    path << base_url_ << "/api/v1/worlds/" << worldId << "/timelines";
+    if (limit > 0) {
+        path << "?limit=" << limit;
+    }
+    return path.str();
+}
+
+std::string GameAgentEngineClient::latestTimelinePath(const std::string& worldId) const {
+    return base_url_ + "/api/v1/worlds/" + worldId + "/timelines/latest";
+}
+
+std::string GameAgentEngineClient::logsPath(const std::string& worldId, int limit, int offset, const std::string& taskType) const {
+    std::ostringstream path;
+    path << base_url_ << "/api/v1/logs?world_id=" << worldId;
+    if (limit > 0) path << "&limit=" << limit;
+    if (offset > 0) path << "&offset=" << offset;
+    if (!taskType.empty()) path << "&task_type=" << taskType;
+    return path.str();
+}
+
+std::string GameAgentEngineClient::debugTracesPath(const std::string& worldId, int limit) const {
+    std::ostringstream path;
+    path << base_url_ << "/debug/traces?world_id=" << worldId;
+    if (limit > 0) path << "&limit=" << limit;
+    return path.str();
+}
+
+std::string GameAgentEngineClient::worldPolicyPath(const std::string& worldId) const {
+    return base_url_ + "/api/v1/worlds/" + worldId + "/policy";
+}
 std::string GameAgentEngineClient::pendingTasksPath(const std::string& consumer, int limit) const {
     return base_url_ + "/api/v1/runtime/tasks/pending?consumer=" + consumer + "&limit=" + std::to_string(limit);
 }
@@ -52,6 +100,18 @@ std::string GameAgentEngineClient::callbackPayload(const std::string& callbackId
 GameAgentEngineRequest GameAgentEngineClient::healthRequest() const { return {"GET", "/health", ""}; }
 GameAgentEngineRequest GameAgentEngineClient::invokeRequest(const std::string& bodyJson) const { return {"POST", "/api/v1/invoke", bodyJson}; }
 GameAgentEngineRequest GameAgentEngineClient::interpretPlayerInputRequest(const std::string& bodyJson) const { return {"POST", "/api/v1/player/input/interpret", bodyJson}; }
+GameAgentEngineRequest GameAgentEngineClient::advanceTickRequest(const std::string& worldId, const std::string& bodyJson) const { return {"POST", "/api/v1/worlds/" + worldId + "/ticks/advance", bodyJson}; }
+GameAgentEngineRequest GameAgentEngineClient::worldSettingsRequest(const std::string& worldId) const { return {"GET", "/api/v1/worlds/" + worldId + "/settings", ""}; }
+GameAgentEngineRequest GameAgentEngineClient::setWorldSettingsRequest(const std::string& worldId, const std::string& bodyJson) const { return {"PUT", "/api/v1/worlds/" + worldId + "/settings", bodyJson}; }
+GameAgentEngineRequest GameAgentEngineClient::stateComponentsRequest(const std::string& worldId) const { return {"GET", "/api/v1/worlds/" + worldId + "/state-components", ""}; }
+GameAgentEngineRequest GameAgentEngineClient::stateComponentRequest(const std::string& worldId, const std::string& componentType) const { return {"GET", "/api/v1/worlds/" + worldId + "/state-components/" + componentType, ""}; }
+GameAgentEngineRequest GameAgentEngineClient::putStateComponentRequest(const std::string& worldId, const std::string& componentType, const std::string& bodyJson) const { return {"PUT", "/api/v1/worlds/" + worldId + "/state-components/" + componentType, bodyJson}; }
+GameAgentEngineRequest GameAgentEngineClient::timelinesRequest(const std::string& worldId, int limit) const { return {"GET", timelinesPath(worldId, limit).substr(base_url_.size()), ""}; }
+GameAgentEngineRequest GameAgentEngineClient::latestTimelineRequest(const std::string& worldId) const { return {"GET", "/api/v1/worlds/" + worldId + "/timelines/latest", ""}; }
+GameAgentEngineRequest GameAgentEngineClient::logsRequest(const std::string& worldId, int limit, int offset, const std::string& taskType) const { return {"GET", logsPath(worldId, limit, offset, taskType).substr(base_url_.size()), ""}; }
+GameAgentEngineRequest GameAgentEngineClient::debugTracesRequest(const std::string& worldId, int limit) const { return {"GET", debugTracesPath(worldId, limit).substr(base_url_.size()), ""}; }
+GameAgentEngineRequest GameAgentEngineClient::worldPolicyRequest(const std::string& worldId) const { return {"GET", "/api/v1/worlds/" + worldId + "/policy", ""}; }
+GameAgentEngineRequest GameAgentEngineClient::setWorldPolicyRequest(const std::string& worldId, const std::string& bodyJson) const { return {"PUT", "/api/v1/worlds/" + worldId + "/policy", bodyJson}; }
 GameAgentEngineRequest GameAgentEngineClient::pendingTasksRequest(const std::string& consumer, int limit) const { return {"GET", "/api/v1/runtime/tasks/pending?consumer=" + consumer + "&limit=" + std::to_string(limit), ""}; }
 GameAgentEngineRequest GameAgentEngineClient::runtimeTasksRequest(const std::string& category, const std::string& status, int limit) const { return {"GET", runtimeTasksPath(category, status, limit).substr(base_url_.size()), ""}; }
 GameAgentEngineRequest GameAgentEngineClient::runtimeTaskRequest(const std::string& taskId) const { return {"GET", "/api/v1/runtime/tasks/" + taskId, ""}; }
