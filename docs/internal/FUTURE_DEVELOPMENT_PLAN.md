@@ -74,6 +74,8 @@ Status: completed.
 - keep only packaged runtime assets under `tools/source`
 - move SDK overview / baseline / capability docs into `docs/`
 - remove scattered READMEs under command and SDK folders after migration
+- normalize formal documentation filenames to uppercase naming
+- require every formal documentation page to have both Chinese and English counterparts
 
 ### F5 checklist
 
@@ -81,6 +83,8 @@ Status: completed.
 2. trim remaining low-value historical docs that no longer describe the live workflow
 3. keep only docs that still define active contracts, boundaries, or design rationale
 4. make sure `docs/` remains the only formal documentation tree
+5. normalize surviving formal doc filenames to uppercase naming
+6. add or backfill English/Chinese counterparts for every surviving formal doc page
 
 Status: in progress.
 
@@ -96,6 +100,7 @@ Status: completed for the current worker-driven test workflow baseline.
 - centralize SDK documentation into `docs/`
 - keep SDK folders code-and-examples only
 - continue aligning SDK outward-facing responsibilities with the Go SDK baseline
+- apply the same uppercase naming and bilingual-document rule to SDK-facing formal docs
 
 Status: pending.
 
