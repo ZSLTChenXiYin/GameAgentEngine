@@ -555,6 +555,7 @@ func (p *Pipeline) ResumePausedExecution(callbackID string, result any) (*Invoke
 			label = "game_client"
 		}
 		state.SupplementalContext = append(state.SupplementalContext, "[数据查询回填] "+label, resolved)
+				if len(state.SupplementalContext) > 16 { state.SupplementalContext = state.SupplementalContext[len(state.SupplementalContext)-16:] }
 		appendRoundStateTreeEntry(state, pausedRound, nil, resolved)
 	}
 	start := time.Now()
@@ -2133,11 +2134,13 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 						roundNode.Decision = "[数据查询] " + dr.Label
 					} else {
 						state.SupplementalContext = append(state.SupplementalContext, "[数据查询] "+dr.Label, result)
+				if len(state.SupplementalContext) > 16 { state.SupplementalContext = state.SupplementalContext[len(state.SupplementalContext)-16:] }
 					}
 					appendRoundStateTreeEntry(state, round+1, parsed, result)
 					// E2: inject convergence instruction before the next round
 					if conv := convergenceCheck(runtime, round+1, &dr); conv != "" {
 						state.SupplementalContext = append(state.SupplementalContext, "[收敛指令]", conv)
+						if len(state.SupplementalContext) > 16 { state.SupplementalContext = state.SupplementalContext[len(state.SupplementalContext)-16:] }
 					}
 					continue
 				}
