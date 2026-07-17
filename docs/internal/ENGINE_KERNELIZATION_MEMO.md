@@ -1,163 +1,162 @@
-# Engine Kernelization Memo
+# Engine 内核化备忘录
 
-This document records the current architectural judgment about future Engine kernelization work.
+本文记录当前关于未来 Engine 内核化工作的架构判断。
 
-It is not a commitment to start implementation now.
-Its purpose is to preserve the design direction and boundary decisions so they are not lost before the Engine feature set is mature enough.
+它不是现在立刻启动实现的承诺。
+它的目的，是在 Engine 功能集还没有成熟到足以真正实施之前，先把设计方向和边界决策保留下来，避免遗失。
 
-## 1. Current conclusion
+## 1. 当前结论
 
-GameAgentEngine is suitable for future kernelization work.
+GameAgentEngine 适合在未来推进内核化工作。
 
-The correct target is not:
+正确目标不是：
 
-- compile the current HTTP service directly into a DLL / so / dylib and treat that as the final architecture
+- 直接把当前 HTTP 服务编译成 DLL / so / dylib，并把它当成最终架构
 
-The correct target is:
+正确目标是：
 
-- refactor the Engine into a host-agnostic runtime core
-- let the host process own communication, persistence, and LLM invocation paths
-- keep Engine focused on semantic runtime, orchestration, continuity, and execution rules
+- 把 Engine 重构成与宿主无关的运行时核心
+- 让宿主进程拥有通信、持久化和 LLM 调用路径
+- 让 Engine 聚焦语义运行时、编排、连续性和执行规则
 
-In short, the goal is to turn Engine from a service-owned runtime into an embeddable inference kernel.
+简而言之，目标是把 Engine 从“服务拥有的运行时”，变成“可嵌入的推理内核”。
 
-## 2. Why this is feasible in the current repository
+## 2. 为什么当前仓库具备这个可行性
 
-The current repository already has meaningful layering.
+当前仓库已经有相对清晰的分层。
 
-- `internal/engine`: inference pipeline, context build, orchestration, world tick continuity, action and memory flow
-- `internal/service`: world management, transactional workflows, persistence-side orchestration
-- `internal/store`: database access and persistence implementation
-- `internal/api`: HTTP surface
-- `internal/llm`: provider-side LLM access
-- `internal/external`: external dispatch adapters
-- `cmd/gameagentengine`: process bootstrap and server assembly
+- `internal/engine`：推理管线、上下文构建、编排、world tick 连续性、action 与 memory 流
+- `internal/service`：世界管理、事务工作流、持久化侧编排
+- `internal/store`：数据库访问与持久化实现
+- `internal/api`：HTTP 暴露层
+- `internal/llm`：provider 侧 LLM 访问
+- `internal/external`：外部派发适配器
+- `cmd/gameagentengine`：进程引导与服务装配
 
-That means future kernelization is primarily a boundary and ownership refactor, not a rewrite from zero.
+这意味着未来的内核化主要是边界与所有权重构，而不是从零重写。
 
-## 3. Primary motivations
+## 3. 主要动机
 
-The intended value of kernelization is broader than replacing HTTP with a local dynamic library call.
+内核化的价值不只是把 HTTP 换成本地动态库调用。
 
-### 3.1 Communication goes from service IO to in-process ABI
+### 3.1 通信从服务 IO 转向进程内 ABI
 
-The expected direction is:
+预期方向是：
 
-- replace inter-process JSON request/response exchange with in-process binary message exchange
-- bypass HTTP routing, middleware, and JSON encode/decode overhead on hot paths
-- reduce string-heavy payload assembly and repeated object reconstruction
+- 把进程间 JSON request/response 交换，替换为进程内二进制消息交换
+- 绕过 HTTP 路由、中间件以及 JSON 编解码在热路径上的开销
+- 减少以字符串为主的大载荷拼装与重复对象重建
 
-Important note:
+需要强调的是：
 
-The gain does not come only from changing JSON to binary.
-The gain depends on also making the host-kernel boundary coarse-grained enough.
+收益并不只是来自把 JSON 换成二进制。
+收益还取决于是否把宿主-内核边界设计得足够粗粒度。
 
-If the future boundary still exposes many tiny CRUD-style calls, the system will only replace many small JSON round-trips with many small ABI round-trips.
-That would dilute most of the benefit.
+如果未来边界仍然暴露大量细碎的 CRUD 风格调用，那么系统只是把很多小 JSON 往返替换成很多小 ABI 往返，收益会被大幅稀释。
 
-### 3.2 Persistence goes from Engine-owned CRUD to host-owned state bridging
+### 3.2 持久化从 Engine 自有 CRUD 转向宿主自有状态桥接
 
-The intended direction is:
+预期方向是：
 
-- Engine should stop assuming ownership of database access
-- Engine should declare what state it needs and what state changes it produces
-- the host process should decide where data comes from, how it is cached, and how it is persisted
+- Engine 停止默认拥有数据库访问权
+- Engine 声明它需要什么状态，以及它会产出什么状态变更
+- 宿主进程决定数据从哪里来、如何缓存、如何持久化
 
-This allows the host to bridge state using its own storage model, such as:
+这样宿主可以按照自己的存储模型桥接状态，例如：
 
-- in-memory runtime state
+- 内存运行时状态
 - SQLite
-- custom save systems
-- ECS-backed state
-- platform-specific authority services
+- 自定义存档系统
+- 基于 ECS 的状态
+- 平台特定的权威服务
 
-Important note:
+同样需要强调：
 
-The future design should not turn into a high-frequency demand-driven state RPC system between host and kernel.
-The preferred main path is:
+未来设计不应演变成宿主和内核之间的高频按需状态 RPC 系统。
+更推荐的主路径是：
 
 - snapshot-in
 - patch-out
 
-That means the host feeds a sufficiently complete state slice or runtime snapshot into the kernel, and the kernel returns patches, effects, plans, memory updates, and pending continuation state.
+也就是说，由宿主向内核送入足够完整的状态切片或运行时快照，再由内核输出 patch、effect、plan、memory update 和待恢复状态。
 
-Demand-driven bridge calls should remain supplemental, not the dominant execution path.
+按需桥接调用应作为补充，而不应成为主执行路径。
 
-### 3.3 LLM invocation goes from Engine-owned provider flow to host-owned inference pipeline
+### 3.3 LLM 调用从 Engine 自有 provider 流转向宿主自有推理管线
 
-The intended direction is:
+预期方向是：
 
-- Engine prepares prompts, context, contracts, and expected structured output
-- the host process performs the real model invocation
-- the host uses its own network path, inference middleware, connection pools, internal routing, dedicated links, and fallback strategy
+- Engine 准备 prompt、上下文、契约和预期结构化输出
+- 宿主进程真正执行模型调用
+- 宿主使用自己的网络路径、推理中间件、连接池、内部路由、专线以及 fallback 策略
 
-This is especially important for environments where the host already has a private inference pipeline or an internal high-speed service route.
+对于宿主已经拥有私有推理链路或内部高速服务路径的环境，这一点尤其重要。
 
-The correct abstraction is not "Engine owns the model call".
-The correct abstraction is closer to:
+正确抽象不是“Engine 拥有模型调用”。
+更正确的抽象更接近：
 
-- Engine produces an inference specification
-- host executes it
-- host returns a structured result envelope
+- Engine 产出 inference specification
+- host 执行它
+- host 返回结构化结果信封
 
-This can reduce deployment coupling and often improves real latency more than localizing the HTTP service layer alone.
+这会降低部署耦合，在很多场景下，带来的真实时延改善甚至比单纯把 HTTP 服务本地化还更明显。
 
-## 4. Target ownership model
+## 4. 目标所有权模型
 
-### 4.1 Current tendency
+### 4.1 当前倾向
 
-Today the system tends toward the following ownership model:
+当前系统更接近这样的所有权模型：
 
-- Engine owns API exposure
-- Engine owns persistence path
-- Engine owns LLM provider path
-- external systems integrate around the Engine service
+- Engine 拥有 API 暴露
+- Engine 拥有持久化路径
+- Engine 拥有 LLM provider 路径
+- 外部系统围绕 Engine 服务集成
 
-### 4.2 Future kernelized tendency
+### 4.2 未来内核化倾向
 
-The future kernelized model should invert that ownership:
+未来的内核化模型应反转这种所有权：
 
-- host owns IO
-- host owns persistence implementation
-- host owns LLM pipeline access
-- Engine owns semantic runtime rules and execution logic only
+- host 拥有 IO
+- host 拥有持久化实现
+- host 拥有 LLM 管线接入
+- Engine 只拥有语义运行时规则和执行逻辑
 
-This inversion is the real point of kernelization.
-The dynamic library form is only one packaging option.
+这种反转才是内核化的核心。
+动态库形态只是其中一种打包形式。
 
-## 5. What should remain inside the kernel
+## 5. 哪些能力应保留在内核中
 
-The future kernel should preserve the parts of Engine that are its real product value.
+未来内核应保留 Engine 真正有产品价值的部分：
 
-- world semantic model
-- context building and reduction rules
-- relation and memory selection logic
-- pipeline modes and multi-round orchestration
-- structured output parsing and validation
-- action planning and execution rules
-- world tick continuity and narrative state transitions
-- pending continuation and resume state machines
-- embedding-safe interaction contracts
+- 世界语义模型
+- 上下文构建与裁剪规则
+- 关系与记忆选择逻辑
+- pipeline mode 与多轮编排
+- 结构化输出解析与校验
+- action planning 与执行规则
+- world tick 连续性与叙事状态迁移
+- pending continuation 与 resume 状态机
+- 可嵌入的交互契约
 
-## 6. What should become host bridges
+## 6. 哪些能力应变成宿主桥接
 
-The following capabilities should move toward explicit host-provided bridge interfaces.
+以下能力应逐步转向显式的宿主桥接接口：
 
-- LLM invocation
-- state read and write
-- external action execution
-- runtime task dispatch
-- scheduler and clock access
-- logging, metrics, and trace sinks
-- lock and transaction policy
+- LLM 调用
+- 状态读写
+- 外部 action 执行
+- runtime task 派发
+- scheduler 与 clock 访问
+- logging、metrics 与 trace sink
+- lock 与 transaction policy
 
-These should not remain hidden inside a server-only runtime assumption.
+这些能力不应继续隐藏在“默认是 server runtime”的假设中。
 
-## 7. What the host-kernel boundary should prefer
+## 7. 宿主-内核边界应偏好的形态
 
-The future boundary should prefer coarse-grained semantic operations rather than tiny persistence-style calls.
+未来边界应优先暴露粗粒度的语义操作，而不是细碎的持久化式调用。
 
-Examples of the correct shape:
+正确形态示例：
 
 - `invoke_dialogue`
 - `advance_world_tick`
@@ -166,20 +165,20 @@ Examples of the correct shape:
 - `resume_pending_effect`
 - `commit_state_patch`
 
-Examples of the wrong default shape:
+错误的默认形态示例：
 
-- many per-field updates
-- many per-component fetches
-- relation-by-relation remote access
-- memory-by-memory host callbacks during normal execution
+- 大量 per-field 更新
+- 大量 per-component 拉取
+- relation-by-relation 远程访问
+- 正常执行期内 memory-by-memory 的宿主回调
 
-The kernel should consume structured runtime state and return structured runtime results.
+内核应消费结构化运行时状态，并返回结构化运行时结果。
 
-## 8. Recommended message model direction
+## 8. 建议的消息模型方向
 
-The future interface should move away from exposing current HTTP DTOs or database models as the stable kernel contract.
+未来接口应逐步脱离当前 HTTP DTO 或数据库模型，不应把它们直接暴露成稳定的内核契约。
 
-The stable direction should instead revolve around runtime messages such as:
+更稳定的方向应围绕这些运行时消息展开：
 
 - `WorldSnapshot`
 - `RuntimeContext`
@@ -189,32 +188,32 @@ The stable direction should instead revolve around runtime messages such as:
 - `ActionEffect`
 - `PendingContinuation`
 
-These names are directional only, not final API commitments.
+这些名称只是方向性建议，不是最终 API 承诺。
 
-## 9. Major expected benefits
+## 9. 主要预期收益
 
-If implemented correctly, kernelization can provide the following benefits.
+如果实现得当，内核化可以带来这些收益：
 
-- lower communication overhead on hot paths
-- better alignment with engine-side authority and save systems
-- direct access to host-owned LLM infrastructure and private service links
-- cleaner reuse across Unity, Unreal Engine, and Godot as different hosts over one runtime core
-- lower deployment friction in embedded scenarios
+- 热路径通信开销更低
+- 与引擎侧权威系统和存档系统对齐得更自然
+- 可直接复用宿主已有的 LLM 基础设施与私有服务链路
+- 更容易在 Unity、Unreal Engine 和 Godot 等不同宿主间复用同一运行时核心
+- 在嵌入式场景中降低部署摩擦
 
-## 10. Major risks and constraints
+## 10. 主要风险与约束
 
-Kernelization is feasible, but it is not low-cost.
+内核化是可行的，但它绝不是低成本工作。
 
-### 10.1 Interface design risk
+### 10.1 接口设计风险
 
-The largest risk is designing the wrong host-kernel protocol.
+最大的风险，是把宿主-内核协议设计错。
 
-If the future contract is too fine-grained, the project will preserve most of the current boundary cost in a different form.
-If the contract simply mirrors current HTTP DTOs or GORM-facing models, the result will be an embedded service, not a true kernel.
+如果未来契约过于细粒度，项目会以另一种形式保留大部分当前边界成本。
+如果契约只是简单镜像当前 HTTP DTO 或 GORM 模型，那么结果会是“嵌入式服务”，而不是真正的内核。
 
-### 10.2 Observability regression risk
+### 10.2 可观测性回退风险
 
-Once LLM invocation and persistence ownership move to the host, the kernel will no longer automatically own the full trace of:
+一旦 LLM 调用和持久化所有权转移到宿主，内核将不再自动拥有以下完整链路追踪：
 
 - request path
 - retry behavior
@@ -223,58 +222,58 @@ Once LLM invocation and persistence ownership move to the host, the kernel will 
 - provider fallback
 - environment-specific failures
 
-That means the host must return enough metadata with inference results and state application results for meaningful diagnosis.
+这意味着宿主必须在推理结果和状态应用结果中返回足够的元数据，才能支撑有意义的诊断。
 
-### 10.3 Runtime model migration cost
+### 10.3 运行时模型迁移成本
 
-Several current conveniences are built around the service model, including:
+当前围绕服务模型已经内建了不少便利能力，例如：
 
-- automatic migrations
-- callback persistence
-- runtime task recovery
-- centralized log sink
-- world lock handling
+- 自动迁移
+- callback 持久化
+- runtime task 恢复
+- 中央日志汇聚
+- world lock 处理
 - database retry policy
 
-These do not disappear, but they stop being implicit Engine ownership and become explicit bridge policy.
+这些能力不会消失，但它们不再是 Engine 的隐式所有权，而会变成宿主显式桥接策略的一部分。
 
-### 10.4 Multi-engine packaging risk
+### 10.4 多引擎打包风险
 
-Even after the runtime core is well designed, Unity, Unreal Engine, and Godot will still need separate host bindings and lifecycle integration.
-That work should be treated as a later phase, not as the first definition of success.
+即使运行时核心设计得很好，Unity、Unreal Engine 和 Godot 依然需要各自独立的宿主绑定和生命周期集成。
+这项工作应被视为后续阶段，而不是第一阶段成功的定义。
 
-## 11. Recommended sequencing
+## 11. 建议时序
 
-Kernelization should not start immediately.
+内核化不应立即启动。
 
-The current correct sequencing is:
+当前正确时序是：
 
-1. finish maturing Engine kernel features and contracts first
-2. keep stabilizing interaction, intent, continuity, callback, and runtime task semantics
-3. postpone kernelization implementation until those contracts are sufficiently mature
-4. when implementation begins, validate the host-agnostic runtime boundary before doing full multi-engine binding work
+1. 先继续打磨 Engine 内核功能和契约
+2. 继续稳定 interaction、intent、continuity、callback 和 runtime task 语义
+3. 等这些契约足够成熟后，再启动内核化实现
+4. 真正开始实现时，先验证宿主无关的运行时边界，再做多引擎绑定
 
-The first real implementation milestone should be a local embedding proof of concept for the runtime boundary, not immediate Unity + UE + Godot production binding work.
+第一个真正的实现里程碑，应是本地嵌入式运行时边界的 proof of concept，而不是立刻推进 Unity + UE + Godot 的生产级绑定。
 
-## 12. Pre-implementation checkpoint
+## 12. 实施前检查点
 
-Before kernelization begins, the project should re-evaluate at least the following questions.
+在内核化开始前，项目至少应重新审视以下问题：
 
-- Which latency is actually the primary bottleneck now?
-- Which calls are truly high-frequency?
-- Which state must remain host-authoritative?
-- Which state should remain Engine-authoritative?
-- Which flows must be synchronous and which can stay resumable or deferred?
-- Which observability fields must the host return for inference and persistence results?
+- 当前真正的主瓶颈时延是什么？
+- 哪些调用是真正高频的？
+- 哪些状态必须保持宿主权威？
+- 哪些状态应该继续保持 Engine 权威？
+- 哪些流程必须同步，哪些可以继续做成可恢复或延迟执行？
+- 对于推理与持久化结果，宿主必须返回哪些可观测字段？
 
-If these questions are still unclear, implementation should not start.
+如果这些问题仍不清楚，就不应开始实现。
 
-## 13. Final standing decision
+## 13. 当前最终决定
 
-The current standing decision is:
+当前的固定结论是：
 
-- keep this memo as design guidance only
-- do not start kernelization implementation yet
-- revisit this document after Engine functionality and contracts are mature enough
+- 先把本文保留为设计指导
+- 暂不启动内核化实现
+- 等 Engine 功能和契约足够成熟后，再回到本文
 
-At that point, the project can turn this memo into a concrete architecture and execution plan.
+到那时，项目再把本文转化为具体的架构与实施计划。
