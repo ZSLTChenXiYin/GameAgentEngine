@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 )
 
 type ManagedProcess struct {
@@ -36,7 +35,7 @@ func StartProcess(filePath string, args []string, workingDir string, stdoutPath 
 	if workingDir != "" {
 		cmd.Dir = workingDir
 	}
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	applyProcessAttrs(cmd)
 	if err := cmd.Start(); err != nil {
 		_ = stdoutFile.Close()
 		_ = stderrFile.Close()
