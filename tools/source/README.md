@@ -1,15 +1,17 @@
 # GameAgentEngine Packaged Assets
 
-这个目录用于承载打包产物随附的运行资产，而不是完整仓库文档。
+This directory is for packaged runtime assets only. It is not the formal repository documentation tree.
 
-## 本目录当前应只包含
+## Intended Contents
 
-- 运行配置模板：`gameagentengine.conf.yaml`
-- demo 资产：`demo-world.yaml`、`demo-state.yaml`
-- Worker / 集成测试工作数据：`tests/`
-- Creator 静态资源：`web/GameAgentCreator/`
+This directory should currently contain only packaged runtime assets such as:
 
-## 推荐启动路径
+- runtime config templates, for example `gameagentengine.conf.yaml`
+- demo assets, for example `demo-world.yaml` and `demo-state.yaml`
+- Worker / integration-test working data under `tests/`
+- Creator static assets under `web/GameAgentCreator/`
+
+## Recommended Startup Path
 
 ```bash
 GameAgentEngine serve
@@ -18,14 +20,18 @@ GameAgentDevCli creator
 GameAgentWorker play --state-file demo-state.yaml --world-id demo_world --player-node-id player_001
 ```
 
-## 文档说明
+## Documentation Note
 
-这个目录不再维护独立的多语言文档副本。
+This directory no longer maintains a separate formal documentation copy.
 
-如果你在源码仓库中工作，完整文档请查看仓库根目录 `README.md` 与 `docs/` 目录。
+- If you are working in the source repository, use the root `README.md` and the `docs/` tree.
+- If you are using a packaged artifact directory, refer to the project documentation on GitHub instead of expecting a full local `docs/` tree here.
 
-如果你当前使用的是打包产物目录，请直接查看项目 GitHub 上对应的文档页面；打包产物本身不再附带完整 `docs/` 树。
+Repository entrypoints:
 
-## 许可证
+- GitHub repository: <https://github.com/ZSLTChenXiYin/GameAgentEngine>
+- Source docs entry: `README.md` and `docs/`
+
+## License
 
 MIT

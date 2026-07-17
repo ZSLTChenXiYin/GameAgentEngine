@@ -86,7 +86,7 @@ Status: completed.
 5. normalize surviving formal doc filenames to uppercase naming
 6. add or backfill English/Chinese counterparts for every surviving formal doc page
 
-Status: in progress.
+Status: completed.
 
 ## F6 tests consolidation
 
@@ -102,7 +102,7 @@ Status: completed for the current worker-driven test workflow baseline.
 - continue aligning SDK outward-facing responsibilities with the Go SDK baseline
 - apply the same uppercase naming and bilingual-document rule to SDK-facing formal docs
 
-Status: pending.
+Status: in progress.
 
 ## F8 Packaged artifact acceptance
 
