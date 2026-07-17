@@ -8,6 +8,51 @@ const char* gae_health_path(void) { return "/health"; }
 const char* gae_version_path(void) { return "/api/v1/version"; }
 const char* gae_invoke_path(void) { return "/api/v1/invoke"; }
 const char* gae_interpret_player_input_path(void) { return "/api/v1/player/input/interpret"; }
+const char* gae_advance_tick_path(const char* world_id) {
+    snprintf(gae_buffer, sizeof(gae_buffer), "/api/v1/worlds/%s/ticks/advance", world_id);
+    return gae_buffer;
+}
+const char* gae_world_settings_path(const char* world_id) {
+    snprintf(gae_buffer, sizeof(gae_buffer), "/api/v1/worlds/%s/settings", world_id);
+    return gae_buffer;
+}
+const char* gae_state_components_path(const char* world_id) {
+    snprintf(gae_buffer, sizeof(gae_buffer), "/api/v1/worlds/%s/state-components", world_id);
+    return gae_buffer;
+}
+const char* gae_state_component_path(const char* world_id, const char* component_type) {
+    snprintf(gae_buffer, sizeof(gae_buffer), "/api/v1/worlds/%s/state-components/%s", world_id, component_type);
+    return gae_buffer;
+}
+const char* gae_timelines_path(const char* world_id, int limit) {
+    snprintf(gae_buffer, sizeof(gae_buffer), "/api/v1/worlds/%s/timelines?limit=%d", world_id, limit);
+    return gae_buffer;
+}
+const char* gae_latest_timeline_path(const char* world_id) {
+    snprintf(gae_buffer, sizeof(gae_buffer), "/api/v1/worlds/%s/timelines/latest", world_id);
+    return gae_buffer;
+}
+const char* gae_logs_path(const char* world_id, int limit, int offset, const char* task_type) {
+    snprintf(
+        gae_buffer,
+        sizeof(gae_buffer),
+        "/api/v1/logs?world_id=%s&limit=%d&offset=%d%s%s",
+        world_id,
+        limit,
+        offset,
+        (task_type && task_type[0]) ? "&task_type=" : "",
+        (task_type && task_type[0]) ? task_type : ""
+    );
+    return gae_buffer;
+}
+const char* gae_debug_traces_path(const char* world_id, int limit) {
+    snprintf(gae_buffer, sizeof(gae_buffer), "/debug/traces?world_id=%s&limit=%d", world_id, limit);
+    return gae_buffer;
+}
+const char* gae_world_policy_path(const char* world_id) {
+    snprintf(gae_buffer, sizeof(gae_buffer), "/api/v1/worlds/%s/policy", world_id);
+    return gae_buffer;
+}
 const char* gae_pending_tasks_path(const char* consumer, int limit) {
     snprintf(gae_buffer, sizeof(gae_buffer), "/api/v1/runtime/tasks/pending?consumer=%s&limit=%d", consumer, limit);
     return gae_buffer;
