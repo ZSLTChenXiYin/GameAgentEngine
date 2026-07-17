@@ -15,11 +15,11 @@ Status levels:
 | `ts-sdk` | practical | yes | yes | yes | yes | yes | yes | strongest non-Go SDK at the moment |
 | `js-sdk` | practical | yes | yes | yes | yes | yes | yes | lightweight plain Node.js / scripting counterpart |
 | `cs-sdk` | practical | yes | yes | yes | yes | yes | yes | typed client aimed at Unity / .NET integration |
-| `gd-sdk` | practical-request-builder | request builders | request builders | request builders | request builders | request builders | yes | worker authority-query and roundtrip examples are present, but the execution wrapper is still absent |
-| `cpp-sdk` | baseline+worker-examples | partial | partial | partial | partial | no | yes | request-builder surface now covers pull/callback helper sequences and worker examples |
+| `gd-sdk` | practical-request-builder | request builders | request builders | request builders | request builders | request builders | yes | worker authority-query, roundtrip, and continuity-inspect examples are present, but the execution wrapper is still absent |
+| `cpp-sdk` | baseline+worker-examples | partial | partial | partial | partial | partial | yes | request-builder surface now covers continuity, pull, and callback helper sequences plus worker examples |
 | `java-sdk` | practical | yes | yes | yes | yes | yes | yes | real HTTP client now covers world settings, state, timelines, logs, debug traces, world policy, and a continuity-inspection example |
-| `lua-sdk` | baseline+worker-examples | partial | partial | partial | partial | no | yes | lightweight request helpers now mirror the worker loop and authority-query sequence |
-| `c-sdk` | baseline+worker-examples | partial | partial | partial | partial | no | yes | path/payload helpers and worker examples exist, while the caller still owns transport |
+| `lua-sdk` | baseline+worker-examples | partial | partial | partial | partial | partial | yes | lightweight request helpers now mirror the worker loop, authority-query, and basic continuity inspection sequence |
+| `c-sdk` | baseline+worker-examples | partial | partial | partial | partial | partial | yes | path/payload helpers plus worker and continuity-inspect examples exist, while the caller still owns transport |
 
 ## 2. What practical Means Here
 

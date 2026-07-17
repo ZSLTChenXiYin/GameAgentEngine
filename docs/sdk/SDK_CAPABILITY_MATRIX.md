@@ -15,11 +15,11 @@
 | `ts-sdk` | practical | yes | yes | yes | yes | yes | yes | 当前最强的非 Go SDK |
 | `js-sdk` | practical | yes | yes | yes | yes | yes | yes | 面向纯 Node.js / 脚本工具链的轻量同构版本 |
 | `cs-sdk` | practical | yes | yes | yes | yes | yes | yes | 面向 Unity / .NET 的 typed client |
-| `gd-sdk` | practical-request-builder | request builders | request builders | request builders | request builders | request builders | yes | 已补齐 worker authority-query 与 roundtrip 示例，但执行包装层仍缺失 |
-| `cpp-sdk` | baseline+worker-examples | partial | partial | partial | partial | no | yes | 请求构造层已覆盖 pull/callback 辅助序列与 worker 示例 |
-| `java-sdk` | baseline+worker-loop | yes | yes | yes | yes | no | yes | 已有真实 HTTP client 和 authority-query / callback roundtrip 示例，但观测面仍偏浅 |
-| `lua-sdk` | baseline+worker-examples | partial | partial | partial | partial | no | yes | 轻量 request helper 已镜像 worker loop 与 authority-query 顺序 |
-| `c-sdk` | baseline+worker-examples | partial | partial | partial | partial | no | yes | 路径/payload helper 与 worker 示例已具备，调用方仍自管 transport |
+| `gd-sdk` | practical-request-builder | request builders | request builders | request builders | request builders | request builders | yes | 已补齐 worker authority-query 与 roundtrip 示例，并新增 continuity inspect 示例 |
+| `cpp-sdk` | baseline+worker-examples | partial | partial | partial | partial | partial | yes | 请求构造层已覆盖 continuity / pull / callback 辅助序列与 worker 示例 |
+| `java-sdk` | practical | yes | yes | yes | yes | yes | yes | 已有真实 HTTP client，并覆盖 world settings / state / timelines / logs / debug traces / world policy 与 continuity inspect 示例 |
+| `lua-sdk` | baseline+worker-examples | partial | partial | partial | partial | partial | yes | 轻量 request helper 已镜像 worker loop、authority-query 与基础 continuity 检查顺序 |
+| `c-sdk` | baseline+worker-examples | partial | partial | partial | partial | partial | yes | 路径/payload helper 与 worker、continuity inspect 示例已具备，调用方仍自管 transport |
 
 ## 2. 这里的 practical 含义
 
@@ -40,6 +40,7 @@
 - `js-sdk`
 - `cs-sdk`
 - `gd-sdk`
+- `java-sdk`
 
 这些 SDK 已经直接映射到当前 Engine / Worker 开发工作流。
 

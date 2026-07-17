@@ -68,9 +68,9 @@ This document centralizes the positioning, current coverage, and attached exampl
   - request builders for invoke / player input interpretation
   - request builders for runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats
   - request builders for callback
-  - request builders for world settings / state components / timelines / logs / debug traces
+  - request builders for world settings / state components / timelines / logs / debug traces / world policy
   - request builders for world tick advance
-- attached examples: worker authority query / runtime roundtrip
+- attached examples: worker authority query / runtime roundtrip / continuity inspect
 - note: returns Godot-friendly request dictionaries and leaves HTTP transport to the host project
 
 ## Java SDK
@@ -99,10 +99,11 @@ This document centralizes the positioning, current coverage, and attached exampl
 - positioning: request-construction baseline for native-side integration
 - current coverage:
   - request builders for health / version / invoke / player input interpretation
+  - request builders for world tick advance / world settings / state components / timelines / logs / debug traces / world policy
   - request builders for runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats
   - request builders for callback
-  - worker authority-query / runtime roundtrip examples
-- current status: does not ship a full HTTP transport layer, but already provides the minimum request sequence needed to integrate with Worker
+  - worker authority-query / runtime roundtrip / continuity inspect examples
+- current status: does not ship a full HTTP transport layer, but its request-builder layer now covers the minimum sequence needed for Worker integration and basic continuity inspection
 
 ## C SDK
 
@@ -110,10 +111,11 @@ This document centralizes the positioning, current coverage, and attached exampl
 - positioning: lowest-dependency native-side integration baseline
 - current coverage:
   - path helpers for health / version / invoke / player input interpretation
+  - path helpers for world settings / state components / timelines / logs / debug traces / world policy
   - path / payload helpers for runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats
   - callback payload construction
-  - worker authority-query / runtime roundtrip examples
-- current status: does not ship an HTTP transport layer, but already covers the basic request assembly needed for Worker integration
+  - worker authority-query / runtime roundtrip / continuity inspect examples
+- current status: does not ship an HTTP transport layer, but already covers the request assembly needed for Worker integration and basic continuity inspection
 
 ## Lua SDK
 
@@ -121,10 +123,11 @@ This document centralizes the positioning, current coverage, and attached exampl
 - positioning: lightweight script-side integration baseline
 - current coverage:
   - health / version / invoke / player input interpretation path and request helpers
+  - world tick advance / world settings / state components / timelines / logs / debug traces / world policy request helpers
   - runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats helpers
   - callback payload / request helpers
-  - worker authority-query / runtime roundtrip examples
-- current status: does not ship an HTTP transport layer, but the request-construction layer already matches the Worker integration sequence directly
+  - worker authority-query / runtime roundtrip / continuity inspect examples
+- current status: does not ship an HTTP transport layer, but the request-construction layer already matches the Worker integration sequence and a basic continuity inspection sequence directly
 
 ## Unified Requirements
 

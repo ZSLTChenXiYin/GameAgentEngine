@@ -68,16 +68,16 @@
   - invoke / player input interpretation 请求构造
   - runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats 请求构造
   - callback 请求构造
-  - world settings / state components / timelines / logs / debug traces 请求构造
+  - world settings / state components / timelines / logs / debug traces / world policy 请求构造
   - world tick advance 请求构造
-- 附带示例：worker authority query / runtime roundtrip
+- 附带示例：worker authority query / runtime roundtrip / continuity inspect
 - 备注：返回 Godot 友好的请求字典，由项目自行接 HTTP 层
 
 ## Java SDK
 
-- ???`tools/source/sdks/java-sdk`
-- ???Java ???????????
-- ?????
+- 目录：`tools/source/sdks/java-sdk`
+- 定位：Java 服务端或中间层集成基线
+- 当前覆盖：
   - health / version
   - invoke
   - player input interpretation
@@ -89,9 +89,9 @@
   - logs / debug traces
   - world policy
   - world tick advance
-  - authority query ? worker roundtrip ??
-  - continuity inspect ??
-- ??????????? Engine / Worker ??????????????????? typed model ????? TS / JS / C#
+  - authority query / worker roundtrip 示例
+  - continuity inspect 示例
+- 现状：已可直接覆盖 Engine / Worker 的最小联调闭环和基础连续性检查闭环，但 typed model 深度仍弱于 TS / JS / C#
 
 ## C++ SDK
 
@@ -99,10 +99,11 @@
 - 定位：原生侧集成的请求构造基线
 - 当前覆盖：
   - health / version / invoke / player input interpret 请求构造
+  - world tick advance / world settings / state components / timelines / logs / debug traces / world policy 请求构造
   - runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats 请求构造
   - callback 请求构造
-  - worker authority query / runtime roundtrip 示例
-- 现状：不内置完整 HTTP 传输层，但已给出与 Worker 对接所需的最小请求序列
+  - worker authority query / runtime roundtrip / continuity inspect 示例
+- 现状：不内置完整 HTTP 传输层，但请求构造层已可覆盖 Worker 联调与基础连续性检查所需的最小请求序列
 
 ## C SDK
 
@@ -110,10 +111,11 @@
 - 定位：最低依赖的原生侧集成基线
 - 当前覆盖：
   - health / version / invoke / player input interpret 路径辅助
+  - world settings / state components / timelines / logs / debug traces / world policy 路径辅助
   - runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats 路径 / payload 辅助
   - callback payload 构造
-  - worker authority query / runtime roundtrip 示例
-- 现状：不内置 HTTP 传输层，但已覆盖与 Worker 联调的基础请求拼装
+  - worker authority query / runtime roundtrip / continuity inspect 示例
+- 现状：不内置 HTTP 传输层，但已覆盖 Worker 联调和基础连续性检查所需的请求拼装
 
 ## Lua SDK
 
@@ -121,10 +123,11 @@
 - 定位：轻量脚本侧集成基线
 - 当前覆盖：
   - health / version / invoke / player input interpret path 和 request helper
+  - world tick advance / world settings / state components / timelines / logs / debug traces / world policy request helper
   - runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats helper
   - callback payload / request helper
-  - worker authority query / runtime roundtrip 示例
-- 现状：不内置 HTTP 传输层，但请求构造层已能直接承接 Worker 联调顺序
+  - worker authority query / runtime roundtrip / continuity inspect 示例
+- 现状：不内置 HTTP 传输层，但请求构造层已能直接承接 Worker 联调和基础连续性检查顺序
 
 ## 统一要求
 

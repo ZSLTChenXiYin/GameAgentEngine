@@ -103,6 +103,12 @@ func logs_request(query: Dictionary = {}) -> Dictionary:
 func debug_traces_request(world_id: String, limit: int = 20) -> Dictionary:
 	return create_request(HTTPClient.METHOD_GET, "/debug/traces%s" % build_query({"world_id": world_id, "limit": limit}))
 
+func world_policy_request(world_id: String) -> Dictionary:
+	return create_request(HTTPClient.METHOD_GET, "/api/v1/worlds/%s/policy" % world_id.uri_encode())
+
+func set_world_policy_request(world_id: String, payload: Dictionary) -> Dictionary:
+	return create_request(HTTPClient.METHOD_PUT, "/api/v1/worlds/%s/policy" % world_id.uri_encode(), payload)
+
 func list_runtime_tasks_request(category := null, status := null, limit: int = 20) -> Dictionary:
 	return create_request(HTTPClient.METHOD_GET, "/api/v1/runtime/tasks%s" % build_query({"category": category, "status": status, "limit": limit}))
 
@@ -157,4 +163,3 @@ func action_callback_request(callback_id: String, status: String, result: Dictio
 		"status": status,
 		"result": result,
 	}, headers)
-
