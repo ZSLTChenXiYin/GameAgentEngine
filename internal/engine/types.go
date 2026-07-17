@@ -170,6 +170,8 @@ type AutonomousConfig struct {
 	Enabled         bool              `json:"enabled"`
 	Trigger         string            `json:"trigger"`
 	IntervalSeconds int               `json:"interval_seconds,omitempty"`
+	Priority        int               `json:"priority,omitempty"`
+	CooldownSeconds int               `json:"cooldown_seconds,omitempty"`
 	Capabilities    []AgentCapability `json:"capabilities,omitempty"`
 	LastRunAt       *time.Time        `json:"last_run_at,omitempty"`
 	LastError       string            `json:"last_error,omitempty"`

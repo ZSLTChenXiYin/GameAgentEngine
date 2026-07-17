@@ -164,3 +164,19 @@ func typeMatchesSchema(v any, schemaType string) bool {
 		return true
 	}
 }
+
+// AutonomousPriority returns the configured priority, defaulting to 0.
+func AutonomousPriority(cfg *AutonomousConfig) int {
+	if cfg == nil {
+		return 0
+	}
+	return cfg.Priority
+}
+
+// ReadyForCooldown checks whether cooldown_seconds has elapsed since last run.
+func ReadyForCooldown(cfg *AutonomousConfig) bool {
+	if cfg == nil || cfg.CooldownSeconds <= 0 || cfg.LastRunAt == nil {
+		return true
+	}
+	return time.Since(*cfg.LastRunAt) >= time.Duration(cfg.CooldownSeconds)*time.Second
+}
