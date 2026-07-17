@@ -1,5 +1,7 @@
 # Interaction API Design
 
+[**中文**](./INTERACTION_API.md) | **English**
+
 This document defines the interaction semantics model built on top of the existing `invoke` execution kernel.
 
 ## 1. Design Goal

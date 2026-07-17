@@ -1,5 +1,7 @@
 # SDK Baseline Specification
 
+[**中文**](./SDK_BASELINE.md) | **English**
+
 This document defines the unified minimum delivery standard for the multi-language SDK set.
 
 ## 1. Goal

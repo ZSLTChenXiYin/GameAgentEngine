@@ -1,5 +1,7 @@
 # 文档索引
 
+**中文** | [**English**](./README_EN.md)
+
 本目录是当前仓库的正式文档主树。
 
 - `docs/` 是贡献者与集成方使用的唯一正式文档入口。
@@ -58,6 +60,8 @@
 - [Autonomous Behavior (EN)](./architecture/AUTONOMOUS_BEHAVIOR_EN.md)
 - [管线内部机制（中文）](./architecture/PIPELINE_INTERNALS.md)
 - [Pipeline Internals (EN)](./architecture/PIPELINE_INTERNALS_EN.md)
+- [世界建模与运行约定（中文）](./architecture/WORLD_MODELING_AND_RUNTIME_CONVENTIONS.md)
+- [World Modeling and Runtime Conventions (EN)](./architecture/WORLD_MODELING_AND_RUNTIME_CONVENTIONS_EN.md)
 
 ## SDK
 
@@ -77,3 +81,5 @@
 这些文件属于实现笔记、阶段计划或深度设计记录。它们与公开工作流/参考文档分离，且在重构进行中时可能落后于公开指南。
 
 - 内部笔记根目录：`docs/internal/`
+- [Engine 改进路线图（中文）](./internal/ENGINE_IMPROVEMENT_ROADMAP.md)
+- [Engine Improvement Roadmap (EN)](./internal/ENGINE_IMPROVEMENT_ROADMAP_EN.md)

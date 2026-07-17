@@ -1,5 +1,7 @@
 # 连续性与可观测性
 
+**中文** | [**English**](./CONTINUITY_AND_OBSERVABILITY_EN.md)
+
 本页是当前 `world_tick` 连续性检查与可观测性排障的主入口文档。
 
 ## 1. 重点检查对象

@@ -1,5 +1,7 @@
 # SDK 基线规范
 
+**中文** | [**English**](./SDK_BASELINE_EN.md)
+
 本文件定义多语言 SDK 的统一最低交付标准。
 
 ## 1. 目标

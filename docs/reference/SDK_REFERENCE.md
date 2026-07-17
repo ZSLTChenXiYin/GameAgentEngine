@@ -173,7 +173,6 @@ tick, err := client.AdvanceTick(worldID, "scheduled", "第 3 天 - 傍晚")
 
 如果你需要限制本次 Tick 可触发的自主节点数量，可使用 `AdvanceTickWithAutonomousLimit`。
 
-
 ### 运行时任务管理
 
 ```go

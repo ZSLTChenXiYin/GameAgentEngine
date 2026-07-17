@@ -1,5 +1,7 @@
 # Language SDK Status
 
+[**中文**](./SDK_LANGUAGES.md) | **English**
+
 This document centralizes the positioning, current coverage, and attached examples for each language SDK, replacing the older scattered notes that used to live under `tools/source/sdks/*/README.md`.
 
 ## TypeScript SDK

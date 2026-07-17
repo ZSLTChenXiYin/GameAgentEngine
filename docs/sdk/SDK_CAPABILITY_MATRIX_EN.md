@@ -1,5 +1,7 @@
 # SDK Capability Matrix
 
+[**中文**](./SDK_CAPABILITY_MATRIX.md) | **English**
+
 This matrix summarizes the current implementation maturity of each SDK directory relative to the active project workflow.
 
 Status levels:

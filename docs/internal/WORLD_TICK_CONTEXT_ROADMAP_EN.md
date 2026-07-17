@@ -1,5 +1,7 @@
 # World Tick Context Roadmap
 
+[**中文**](./WORLD_TICK_CONTEXT_ROADMAP.md) | **English**
+
 This document records future Engine work for improving world-tick and scope-tick context selection without turning world inference into full-world graph stuffing.
 
 ## 1. Problem Statement

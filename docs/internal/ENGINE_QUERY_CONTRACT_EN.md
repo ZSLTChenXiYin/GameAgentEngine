@@ -1,5 +1,7 @@
 # Engine-to-Game Query Contract
 
+[**中文**](./ENGINE_QUERY_CONTRACT.md) | **English**
+
 This document defines the contract by which Engine queries authoritative data from `gameagentworker` through the asynchronous `game_client` interface.
 
 ## 1. Query Principles

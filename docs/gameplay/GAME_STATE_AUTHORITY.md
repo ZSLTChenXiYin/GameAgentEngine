@@ -1,5 +1,7 @@
 # 游戏状态权威边界
 
+**中文** | [**English**](./GAME_STATE_AUTHORITY_EN.md)
+
 本文件保留为当前主规范文档。
 
 ## 1. 总原则

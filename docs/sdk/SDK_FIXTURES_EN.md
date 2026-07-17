@@ -1,5 +1,7 @@
 # SDK Shared Fixtures and Integration Inputs
 
+[**中文**](./SDK_FIXTURES.md) | **English**
+
 This document defines the shared fixture files and integration inputs that SDK examples should reuse whenever possible.
 
 The goal is to keep all SDK examples aligned to the same Engine / Worker semantics instead of letting each language drift into its own ad-hoc sample data.

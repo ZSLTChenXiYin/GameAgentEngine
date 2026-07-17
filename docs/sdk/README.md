@@ -1,5 +1,7 @@
 # SDK 文档总览
 
+**中文** | [**English**](./README_EN.md)
+
 本目录集中存放 GameAgentEngine 多语言 SDK 的正式文档。
 
 目标是把 SDK 的总体说明、基线规范、共享夹具与能力矩阵，从源码目录回收到统一的 `docs/` 文档体系中。

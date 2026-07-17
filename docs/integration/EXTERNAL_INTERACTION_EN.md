@@ -1,5 +1,7 @@
 # External Interaction Overview
 
+[**中文**](./EXTERNAL_INTERACTION.md) | **English**
+
 This page is the primary documentation entrypoint for external asynchronous interaction in the current project.
 
 ## 1. Capability Boundary

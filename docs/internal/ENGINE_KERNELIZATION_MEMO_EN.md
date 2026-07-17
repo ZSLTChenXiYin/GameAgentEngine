@@ -1,5 +1,7 @@
 # Engine Kernelization Memo
 
+[**中文**](./ENGINE_KERNELIZATION_MEMO.md) | **English**
+
 This document records the current architectural judgment about future Engine kernelization work.
 
 It is not a commitment to start implementation now.

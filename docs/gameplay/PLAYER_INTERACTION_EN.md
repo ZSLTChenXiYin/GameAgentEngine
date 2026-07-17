@@ -1,5 +1,7 @@
 # Player Interaction Overview
 
+[**中文**](./PLAYER_INTERACTION.md) | **English**
+
 This page is the main design entrypoint for player natural-language input, structured interaction, group chat, and game-side authority validation.
 
 ## 1. Core Principles

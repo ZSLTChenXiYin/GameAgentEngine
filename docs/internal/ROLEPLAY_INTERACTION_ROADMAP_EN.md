@@ -1,5 +1,7 @@
 # Roleplay Interaction Roadmap
 
+[**中文**](./ROLEPLAY_INTERACTION_ROADMAP.md) | **English**
+
 This document records future development work around direct roleplay chat, room chat, player-intent bridging, and interaction-session modeling.
 
 ## 1. Scope

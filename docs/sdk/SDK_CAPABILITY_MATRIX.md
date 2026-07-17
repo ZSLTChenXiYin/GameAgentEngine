@@ -1,5 +1,7 @@
 # SDK 能力矩阵
 
+**中文** | [**English**](./SDK_CAPABILITY_MATRIX_EN.md)
+
 本矩阵按当前项目工作流，总结各 SDK 目录的实现成熟度。
 
 状态等级：

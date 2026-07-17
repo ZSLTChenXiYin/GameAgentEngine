@@ -1,5 +1,7 @@
 # Engine Graph Semantics
 
+[**中文**](./ENGINE_GRAPH_SEMANTICS.md) | **English**
+
 ## 1. Core split: parent vs explicit relations
 
 Engine now treats `parent` and explicit relation edges as two different semantic layers.

@@ -1,5 +1,7 @@
 # SDK Overview
 
+[**中文**](./README.md) | **English**
+
 This directory centralizes the formal documentation for the GameAgentEngine multi-language SDK set.
 
 The goal is to pull SDK overview material, baseline requirements, shared fixtures, and capability matrices back into the unified `docs/` documentation tree instead of leaving them scattered across source directories.

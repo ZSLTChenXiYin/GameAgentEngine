@@ -1,5 +1,7 @@
 # 未来开发计划
 
+**中文** | [**English**](./FUTURE_DEVELOPMENT_PLAN_EN.md)
+
 本文件记录当前清理后的路线图，避免未来实现阶段丢失此前已经形成的规划上下文。
 
 ## 规划更新
@@ -120,6 +122,9 @@ Engine 内核补完与 Worker play 深化，已不再是当前路线图中处于
 状态：已完成。
 
 ## 已延期但持续跟踪
+
+- 世界建模、运行基座、权威动态状态与 world tick bootstrap 的推荐约定，见 `docs/architecture/WORLD_MODELING_AND_RUNTIME_CONVENTIONS.md`
+- 当前基于真实 world tick 收束问题整理出的 Engine 改进路线图，见 `docs/internal/ENGINE_IMPROVEMENT_ROADMAP.md`
 
 - world-tick context 路线图，包括 `world_focus`、active-node selection 和 staged scope refinement；见 `docs/internal/WORLD_TICK_CONTEXT_ROADMAP.md`
 - autonomous scheduling 路线图，包括 priority、batching、lifecycle state 与 event-driven wake-up；见 `docs/internal/AUTONOMOUS_SCHEDULING_ROADMAP.md`

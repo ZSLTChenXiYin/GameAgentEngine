@@ -1,5 +1,7 @@
 # World Time and Tick Constraint Reference
 
+[**中文**](./WORLD_TIME_TICK_REFERENCE.md) | **English**
+
 This document describes the current behavior of `world_time_settings`, `world_time_state`, `requested_ticks`, and `advanced_ticks`.
 
 ## 1. World Time Settings

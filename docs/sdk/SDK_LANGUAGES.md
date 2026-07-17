@@ -1,5 +1,7 @@
 # 各语言 SDK 状态
 
+**中文** | [**English**](./SDK_LANGUAGES_EN.md)
+
 本文档集中记录各语言 SDK 的定位、当前覆盖范围与附带示例，替代原先散落在 `tools/source/sdks/*/README.md` 下的说明文件。
 
 ## TypeScript SDK

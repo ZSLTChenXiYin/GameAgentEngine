@@ -1,6 +1,6 @@
 # GameAgentDevCli 指南
 
-[**中文**] | [**English**](./GUIDE_GAMEAGENTDEVCLI_EN.md)
+**中文** | [**English**](./GUIDE_GAMEAGENTDEVCLI_EN.md)
 
 GameAgentDevCli 是通过 HTTP API 操作 GameAgentEngine 的命令行工具。
 
@@ -206,7 +206,6 @@ GameAgentDevCli world validate-snapshot <snapshot-world-id>
 - Engine 保持运行时内核，不承担这些外围工作流入口
 - 资产导入导出、快照校验、演示验证属于 DevCli 职责
 - 游戏侧异步闭环和 REPL 试玩属于 Worker 职责
-
 
 ---
 

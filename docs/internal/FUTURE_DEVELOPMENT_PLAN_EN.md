@@ -1,5 +1,7 @@
 # Future Development Plan
 
+[**中文**](./FUTURE_DEVELOPMENT_PLAN.md) | **English**
+
 This file records the current post-cleanup roadmap so future implementation does not lose earlier planning context.
 
 ## Planning Update
@@ -120,6 +122,10 @@ Status: completed.
 Status: completed.
 
 ## Deferred But Tracked
+
+- recommended conventions for world modeling, runtime baselines, authoritative dynamic state, and world-tick bootstrap; see `docs/architecture/WORLD_MODELING_AND_RUNTIME_CONVENTIONS_EN.md`
+- the current Engine improvement roadmap derived from real world-tick convergence issues; see `docs/internal/ENGINE_IMPROVEMENT_ROADMAP_EN.md`
+
 - world-tick context roadmap, including `world_focus`, active-node selection, and staged scope refinement; see `docs/internal/WORLD_TICK_CONTEXT_ROADMAP.md`
 - autonomous scheduling roadmap, including priority, batching, lifecycle state, and event-driven wake-up; see `docs/internal/AUTONOMOUS_SCHEDULING_ROADMAP.md`
 - roleplay interaction roadmap, including direct single-chat, group-chat, interaction-session modeling, and player-intent bridging; see `docs/internal/ROLEPLAY_INTERACTION_ROADMAP.md`

@@ -1,5 +1,7 @@
 # Game State Authority Boundary
 
+[**中文**](./GAME_STATE_AUTHORITY.md) | **English**
+
 This page is the current primary specification for authority boundaries between Engine and the game side.
 
 ## 1. Core Principles

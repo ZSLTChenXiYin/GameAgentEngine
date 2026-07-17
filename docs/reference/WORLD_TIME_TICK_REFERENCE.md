@@ -1,5 +1,7 @@
 # 世界时间与 Tick 约束参考
 
+**中文** | [**English**](./WORLD_TIME_TICK_REFERENCE_EN.md)
+
 本文档描述 `world_time_settings`、`world_time_state`、`requested_ticks` 和 `advanced_ticks` 的当前行为。
 
 ## 1. 世界时间配置

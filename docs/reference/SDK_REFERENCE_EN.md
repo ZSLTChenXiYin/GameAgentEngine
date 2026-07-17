@@ -152,7 +152,6 @@ bundle, err := client.GetContinuityBundle(worldID, &sdk.ContinuityBundleOptions{
 
 ### Managing Runtime Tasks
 
-
 ```go
 // ListRuntimeTasks returns runtime tasks matching the given filters
 func (c *Client) ListRuntimeTasks(category, status string, limit int) ([]RuntimeTask, error)
@@ -173,9 +172,7 @@ func (c *Client) HeartbeatRuntimeTask(taskID, leaseToken string) error
 func (c *Client) ReleaseRuntimeTask(taskID, leaseToken, reason string) error
 ```
 
-
 Runtime tasks support Push, Pull, and Hybrid delivery modes. In Push mode, the Engine directly dispatches tasks to the game client. In Pull mode, the game client polls for pending tasks and claims them. All modes ultimately report results through `ActionCallback`.
-
 
 ---
 

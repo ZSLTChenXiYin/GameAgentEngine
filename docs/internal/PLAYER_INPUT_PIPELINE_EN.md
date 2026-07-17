@@ -1,5 +1,7 @@
 # Player Natural-Language Input Pipeline
 
+[**中文**](./PLAYER_INPUT_PIPELINE.md) | **English**
+
 This document defines the execution boundary for player natural-language input inside GameAgentEngine.
 
 ## 1. Goal

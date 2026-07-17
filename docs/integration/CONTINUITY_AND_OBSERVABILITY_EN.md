@@ -1,5 +1,7 @@
 # Continuity and Observability
 
+[**中文**](./CONTINUITY_AND_OBSERVABILITY.md) | **English**
+
 This page is the main entrypoint for `world_tick` continuity inspection and observability.
 
 ## 1. What to Inspect

@@ -1,5 +1,7 @@
 # Autonomous Scheduling Roadmap
 
+[**中文**](./AUTONOMOUS_SCHEDULING_ROADMAP.md) | **English**
+
 This document records future work for evolving autonomous execution from basic trigger scanning into a bounded scheduling system.
 
 ## 1. Current Baseline

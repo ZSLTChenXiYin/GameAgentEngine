@@ -1,5 +1,7 @@
 # Engine 到游戏侧查询契约
 
+**中文** | [**English**](./ENGINE_QUERY_CONTRACT_EN.md)
+
 本文定义 Engine 通过 `game_client` 异步接口向 `gameagentworker` 查询权威数据的契约。
 
 ## 1. 查询原则

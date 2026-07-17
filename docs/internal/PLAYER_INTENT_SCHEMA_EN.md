@@ -1,5 +1,7 @@
 # Player Intent Proposal Schema
 
+[**中文**](./PLAYER_INTENT_SCHEMA.md) | **English**
+
 This document defines the structured output produced after interpreting player natural language.
 
 ## 1. Top-Level Structure

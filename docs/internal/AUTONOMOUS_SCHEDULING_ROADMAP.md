@@ -1,5 +1,7 @@
 # Autonomous 调度路线图
 
+**中文** | [**English**](./AUTONOMOUS_SCHEDULING_ROADMAP_EN.md)
+
 本文记录未来如何把 autonomous 执行从基础触发扫描，演进为一个有边界的调度系统。
 
 ## 1. 当前基线

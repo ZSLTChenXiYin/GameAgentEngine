@@ -1,5 +1,7 @@
 # Engine 内核化备忘录
 
+**中文** | [**English**](./ENGINE_KERNELIZATION_MEMO_EN.md)
+
 本文记录当前关于未来 Engine 内核化工作的架构判断。
 
 它不是现在立刻启动实现的承诺。

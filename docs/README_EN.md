@@ -1,5 +1,7 @@
 # Documentation Index
 
+[**中文**](./README.md) | **English**
+
 This directory is the canonical repository documentation set.
 
 - `docs/` is the formal documentation entrypoint for contributors and integrators.
@@ -58,6 +60,8 @@ This directory is the canonical repository documentation set.
 - [Autonomous Behavior (EN)](./architecture/AUTONOMOUS_BEHAVIOR_EN.md)
 - [Pipeline Internals (ZH)](./architecture/PIPELINE_INTERNALS.md)
 - [Pipeline Internals (EN)](./architecture/PIPELINE_INTERNALS_EN.md)
+- [World Modeling and Runtime Conventions (ZH)](./architecture/WORLD_MODELING_AND_RUNTIME_CONVENTIONS.md)
+- [World Modeling and Runtime Conventions (EN)](./architecture/WORLD_MODELING_AND_RUNTIME_CONVENTIONS_EN.md)
 
 ## SDK
 
@@ -77,3 +81,5 @@ This directory is the canonical repository documentation set.
 These files are implementation notes, staged plans, or deep-dive design records. They are intentionally separated from the public workflow/reference path and may lag behind the public guides when a refactor is still in flight.
 
 - Internal notes root: `docs/internal/`
+- [Engine Improvement Roadmap (ZH)](./internal/ENGINE_IMPROVEMENT_ROADMAP.md)
+- [Engine Improvement Roadmap (EN)](./internal/ENGINE_IMPROVEMENT_ROADMAP_EN.md)
