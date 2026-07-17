@@ -129,8 +129,8 @@ async function selectWorld(worldId) {
   var worldSelector = document.getElementById('worldSelector');
   if (worldSelector) worldSelector.value = worldId || '';
   if (worldId) {
-    try { state.nodes = await api('GET', '/api/v1/nodes?world_id=' + encodeURIComponent(worldId)); }
-    catch(e) { state.nodes = []; showApiError('Failed to load nodes', e); }
+    try { state.nodes = await api('GET', '/api/v1/nodes?world_id=' + encodeURIComponent(worldId)); invalidateTreeCache(); }
+    catch(e) { state.nodes = []; invalidateTreeCache(); showApiError('Failed to load nodes', e); }
     try { state.relations = await api('GET', '/api/v1/relations?world_id=' + encodeURIComponent(worldId)); }
     catch(e) { state.relations = []; }
     state.selectedNodeIds = [];
@@ -145,7 +145,7 @@ async function selectWorld(worldId) {
     if (state.page === 'state') loadStateComponents();
     if (state.page === 'timelines') loadTimelines();
   } else {
-    state.nodes = []; state.relations = []; state.selectedNodeId = null; state.selectedNodeIds = []; state.selectionAnchorId = null; state.selectedTreePathKey = null; state.nodeDetail = null; state.snapshots = []; state.snapshotMeta = null;
+    invalidateTreeCache(); state.nodes = []; state.relations = []; state.selectedNodeId = null; state.selectedNodeIds = []; state.selectionAnchorId = null; state.selectedTreePathKey = null; state.nodeDetail = null; state.snapshots = []; state.snapshotMeta = null;
     state.snapshotListWorldId = null; state.logs = []; state.stateComponents = []; state.timelines = []; state.continuityBundle = null; state.continuityRequestId = ''; state.continuityMode = ''; state.settings = null; state.policy = null; state.plans = [];
   }
   renderTree(); renderCurrent();
@@ -1319,7 +1319,7 @@ async function loadAutonomous() {
 async function loadCurrentWorld() {
   if (!state.selectedWorldId) return;
   try {
-    state.nodes = await api('GET', '/api/v1/nodes?world_id=' + encodeURIComponent(state.selectedWorldId));
+    state.nodes = await api('GET', '/api/v1/nodes?world_id=' + encodeURIComponent(state.selectedWorldId)); invalidateTreeCache();
     try { state.relations = await api('GET', '/api/v1/relations?world_id=' + encodeURIComponent(state.selectedWorldId)); }
     catch(e) { state.relations = []; }
     var valid = {};

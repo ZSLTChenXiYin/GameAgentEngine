@@ -40,6 +40,87 @@ let state = {
   dragNodeId: null, suppressTreeClickUntil: 0,
   leftWidth: 260, rightWidth: 300,
 };
+/* ============= Tree Caching Layer ============= */
+var _treeCache = {
+  nodeMap: null,
+  childMap: null,
+  flatRows: null,
+  dirty: true,
+  filterToken: null,
+};
+
+function invalidateTreeCache() { _treeCache.dirty = true; _treeCache.flatRows = null; }
+
+function buildNodeMap(nodes) {
+  var map = {};
+  for (var i = 0; i < nodes.length; i++) map[nodes[i].id] = nodes[i];
+  return map;
+}
+
+function buildChildMap(nodes) {
+  var map = { _root: [] };
+  for (var i = 0; i < nodes.length; i++) {
+    var n = nodes[i];
+    var pid = n.parent_id || '_root';
+    if (!map[pid]) map[pid] = [];
+    map[pid].push(n.id);
+  }
+  return map;
+}
+
+function ensureTreeCache() {
+  if (!_treeCache.dirty && _treeCache.nodeMap) return;
+  _treeCache.nodeMap = buildNodeMap(state.nodes);
+  _treeCache.childMap = buildChildMap(state.nodes);
+  _treeCache.flatRows = null;
+  _treeCache.dirty = false;
+}
+
+function buildFlatRows() {
+  ensureTreeCache();
+  if (_treeCache.flatRows) return _treeCache.flatRows;
+
+  var rows = [];
+  var filter = (state.treeFilter || '').toLowerCase();
+  var collapsed = state.treeCollapsed || {};
+
+  function walk(parentId, depth, currentPathKey, ancestorIds) {
+    var children = _treeCache.childMap[parentId] || [];
+    for (var ci = 0; ci < children.length; ci++) {
+      var nodeId = children[ci];
+      var node = _treeCache.nodeMap[nodeId];
+      if (!node) continue;
+      if (filter && node.name.toLowerCase().indexOf(filter) < 0 && node.node_type.indexOf(filter) < 0) continue;
+      if (ancestorIds.indexOf(nodeId) >= 0) continue;
+
+      var hasChildren = _treeCache.childMap[nodeId] && _treeCache.childMap[nodeId].length > 0;
+      var isExpanded = !collapsed[nodeId];
+      var pathKey = currentPathKey ? currentPathKey + '|' + nodeId : nodeId;
+      var paddingLeft = 12 + depth * 16;
+
+      rows.push({ nodeId: nodeId, depth: depth, hasChildren: hasChildren, isExpanded: isExpanded, paddingLeft: paddingLeft, pathKey: pathKey });
+
+      if (hasChildren && isExpanded) walk(nodeId, depth + 1, pathKey, ancestorIds.concat([nodeId]));
+    }
+  }
+
+  walk('_root', 0, '', []);
+  _treeCache.flatRows = rows;
+  return rows;
+}
+
+// Override slow global helpers with cached versions
+var _origGetNodeById = window.getNodeById;
+function getNodeById(id) {
+  ensureTreeCache();
+  return _treeCache.nodeMap[id] || null;
+}
+
+function getNodeNameById(id) {
+  var n = getNodeById(id);
+  return n ? n.name : id;
+}
+
 
 const componentMetaList = Array.isArray(window.GAMEAGENT_COMPONENT_META) ? window.GAMEAGENT_COMPONENT_META : [];
 const componentMetaMap = {};

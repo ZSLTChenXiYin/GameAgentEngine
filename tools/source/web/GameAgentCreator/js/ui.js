@@ -72,217 +72,215 @@ function renderLeftPanel() {
   document.getElementById('btnTreeRefresh').addEventListener('click', loadCurrentWorld);
   document.getElementById('treeFilter').addEventListener('input', function() {
     state.treeFilter = this.value;
-    renderTree();
+    invalidateTreeCache();
+    if (this._debounceTimer) clearTimeout(this._debounceTimer);
+    var self = this;
+    self._debounceTimer = setTimeout(function() { renderTree(); }, 80);
   });
 }
 
 /* ============= Tree ============= */
 function renderTree() {
-  const body = document.getElementById('treeBody');
-  if (!body) return; body.innerHTML = '';
-  const filter = state.treeFilter.toLowerCase();
-  let nodes = state.nodes;
-  if (filter) nodes = nodes.filter(function(n) { return n.name.toLowerCase().includes(filter) || n.node_type.includes(filter); });
-  var selectedSet = {};
-  (state.selectedNodeIds || []).forEach(function(id) { selectedSet[id] = true; });
-  var visibleIds = [];
-  var projected = buildProjectedChildMap(nodes);
-  var childMap = projected.childMap;
-  var nodeMap = {};
-  nodes.forEach(function(n) { nodeMap[n.id] = n; });
-  var activePathSet = {};
-  if (state.selectedTreePathKey) {
-    state.selectedTreePathKey.split('|').forEach(function(key) {
-      if (key) activePathSet[key] = true;
-    });
+  var body = document.getElementById('treeBody');
+  if (!body) return;
+  body.innerHTML = '';
+  state.visibleNodeIds = [];
+
+  var rows = buildFlatRows();
+  if (rows.length === 0) {
+    body.appendChild(ce('div', { className: 'hint' }, [ttxt('No nodes. Click + to create.')]));
+    return;
   }
 
-  // Collapse state: treeCollapsed[parentId] = true/false
-  if (!state.treeCollapsed) state.treeCollapsed = {};
-  if (state.dragNodeId) {
-    body.classList.add('drag-active');
-  } else {
-    body.classList.remove('drag-active');
-  }
+  // Track visible node IDs for drag/drop
+  state.visibleNodeIds = rows.map(function(r) { return r.nodeId; });
 
-  function clearDropIndicators() {
-    rootDrop.classList.remove('active');
-    var activeDrops = body.querySelectorAll('.drop-target');
-    activeDrops.forEach(function(item) { item.classList.remove('drop-target'); });
-  }
-
-  function cleanupPointerDrag(sourceRow) {
-    state.dragNodeId = null;
-    body.classList.remove('drag-active');
-    clearDropIndicators();
-    if (sourceRow) sourceRow.classList.remove('drag-source');
-    document.body.style.userSelect = '';
-    document.body.style.cursor = '';
-  }
-
+  // Build root drop zone
   var rootDrop = ce('div', { className: 'tree-root-drop' }, [txt(tr('Drop here to move to root'))]);
   body.appendChild(rootDrop);
+
+  // Node container
   var treeContent = ce('div', { className: 'tree-content' }, []);
   body.appendChild(treeContent);
 
-  function renderChildren(parentId, depth, container, ancestorIds, parentPathKey) {
-    var children = childMap[parentId] || [];
-    for (var ci = 0; ci < children.length; ci++) {
-      (function() {
-        var nodeId = children[ci];
-        var node = nodeMap[nodeId];
-        if (!node) return;
-        if (ancestorIds.indexOf(nodeId) >= 0) return;
-        var occurrenceKey = parentPathKey ? parentPathKey + '|' + nodeId : nodeId;
-        var nextAncestorIds = ancestorIds.concat([nodeId]);
-        var hasChildren = childMap[node.id] && childMap[node.id].length > 0;
-        var isCollapsed = state.treeCollapsed[node.id];
-        var isSelected = !!selectedSet[node.id] && state.selectedTreePathKey === occurrenceKey;
-        var isPrimarySelected = state.selectedNodeId === node.id;
-        var isAliasSelected = !!selectedSet[node.id] && state.selectedTreePathKey && state.selectedTreePathKey !== occurrenceKey;
-        var isAncestor = !!activePathSet[occurrenceKey] && !isSelected;
+  var selectedSet = {};
+  (state.selectedNodeIds || []).forEach(function(id) { selectedSet[id] = true; });
+  var activePathSet = {};
+  if (state.selectedTreePathKey) {
+    state.selectedTreePathKey.split('|').forEach(function(key) { if (key) activePathSet[key] = true; });
+  }
 
-        var cls = 'tree-node';
-        if (isSelected) cls += ' selected';
-        if (isSelected && !isPrimarySelected) cls += ' multi-selected';
-        if (isAliasSelected) cls += ' alias-selected';
-        if (isAncestor) cls += ' path-ancestor';
+  for (var ri = 0; ri < rows.length; ri++) {
+    var r = rows[ri];
+    var node = _treeCache.nodeMap[r.nodeId];
+    if (!node) continue;
 
-        var row = ce('div', { className: cls, dataset: { id: node.id, pid: node.parent_id || '' }, style: { paddingLeft: (12 + depth * 16) + 'px' } }, [
-          ce('span', { className: 'tree-arrow' + (hasChildren ? (isCollapsed ? '' : ' expanded') : ' invisible') }, [txt('\u25b8')]),
-          ce('span', { className: 'tree-icon ' + node.node_type }, []),
-          ce('span', { className: 'tree-name' }, [txt(node.name)]),
-          ce('span', { className: 'tree-type node-type-' + node.node_type }, [txt(node.node_type)]),
-        ]);
+    var isSelected = !!selectedSet[node.id] && state.selectedTreePathKey === r.pathKey;
+    var isPrimarySelected = state.selectedNodeId === node.id;
+    var isAliasSelected = !!selectedSet[node.id] && state.selectedTreePathKey && state.selectedTreePathKey !== r.pathKey;
+    var isAncestor = !!activePathSet[r.pathKey] && !isSelected;
 
-        visibleIds.push(node.id);
+    var cls = 'tree-node';
+    if (isSelected) cls += ' selected';
+    if (isSelected && !isPrimarySelected) cls += ' multi-selected';
+    if (isAliasSelected) cls += ' alias-selected';
+    if (isAncestor) cls += ' path-ancestor';
 
-        row.addEventListener('click', (function(nn, hc) {
-          return function(e) {
-            if (state.suppressTreeClickUntil && Date.now() < state.suppressTreeClickUntil) return;
-            if (e.target.classList.contains('tree-arrow') && hc) {
-              e.stopPropagation();
-              state.treeCollapsed[nn.id] = !state.treeCollapsed[nn.id];
-              renderTree();
-              return;
-            }
-            if (e.shiftKey) {
-              selectNode(nn.id, nn.node_type, { mode: 'range', preserveAnchor: true, treePathKey: occurrenceKey });
-              return;
-            }
-            if (e.ctrlKey || e.metaKey) {
-              selectNode(nn.id, nn.node_type, { mode: 'toggle', treePathKey: occurrenceKey });
-              return;
-            }
-            selectNode(nn.id, nn.node_type, { mode: 'single', treePathKey: occurrenceKey });
-          };
-        })(node, hasChildren));
+    var arrowSpan = el('span', {
+      className: 'tree-arrow' + (r.hasChildren ? (r.isExpanded ? ' expanded' : '') : ' invisible'),
+      textContent: '\u25b8'
+    });
+    var iconSpan = el('span', { className: 'tree-icon ' + node.node_type });
+    var nameSpan = el('span', { className: 'tree-name', textContent: node.name });
+    var typeSpan = el('span', { className: 'tree-type node-type-' + node.node_type, textContent: node.node_type });
 
-        row.addEventListener('mousedown', (function(nn) {
-          return function(e) {
-            if (e.button !== 0) return;
-            if (nn.node_type === 'world') return;
-            if (e.target.classList.contains('tree-arrow')) return;
+    var row = ce('div', {
+      className: cls,
+      dataset: { id: node.id, pid: node.parent_id || '', pathKey: r.pathKey, depth: String(r.depth), hasChildren: r.hasChildren ? '1' : '0' }
+    }, [arrowSpan, iconSpan, nameSpan, typeSpan]);
+    row.style.paddingLeft = r.paddingLeft + 'px';
+    treeContent.appendChild(row);
 
-            var sourceRow = this;
-            var startX = e.clientX;
-            var startY = e.clientY;
-            var started = false;
-            var dropTargetId = null;
-
-            function onMove(ev) {
-              var dx = Math.abs(ev.clientX - startX);
-              var dy = Math.abs(ev.clientY - startY);
-              if (!started) {
-                if (Math.max(dx, dy) < 5) return;
-                started = true;
-                state.dragNodeId = nn.id;
-                body.classList.add('drag-active');
-                sourceRow.classList.add('drag-source');
-                document.body.style.userSelect = 'none';
-                document.body.style.cursor = 'grabbing';
-              }
-
-              ev.preventDefault();
-              clearDropIndicators();
-              dropTargetId = null;
-
-              var hit = document.elementFromPoint(ev.clientX, ev.clientY);
-              if (!hit) return;
-
-              var rootHit = hit === rootDrop || (hit.closest && hit.closest('.tree-root-drop') === rootDrop);
-              if (rootHit) {
-                rootDrop.classList.add('active');
-                dropTargetId = '';
-                return;
-              }
-
-              var targetRow = hit.closest ? hit.closest('.tree-node') : null;
-              if (!targetRow) return;
-              if (targetRow.dataset.id === nn.id) return;
-              targetRow.classList.add('drop-target');
-              dropTargetId = targetRow.dataset.id || null;
-            }
-
-            function onUp(ev) {
-              window.removeEventListener('mousemove', onMove, true);
-              window.removeEventListener('mouseup', onUp, true);
-              if (!started) {
-                cleanupPointerDrag(sourceRow);
-                return;
-              }
-
-              ev.preventDefault();
-              state.suppressTreeClickUntil = Date.now() + 250;
-              cleanupPointerDrag(sourceRow);
-
-              if (dropTargetId === null) return;
-              moveNodeParent(nn.id, dropTargetId);
-            }
-
-            window.addEventListener('mousemove', onMove, true);
-            window.addEventListener('mouseup', onUp, true);
-          };
-        })(node));
-        row.addEventListener('contextmenu', (function(nn) {
-          return async function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!selectedSet[nn.id] || state.selectedTreePathKey !== occurrenceKey) await selectNode(nn.id, nn.node_type, { mode: 'single', treePathKey: occurrenceKey });
-            showContextMenu([
-              { label: tr('Edit'), onClick: function() { openEditNodeModal(nn.id); } },
-              { label: tr('Copy Node'), onClick: function() { openCopyNodeModal(nn.id); } },
-              { label: tr('Add New Parent'), tip: tr('Creates a new node and rewires only parent_id'), onClick: function() { openCreateParentNodeModal(nn.id); } },
-              { label: tr('Add Outgoing Relation'), tip: tr('Relations are stored separately from the outline tree'), onClick: function() { openAddOutgoingRelationModal(nn.id); } },
-              { label: tr('Create Child'), onClick: function() { openCreateNodeModal(nn.id); } },
-              { label: tr('Delete'), danger: true, onClick: function() { deleteNodeHandler(nn.id); } },
-            ], e.clientX, e.clientY);
-          };
-        })(node));
-
-        container.appendChild(row);
-
-        if (hasChildren && !isCollapsed) {
-          var childCont = ce('div', { className: 'tree-children' }, []);
-          container.appendChild(childCont);
-          renderChildren(node.id, depth + 1, childCont, nextAncestorIds, occurrenceKey);
-        }
-      })();
+    // Drag source: mark for drag
+    if (node.node_type !== 'world') {
+      row.draggable = true;
     }
   }
 
-  var rootContainer = ce('div', {}, []);
-  renderChildren('_root', 0, rootContainer, [], '');
-  while (rootContainer.firstChild) treeContent.appendChild(rootContainer.firstChild);
-  state.visibleNodeIds = visibleIds;
+  // Event delegation: click on tree arrows
+  treeContent.addEventListener('click', function(e) {
+    if (state.suppressTreeClickUntil && Date.now() < state.suppressTreeClickUntil) return;
+    var target = e.target;
+    var row = target.closest('.tree-node');
+    if (!row) return;
 
-  if (nodes.length === 0) {
-    treeContent.appendChild(ce('div', { className: 'hint' }, [ttxt('No nodes. Click + to create.')]));
+    var nodeId = row.dataset.id;
+    var node = getNodeById(nodeId);
+    if (!node) return;
+
+    // Arrow click: expand/collapse
+    if (target.classList.contains('tree-arrow') && !target.classList.contains('invisible')) {
+      e.stopPropagation();
+      if (!state.treeCollapsed) state.treeCollapsed = {};
+      state.treeCollapsed[nodeId] = !state.treeCollapsed[nodeId];
+      invalidateTreeCache();
+      renderTree();
+      return;
+    }
+
+    // Node selection
+    if (e.shiftKey) {
+      selectNode(nodeId, node.node_type, { mode: 'range', preserveAnchor: true, treePathKey: row.dataset.pathKey });
+    } else if (e.ctrlKey || e.metaKey) {
+      selectNode(nodeId, node.node_type, { mode: 'toggle', treePathKey: row.dataset.pathKey });
+    } else {
+      selectNode(nodeId, node.node_type, { mode: 'single', treePathKey: row.dataset.pathKey });
+    }
+  });
+
+  // Event delegation: drag + right-click
+  var dragState = null;
+  function clearDrag() {
+    if (dragState) {
+      dragState.sourceRow.classList.remove('drag-source');
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      dragState = null;
+    }
+    body.classList.remove('drag-active');
+    var drops = body.querySelectorAll('.drop-target');
+    for (var di = 0; di < drops.length; di++) drops[di].classList.remove('drop-target');
+    rootDrop.classList.remove('active');
   }
+
+  treeContent.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    var row = e.target.closest('.tree-node');
+    if (!row) return;
+    var node = getNodeById(row.dataset.id);
+    if (!node || node.node_type === 'world') return;
+    if (row.querySelector('.tree-arrow') === e.target) return;
+
+    var startX = e.clientX, startY = e.clientY;
+    var started = false;
+
+    function onMove(ev) {
+      var dx = Math.abs(ev.clientX - startX), dy = Math.abs(ev.clientY - startY);
+      if (!started) {
+        if (Math.max(dx, dy) < 5) return;
+        started = true;
+        row.classList.add('drag-source');
+        body.classList.add('drag-active');
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'grabbing';
+        dragState = { sourceRow: row };
+      }
+      ev.preventDefault();
+
+      // Clear old indicators
+      rootDrop.classList.remove('active');
+      var oldDrops = body.querySelectorAll('.drop-target');
+      for (var di = 0; di < oldDrops.length; di++) oldDrops[di].classList.remove('drop-target');
+
+      var hit = document.elementFromPoint(ev.clientX, ev.clientY);
+      if (!hit) return;
+
+      // Check root drop
+      var rootHit = hit === rootDrop || (hit.closest && hit.closest('.tree-root-drop') === rootDrop);
+      if (rootHit) { rootDrop.classList.add('active'); return; }
+
+      var targetRow = hit.closest ? hit.closest('.tree-node') : null;
+      if (targetRow && targetRow !== row) targetRow.classList.add('drop-target');
+    }
+
+    function onUp(ev) {
+      window.removeEventListener('mousemove', onMove, true);
+      window.removeEventListener('mouseup', onUp, true);
+      if (!started) { clearDrag(); return; }
+      ev.preventDefault();
+      state.suppressTreeClickUntil = Date.now() + 250;
+
+      var targetId = null;
+      if (rootDrop.classList.contains('active')) { targetId = ''; }
+      else {
+        var tRow = body.querySelector('.drop-target');
+        if (tRow) targetId = tRow.dataset.id || null;
+      }
+
+      clearDrag();
+      if (targetId !== null) moveNodeParent(row.dataset.id, targetId);
+    }
+
+    window.addEventListener('mousemove', onMove, true);
+    window.addEventListener('mouseup', onUp, true);
+  });
+
+  // Context menu delegation
+  treeContent.addEventListener('contextmenu', async function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var row = e.target.closest('.tree-node');
+    if (!row) return;
+    var nodeId = row.dataset.id;
+    var node = getNodeById(nodeId);
+    if (!node) return;
+
+    var selectedSet2 = {};
+    (state.selectedNodeIds || []).forEach(function(id) { selectedSet2[id] = true; });
+    if (!selectedSet2[nodeId] || state.selectedTreePathKey !== row.dataset.pathKey) {
+      await selectNode(nodeId, node.node_type, { mode: 'single', treePathKey: row.dataset.pathKey });
+    }
+    showContextMenu([
+      { label: tr('Edit'), onClick: function() { openEditNodeModal(nodeId); } },
+      { label: tr('Copy Node'), onClick: function() { openCopyNodeModal(nodeId); } },
+      { label: tr('Add New Parent'), tip: tr('Creates a new node and rewires only parent_id'), onClick: function() { openCreateParentNodeModal(nodeId); } },
+      { label: tr('Add Outgoing Relation'), tip: tr('Relations are stored separately from the outline tree'), onClick: function() { openAddOutgoingRelationModal(nodeId); } },
+      { label: tr('Create Child'), onClick: function() { openCreateNodeModal(nodeId); } },
+      { label: tr('Delete'), danger: true, onClick: function() { deleteNodeHandler(nodeId); } },
+    ], e.clientX, e.clientY);
+  });
 }
 
-
-/* ============= Switch Page & Render ============= */
 function switchPage(name) {
   state.page = name;
   var tabs = document.querySelectorAll('.topbar-center button');
