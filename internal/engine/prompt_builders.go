@@ -502,6 +502,10 @@ func buildWorldTickPrompt(systemContext string, outline string, continuityBlocks
 	sb := &strings.Builder{}
 	sb.WriteString(systemContext)
 	sb.WriteString("\n\n你正在推进世界时间线。")
+	sb.WriteString("\n\n优先级：")
+	sb.WriteString("\n1. 先基于已有事实完成当前 tick 的闭环输出，再考虑补充查询。")
+	sb.WriteString("\n2. 只在缺少对核心输出有决定性影响的关键事实时才使用 request_data。")
+	sb.WriteString("\n3. 禁止为锦上添花的细节或无明确用途的上下文发起查询。")
 	if strings.TrimSpace(relationSummary) != "" {
 		sb.WriteString("\n\n当前 scope 的高价值关系摘要：\n")
 		sb.WriteString(relationSummary)
