@@ -72,6 +72,54 @@ function Client:interpret_player_input_request(body_json)
   return { method = "POST", path = "/api/v1/player/input/interpret", body = body_json }
 end
 
+function Client:advance_tick_request(world_id, body_json)
+  return { method = "POST", path = "/api/v1/worlds/" .. world_id .. "/ticks/advance", body = body_json }
+end
+
+function Client:world_settings_request(world_id)
+  return { method = "GET", path = "/api/v1/worlds/" .. world_id .. "/settings" }
+end
+
+function Client:set_world_settings_request(world_id, body_json)
+  return { method = "PUT", path = "/api/v1/worlds/" .. world_id .. "/settings", body = body_json }
+end
+
+function Client:state_components_request(world_id)
+  return { method = "GET", path = "/api/v1/worlds/" .. world_id .. "/state-components" }
+end
+
+function Client:state_component_request(world_id, component_type)
+  return { method = "GET", path = "/api/v1/worlds/" .. world_id .. "/state-components/" .. component_type }
+end
+
+function Client:put_state_component_request(world_id, component_type, body_json)
+  return { method = "PUT", path = "/api/v1/worlds/" .. world_id .. "/state-components/" .. component_type, body = body_json }
+end
+
+function Client:timelines_request(world_id, limit)
+  return { method = "GET", path = "/api/v1/worlds/" .. world_id .. "/timelines" .. self:build_query({ limit = limit }) }
+end
+
+function Client:latest_timeline_request(world_id)
+  return { method = "GET", path = "/api/v1/worlds/" .. world_id .. "/timelines/latest" }
+end
+
+function Client:logs_request(world_id, limit, offset, task_type)
+  return { method = "GET", path = "/api/v1/logs" .. self:build_query({ world_id = world_id, limit = limit, offset = offset, task_type = task_type }) }
+end
+
+function Client:debug_traces_request(world_id, limit)
+  return { method = "GET", path = "/debug/traces" .. self:build_query({ world_id = world_id, limit = limit or 20 }) }
+end
+
+function Client:world_policy_request(world_id)
+  return { method = "GET", path = "/api/v1/worlds/" .. world_id .. "/policy" }
+end
+
+function Client:set_world_policy_request(world_id, body_json)
+  return { method = "PUT", path = "/api/v1/worlds/" .. world_id .. "/policy", body = body_json }
+end
+
 function Client:runtime_tasks_request(category, status, limit)
   return { method = "GET", path = "/api/v1/runtime/tasks" .. self:build_query({ category = category, status = status, limit = limit or 20 }) }
 end
