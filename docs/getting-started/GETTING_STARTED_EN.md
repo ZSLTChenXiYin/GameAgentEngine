@@ -48,7 +48,7 @@ If you are using a packaged build, skip this step and work directly from the ext
 Copy the default config:
 
 ```bash
-cp tools/source/workerhome/gameagentengine.conf.yaml .
+cp tools/source/gameagentengine.conf.yaml .
 ```
 
 Important points in the packaged template:

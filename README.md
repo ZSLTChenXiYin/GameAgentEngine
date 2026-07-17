@@ -115,7 +115,7 @@ bash tools/scripts/build.sh
 
 ```
 # 复制默认配置
-cp tools/source/workerhome/gameagentengine.conf.yaml .
+cp tools/source/gameagentengine.conf.yaml .
 
 # 启动引擎
 GameAgentEngine serve

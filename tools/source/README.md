@@ -6,7 +6,7 @@ This directory is for packaged runtime assets only. It is not the formal reposit
 
 This directory should currently contain only packaged runtime assets such as:
 
-- runtime config templates under `workerhome/`, for example `workerhome/gameagentengine.conf.yaml`
+- shared runtime config templates at the source root, for example `gameagentengine.conf.yaml`
 - demo assets under `workerhome/demo/`, for example `workerhome/demo/demo-world.yaml` and `workerhome/demo/demo-state.yaml`
 - Worker / integration-test working data under `workerhome/fixtures/`
 - Creator static assets under `web/GameAgentCreator/`

@@ -115,7 +115,7 @@ Output goes to `dist/`, containing the engine binaries, CLI tools, config templa
 
 ```
 # Copy the default config
-cp tools/source/workerhome/gameagentengine.conf.yaml .
+cp tools/source/gameagentengine.conf.yaml .
 
 # Start the engine
 GameAgentEngine serve

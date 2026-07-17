@@ -48,7 +48,7 @@ cd GameAgentEngine
 复制默认配置：
 
 ```bash
-cp tools/source/workerhome/gameagentengine.conf.yaml .
+cp tools/source/gameagentengine.conf.yaml .
 ```
 
 当前随包模板的关键点如下：
