@@ -56,6 +56,20 @@ type WorldTimeStateComponent struct {
 	Metadata          map[string]any          `json:"metadata,omitempty"`
 }
 
+
+// WorldFocusComponent marks a descendant node as structurally important
+// for world tick context selection. It is consumed during context assembly.
+type WorldFocusComponent struct {
+	Enabled             bool     `json:"enabled"`
+	Tasks               []string `json:"tasks,omitempty"`
+	Priority            int      `json:"priority,omitempty"`
+	Reason              string   `json:"reason,omitempty"`
+	MaxParentDistance   int      `json:"max_parent_distance,omitempty"`
+	SummaryOnly         bool     `json:"summary_only,omitempty"`
+	IncludeChildren     int      `json:"include_children,omitempty"`
+	IncludeRelations    []string `json:"include_relations,omitempty"`
+}
+
 // StateSnapshotComponent 保存由引擎阶段性生成的结构化状态快照。
 type StateSnapshotComponent struct {
 	SnapshotType string         `json:"snapshot_type,omitempty"`
