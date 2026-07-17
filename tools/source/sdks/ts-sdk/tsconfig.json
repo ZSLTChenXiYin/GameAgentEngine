@@ -8,9 +8,8 @@
     "strict": true,
     "noEmitOnError": true,
     "skipLibCheck": true,
-    "lib": ["ES2022", "DOM"],
-    "types": ["node"]
+    "lib": ["ES2022", "DOM"]
   },
-  "include": ["src/**/*.ts", "examples/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["dist"]
 }

@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "build": "node ./node_modules/typescript/lib/tsc.js -p tsconfig.json",
-    "check": "node ./node_modules/typescript/lib/tsc.js -p tsconfig.json --noEmit"
+    "check": "node ./node_modules/typescript/lib/tsc.js -p tsconfig.examples.json"
   },
   "engines": {
     "node": ">=18"
