@@ -23,6 +23,18 @@ func (a *UpdateMood) Validate(args map[string]any) error {
 	return nil
 }
 
+func (a *UpdateMood) Schema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"node_id":   map[string]any{"type": "string", "description": "Target node UUID"},
+			"mood":      map[string]any{"type": "string", "description": "Mood label"},
+			"intensity": map[string]any{"type": "number", "description": "Mood intensity 0-10"},
+		},
+		"required": []any{"node_id", "mood"},
+	}
+}
+
 // Execute 执行情绪更新，并同步写入角色记忆。
 func (a *UpdateMood) Execute(args map[string]any) (any, error) {
 	nodeID, _ := args["node_id"].(string)
@@ -70,6 +82,19 @@ func (a *AddMemory) Validate(args map[string]any) error {
 	return nil
 }
 
+func (a *AddMemory) Schema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"node_id": map[string]any{"type": "string", "description": "Target node UUID"},
+			"content": map[string]any{"type": "string", "description": "Memory content text"},
+			"level":   map[string]any{"type": "string", "description": "Memory level: short_term, long_term, shared, world", "enum": []any{"short_term", "long_term", "shared", "world"}},
+			"tags":    map[string]any{"type": "string", "description": "Comma-separated tags"},
+		},
+		"required": []any{"node_id", "content"},
+	}
+}
+
 // Execute 创建一条新的记忆记录。
 func (a *AddMemory) Execute(args map[string]any) (any, error) {
 	nodeID, _ := args["node_id"].(string)
@@ -114,6 +139,18 @@ func (a *AdjustRelation) Validate(args map[string]any) error {
 	return nil
 }
 
+func (a *AdjustRelation) Schema() map[string]any {
+	return map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"properties": map[string]any{
+			"source_id": map[string]any{"type": "string", "description": "Source node UUID"},
+			"target_id": map[string]any{"type": "string", "description": "Target node UUID"},
+			"delta":     map[string]any{"type": "number", "description": "Relation weight delta"},
+		},
+	}
+}
+
 // OnResult 处理游戏侧上报的异步执行结果。
 func (a *AdjustRelation) OnResult(callbackID string, status string, result any) error {
 	log.Printf("[callback] adjust_relation %s: %s -> %v", callbackID, status, result)
@@ -129,6 +166,17 @@ func (a *SendDialogue) ID() string { return "send_dialogue" }
 // Validate 预留参数校验入口。
 func (a *SendDialogue) Validate(args map[string]any) error {
 	return nil
+}
+
+func (a *SendDialogue) Schema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"node_id": map[string]any{"type": "string", "description": "Speaker node UUID"},
+			"content": map[string]any{"type": "string", "description": "Dialogue text"},
+		},
+		"required": []any{"content"},
+	}
 }
 
 // Execute 记录台词内容，并给角色写入一条短期记忆。
@@ -159,6 +207,18 @@ func (a *SpawnItem) ID() string { return "spawn_item" }
 // Validate 预留参数校验入口。
 func (a *SpawnItem) Validate(args map[string]any) error {
 	return nil
+}
+
+func (a *SpawnItem) Schema() map[string]any {
+	return map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"properties": map[string]any{
+			"node_id":  map[string]any{"type": "string", "description": "Owner node UUID"},
+			"item_id":  map[string]any{"type": "string", "description": "Item template or ID"},
+			"quantity": map[string]any{"type": "number", "description": "Quantity to spawn"},
+		},
+	}
 }
 
 // OnResult 处理物品生成动作的回调结果。

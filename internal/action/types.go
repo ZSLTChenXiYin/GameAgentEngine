@@ -4,6 +4,9 @@ package action
 type Action interface {
 	ID() string
 	Validate(args map[string]any) error
+	// Schema returns the JSON Schema definition for this action's args.
+	// Return nil to skip tool exposure.
+	Schema() map[string]any
 }
 
 // SyncAction 表示在引擎管线内立即执行的同步动作。

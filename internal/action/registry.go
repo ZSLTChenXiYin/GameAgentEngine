@@ -15,6 +15,7 @@ type Registry struct {
 	mu        sync.RWMutex
 	syncActs  map[string]SyncAction
 	asyncActs map[string]AsyncAction
+	extActs   map[string]Action
 	pending   map[string]*ActionCallRecord
 }
 
@@ -23,6 +24,7 @@ func NewRegistry() *Registry {
 	return &Registry{
 		syncActs:  make(map[string]SyncAction),
 		asyncActs: make(map[string]AsyncAction),
+		extActs:   make(map[string]Action),
 		pending:   make(map[string]*ActionCallRecord),
 	}
 }
@@ -77,6 +79,22 @@ func (r *Registry) Exists(actionID string) bool {
 }
 
 // ExecuteSync 执行一个已注册的同步动作。
+func (r *Registry) ListActions() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var ids []string
+	for id := range r.syncActs {
+		ids = append(ids, id)
+	}
+	for id := range r.asyncActs {
+		ids = append(ids, id)
+	}
+	for id := range r.extActs {
+		ids = append(ids, id+"(ext)")
+	}
+	return ids
+}
+
 func (r *Registry) ExecuteSync(actionID string, args map[string]any) (any, error) {
 	r.mu.RLock()
 	a, ok := r.syncActs[actionID]
