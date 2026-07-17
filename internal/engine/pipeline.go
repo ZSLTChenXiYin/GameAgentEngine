@@ -2470,9 +2470,14 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 		}
 	}
 
+	// E1: Bootstrap phase -- pre-fetch key authority data before the first LLM round.
+	// Reuses existing store query semantics through a lightweight bootstrap helper.
+	// The result is injected into ctx.BootstrapBlock as an optional prompt supplement.
+	ctx.BootstrapBlock = p.runWorldTickBootstrap(req.WorldID, ctx)
+
 	tickFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 		baseContext := mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext)
-		return buildWorldTickPrompt(appendDynamicInterfaceContext(baseContext, requestDynamicInterfaces(req)), currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary)
+		return buildWorldTickPrompt(appendDynamicInterfaceContext(baseContext, requestDynamicInterfaces(req)), currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary, ctx.BootstrapBlock)
 	}
 
 	var tree *TaskTree
@@ -2709,6 +2714,67 @@ func buildWorldTickTimeBlock(worldID string) string {
 		parts = append(parts, "- constraint: each world tick may advance multiple standard ticks, but you must return advanced_ticks")
 	}
 	return strings.Join(parts, "\n")
+}
+
+// runWorldTickBootstrap pre-fetches a compact set of authority-relevant store data
+// before the world tick LLM loop begins. It reuses existing store query semantics
+// and injects results into a request-scoped BootstrapBlock string.
+// This reduces the number of low-value request_data rounds in the first LLM pass.
+func (p *Pipeline) runWorldTickBootstrap(worldID string, ctx *BuiltContext) string {
+	if ctx == nil || ctx.Node == nil {
+		return ""
+	}
+
+	var parts []string
+	parts = append(parts, "========== Bootstrap: Pre-fetched Authority Context ==========")
+	parts = append(parts, "The following data was pre-loaded before this tick began. Use it to")
+	parts = append(parts, "reduce redundant queries. If critical facts are still missing, use request_data.")
+
+	// 1. World-level state components (world_state, story_state, tick_policy, world_time_state)
+	stateTypes := []string{"world_state", "story_state", "tick_policy", "world_time_state"}
+	for _, ct := range stateTypes {
+		comps, err := store.GetComponentsByType(worldID, ct)
+		if err != nil || len(comps) == 0 {
+			continue
+		}
+		for _, comp := range comps {
+			parts = append(parts, fmt.Sprintf("[bootstrap:component] %s: %s", comp.ComponentType, comp.Data))
+		}
+	}
+
+	// 2. Recent timeline (up to 5 entries for context)
+	if ticks, err := store.GetTimelineTicks(worldID, 5); err == nil && len(ticks) > 0 {
+		for _, tick := range ticks {
+			summary := strings.TrimSpace(tick.Summary)
+			if summary == "" {
+				continue
+			}
+			parts = append(parts, fmt.Sprintf("[bootstrap:timeline] tick %d: %s", tick.TickNumber, summary))
+		}
+	}
+
+	// 3. Scope node's high-level children (for situation awareness, up to 20)
+	if children, err := store.GetChildNodes(ctx.Node.UUID); err == nil && len(children) > 0 {
+		var childLines []string
+		counts := map[string]int{}
+		for _, child := range children {
+			counts[child.NodeType]++
+		}
+		for _, nt := range []string{"location", "faction", "npc", "event", "item", "quest_line"} {
+			if c := counts[nt]; c > 0 {
+				childLines = append(childLines, fmt.Sprintf("%s:%d", nt, c))
+			}
+		}
+		if len(childLines) > 0 {
+			parts = append(parts, "[bootstrap:children] scope children: "+strings.Join(childLines, ", "))
+		}
+	}
+
+	if len(parts) <= 1 {
+		return ""
+	}
+	return strings.Join(parts, "
+")
 }
 
 func (p *Pipeline) executeWorldEvent(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {
