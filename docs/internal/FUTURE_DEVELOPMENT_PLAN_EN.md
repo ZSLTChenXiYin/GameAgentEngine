@@ -102,7 +102,7 @@ Status: completed for the current worker-driven test workflow baseline.
 - continue aligning SDK outward-facing responsibilities with the Go SDK baseline
 - apply the same uppercase naming and bilingual-document rule to SDK-facing formal docs
 
-Status: in progress.
+Status: completed.
 
 ## F8 Packaged artifact acceptance
 
