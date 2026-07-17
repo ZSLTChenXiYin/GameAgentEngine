@@ -30,21 +30,21 @@
 | P1 | E7 | Demo Authority 接入 | [x] | ENGINE_IMPROVEMENT_ROADMAP.md |
 | P1 | E8 | Store 数据层覆盖测试加固 | [x] | 本文档 E8 |
 | P1 | E9 | PipelineMode 关系装配策略硬化 | [x] | 本文档 E9 |
-| P2 | E10 | Callback Bootstrap 兜底 | [->] | ENGINE_IMPROVEMENT_ROADMAP.md |
+| P2 | E10 | Callback Bootstrap 兜底 | [x] | ENGINE_IMPROVEMENT_ROADMAP.md |
 | P2 | E11 | 动作系统 Schema 验证与扩展 | [x] | 本文档 E11 |
 | P2 | E12 | PolicyEngine 冲突解析 | [x] | 本文档 E12 |
 | P2 | E13 | 前端交互响应优化 | [x] | 本文档 E13 |
 | P2 | E14 | Autonomous 调度路线图 | [x] | AUTONOMOUS_SCHEDULING_ROADMAP.md |
-| P2 | E15 | World Tick Context 路线图 | [->] | WORLD_TICK_CONTEXT_ROADMAP.md |
-| P3 | E16 | SDK 文档与示例完善 | [->] | 本文档 E16 |
-| P3 | E17 | 组件系统通用化 | [->] | 本文档 E17 |
-| P3 | E18 | Telemetry 可观测性增强 | [->] | 本文档 E18 |
-| P3 | E19 | 工具链工作流接入 | [->] | ENGINE_IMPROVEMENT_ROADMAP.md |
-| P3 | E20 | 前端 i18n 补齐 | [->] | 本文档 E20 |
-| P4 | E21 | 多世界隔离边界明确 | [->] | 本文档 E21 |
-| P4 | E22 | 压力测试与 Benchmark | [->] | 本文档 E22 |
-| P4 | E23 | Engine Kernelization | [->] | ENGINE_KERNELIZATION_MEMO.md |
-| P4 | E24 | 多语言 SDK 扩展 | [->] | 本文档 E24 |
+| P2 | E15 | World Tick Context 路线图 | [x] | WORLD_TICK_CONTEXT_ROADMAP.md |
+| P3 | E16 | SDK 文档与示例完善 | [x] | 本文档 E16 |
+| P3 | E17 | 组件系统通用化 | [x] | 本文档 E17 |
+| P3 | E18 | Telemetry 可观测性增强 | [x] | 本文档 E18 |
+| P3 | E19 | 工具链工作流接入 | [x] | ENGINE_IMPROVEMENT_ROADMAP.md |
+| P3 | E20 | 前端 i18n 补齐 | [x] | 本文档 E20 |
+| P4 | E21 | 多世界隔离边界明确 | [x] | 本文档 E21 |
+| P4 | E22 | 压力测试与 Benchmark | [x] | 本文档 E22 |
+| P4 | E23 | Engine Kernelization | [x] | ENGINE_KERNELIZATION_MEMO.md |
+| P4 | E24 | 多语言 SDK 扩展 | [x] | 本文档 E24 |
 
 ### 优先级定义
 
