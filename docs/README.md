@@ -67,5 +67,3 @@ This directory is the canonical repository documentation set.
 These files are implementation notes, staged plans, or deep-dive design records. They are intentionally separated from the public workflow/reference path and may lag behind the public guides when a refactor is still in flight.
 
 - Internal notes root: `docs/internal/`
-- [CloneWorld Snapshot Strategy (ZH)](./internal/CLONEWORLD_SNAPSHOT_STRATEGY.md)
-- [CloneWorld Snapshot Strategy (EN)](./internal/CLONEWORLD_SNAPSHOT_STRATEGY_EN.md)
