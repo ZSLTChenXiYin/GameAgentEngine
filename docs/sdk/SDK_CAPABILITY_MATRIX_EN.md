@@ -17,7 +17,7 @@ Status levels:
 | `cs-sdk` | practical | yes | yes | yes | yes | yes | yes | typed client aimed at Unity / .NET integration |
 | `gd-sdk` | practical-request-builder | request builders | request builders | request builders | request builders | request builders | yes | worker authority-query and roundtrip examples are present, but the execution wrapper is still absent |
 | `cpp-sdk` | baseline+worker-examples | partial | partial | partial | partial | no | yes | request-builder surface now covers pull/callback helper sequences and worker examples |
-| `java-sdk` | baseline+worker-loop | yes | yes | yes | yes | no | yes | real HTTP client plus authority-query / callback roundtrip examples, but observability coverage is still shallow |
+| `java-sdk` | practical | yes | yes | yes | yes | yes | yes | real HTTP client now covers world settings, state, timelines, logs, debug traces, world policy, and a continuity-inspection example |
 | `lua-sdk` | baseline+worker-examples | partial | partial | partial | partial | no | yes | lightweight request helpers now mirror the worker loop and authority-query sequence |
 | `c-sdk` | baseline+worker-examples | partial | partial | partial | partial | no | yes | path/payload helpers and worker examples exist, while the caller still owns transport |
 
@@ -40,6 +40,7 @@ The current mainline SDK set is:
 - `js-sdk`
 - `cs-sdk`
 - `gd-sdk`
+- `java-sdk`
 
 These SDKs already map directly to the active Engine / Worker development workflow.
 
@@ -50,5 +51,7 @@ The remaining order in the current plan is:
 1. `lua-sdk`
 2. `c-sdk`
 3. observability / typed-model depth for `cpp-sdk`
+
+Java SDK has now moved from a worker-loop baseline into the practical tier for continuity-oriented integration work.
 
 The next upgrade target after this phase is still observability and typed-model depth for the lower-tier SDK set, not a rework of the SDKs that are already practical.

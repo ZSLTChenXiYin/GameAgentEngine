@@ -81,11 +81,17 @@ This document centralizes the positioning, current coverage, and attached exampl
   - health / version
   - invoke
   - player input interpretation
-  - pending runtime task list
-  - runtime task list / get / claim / start / heartbeat / release / requeue / stats
+  - runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats
   - callback completion
+  - world settings
+  - continuity state components
+  - timelines
+  - logs / debug traces
+  - world policy
+  - world tick advance
   - authority-query and worker roundtrip examples
-- current status: already covers the minimum Engine / Worker integration loop directly, but state, timelines, logs, and richer typed models are still weaker than TS / JS / C#
+  - continuity inspection example
+- current status: now covers the minimum Engine / Worker integration loop plus a basic continuity-inspection loop directly, though typed-model depth is still weaker than TS / JS / C#
 
 ## C++ SDK
 

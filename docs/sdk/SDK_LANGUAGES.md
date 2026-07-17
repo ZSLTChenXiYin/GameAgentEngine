@@ -75,17 +75,23 @@
 
 ## Java SDK
 
-- 目录：`tools/source/sdks/java-sdk`
-- 定位：Java 服务端或中间层集成基线
-- 当前覆盖：
+- ???`tools/source/sdks/java-sdk`
+- ???Java ???????????
+- ?????
   - health / version
   - invoke
   - player input interpretation
-  - pending runtime task list
-  - runtime task list / get / claim / start / heartbeat / release / requeue / stats
+  - runtime task list / pending / get / claim / start / heartbeat / release / requeue / stats
   - callback completion
-  - authority query 与 worker roundtrip 示例
-- 现状：已可直接覆盖当前 Engine / Worker 最小联调闭环，但状态、时间线、日志与更完整 typed model 仍弱于 TS / JS / C#
+  - world settings
+  - continuity state components
+  - timelines
+  - logs / debug traces
+  - world policy
+  - world tick advance
+  - authority query ? worker roundtrip ??
+  - continuity inspect ??
+- ??????????? Engine / Worker ??????????????????? typed model ????? TS / JS / C#
 
 ## C++ SDK
 
