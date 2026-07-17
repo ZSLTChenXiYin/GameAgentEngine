@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -2729,6 +2730,13 @@ func buildWorldTickTimeBlock(worldID string) string {
 // and injects results into a request-scoped BootstrapBlock string.
 // This reduces the number of low-value request_data rounds in the first LLM pass.
 func (p *Pipeline) runWorldTickBootstrap(worldID string, ctx *BuiltContext) string {
+	if authPath := authorityDemoStatePath(worldID); authPath != "" {
+		if auth, err := LoadDemoAuthorityFile(authPath); err == nil && auth != nil {
+			if block := BuildDemoAuthorityBlock(auth); block != "" {
+				return block
+			}
+		}
+	}
 	if ctx == nil || ctx.Node == nil {
 		return ""
 	}
@@ -2998,4 +3006,29 @@ func (p *Pipeline) executeCustom(req *InvokeRequest, ctx *BuiltContext, start ti
 		finalizeFn = nil
 	}
 	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, customFn, customToolFn, finalizeFn, executionMode)
+}
+func authorityDemoStatePath(worldID string) string {
+	// Check common demo state file locations relative to the working directory.
+	// In dev mode: tools/source/workerhome/demo/demo-state.yaml
+	// In packaged mode: demo/demo-state.yaml (relative to working directory)
+	candidates := []string{
+		"tools/source/workerhome/demo/demo-state.yaml",
+		"demo/demo-state.yaml",
+		"./demo-state.yaml",
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			if data, err := os.ReadFile(p); err == nil {
+				if containsWorldID(data, worldID) {
+					return p
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func containsWorldID(data []byte, worldID string) bool {
+	prefix := []byte("world_id: " + worldID)
+	return len(data) >= len(prefix) && string(data[:len(prefix)]) == string(prefix)
 }
