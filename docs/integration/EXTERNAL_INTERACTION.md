@@ -61,9 +61,41 @@ Engine 当前支持三种对外任务投递模式：
 4. Creator `Tasks` 页面
 5. Creator `Continuity` / `Logs` / `Traces` 页面
 
-## 7. 补充材料
+## 7. Supplemental Material
 
-以下历史/补充文档已移动到 `docs/internal/`：
+This page is now the canonical external-interaction workflow entrypoint.
 
-- [外部交互接入示例](../internal/EXTERNAL_INTERACTION_EXAMPLES.md)
-- [外部交互测试矩阵](../internal/EXTERNAL_INTERACTION_TEST_MATRIX.md)
+Keep detailed implementation-only notes under `docs/internal/` only when they still define a live contract or an unfinished future roadmap.
+
+
+## 8. Recommended Integration Patterns
+
+Treat the current external-interaction baseline as three stable patterns:
+
+- push: Engine dispatches through a configured adapter and the game side completes through callback
+- pull: the game side or a bridge claims runtime tasks, executes them, then reports completion through callback
+- hybrid: Engine prefers push first, then falls back into pull-style queue consumption when dispatch fails
+
+Important current boundaries:
+
+- `fallback_transport` currently means falling back into pull-style queue consumption, not switching to another push adapter automatically
+- `max_attempts` constrains pull / hybrid claim-retry behavior rather than acting as a full dead-letter subsystem
+- callback post-process behavior such as `record_only` or `write_memory` should be treated as task-snapshot behavior
+
+## 9. Current Automated Coverage Boundary
+
+The current automated external-interaction baseline covers:
+
+- push dispatch state transition and observability fields
+- pull queue claim / start / heartbeat / release / requeue paths
+- hybrid push-failure fallback into released pull tasks
+- callback completion, paused-execution auto-resume, and `resume_policy = none` behavior
+- heartbeat-timeout marking, auto-requeue snapshot policy, retry exhaustion, and repeated-timeout diagnostics
+- request-id-based callback replay protection
+
+Still future enhancement areas:
+
+- finer governance policies by `consumer` or `category`
+- richer multi-stage hybrid fallback state machines
+- stronger callback replay protection beyond request-id occupation
+- batch operator intervention flows on top of diagnostic views
