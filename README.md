@@ -105,19 +105,26 @@ Engine 配套提供：
 ## 工作流长什么样
 
 ```text
-World Definition -> Engine world modeling -> cold start baseline
-                     -> world tick -> authority query -> controlled actions
-                     -> timeline / memories / story state
-                     -> Worker / Creator / DevCli / SDK integration
+世界设定 / 世界骨架导入
+    -> Engine 进行世界建模与冷启动
+    -> world tick 推进世界时间、剧情与记忆
+    -> 按需向游戏侧查询权威数据
+    -> 执行受控动作、回调确认、状态更新
+    -> Worker / Creator / DevCli / SDK 完成联调、编辑、测试和打包
 ```
 
 更贴近实际的流程是：
 
-1. 先导入世界骨架
-2. 冷启动生成运行基座
-3. world tick 在权威数据与世界连续性上推进剧情
-4. Worker 负责回应游戏侧真实状态
-5. Creator / DevCli / SDK 负责编辑、联调、回归、打包
+1. 先导入世界骨架或基础配置。
+2. Engine 根据世界设定完成冷启动，建立可推理的运行基座。
+3. world tick 负责推进世界时间、人物状态、剧情和记忆。
+4. 当遇到高频变化且必须权威的数据时，Engine 按需向游戏侧查询。
+5. Worker 负责模拟游戏侧响应、REPL 体验和集成测试。
+6. Creator / DevCli / SDK 负责编辑、联调、回归和打包。
+
+一句话总结：
+
+> 先把世界搭起来，再让 Engine 推着世界往前走，必要时去游戏侧拿权威数据，最后由 Worker、Creator、DevCli 和 SDK 把开发、测试和发布串起来。
 
 ---
 

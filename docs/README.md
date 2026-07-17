@@ -57,4 +57,5 @@
 这些文件属于实现笔记、阶段计划或深度设计记录。它们与公开工作流/参考文档分离，且在重构进行中时可能落后于公开指南。
 
 - 内部笔记根目录：`docs/internal/`
+- [Creator 大规模节点树性能路线图（中文）](./internal/CREATOR_TREE_PERFORMANCE_ROADMAP.md)
 - [Engine 改进路线图（中文）](./internal/ENGINE_IMPROVEMENT_ROADMAP.md)

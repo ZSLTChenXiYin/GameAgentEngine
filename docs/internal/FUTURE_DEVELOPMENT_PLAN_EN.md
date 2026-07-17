@@ -6,13 +6,33 @@ This file records the current post-cleanup roadmap so future implementation does
 
 ## Planning Update
 
-Current execution order has changed again after the kernel / play restructuring completed:
+The execution order for unfinished work is now:
 
-1. finish the remaining documentation cleanup and workflow alignment
-2. reorganize SDK-facing documentation and responsibility boundaries
-3. run packaged-artifact acceptance after structural cleanup stabilizes
+1. fix Creator large-tree performance first
+2. continue remaining Engine roadmap work only after Creator usability is stable at scale
+3. handle broader documentation slimming and later expansion work after that
 
-Engine kernel completion and Worker play deepening are no longer the active unfinished focus areas in this roadmap.
+Engine kernel completion and Worker play deepening are already done. The highest-priority unfinished problem now is Creator outline responsiveness once the world tree reaches ten-thousand-scale nodes, because it directly impacts editing and debugging efficiency.
+
+## F0 Creator large-tree performance optimization
+
+- keep the Creator left outline usable, searchable, scrollable, and editable at 10k+ scale
+- stop relying on a rendering model where every click, filter change, and collapse rebuilds the full tree
+- solve visible-region rendering and local-update behavior first, then layer in finer interaction improvements
+
+### F0 checklist
+
+1. establish 1k / 5k / 10k profiling baselines for first paint, scroll, expand, collapse, filter, and selection latency
+2. split tree data preparation from DOM rendering and cache structures such as `nodeMap`, `childMap`, and flattened visible rows
+3. replace recursive full-tree rendering with a flattened visible-row model
+4. add virtual scrolling so only viewport rows are rendered
+5. convert expand / collapse / selection / drag feedback into local refreshes instead of full `renderTree()` rebuilds
+6. replace per-node event binding with container-level event delegation
+7. add indexed or incremental filtering paths for name/type search
+8. add large-tree degradation rules such as default collapse, on-demand expansion, and search-first navigation
+9. add acceptance criteria and regression samples for large-tree Creator scenarios
+
+Status: not started. This is now the highest-priority future development item.
 
 ## F1 Engine core purification
 
@@ -122,6 +142,8 @@ Status: completed.
 Status: completed.
 
 ## Deferred But Tracked
+
+- Creator large-tree performance roadmap: `docs/internal/CREATOR_TREE_PERFORMANCE_ROADMAP_EN.md`
 
 - recommended conventions for world modeling, runtime baselines, authoritative dynamic state, and world-tick bootstrap; see `docs/architecture/WORLD_MODELING_AND_RUNTIME_CONVENTIONS_EN.md`
 - the current Engine improvement roadmap derived from real world-tick convergence issues; see `docs/internal/ENGINE_IMPROVEMENT_ROADMAP_EN.md`
