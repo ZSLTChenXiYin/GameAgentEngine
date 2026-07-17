@@ -195,6 +195,8 @@ type executionConfig struct {
 	configuredPipelineMode PipelineMode
 	pipelineMode           PipelineMode
 	policyEngine           *planner.PolicyEngine
+	queryBudget            int   // E2: remaining allowed query rounds in current tick
+	queryRoundLimit        int   // E2: max consecutive query rounds before forced convergence
 }
 
 func configuredPipelineMode(runtime *executionConfig) string {
@@ -437,6 +439,8 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 		configuredPipelineMode: configuredMode,
 		pipelineMode:           mode,
 		policyEngine:           p.loadWorldPolicy(req.WorldID),
+		queryBudget:            maxRounds,      // E2: budget = max rounds
+		queryRoundLimit:        3,               // E2: force convergence after 3 consecutive query rounds
 	}
 
 	var interaction *InteractionContext
@@ -2128,6 +2132,10 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 						state.SupplementalContext = append(state.SupplementalContext, "[数据查询] "+dr.Label, result)
 					}
 					appendRoundStateTreeEntry(state, round+1, parsed, result)
+					// E2: inject convergence instruction before the next round
+					if conv := convergenceCheck(runtime, round+1, &dr); conv != "" {
+						state.SupplementalContext = append(state.SupplementalContext, "[收敛指令]", conv)
+					}
 					continue
 				}
 			}
@@ -2775,6 +2783,33 @@ func (p *Pipeline) runWorldTickBootstrap(worldID string, ctx *BuiltContext) stri
 	}
 	return strings.Join(parts, "
 ")
+}
+
+// convergenceCheck determines whether the current round should force-converge.
+// Returns a convergence prompt instruction string, or empty string if normal flow continues.
+func convergenceCheck(runtime *executionConfig, round int, dr *DataRequest) string {
+	if runtime == nil || runtime.maxRounds <= 0 {
+		return ""
+	}
+	// E2.3: Hard converge at 80% of max rounds
+	if round >= runtime.maxRounds {
+		return "[收敛指令] 已达到最大分析轮次。你必须立即基于已有信息完成当前 tick，不能再发起新的 request_data。如果关键事实确实缺失，请在 reply 中注明缺口。"
+	}
+	if round >= int(float64(runtime.maxRounds)*0.8) {
+		r := ""
+		if dr != nil {
+			r = "你的上一轮查询已返回结果。"
+		}
+		return "[收敛指令] 已接近最大分析轮次上限。" + r + "请优先基于已有事实完成当前 tick 的闭环输出。只有在缺少对当前 tick 输出有决定性影响的关键事实时才继续 request_data。禁止为锦上添花的细节发起新查询。"
+	}
+	// E2.2: consecutive query round limit
+	if dr != nil {
+		runtime.queryBudget--
+	}
+	if runtime.queryBudget <= runtime.queryRoundLimit {
+		return "[收敛预算] 剩余查询预算已偏低。请优先完成当前 tick 的核心输出（reply、world_change_plan、future_outline），仅在核心闭环所需时才继续查询。"
+	}
+	return ""
 }
 
 func (p *Pipeline) executeWorldEvent(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {
