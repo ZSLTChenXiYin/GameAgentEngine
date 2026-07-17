@@ -65,6 +65,5 @@ Engine 当前支持三种对外任务投递模式：
 
 以下历史/补充文档已移动到 `docs/internal/`：
 
-- [外部交互路线图](../internal/EXTERNAL_INTERACTION_ROADMAP.md)
 - [外部交互接入示例](../internal/EXTERNAL_INTERACTION_EXAMPLES.md)
 - [外部交互测试矩阵](../internal/EXTERNAL_INTERACTION_TEST_MATRIX.md)

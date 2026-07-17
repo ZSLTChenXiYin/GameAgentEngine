@@ -61,9 +61,9 @@
 
 如果你要理解完整外部交互能力，推荐按这个顺序读：
 
-1. [外部交互路线图](./EXTERNAL_INTERACTION_ROADMAP.md)
-2. [外部交互接入示例](./EXTERNAL_INTERACTION_EXAMPLES.md)
-3. [API 参考](./API_REFERENCE.md)
-4. 本测试矩阵文档
+1. `docs/integration/EXTERNAL_INTERACTION.md`
+2. `docs/internal/EXTERNAL_INTERACTION_EXAMPLES.md`
+3. `docs/reference/API_REFERENCE.md`
+4. this test matrix document
 
 这样可以依次建立：架构目标、接入方式、接口语义、自动化保障边界。
