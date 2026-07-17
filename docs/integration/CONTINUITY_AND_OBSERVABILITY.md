@@ -61,7 +61,25 @@ Treat continuity as regressed when:
 
 ## 6. Historical and Supplemental Material
 
-Detailed historical documents now live under `docs/internal/`:
+This page is now the canonical continuity workflow entrypoint.
 
-- [Continuity Debug Workflow](../internal/CONTINUITY_DEBUG_WORKFLOW.md)
-- [Continuity Regression Sample](../internal/CONTINUITY_REGRESSION_SAMPLE.md)
+Keep the following practical checks in one place when diagnosing continuity regressions:
+
+- use `timeline latest`, `timeline list`, `state list`, `logs`, and `debug traces` first
+- treat `state_snapshot` as an Engine-generated read-only checkpoint payload
+- patch `tick_policy`, `world_state`, `story_state`, or `story_history` only when you are intentionally repairing continuity state
+- re-run one tick after each targeted change instead of stacking multiple blind edits first
+
+## 7. Minimal Regression Sample
+
+When you want a quick regression sample, seed one stable canonical fact into both `world_state` and `story_history`, keep the same fact protected by `tick_policy`, then advance one tick and verify that:
+
+1. the fact still exists in `world_state.canonical_facts`
+2. the newest `story_history` entry still preserves the same fact rather than degrading into a vaguer paraphrase
+3. logs, traces, and timelines still line up on the same request path
+
+One practical example is a fixed underground facility fact such as:
+
+- `地下52米量子谐振腔`
+
+Treat the run as regressed if the fact disappears, loses its depth/status detail, or is no longer protected by the latest `tick_policy` path.
