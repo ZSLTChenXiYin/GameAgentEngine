@@ -751,7 +751,37 @@ func sanitizeRoles(messages []ChatMessage) []ChatMessage {
 //     node_relations=relation_type, node_memories=memory_level。
 //  3. node_relations 返回的是关系视图，不应替代任务级关系图谱策略；尤其不能因为这里能查全量关系，就默认在主 prompt
 //     中拼接全量关系。
+// consolidateQueries groups data request queries by nodeID and type to avoid
+// redundant lookups. Returns the same ordered queries, but with consecutive
+// same-node/same-type queries merged where possible.
+func consolidateQueries(queries []DataQuery) []DataQuery {
+	if len(queries) <= 1 {
+		return queries
+	}
+	merged := make([]DataQuery, 0, len(queries))
+	current := queries[0]
+	for _, q := range queries[1:] {
+		if q.NodeID == current.NodeID && q.Type == current.Type {
+			// Same node+type: merge filter and limit
+			if q.Filter != "" && current.Filter == "" {
+				current.Filter = q.Filter
+			}
+			if q.Limit > current.Limit {
+				current.Limit = q.Limit
+			}
+		} else {
+			merged = append(merged, current)
+			current = q
+		}
+	}
+	merged = append(merged, current)
+	return merged
+}
+
 func (p *Pipeline) handleDataRequest(policyEngine *planner.PolicyEngine, dr *DataRequest) string {
+	if dr != nil && len(dr.Queries) > 1 {
+		dr.Queries = consolidateQueries(dr.Queries)
+	}
 	var parts []string
 	for _, q := range dr.Queries {
 		switch q.Type {

@@ -447,7 +447,7 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 	if req.Context != nil {
 		interaction = req.Context.Interaction
 	}
-	ctx, err := p.ctxBuilder.Build(req.TaskType, req.NodeID, depth, runtime.memoryLimit, includeRelated, interaction)
+	ctx, err := p.ctxBuilder.buildWithMode(req.TaskType, req.NodeID, depth, runtime.memoryLimit, includeRelated, interaction, runtime.pipelineMode)
 	if err != nil {
 		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 			Category:   "pipeline",
@@ -2810,6 +2810,75 @@ func convergenceCheck(runtime *executionConfig, round int, dr *DataRequest) stri
 		return "[收敛预算] 剩余查询预算已偏低。请优先完成当前 tick 的核心输出（reply、world_change_plan、future_outline），仅在核心闭环所需时才继续查询。"
 	}
 	return ""
+}
+
+// ColdStartResult describes the outcome of a world cold-start operation.
+type ColdStartResult struct {
+	WorldID     string   json:"world_id"
+	Components  []string json:"components"
+	Warnings    []string json:"warnings,omitempty"
+	Initialized bool     json:"initialized"
+}
+
+// ColdStartWorld initializes the runtime baseline for a world after import.
+// It does not trigger LLM inference and is independent of world tick.
+// The operation generates default runtime components (world_state, story_state,
+// tick_policy) if they do not already exist.
+// It supports two modes:
+//   - initial: generate only missing runtime components
+//   - rebuild: regenerate all runtime components (overwrite existing)
+func (p *Pipeline) ColdStartWorld(worldID string, mode string) (*ColdStartResult, error) {
+	if strings.TrimSpace(worldID) == "" {
+		return nil, fmt.Errorf("world_id required")
+	}
+	rebuild := strings.EqualFold(mode, "rebuild")
+
+	stateTypes := []ComponentType{CompWorldState, CompStoryState, CompTickPolicy, CompWorldTimeState}
+	var created []string
+	var warnings []string
+
+	for _, ct := range stateTypes {
+		existing, err := store.GetComponentsByType(worldID, string(ct))
+		if err != nil || len(existing) == 0 || rebuild {
+			if !rebuild && err == nil && len(existing) > 0 {
+				continue
+			}
+			var payload string
+			switch ct {
+			case CompWorldState:
+				payload = "{\"summary\":\"\",\"key_facts\":[],\"canonical_facts\":[],\"open_questions\":[],\"active_arcs\":[],\"metadata\":{}}"
+			case CompStoryState:
+				payload = "{\"current_situation\":\"\",\"recent_changes\":[],\"pending_threads\":[],\"tone\":\"\",\"metadata\":{}}"
+			case CompTickPolicy:
+				payload = "{\"continuity_rules\":[],\"focus_scopes\":[],\"banned_resets\":[],\"metadata\":{}}"
+			case CompWorldTimeState:
+				payload = "{\"tick_scale_mode\":\"fixed\",\"tick_min_unit\":\"\",\"tick_step\":1,\"tick_units\":[],\"current_units\":[],\"current_time_label\":\"\",\"total_ticks\":0,\"last_tick_number\":0,\"last_tick_type\":\"\",\"last_advanced_ticks\":0,\"metadata\":{}}"
+			default:
+				payload = "{}"
+			}
+			if err := store.AddComponent(&store.ComponentModel{
+				UUID:          store.NewUUID(),
+				NodeUUID:      worldID,
+				ComponentType: string(ct),
+				Data:          payload,
+			}); err != nil {
+				warnings = append(warnings, fmt.Sprintf("failed to create %s: %v", ct, err))
+				continue
+			}
+			created = append(created, string(ct))
+		}
+	}
+
+	if len(created) == 0 {
+		warnings = append(warnings, "all runtime components already exist (use rebuild to regenerate)")
+	}
+
+	return &ColdStartResult{
+		WorldID:     worldID,
+		Components:  created,
+		Warnings:    warnings,
+		Initialized: len(created) > 0 || rebuild,
+	}, nil
 }
 
 func (p *Pipeline) executeWorldEvent(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {

@@ -42,6 +42,10 @@ type interactionView struct {
 
 // Build assembles the base reasoning context around one task focus node.
 func (b *ContextBuilder) Build(taskType TaskType, nodeID string, depth int, memoryLimit int, includeRelated bool, interaction *InteractionContext) (*BuiltContext, error) {
+	return b.buildWithMode(taskType, nodeID, depth, memoryLimit, includeRelated, interaction, PipelineFull)
+}
+
+func (b *ContextBuilder) buildWithMode(taskType TaskType, nodeID string, depth int, memoryLimit int, includeRelated bool, interaction *InteractionContext, mode PipelineMode) (*BuiltContext, error) {
 	node, err := store.GetNode(nodeID)
 	if err != nil {
 		return nil, fmt.Errorf("get node %s: %w", nodeID, err)
@@ -226,6 +230,26 @@ func shouldIncludeRelatedRelation(taskType TaskType, nodeID string, rel store.Re
 		return rel.RelationType == string(RelBelongsTo) || rel.RelationType == string(RelSubordinate)
 	default:
 		return false
+	}
+}
+
+// shouldIncludeRelatedRelationWithMode adds PipelineMode-aware restrictions.
+// Vertical mode: only identity/env relations, no social edge expansion.
+// Full mode: allow structured expansion through task-tree controlled paths.
+func shouldIncludeRelatedRelationWithMode(taskType TaskType, nodeID string, rel store.RelationModel, mode PipelineMode) bool {
+	if !shouldIncludeRelatedRelation(taskType, nodeID, rel) {
+		return false
+	}
+	switch mode {
+	case PipelineVertical:
+		// Vertical: minimum closed-loop. Only located_at and belongs_to.
+		return rel.RelationType == string(RelLocatedAt) || rel.RelationType == string(RelBelongsTo)
+	case PipelinePolling:
+		// Polling: medium subgraph. Add subordinate for control awareness.
+		return rel.RelationType == string(RelLocatedAt) || rel.RelationType == string(RelBelongsTo) || rel.RelationType == string(RelSubordinate)
+	default:
+		// Full: use the task-type default (shouldIncludeRelatedRelation already handles this)
+		return true
 	}
 }
 
