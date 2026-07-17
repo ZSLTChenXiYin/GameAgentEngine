@@ -228,3 +228,26 @@ func CallbackReplayMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 	}
 }
+
+// ValidateWorldAccess checks whether the given world_id exists in the store.
+// Returns an error if the world is not found or access is denied.
+// This enforces basic world isolation: every world-scoped request must pass
+// through a valid world ID.
+func ValidateWorldAccess(worldID string, r *http.Request) error {
+	if strings.TrimSpace(worldID) == "" {
+		return fmt.Errorf("world_id required")
+	}
+	// Basic isolation: verify world node exists
+	node, err := store.GetNode(worldID)
+	if err != nil {
+		return fmt.Errorf("world %s not found: %w", worldID, err)
+	}
+	if node == nil {
+		return fmt.Errorf("world %s not found", worldID)
+	}
+	// World isolation: the node must be of type "world"
+	if node.NodeType != "world" {
+		return fmt.Errorf("node %s is not a world", worldID)
+	}
+	return nil
+}

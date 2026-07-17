@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
+	"strings"
 )
 
 // CreateComponent 创建一个组件记录。
@@ -121,4 +122,35 @@ func GetComponentsByNodeIDs(nodeIDs []int64) (map[int64][]ComponentModel, error)
 		result[c.NodeID] = append(result[c.NodeID], c)
 	}
 	return result, nil
+}
+
+// RegisteredComponentTypes holds runtime-registered custom component type metadata.
+var RegisteredComponentTypes = map[string]ComponentTypeMeta{}
+
+// ComponentTypeMeta describes a runtime-registered component type.
+type ComponentTypeMeta struct {
+	Type            string
+	DisplayName     string            `json:"display_name,omitempty"`
+	ValidationMode  string            `json:"validation_mode,omitempty"` // "free" or "strong"
+	HelpText        string            `json:"help_text,omitempty"`
+	EnumFields      map[string][]any  `json:"enum_fields,omitempty"`
+}
+
+// RegisterComponentType registers a custom component type at runtime.
+// Once registered, it appears in Creator component type lists and validation.
+func RegisterComponentType(meta ComponentTypeMeta) error {
+	if strings.TrimSpace(meta.Type) == "" {
+		return fmt.Errorf("component type required")
+	}
+	if _, exists := RegisteredComponentTypes[meta.Type]; exists {
+		return fmt.Errorf("component type %q already registered", meta.Type)
+	}
+	RegisteredComponentTypes[meta.Type] = meta
+	return nil
+}
+
+// IsRegisteredComponentType checks if a custom component type is registered.
+func IsRegisteredComponentType(typeName string) bool {
+	_, ok := RegisteredComponentTypes[typeName]
+	return ok
 }
