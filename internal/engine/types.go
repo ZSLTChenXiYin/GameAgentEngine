@@ -400,6 +400,7 @@ type InvokeContext struct {
 // InvokeResponse 是统一的推理响应结构。
 type InvokeResponse struct {
 	RequestID       string                      `json:"request_id"`
+	TraceID         string                      `json:"trace_id,omitempty"`
 	TaskType        TaskType                    `json:"task_type"`
 	ExecutionMode   ExecutionMode               `json:"execution_mode"`
 	Reply           string                      `json:"reply,omitempty"`

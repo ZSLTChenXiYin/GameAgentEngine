@@ -2216,6 +2216,7 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 
 		// Normal execution path: parse and execute side effects
 		resp := &InvokeResponse{
+			TraceID:       traceID,
 			RequestID:     requestID,
 			TaskType:      req.TaskType,
 			ExecutionMode: executionMode,
