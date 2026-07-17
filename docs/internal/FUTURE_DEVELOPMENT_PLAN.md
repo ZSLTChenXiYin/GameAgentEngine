@@ -106,6 +106,9 @@ Status: pending.
 Status: pending.
 
 ## Deferred But Tracked
+- world-tick context roadmap, including `world_focus`, active-node selection, and staged scope refinement; see `docs/internal/WORLD_TICK_CONTEXT_ROADMAP.md`
+- autonomous scheduling roadmap, including priority, batching, lifecycle state, and event-driven wake-up; see `docs/internal/AUTONOMOUS_SCHEDULING_ROADMAP.md`
+- roleplay interaction roadmap, including direct single-chat, group-chat, interaction-session modeling, and player-intent bridging; see `docs/internal/ROLEPLAY_INTERACTION_ROADMAP.md`
 
 - broader documentation slimming beyond active contract cleanup
 - deeper multi-NPC group-chat reasoning, if still needed after play/kernel stabilization
