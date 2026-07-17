@@ -16,14 +16,50 @@ if (!cfg.key) cfg.key = 'dev-key';
 saveCfg(cfg);
 
 /* ============= API ============= */
+/* ============= API Cache Layer (E13) ============= */
+var _apiCache = {};
+var _apiCacheTTL = 3000; // 3 seconds for GET responses
+
+function invalidateAPICache(pattern) {
+  if (!pattern) { _apiCache = {}; return; }
+  for (var key in _apiCache) {
+    if (key.indexOf(pattern) >= 0) delete _apiCache[key];
+  }
+}
+
 async function api(method, path, body) {
-  const url = cfg.url.replace(/\/+$/, '') + path;
-  const opts = { method, headers: { 'X-API-Key': cfg.key, 'Content-Type': 'application/json' } };
+  var url = cfg.url.replace(/\/+$/, '') + path;
+
+  // GET caching: return cached response if fresh
+  if (method === 'GET' && !body) {
+    var cacheKey = method + ':' + url;
+    var cached = _apiCache[cacheKey];
+    if (cached && Date.now() - cached.ts < _apiCacheTTL) {
+      return cached.data;
+    }
+  }
+
+  var opts = { method, headers: { 'X-API-Key': cfg.key, 'Content-Type': 'application/json' } };
   if (body !== undefined) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
-  const text = await res.text();
-  if (!res.ok) throw new Error(text);
-  try { return JSON.parse(text); } catch(e) { return text; }
+  var res = await fetch(url, opts);
+  var text = await res.text();
+  if (!res.ok) {
+    // Invalidate cache on mutation errors (stale data risk)
+    invalidateAPICache(path.split('?')[0]);
+    throw new Error(text);
+  }
+  var parsed;
+  try { parsed = JSON.parse(text); } catch(e) { parsed = text; }
+
+  // Cache GET responses
+  if (method === 'GET') {
+    _apiCache[method + ':' + url] = { data: parsed, ts: Date.now() };
+  } else {
+    // Mutations (POST/PUT/DELETE) invalidate related GET cache
+    invalidateAPICache(path.split('?')[0]);
+  }
+
+  return parsed;
 }
 
 /* ============= State ============= */
