@@ -86,6 +86,23 @@ Linux 或 macOS：
 
 ---
 
+## 发布前检查清单
+
+在创建正式发布包前，建议至少完成以下检查：
+
+- `go build ./cmd/gameagentengine/`
+- `go build ./cmd/gameagentdevcli/`
+- `go build ./cmd/gameagentworker/`
+- `tools/scripts/build.bat windows/amd64` 或 `./tools/scripts/build.sh <target>` 可成功执行
+- 打包产物中存在 `gameagentengine.conf.yaml`
+- 打包产物中存在 `workerhome/demo/demo-world.yaml`
+- 打包产物中存在 `workerhome/demo/demo-state.yaml`
+- 打包产物中存在 `workerhome/fixtures/runtime_task_dynamic_interfaces.json`
+- `GameAgentWorker play --state-file workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001` 可按预期启动
+- Creator 静态资源存在于 `web/GameAgentCreator/`
+
+---
+
 ## 启动打包产物
 
 ```bash

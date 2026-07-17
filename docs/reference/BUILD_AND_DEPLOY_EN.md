@@ -84,6 +84,23 @@ The packaging scripts automatically:
 
 ---
 
+## Pre-Release Checklist
+
+Before creating an official release package, validate at least the following:
+
+- `go build ./cmd/gameagentengine/`
+- `go build ./cmd/gameagentdevcli/`
+- `go build ./cmd/gameagentworker/`
+- `tools/scripts/build.bat windows/amd64` or `./tools/scripts/build.sh <target>` completes successfully
+- the packaged output contains `gameagentengine.conf.yaml`
+- the packaged output contains `workerhome/demo/demo-world.yaml`
+- the packaged output contains `workerhome/demo/demo-state.yaml`
+- the packaged output contains `workerhome/fixtures/runtime_task_dynamic_interfaces.json`
+- `GameAgentWorker play --state-file workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001` starts as expected
+- Creator static assets exist under `web/GameAgentCreator/`
+
+---
+
 ## Start a Packaged Build
 
 ```bash
