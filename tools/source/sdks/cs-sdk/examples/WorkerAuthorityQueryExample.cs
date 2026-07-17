@@ -6,7 +6,7 @@ var client = new GameAgentEngineClient(
     Environment.GetEnvironmentVariable("GAE_KEY") ?? "dev-key");
 
 var dynamicInterfacesFile = Environment.GetEnvironmentVariable("GAE_DYNAMIC_INTERFACES_FILE")
-    ?? "tools/source/tests/runtime_task_dynamic_interfaces.json";
+    ?? "tools/source/workerhome/fixtures/runtime_task_dynamic_interfaces.json";
 var dynamicInterfaces = JsonSerializer.Deserialize<List<DynamicInterface>>(
     await File.ReadAllTextAsync(dynamicInterfacesFile),
     new JsonSerializerOptions

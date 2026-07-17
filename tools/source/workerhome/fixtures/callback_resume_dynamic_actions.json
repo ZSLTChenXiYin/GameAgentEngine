@@ -1,0 +1,35 @@
+[
+  {
+    "id": "spawn_record_only",
+    "kind": "action",
+    "external_interface": "spawn_item_record_only",
+    "description": "Emit a record-only async spawn callback.",
+    "args_schema": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "max_calls": 1
+  },
+  {
+    "id": "spawn_write_memory",
+    "kind": "action",
+    "external_interface": "spawn_item_write_memory",
+    "description": "Emit a write-memory async spawn callback.",
+    "args_schema": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "max_calls": 1
+  },
+  {
+    "id": "spawn_failure",
+    "kind": "action",
+    "external_interface": "spawn_item_failure",
+    "description": "Emit a failing async spawn callback.",
+    "args_schema": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "max_calls": 1
+  }
+]

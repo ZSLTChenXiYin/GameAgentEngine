@@ -20,7 +20,7 @@ async function main() {
     process.env.GAE_SERVER || 'http://127.0.0.1:8080',
     process.env.GAE_KEY || 'dev-key',
   );
-  const dynamicInterfacesPath = process.env.GAE_DYNAMIC_INTERFACES_FILE || 'tools/source/tests/runtime_task_dynamic_interfaces.json';
+  const dynamicInterfacesPath = process.env.GAE_DYNAMIC_INTERFACES_FILE || 'tools/source/workerhome/fixtures/runtime_task_dynamic_interfaces.json';
   const dynamicInterfaces = await loadDynamicInterfaces(dynamicInterfacesPath);
 
   const request: InvokeRequest = {

@@ -198,13 +198,13 @@ GameAgentWorker serve \
 
 ```bash
 GameAgentEngine serve
-GameAgentDevCli import tools/source/demo-world.yaml
+GameAgentDevCli import tools/source/workerhome/demo/demo-world.yaml
 ```
 
 再启动 `play`：
 
 ```bash
-GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
 ```
 
 `play` 相关参数：
@@ -372,8 +372,8 @@ GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_w
 
 ```bash
 GameAgentEngine serve
-GameAgentDevCli import tools/source/demo-world.yaml
-GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+GameAgentDevCli import tools/source/workerhome/demo/demo-world.yaml
+GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
 ```
 
 ### 最短异步任务联调路径

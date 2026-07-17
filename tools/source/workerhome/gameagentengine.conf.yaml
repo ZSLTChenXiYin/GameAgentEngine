@@ -1,0 +1,130 @@
+# ========================================
+#  GameAgentEngine 配置文件
+# ========================================
+# 搜索路径：当前目录 ./gameagentengine.conf.yaml
+#          ./config/gameagentengine.conf.yaml
+# 可通过 --config <路径> 显式指定
+
+server:
+  # HTTP 服务监听地址。本机测试用 127.0.0.1，
+  # 开放局域网访问用 0.0.0.0
+  host: "0.0.0.0"
+  # 服务端口号
+  port: 8080
+
+database:
+  # 数据库驱动：sqlite / mysql / postgres
+  driver: "sqlite"
+  # SQLite：文件名；MySQL/PostgreSQL：连接串 / DSN
+  dsn: "gameagentengine.db"
+  # 是否在初始化时执行 schema/data migrations
+  migrations_enabled: true
+  # 是否启用短暂写冲突自动重试
+  write_retry_enabled: true
+  # 写冲突自动重试最大尝试次数
+  write_retry_max_attempts: 3
+  # 首次重试回退延迟（毫秒）
+  write_retry_base_delay_ms: 40
+  # 重试最大回退延迟（毫秒）
+  write_retry_max_delay_ms: 250
+  # 是否启用推理日志批量写入
+  log_batch_enabled: true
+  # 单次批量落库的最大日志条数
+  log_batch_size: 32
+  # 日志批量 flush 间隔（毫秒）
+  log_batch_flush_ms: 750
+  # 日志批处理内存队列大小
+  log_batch_queue_size: 1024
+
+auth:
+  # API 鉴权密钥，客户端请求时需要附带 X-API-Key 请求头
+  # 开发环境默认值 dev-key，生产环境务必修改
+  api_key: "dev-key"
+  # 可选：专供外部执行面回调使用的 token；配置后可用 X-Callback-Token 调用 callback 接口
+  callback_token: ""
+  # 可选：专供 runtime task worker / bridge 使用的 token；配置后可用 X-Runtime-Task-Token 调用 runtime task 接口
+  runtime_task_token: ""
+  # 是否强制 callback 请求携带 X-Callback-Request-Id 以启用防重放
+  callback_require_request_id: false
+
+llm:
+  # LLM 提供商：openai（兼容 OpenAI API 格式的供应商也可）
+  provider: "openai"
+  # 模型名称，按所接入的平台填写
+  model: "deepseek-v4-flash"
+  # API Key，留空则使用 mock Provider（仅用于离线调试）
+  api_key: "sk-xxx"
+  # API 端点地址
+  base_url: "https://api.deepseek.com"
+  # 当 provider=fixture 时使用的本地响应夹具文件路径
+  fixture_file: ""
+
+engine:
+  # 执行模式：debug / review / production / full
+  execution_mode: "debug"
+  # 是否启用世界级重操作互斥锁
+  world_lock_enabled: true
+  # 后台自主行为调度器是服务级静态开关，默认模板保持关闭
+  autonomous_scheduler_enabled: false
+  # 后台调度器扫描间隔秒数
+  autonomous_scheduler_interval_seconds: 300
+  # 每次扫描每个世界最多触发的 scheduled 自主节点数
+  autonomous_scheduler_max_nodes_per_world: 10
+  # runtime task 自动治理循环间隔秒数
+  runtime_task_governance_interval_seconds: 30
+  # 判定 claimed/running task 心跳超时的秒数
+  runtime_task_heartbeat_timeout_seconds: 300
+  # 是否在标记 heartbeat_timeout 后自动批量 requeue
+  runtime_task_auto_requeue_enabled: false
+  # 每轮自动 requeue 的最大任务数
+  runtime_task_auto_requeue_limit: 100
+  # 自动 requeue 后任务重新可领取前的延迟毫秒数
+  runtime_task_auto_requeue_delay_ms: 1000
+
+external_integrations:
+  # 可选：Engine 内建 push 适配时使用的外部接入点
+  game_http:
+    type: "http_adapter"
+    base_url: "http://127.0.0.1:9000"
+    path: "/api/v1/runtime/dispatch"
+    timeout_ms: 5000
+    retry_max_attempts: 2
+    retry_backoff_ms: 100
+    idempotency_header: "Idempotency-Key"
+    auth:
+      mode: "bearer"
+      token: "replace-me"
+
+  game_ws:
+    type: "websocket_adapter"
+    base_url: "ws://127.0.0.1:9001"
+    path: "/ws/runtime/dispatch"
+    timeout_ms: 5000
+
+  game_rpc:
+    type: "rpc_adapter"
+    base_url: "tcp://127.0.0.1:9002"
+    path: "Runtime.Dispatch"
+    timeout_ms: 5000
+
+external_interfaces:
+  game_client_request_data:
+    category: "external_query"
+    delivery_mode: "push"
+    primary_transport: "game_http"
+    consumer: "game_client"
+    resume_policy: "resume_paused_execution"
+
+  spawn_item:
+    category: "external_action"
+    delivery_mode: "hybrid"
+    primary_transport: "game_http"
+    consumer: "bridge"
+    max_attempts: 3
+    heartbeat_timeout_auto_requeue: true
+    heartbeat_timeout_requeue_delay_ms: 2500
+    heartbeat_timeout_reason: "spawn_item timeout auto requeue"
+    resume_policy: "none"
+    callback_post_process: "write_memory"
+    callback_memory_level: "long_term"
+    callback_memory_template: "spawn callback {status}: {result_json}"

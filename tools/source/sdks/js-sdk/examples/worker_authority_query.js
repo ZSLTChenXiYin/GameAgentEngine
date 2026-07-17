@@ -3,7 +3,7 @@ const { GameAgentEngineClient } = require('../src/client');
 
 async function main() {
   const client = new GameAgentEngineClient(process.env.GAE_SERVER || 'http://127.0.0.1:8080', process.env.GAE_KEY || 'dev-key');
-  const dynamicInterfacesFile = process.env.GAE_DYNAMIC_INTERFACES_FILE || 'tools/source/tests/runtime_task_dynamic_interfaces.json';
+  const dynamicInterfacesFile = process.env.GAE_DYNAMIC_INTERFACES_FILE || 'tools/source/workerhome/fixtures/runtime_task_dynamic_interfaces.json';
   const dynamicInterfaces = JSON.parse(await fs.readFile(dynamicInterfacesFile, 'utf8'));
 
   const response = await client.invoke({

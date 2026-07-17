@@ -110,7 +110,7 @@ func newApp(options Options) *app {
 			RuntimeTaskToken:    "dev-task-token",
 			CallbackToken:       "dev-callback-token",
 			GameHTTPBearerToken: "local-test-token",
-			TestsDir:            "tools/source/tests",
+			TestsDir:            "tools/source/workerhome/fixtures",
 			Consumer:            "game_client",
 			LeaseOwner:          options.DefaultLeaseOwner,
 			PlayIncludeRelated:  true,

@@ -9,7 +9,7 @@
 共享的 worker 侧与 runtime-task 夹具数据位于：
 
 ```text
-tools/source/tests/
+tools/source/workerhome/fixtures/
 ```
 
 SDK 示例在新增样例数据前，应优先复用这些文件。
@@ -33,21 +33,21 @@ SDK 示例在新增样例数据前，应优先复用这些文件。
 
 ## 3. 仓库级 Demo 资产
 
-以下文件不在 `tools/source/tests` 下，但仍属于共享集成资产：
+以下文件不在 `tools/source/workerhome/fixtures` 下，但仍属于共享集成资产：
 
 | 文件 | 用途 |
 | --- | --- |
-| `tools/source/demo-world.yaml` | Engine / DevCli / Worker 快速开始使用的 demo world 导入文件 |
-| `tools/source/demo-state.yaml` | Worker play 模式的 authority-state 样例 |
+| `tools/source/workerhome/demo/demo-world.yaml` | Engine / DevCli / Worker 快速开始使用的 demo world 导入文件 |
+| `tools/source/workerhome/demo/demo-state.yaml` | Worker play 模式的 authority-state 样例 |
 
 ## 4. 夹具使用规则
 
 SDK 示例应遵守以下规则：
 
 1. authority-query 示例优先复用 `runtime_task_dynamic_interfaces.json`；
-2. 面向 play 模式的演示优先复用 `tools/source/demo-world.yaml` 和 `tools/source/demo-state.yaml`；
+2. 面向 play 模式的演示优先复用 `tools/source/workerhome/demo/demo-world.yaml` 和 `tools/source/workerhome/demo/demo-state.yaml`；
 3. 如果共享文件已存在，不要在每种语言示例里继续内嵌大段 JSON；
-4. 若某个 SDK 需要新增夹具，仅当它至少还能复用于另一个 SDK 或 Worker 场景时，才加入 `tools/source/tests/`。
+4. 若某个 SDK 需要新增夹具，仅当它至少还能复用于另一个 SDK 或 Worker 场景时，才加入 `tools/source/workerhome/fixtures/`。
 
 ## 5. 当前共享示例模式
 

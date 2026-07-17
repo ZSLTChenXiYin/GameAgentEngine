@@ -12,7 +12,7 @@ static std::string read_text(const std::string& path) {
 
 int main() {
     GameAgentEngineClient client("http://127.0.0.1:8080", "dev-key");
-    const auto dynamic_interfaces = read_text("tools/source/tests/runtime_task_dynamic_interfaces.json");
+    const auto dynamic_interfaces = read_text("tools/source/workerhome/fixtures/runtime_task_dynamic_interfaces.json");
     const std::string invoke_body =
         std::string("{\"world_id\":\"demo_world\",\"node_id\":\"innkeeper_001\",\"task_type\":\"npc_dialogue\",\"messages\":[{\"role\":\"user\",\"content\":\"Before answering, query the nearby scene state and then respond.\"}],\"context\":{\"pipeline_mode\":\"full\",\"dynamic_interfaces\":")
         + dynamic_interfaces + "}}";

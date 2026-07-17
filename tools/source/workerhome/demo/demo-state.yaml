@@ -1,0 +1,78 @@
+world_id: demo_world
+meta:
+  title: Tavern Murder Demo World
+  scenario: tavern_investigation
+actors:
+  player_001:
+    id: player_001
+    name: Player Mirror
+    kind: player
+    hp: 18
+    max_hp: 20
+    money: 42
+    location_id: scene_inn
+    inventory:
+      - item_id: knife_bloody
+        quantity: 1
+      - item_id: silver_ring
+        quantity: 1
+    quest_states:
+      task_case: active
+  npc_innkeeper:
+    id: npc_innkeeper
+    name: Innkeeper Mara
+    kind: npc
+    hp: 12
+    max_hp: 12
+    money: 88
+    location_id: scene_inn
+  npc_guard:
+    id: npc_guard
+    name: Guard Han
+    kind: npc
+    hp: 16
+    max_hp: 16
+    money: 25
+    location_id: scene_inn
+  npc_courier:
+    id: npc_courier
+    name: Courier Reed
+    kind: npc
+    hp: 10
+    max_hp: 10
+    money: 7
+    location_id: scene_inn
+scenes:
+  scene_inn:
+    id: scene_inn
+    name: Riverside Tavern
+    kind: tavern
+    description: Rain taps the shutters while a few late patrons watch each other more closely than usual.
+    occupants:
+      - player_001
+      - npc_innkeeper
+      - npc_guard
+      - npc_courier
+    flags:
+      weather: rain
+      crowd_noise: low
+      knife_rumor: true
+items:
+  knife_bloody:
+    id: knife_bloody
+    name: Bloody Short Knife
+    owner_id: player_001
+    metadata:
+      suspicious: true
+      clue_type: murder_weapon
+  silver_ring:
+    id: silver_ring
+    name: Silver Ring
+    owner_id: player_001
+tasks:
+  task_case:
+    id: task_case
+    name: Find the Knife's Owner
+    status: active
+    owner_id: player_001
+    stage: ask_the_tavern

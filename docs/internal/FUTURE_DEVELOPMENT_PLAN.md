@@ -90,7 +90,7 @@ Engine 内核补完与 Worker play 深化，已不再是当前路线图中处于
 
 ## F6 tests 收敛
 
-- 保持 `tools/source/tests` 为纯数据目录
+- 保持 `tools/source/workerhome/fixtures` 为纯数据目录
 - 将剩余过程型流程迁移到 Worker 命令中
 
 状态：对当前以 worker 驱动的测试工作流基线而言，已完成。

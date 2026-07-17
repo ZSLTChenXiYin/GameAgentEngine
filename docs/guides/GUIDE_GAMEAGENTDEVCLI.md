@@ -193,13 +193,13 @@ GameAgentDevCli creator
 当前围绕世界资产的主命令已经集中在 DevCli：
 
 ```bash
-GameAgentDevCli import tools/source/demo-world.yaml
+GameAgentDevCli import tools/source/workerhome/demo/demo-world.yaml
 GameAgentDevCli world export <world-id> --format yaml --out exported-world.yaml
 GameAgentDevCli world snapshot <world-id> --out runtime-snapshot.json
 GameAgentDevCli world save <world-id> demo-save
 GameAgentDevCli world restore <snapshot-world-id> restored-world
 GameAgentDevCli world validate-snapshot <snapshot-world-id>
-GameAgentDevCli verify import tools/source/demo-world.yaml
+GameAgentDevCli verify import tools/source/workerhome/demo/demo-world.yaml
 GameAgentDevCli verify demo
 ```
 

@@ -1,0 +1,13 @@
+{
+  "entries": [
+    {
+      "tick_number": 0,
+      "summary": "Initial checkpoint setup completed.",
+      "facts": [
+        "Gate Plaza is active.",
+        "Quartermaster Lin manages northern logistics."
+      ],
+      "game_time": "day-12 hour-8"
+    }
+  ]
+}

@@ -32,9 +32,9 @@ If you just want to verify the project end to end, the recommended shortest loop
 
 ```bash
 GameAgentEngine serve
-GameAgentDevCli import tools/source/demo-world.yaml
+GameAgentDevCli import tools/source/workerhome/demo/demo-world.yaml
 GameAgentDevCli creator
-GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
 ```
 
 That means:

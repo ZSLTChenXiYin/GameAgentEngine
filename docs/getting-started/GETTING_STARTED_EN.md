@@ -48,7 +48,7 @@ If you are using a packaged build, skip this step and work directly from the ext
 Copy the default config:
 
 ```bash
-cp tools/source/gameagentengine.conf.yaml .
+cp tools/source/workerhome/gameagentengine.conf.yaml .
 ```
 
 Important points in the packaged template:
@@ -182,7 +182,7 @@ These endpoints quickly show whether:
 If you want to verify the external worker, authority state file, NPC dialogue flow, and callback path together, the shortest path is to start `GameAgentWorker` directly:
 
 ```bash
-GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
 ```
 
 This command:

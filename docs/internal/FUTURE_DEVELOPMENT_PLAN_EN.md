@@ -90,7 +90,7 @@ Status: completed.
 
 ## F6 tests consolidation
 
-- keep `tools/source/tests` data-only
+- keep `tools/source/workerhome/fixtures` data-only
 - move remaining procedural flows into Worker commands
 
 Status: completed for the current worker-driven test workflow baseline.

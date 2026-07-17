@@ -1,0 +1,14 @@
+{
+  "current_situation": "The watch is stable but preparing for a supply shift.",
+  "recent_changes": [
+    "Patrol route moved to the western stairs.",
+    "Quartermaster Lin scheduled a dawn stock check."
+  ],
+  "pending_threads": [
+    "Confirm the next handoff route.",
+    "Verify whether the supply crate should be relocated."
+  ],
+  "metadata": {
+    "source": "s5-seed"
+  }
+}

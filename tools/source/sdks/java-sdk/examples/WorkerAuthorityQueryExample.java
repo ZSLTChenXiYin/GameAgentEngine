@@ -12,7 +12,7 @@ public class WorkerAuthorityQueryExample {
 
         var dynamicInterfacesFile = System.getenv().getOrDefault(
             "GAE_DYNAMIC_INTERFACES_FILE",
-            "tools/source/tests/runtime_task_dynamic_interfaces.json"
+            "tools/source/workerhome/fixtures/runtime_task_dynamic_interfaces.json"
         );
         var dynamicInterfaces = Files.readString(Path.of(dynamicInterfacesFile));
 

@@ -1,7 +1,7 @@
 local Client = require("../src/client")
 
 local client = Client.new("http://127.0.0.1:8080", "dev-key")
-local file = assert(io.open("tools/source/tests/runtime_task_dynamic_interfaces.json", "r"))
+local file = assert(io.open("tools/source/workerhome/fixtures/runtime_task_dynamic_interfaces.json", "r"))
 local dynamic_interfaces = file:read("*a")
 file:close()
 

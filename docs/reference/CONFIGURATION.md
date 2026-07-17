@@ -14,7 +14,7 @@ GameAgentEngine 采用双层配置：
 仓库里当前同时存在两种“默认值”：
 
 - 代码级默认值：由 `internal/config/config.go` 注册，在缺失配置项时生效
-- 随包模板值：写在 `tools/source/gameagentengine.conf.yaml`，更偏向本地演示与开箱体验
+- 随包模板值：写在 `tools/source/workerhome/gameagentengine.conf.yaml`，更偏向本地演示与开箱体验
 
 例如，代码级默认的 `engine.autonomous_scheduler_enabled` 当前是 `false`，而旧模板曾经写成 `true`。本次文档和模板都已经统一到关闭状态。
 
@@ -22,7 +22,7 @@ GameAgentEngine 采用双层配置：
 
 ## 静态配置文件
 
-默认模板位于 `tools/source/gameagentengine.conf.yaml`。
+默认模板位于 `tools/source/workerhome/gameagentengine.conf.yaml`。
 
 搜索顺序：
 

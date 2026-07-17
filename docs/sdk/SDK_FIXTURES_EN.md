@@ -9,7 +9,7 @@ The goal is to keep all SDK examples aligned to the same Engine / Worker semanti
 Shared worker-side and runtime-task fixture data lives in:
 
 ```text
-tools/source/tests/
+tools/source/workerhome/fixtures/
 ```
 
 SDK examples should prefer these files before inventing new sample payloads.
@@ -33,21 +33,21 @@ SDK examples should prefer these files before inventing new sample payloads.
 
 ## 3. Repository-Level Demo Assets
 
-These files are not under `tools/source/tests`, but they are still shared integration assets:
+These files are not under `tools/source/workerhome/fixtures`, but they are still shared integration assets:
 
 | File | Purpose |
 | --- | --- |
-| `tools/source/demo-world.yaml` | demo world import used by Engine / DevCli / Worker quick-start |
-| `tools/source/demo-state.yaml` | Worker play-mode authority-state sample |
+| `tools/source/workerhome/demo/demo-world.yaml` | demo world import used by Engine / DevCli / Worker quick-start |
+| `tools/source/workerhome/demo/demo-state.yaml` | Worker play-mode authority-state sample |
 
 ## 4. Fixture Usage Rules
 
 SDK examples should follow these rules:
 
 1. reuse `runtime_task_dynamic_interfaces.json` for authority-query examples;
-2. reuse `tools/source/demo-world.yaml` and `tools/source/demo-state.yaml` for play-facing walkthroughs;
+2. reuse `tools/source/workerhome/demo/demo-world.yaml` and `tools/source/workerhome/demo/demo-state.yaml` for play-facing walkthroughs;
 3. avoid embedding large inline JSON blobs in every language example when a shared file already exists;
-4. if one SDK needs a new fixture, add it under `tools/source/tests/` only when it is reusable by at least one other SDK or Worker scenario.
+4. if one SDK needs a new fixture, add it under `tools/source/workerhome/fixtures/` only when it is reusable by at least one other SDK or Worker scenario.
 
 ## 5. Current Shared Example Patterns
 

@@ -115,7 +115,7 @@ bash tools/scripts/build.sh
 
 ```
 # 复制默认配置
-cp tools/source/gameagentengine.conf.yaml .
+cp tools/source/workerhome/gameagentengine.conf.yaml .
 
 # 启动引擎
 GameAgentEngine serve
@@ -147,15 +147,15 @@ GameAgentDevCli world tick <world-id>
 
 仓库现在附带一套最小 demo 资产：
 
-- `tools/source/demo-world.yaml`：导入到 Engine 的 demo 世界
-- `tools/source/demo-state.yaml`：供 `GameAgentWorker play` 使用的权威状态文件
+- `tools/source/workerhome/demo/demo-world.yaml`：导入到 Engine 的 demo 世界
+- `tools/source/workerhome/demo/demo-state.yaml`：供 `GameAgentWorker play` 使用的权威状态文件
 
 最短体验路径：
 
 ```bash
 GameAgentEngine serve
-GameAgentDevCli import tools/source/demo-world.yaml
-GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+GameAgentDevCli import tools/source/workerhome/demo/demo-world.yaml
+GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
 ```
 
 这样你可以一边让 Engine 扮演 NPC，一边让 worker 侧状态文件提供 HP、背包、金钱、任务和场景即时状态这类权威数据。
@@ -223,7 +223,7 @@ GameAgentWorker serve --verbose
 GameAgentWorker pull-once --consumer game_client
 
 # 进入文字游戏 REPL
-GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
 
 # 运行打包内置的集成测试场景
 GameAgentWorker test all

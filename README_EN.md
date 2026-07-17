@@ -115,7 +115,7 @@ Output goes to `dist/`, containing the engine binaries, CLI tools, config templa
 
 ```
 # Copy the default config
-cp tools/source/gameagentengine.conf.yaml .
+cp tools/source/workerhome/gameagentengine.conf.yaml .
 
 # Start the engine
 GameAgentEngine serve
@@ -146,15 +146,15 @@ GameAgentDevCli world tick <world-id>
 
 The repository ships with a minimal demo asset pair:
 
-- `tools/source/demo-world.yaml` -- demo world imported into the Engine
-- `tools/source/demo-state.yaml` -- authority state file consumed by `GameAgentWorker play`
+- `tools/source/workerhome/demo/demo-world.yaml` -- demo world imported into the Engine
+- `tools/source/workerhome/demo/demo-state.yaml` -- authority state file consumed by `GameAgentWorker play`
 
 Shortest path:
 
 ```bash
 GameAgentEngine serve
-GameAgentDevCli import tools/source/demo-world.yaml
-GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+GameAgentDevCli import tools/source/workerhome/demo/demo-world.yaml
+GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
 ```
 
 This lets the Engine drive NPC behavior while the worker-side state file remains the authority source for HP, inventory, money, quest state, and scene occupancy.
@@ -222,7 +222,7 @@ GameAgentWorker serve --verbose
 GameAgentWorker pull-once --consumer game_client
 
 # Enter text-game REPL
-GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
 
 # Run packaged integration scenarios
 GameAgentWorker test all

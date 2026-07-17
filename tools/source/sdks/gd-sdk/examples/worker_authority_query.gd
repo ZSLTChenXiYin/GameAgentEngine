@@ -2,7 +2,7 @@ extends Node
 
 func _ready() -> void:
 	var client := GameAgentEngineClient.new("http://127.0.0.1:8080", "dev-key")
-	var file := FileAccess.open("tools/source/tests/runtime_task_dynamic_interfaces.json", FileAccess.READ)
+	var file := FileAccess.open("tools/source/workerhome/fixtures/runtime_task_dynamic_interfaces.json", FileAccess.READ)
 	var dynamic_interfaces = JSON.parse_string(file.get_as_text())
 	var request := client.invoke_request({
 		"world_id": "demo_world",

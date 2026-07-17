@@ -198,13 +198,13 @@ Start Engine and import a world first:
 
 ```bash
 GameAgentEngine serve
-GameAgentDevCli import tools/source/demo-world.yaml
+GameAgentDevCli import tools/source/workerhome/demo/demo-world.yaml
 ```
 
 Then run `play`:
 
 ```bash
-GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
 ```
 
 Relevant flags:
@@ -372,8 +372,8 @@ It is not yet a full multi-character parallel world simulator.
 
 ```bash
 GameAgentEngine serve
-GameAgentDevCli import tools/source/demo-world.yaml
-GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+GameAgentDevCli import tools/source/workerhome/demo/demo-world.yaml
+GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
 ```
 
 ### Shortest async task loop path

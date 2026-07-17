@@ -14,7 +14,7 @@ GameAgentEngine uses a two-layer configuration model:
 The repository currently exposes two different sources of “defaults”:
 
 - code-level defaults registered in `internal/config/config.go`
-- packaged template values defined in `tools/source/gameagentengine.conf.yaml`
+- packaged template values defined in `tools/source/workerhome/gameagentengine.conf.yaml`
 
 For example, the code-level default for `engine.autonomous_scheduler_enabled` is currently `false`, while an older template revision still showed `true`. This documentation pass also updates the packaged template so both now point to the disabled state.
 
@@ -22,7 +22,7 @@ For example, the code-level default for `engine.autonomous_scheduler_enabled` is
 
 ## Static Config File
 
-The default template lives at `tools/source/gameagentengine.conf.yaml`.
+The default template lives at `tools/source/workerhome/gameagentengine.conf.yaml`.
 
 Lookup order:
 

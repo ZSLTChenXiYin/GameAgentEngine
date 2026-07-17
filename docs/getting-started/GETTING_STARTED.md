@@ -48,7 +48,7 @@ cd GameAgentEngine
 复制默认配置：
 
 ```bash
-cp tools/source/gameagentengine.conf.yaml .
+cp tools/source/workerhome/gameagentengine.conf.yaml .
 ```
 
 当前随包模板的关键点如下：
@@ -182,7 +182,7 @@ GameAgentDevCli creator
 如果你要验证外部 worker、权威状态文件、NPC 对话和 callback 流程是否打通，最短路径是直接启动 `GameAgentWorker`：
 
 ```bash
-GameAgentWorker play --state-file tools/source/demo-state.yaml --world-id demo_world --player-node-id player_001
+GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
 ```
 
 这条命令会：
