@@ -105,6 +105,10 @@ function parsePackageName(name) {
 }
 
 function listPackageRoots(root) {
+  if (isDir(root) && parsePackageName(path.basename(root))) {
+    return [root];
+  }
+
   if (isFile(root) && root.endsWith('.zip')) {
     return [root];
   }
