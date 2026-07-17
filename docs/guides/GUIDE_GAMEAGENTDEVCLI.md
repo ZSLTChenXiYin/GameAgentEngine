@@ -200,7 +200,6 @@ GameAgentDevCli world save <world-id> demo-save
 GameAgentDevCli world restore <snapshot-world-id> restored-world
 GameAgentDevCli world validate-snapshot <snapshot-world-id>
 GameAgentDevCli verify import tools/source/workerhome/demo/demo-world.yaml
-GameAgentDevCli verify demo
 ```
 
 约束上应这样理解：
