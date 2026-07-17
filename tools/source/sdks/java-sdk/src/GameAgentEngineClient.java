@@ -46,6 +46,18 @@ public class GameAgentEngineClient {
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
     }
 
+    public String postOrPut(String method, String path, String jsonBody) throws Exception {
+        var builder = HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl + path))
+            .header("X-API-Key", apiKey)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json");
+        HttpRequest request = builder
+            .method(method, HttpRequest.BodyPublishers.ofString(jsonBody))
+            .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
+    }
+
     private String buildQuery(String[][] pairs) {
         List<String> items = new ArrayList<>();
         for (String[] pair : pairs) {
@@ -69,6 +81,52 @@ public class GameAgentEngineClient {
     public String version() throws Exception { return get("/api/v1/version"); }
     public String invoke(String jsonBody) throws Exception { return post("/api/v1/invoke", jsonBody); }
     public String interpretPlayerInput(String jsonBody) throws Exception { return post("/api/v1/player/input/interpret", jsonBody); }
+    public String advanceTick(String worldId, String jsonBody) throws Exception {
+        return post("/api/v1/worlds/" + URLEncoder.encode(worldId, StandardCharsets.UTF_8) + "/ticks/advance", jsonBody);
+    }
+    public String getWorldSettings(String worldId) throws Exception {
+        return get("/api/v1/worlds/" + URLEncoder.encode(worldId, StandardCharsets.UTF_8) + "/settings");
+    }
+    public String setWorldSettings(String worldId, String jsonBody) throws Exception {
+        return postOrPut("PUT", "/api/v1/worlds/" + URLEncoder.encode(worldId, StandardCharsets.UTF_8) + "/settings", jsonBody);
+    }
+    public String getStateComponents(String worldId) throws Exception {
+        return get("/api/v1/worlds/" + URLEncoder.encode(worldId, StandardCharsets.UTF_8) + "/state-components");
+    }
+    public String getStateComponent(String worldId, String componentType) throws Exception {
+        return get("/api/v1/worlds/" + URLEncoder.encode(worldId, StandardCharsets.UTF_8) + "/state-components/" + URLEncoder.encode(componentType, StandardCharsets.UTF_8));
+    }
+    public String putStateComponent(String worldId, String componentType, String jsonBody) throws Exception {
+        return postOrPut("PUT", "/api/v1/worlds/" + URLEncoder.encode(worldId, StandardCharsets.UTF_8) + "/state-components/" + URLEncoder.encode(componentType, StandardCharsets.UTF_8), jsonBody);
+    }
+    public String getTimelines(String worldId, int limit) throws Exception {
+        return get("/api/v1/worlds/" + URLEncoder.encode(worldId, StandardCharsets.UTF_8) + "/timelines" + buildQuery(new String[][]{
+            {"limit", limit > 0 ? Integer.toString(limit) : null},
+        }));
+    }
+    public String getLatestTimeline(String worldId) throws Exception {
+        return get("/api/v1/worlds/" + URLEncoder.encode(worldId, StandardCharsets.UTF_8) + "/timelines/latest");
+    }
+    public String getLogs(String worldId, int limit, int offset, String taskType) throws Exception {
+        return get("/api/v1/logs" + buildQuery(new String[][]{
+            {"world_id", worldId},
+            {"limit", limit > 0 ? Integer.toString(limit) : null},
+            {"offset", offset > 0 ? Integer.toString(offset) : null},
+            {"task_type", taskType},
+        }));
+    }
+    public String getDebugTraces(String worldId, int limit) throws Exception {
+        return get("/debug/traces" + buildQuery(new String[][]{
+            {"world_id", worldId},
+            {"limit", limit > 0 ? Integer.toString(limit) : null},
+        }));
+    }
+    public String getWorldPolicy(String worldId) throws Exception {
+        return get("/api/v1/worlds/" + URLEncoder.encode(worldId, StandardCharsets.UTF_8) + "/policy");
+    }
+    public String setWorldPolicy(String worldId, String jsonBody) throws Exception {
+        return postOrPut("PUT", "/api/v1/worlds/" + URLEncoder.encode(worldId, StandardCharsets.UTF_8) + "/policy", jsonBody);
+    }
     public String listPendingRuntimeTasks(String consumer, int limit) throws Exception {
         return get("/api/v1/runtime/tasks/pending?consumer=" + URLEncoder.encode(consumer, StandardCharsets.UTF_8) + "&limit=" + limit);
     }
