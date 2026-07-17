@@ -395,6 +395,7 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 	// 这里构建出的 BuiltContext 只是任务起点；更细的关系图谱扩展必须遵守上面的任务级策略，而不是默认拿全量关系。
 	start := time.Now()
 	requestID := uuid.NewString()
+	traceID := "trace-" + requestID[:8]
 	executionMode := p.getExecutionMode()
 	p.emitLog(req, nil, nil, executionMode, pipelineLogEvent{
 		Category:  "pipeline",
@@ -402,6 +403,7 @@ func (p *Pipeline) Execute(req *InvokeRequest) (*InvokeResponse, error) {
 		Message:   fmt.Sprintf("start task %s", req.TaskType),
 		DetailData: marshalLogDetail(map[string]any{
 			"request_id": requestID,
+			"trace_id":    traceID,
 			"request":    req,
 		}),
 	})

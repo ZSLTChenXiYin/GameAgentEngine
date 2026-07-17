@@ -1,3 +1,29 @@
+// GameAgentEngine Go SDK
+//
+// Usage:
+//
+//     client := sdk.NewClient("http://127.0.0.1:8080", "dev-key")
+//
+//     // Create a world
+//     world, err := client.CreateNode(sdk.CreateNodeRequest{
+//         Name:     "My World",
+//         NodeType: "world",
+//         WorldID:  "",
+//     })
+//
+//     // Advance a world tick
+//     resp, err := client.TickAdvance("world_id", 1)
+//
+//     // Run an NPC interaction
+//     resp, err := client.ExecuteInteraction(&sdk.InteractionExecuteRequest{
+//         WorldID:      "world_id",
+//         ActorNodeID:  "npc_001",
+//         TargetNodeID: "player_001",
+//         TaskType:     "npc_dialogue",
+//         Message:      "Hello!",
+//     })
+//
+// See docs/sdk/ for full documentation.
 package sdk
 
 import "time"
