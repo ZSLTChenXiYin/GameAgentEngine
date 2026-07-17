@@ -20,20 +20,20 @@
 
 | 优先级 | 编号 | 改进项 | 状态 | 参考文档 |
 |---|---:|---|:---:|---|
-| P0 | F0 | Creator 大规模节点树性能优化 | [ ] | CREATOR_TREE_PERFORMANCE_ROADMAP.md |
-| P0 | E1 | World Tick Bootstrap | [ ] | ENGINE_IMPROVEMENT_ROADMAP.md |
-| P0 | E2 | 收束控制 | [ ] | ENGINE_IMPROVEMENT_ROADMAP.md |
-| P0 | E3 | World Tick Prompt 收束重写 | [ ] | ENGINE_IMPROVEMENT_ROADMAP.md |
-| P1 | E4 | 查询结果摘要化 | [ ] | ENGINE_IMPROVEMENT_ROADMAP.md |
-| P1 | E5 | Round Context 压缩 | [ ] | ENGINE_IMPROVEMENT_ROADMAP.md |
-| P1 | E6 | 世界冷启动接口 | [ ] | ENGINE_IMPROVEMENT_ROADMAP.md |
+| P0 | F0 | Creator 大规模节点树性能优化 | [x] | CREATOR_TREE_PERFORMANCE_ROADMAP.md |
+| P0 | E1 | World Tick Bootstrap | [x] | ENGINE_IMPROVEMENT_ROADMAP.md |
+| P0 | E2 | 收束控制 | [x] | ENGINE_IMPROVEMENT_ROADMAP.md |
+| P0 | E3 | World Tick Prompt 收束重写 | [x] | ENGINE_IMPROVEMENT_ROADMAP.md |
+| P1 | E4 | 查询结果摘要化 | [x] | ENGINE_IMPROVEMENT_ROADMAP.md |
+| P1 | E5 | Round Context 压缩 | [x] | ENGINE_IMPROVEMENT_ROADMAP.md |
+| P1 | E6 | 世界冷启动接口 | [x] | ENGINE_IMPROVEMENT_ROADMAP.md |
 | P1 | E7 | Demo Authority 接入 | [ ] | ENGINE_IMPROVEMENT_ROADMAP.md |
-| P1 | E8 | Store 数据层覆盖测试加固 | [ ] | 本文档 E8 |
-| P1 | E9 | PipelineMode 关系装配策略硬化 | [ ] | 本文档 E9 |
+| P1 | E8 | Store 数据层覆盖测试加固 | [x] | 本文档 E8 |
+| P1 | E9 | PipelineMode 关系装配策略硬化 | [x] | 本文档 E9 |
 | P2 | E10 | Callback Bootstrap 兜底 | [ ] | ENGINE_IMPROVEMENT_ROADMAP.md |
-| P2 | E11 | 动作系统 Schema 验证与扩展 | [ ] | 本文档 E11 |
-| P2 | E12 | PolicyEngine 冲突解析 | [ ] | 本文档 E12 |
-| P2 | E13 | 前端交互响应优化 | [ ] | 本文档 E13 |
+| P2 | E11 | 动作系统 Schema 验证与扩展 | [x] | 本文档 E11 |
+| P2 | E12 | PolicyEngine 冲突解析 | [x] | 本文档 E12 |
+| P2 | E13 | 前端交互响应优化 | [x] | 本文档 E13 |
 | P2 | E14 | Autonomous 调度路线图 | [ ] | AUTONOMOUS_SCHEDULING_ROADMAP.md |
 | P2 | E15 | World Tick Context 路线图 | [ ] | WORLD_TICK_CONTEXT_ROADMAP.md |
 | P3 | E16 | SDK 文档与示例完善 | [ ] | 本文档 E16 |
@@ -312,3 +312,18 @@ DevCli: `world cold-start`, `world bootstrap inspect`。Creator: 世界初始化
 ---
 
 *本文档整合了项目中所有现有的路线图和规划，是团队开发决策的单一参照。开发团队应在每个 sprint 结束时更新本文档的状态列。*
+
+
+## 9. 计划外但已识别的改进项
+
+以下项目在开发过程中发现并记录，已创建基准脚本在 	mp/ 目录：
+
+| 文件 | 用途 |
+|---|---|
+| 	mp/bench_autonomous.sh | E14 自主行为调度基准测试 |
+| 	mp/bench_worldtick.py | E22 World Tick 压力测试 |
+| 	mp/register_component_type.js | E17 组件类型注册助手 |
+| 	mp/validate_world_isolation.py | E21 跨世界引用校验 |
+| 	mp/creator_tree_profiling.js | F0 Creator 树性能基线 |
+
+*其余 P2-P4 项目已在对应的路线图文档中详细记录，详见[现有路线图文档索引](#8-现有路线图文档索引)。*
