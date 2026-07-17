@@ -2,96 +2,122 @@
 
 [**中文**](./README.md) | **English**
 
-An AI Agent engine built for games.
+An AI Agent runtime built for games.
+
+This is not just a “chatty NPC wrapper.” It is a dedicated game-side runtime for world continuity, authoritative state access, controlled action execution, world-time progression, and a development workflow that can be debugged, packaged, and integrated reliably.
 
 ---
 
-## Why Games Need Their Own Agent Engine
+## What Problems It Solves
 
-If you have tried using general-purpose LLM Agents in a game, you have likely run into these problems:
+If you have tried dropping a general-purpose LLM Agent directly into a game, you have probably run into these problems:
 
-> **"Who are you again?" every single time.** Regular agents have no persistent world. Every conversation starts from scratch. The NPC has no idea it met the player yesterday or what happened at the village gate.
-
-> **Agents can do anything.** LLMs will say anything, but in a game, NPCs should only do what the game allows -- sell items, trigger quests, lead the way. Agents need validated action boundaries, not just prompt-level suggestions.
-
-> **No world clock.** Game worlds have their own time: shops open during the day and close at night. Regular agents have no concept of "world time."
-
-> **Integration is a DIY mess.** Every agent framework exposes HTTP and calls it done. Games need push, callbacks, WebSocket, retry, and fallback. Every engine integration means rebuilding the same plumbing.
-
-> **Designers cannot use it.** Most agent frameworks are built for ML engineers. Game designers need a visual editor to inspect NPC state, tweak configs, and run tests without touching code.
-
-GameAgentEngine was designed to solve these problems.
-
-It is a **game-focused AI Agent runtime** that sits between game logic and LLMs, handling world modeling, NPC behavior, memory management, time progression, external task dispatch, and controlled action execution. It does not replace Unity, Unreal, or Godot. It works alongside them as a dedicated AI world layer.
+| Game dev pain point | Common problem with generic agents | What GameAgentEngine does |
+|---|---|---|
+| NPCs forget everything every conversation | No persistent world, so yesterday’s events disappear fast | Nodes / memories / relations / continuity state keep the world connected |
+| AI makes up player state | It does not know whether the player really has a knife, money, inventory, or a quest stage | It queries the game side for authoritative state on demand |
+| Actions are not safe to execute | The model can claim to do things that the game should never allow | Capability allowlists + sync/async execution + callback confirmation |
+| The world has no time | You get dialogue, but not day/night, progression, or archived history | world tick + world time + timeline + future outline |
+| Async integration becomes glue hell | HTTP alone is not enough for push / pull / callback / retry flows | Engine / Worker / runtime task / resume are unified |
+| Designers and programmers cannot both use it | Prompt plus code is not a usable workflow | Creator + DevCli + Worker + docs + demo workflow |
+| Integration tests are hard to reproduce | State simulation and external callbacks fragment into scripts | Worker CLI + fixtures + packaged smoke / integration flows |
 
 ---
 
-## What the Engine Does
+## What It Is
 
-### World Modeling -- More Than a Chat Table
+GameAgentEngine is a standalone runtime between game logic and LLMs, responsible for:
 
-The Engine builds game worlds using four structural primitives:
+- world modeling
+- NPC behavior
+- memory management
+- time progression
+- external task dispatch
+- controlled action execution
+- authoritative state queries
+- observable, reproducible debugging flows
 
-- **Nodes** -- any entity in the world: NPC, location, organization, item, quest
-- **Components** -- structured data attached to nodes: `autonomous` (behavior config), `world_state` (world overview), `tick_policy` (rules)
-- **Memories** -- personal knowledge base per node, tiered by importance (core / normal / trivial)
-- **Relations** -- social graph between nodes (ally / enemy / subordinate / kinship / located_at), automatically organized into prompt context
+It does not replace Unity, Unreal, or Godot. It works with them as an AI world layer.
 
-```
-[village] -> located_at -> [gatekeeper NPC]
-[gatekeeper NPC] -> enemy -> [bandit NPC]
-[bandit NPC] -> belongs_to -> [bandit faction]
-```
+---
 
-When the player talks to the gatekeeper, the Engine automatically includes "this NPC is hostile to the bandits, who belong to the bandit faction" in the prompt context.
+## Core Capabilities
 
-### Controlled Actions -- NPCs Cannot Go Rogue
+### 1. World Modeling
 
-Every LLM-produced action is validated against a **capability allowlist**:
+The world is not a chat table. It is built from four structural primitives:
 
-- Sync actions execute immediately (add memory, update component)
-- Async actions return a `callback_id` -- the game client confirms completion before proceeding
+- Nodes: NPCs, locations, factions, items, quest lines, and the world itself
+- Components: structured state such as `world_state`, `story_state`, `tick_policy`, and `autonomous`
+- Memories: per-node knowledge, tiered by importance
+- Relations: graph edges such as `located_at`, `belongs_to`, `subordinate`, and `enemy`
+
+### 2. Authoritative State
+
+High-frequency facts that must stay correct live on the game side, and Engine queries them instead of guessing.
+
+Examples:
+
+- HP
+- money
+- inventory
+- quest stage
+- scene occupancy
+- live weather
+- temporary event state
+
+### 3. Controlled Actions
+
+Every LLM output is validated against a capability allowlist:
+
+- Sync actions execute immediately
+- Async actions return a `callback_id` and wait for the game side to confirm
 - Unauthorized actions are rejected and logged
 
-Give an NPC `["add_memory", "start_dialogue"]` as its allowlist, and it will never call `delete_world`.
+### 4. World Time Progression
 
-### World Time and Continuity -- Games Have Their Own Clock
+The Engine includes a built-in world-time system:
 
-The Engine has a built-in world time system:
+- supports `fixed` and `flexible` tick scales
+- archives continuity state after each tick
+- automatically feeds the previous world state into the next tick
 
-- Tick advancement (supports `fixed` and `flexible` scale modes)
-- Each Tick archives continuity state: world overview, story state, narrative history, time snapshot
-- The next Tick automatically loads the previous state into inference context
+### 5. A Workflow You Can Actually Integrate
 
-This means "the world keeps evolving" and "NPCs know today is different from yesterday" work out of the box.
+GameAgentEngine ships with:
 
-### External Interaction -- Async Tasks for Game Clients
+- GameAgentCreator: visual editor
+- GameAgentDevCli: CLI and CI tool
+- GameAgentWorker: game-side worker, REPL, and integration-test entrypoint
+- multi-language SDKs: a unified integration surface for external systems
 
-Three task delivery modes between the game client and the Engine:
+---
 
-| Mode | How It Works |
-|---|---|
-| **Push** | Engine pushes tasks directly via HTTP / WebSocket / RPC |
-| **Pull** | Game client polls pending tasks, claims, executes, heartbeats, and reports results |
-| **Hybrid** | Combination of both |
+## Who It Is For
 
-Supports fallback routing and automatic retry governance.
+- teams building text games, DOL-like games, narrative RPGs, or persistent NPC behavior
+- teams that need AI to read true game state instead of guessing from prompts
+- teams that need async callbacks, external tasks, tests, and packaging to work together
+- teams where designers and programmers both need to inspect and debug the world
 
-### Three Pipeline Modes
+---
 
-| Mode | Best For |
-|---|---|
-| `vertical` | Single-pass, low latency, simple NPC dialogue |
-| `polling` | Multi-round with data requests and sub-tasks, complex narratives |
-| `full` | Full inference with sub-task DAG and async callback orchestration, world Ticks |
+## What the Workflow Looks Like
 
-### Background Autonomous Behavior
+```text
+World Definition -> Engine world modeling -> cold start baseline
+                     -> world tick -> authority query -> controlled actions
+                     -> timeline / memories / story state
+                     -> Worker / Creator / DevCli / SDK integration
+```
 
-Nodes can be configured with autonomous components so NPCs act without player interaction:
+A more practical sequence is:
 
-- **Manual** -- trigger only when called
-- **Tick Sync** -- trigger automatically after each world Tick
-- **Scheduled** -- background scheduler runs at configured intervals
+1. import the world skeleton
+2. cold-start the runtime baseline
+3. let world tick advance the story on top of authority data and continuity
+4. let Worker answer live game-side state
+5. use Creator / DevCli / SDKs for editing, integration, regression, and packaging
 
 ---
 
@@ -99,9 +125,7 @@ Nodes can be configured with autonomous components so NPCs act without player in
 
 ### Build
 
-Recommended: use the build scripts.
-
-```
+```bash
 # Windows
 tools\scripts\build.bat
 
@@ -109,47 +133,20 @@ tools\scripts\build.bat
 bash tools/scripts/build.sh
 ```
 
-Output goes to `dist/`, containing the engine binaries, CLI tools, config template, demo / test assets, multi-language SDK examples, and Creator Web static assets.
+### Start the Engine
 
-### Start
-
-```
-# Copy the default config
-cp tools/source/gameagentengine.conf.yaml .
-
-# Start the engine
+```bash
 GameAgentEngine serve
 ```
 
 ### Create a World and Open the Editor
 
-```
-# Create a world
+```bash
 GameAgentDevCli node create --type world --name "My World"
-
-# Open the visual editor
 GameAgentDevCli creator
 ```
 
-### Add an NPC and Advance Time
-
-```
-GameAgentDevCli node create --world <world-id> --type npc --name "Blacksmith"
-
-# Advance world time
-GameAgentDevCli world tick <world-id>
-```
-
-> **Note:** Before running `world tick`, configure `world_time_settings` in Creator's Settings page. Without a world-time configuration, time advancement is intentionally blocked -- this is a design constraint, not a bug.
-
-### Try the Demo World and Text-Game Shell Directly
-
-The repository ships with a minimal demo asset pair:
-
-- `tools/source/workerhome/demo/demo-world.yaml` -- demo world imported into the Engine
-- `tools/source/workerhome/demo/demo-state.yaml` -- authority state file consumed by `GameAgentWorker play`
-
-Shortest path:
+### Try the Demo World and Text-Game Shell
 
 ```bash
 GameAgentEngine serve
@@ -157,122 +154,23 @@ GameAgentDevCli import tools/source/workerhome/demo/demo-world.yaml
 GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
 ```
 
-This lets the Engine drive NPC behavior while the worker-side state file remains the authority source for HP, inventory, money, quest state, and scene occupancy.
-
 ---
 
-## Toolchain
+## Tooling Entry Points
 
-The Engine now ships with four first-class developer tool entrypoints:
-
-### GameAgentCreator -- Visual Web Editor
-
-For game designers and developers, bundled with every build. Available pages:
-
-| Page | Purpose |
+| Tool | Purpose |
 |---|---|
-| **Worlds** | World selection, creation, drag-and-drop node tree |
-| **Snapshots** | Snapshot management (save, validate, restore, delete) |
-| **Tasks** | Runtime task monitoring (status, category, retry count) |
-| **Plans** | Pending plan approval |
-| **Policy** | World policy configuration |
-| **Settings** | World settings and `world_time_settings` editing |
-| **Continuity** | Continuity debug bundle |
-| **State** | Continuity state component inspection and editing |
-| **Timelines** | Timeline archives |
-| **Logs** | Inference logs |
-| **Traces** | Debug traces |
-
-### GameAgentDevCli -- Command Line Tool
-
-For scripting and CI integration:
-
-```
-# CRUD
-GameAgentDevCli node create --type world --name "My World"
-GameAgentDevCli node list --world <id>
-GameAgentDevCli component create --node <node-id> --type autonomous
-GameAgentDevCli memory create --node <node-id> --content "..."
-GameAgentDevCli relation create --source <a> --target <b> --type ally
-
-# World operations
-GameAgentDevCli world tick <world-id>
-GameAgentDevCli world settings get <world-id>
-
-# Task management (Pull mode)
-GameAgentDevCli task list --status pending --limit 20
-GameAgentDevCli task claim <task-id> --consumer gamer
-GameAgentDevCli task start <task-id> <lease-token>
-
-# Debugging and observability
-GameAgentDevCli logs --world <world-id>
-GameAgentDevCli debug traces --world <world-id>
-GameAgentDevCli creator
-```
-
-### GameAgentWorker -- Standalone Worker / REPL / Integration Test Entry
-
-Use it for external async callback simulation, local game-side authority state, play-mode REPL, and packaged integration tests:
-
-```bash
-# Run push receiver and pull worker together
-GameAgentWorker serve --verbose
-
-# Process one pending pull task
-GameAgentWorker pull-once --consumer game_client
-
-# Enter text-game REPL
-GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001
-
-# Run packaged integration scenarios
-GameAgentWorker test all
-```
-
-It is not just a temporary test script wrapper. It is the canonical game-side worker in this repository:
-
-- for integration tests, it closes the push / pull / callback loop
-- for local development, it hosts YAML / JSON authority state and simulates async game-side interfaces
-- for play mode, it exposes `/+talk`, `/+say`, `/+ask`, `/+act`, `/+gift`, `/+trade`, and related REPL flows to validate Engine-driven text-game interaction
-
-Direct free text goes to the current dialogue target. `/+say` is for room-wide public speech, and `/+act` first performs player-intent interpretation plus authority validation before deciding whether to trigger follow-up NPC or scene feedback. Legacy `/talk` and `/ask` aliases still work, but the `/+cmd` form is now the documented surface.
-
-### Go SDK
-
-For Go server-side integration:
-
-```go
-import "github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
-
-client := sdk.NewClient("http://127.0.0.1:8080", "dev-key")
-
-// List pending runtime tasks
-tasks, _ := client.ListRuntimeTasks("", "pending", 20)
-
-// Advance world time
-tick, _ := client.AdvanceTick(worldID, "scheduled", "Day 2")
-```
-
-Covers world management, node CRUD, memory propagation, autonomous configuration, runtime task management, event impact evaluation, and all other API methods.
+| GameAgentCreator | world editing, runtime-state inspection, debugging, regression |
+| GameAgentDevCli | import, initialization, debugging, logs, time advancement, package acceptance |
+| GameAgentWorker | authoritative state, REPL, push/pull/callback, integration tests |
+| SDKs | the integration surface for external systems and other languages |
 
 ---
 
-## Documentation
+## Documentation Entry Points
 
-- [Getting Started](./docs/getting-started/GETTING_STARTED_EN.md) -- build your first world from scratch
-- [Architecture](./docs/architecture/ARCHITECTURE_EN.md) -- overall design and module boundaries
-- [Core Concepts](./docs/architecture/CORE_CONCEPTS_EN.md) -- nodes, components, memories, relations explained
-- [External Interaction Overview](./docs/integration/EXTERNAL_INTERACTION.md) -- Push / Pull / Hybrid, callback, and worker closure
-- [Player Interaction Overview](./docs/gameplay/PLAYER_INTERACTION.md) -- player input, group chat, natural-language intent, and validation boundaries
-- [Game State Authority Boundary](./docs/gameplay/GAME_STATE_AUTHORITY.md) -- ownership rules between Engine and the game side
-- [API Reference](./docs/reference/API_REFERENCE_EN.md) -- all HTTP endpoints
-- [GameAgentDevCli Guide](./docs/guides/GUIDE_GAMEAGENTDEVCLI_EN.md) -- complete CLI reference
-- [GameAgentCreator Guide](./docs/guides/GUIDE_GAMEAGENTCREATOR_EN.md) -- Web editor walkthrough
-- [SDK Reference](./docs/reference/SDK_REFERENCE_EN.md) -- Go SDK methods and types
-- [Configuration](./docs/reference/CONFIGURATION_EN.md) -- static config and dynamic world settings
-- [Autonomous Behavior System](./docs/architecture/AUTONOMOUS_BEHAVIOR_EN.md) -- node-level autonomous scheduling
-- [Pipeline Internals](./docs/architecture/PIPELINE_INTERNALS_EN.md) -- execution flow details
-- [World Time Tick Reference](./docs/reference/WORLD_TIME_TICK_REFERENCE_EN.md) -- scale modes and advancement rules
-- [Build and Deploy](./docs/reference/BUILD_AND_DEPLOY_EN.md) -- cross-platform compilation and deployment
+- [Chinese documentation index](./docs/README.md)
+- [English documentation index](./docs/README_EN.md)
 
 ---
 
