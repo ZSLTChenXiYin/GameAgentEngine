@@ -106,9 +106,18 @@ Engine 内核补完与 Worker play 深化，已不再是当前路线图中处于
 
 ## F8 打包产物验收
 
-- 在结构清理完成后，验证 Engine / DevCli / Worker / Creator 的打包工作流
+- 以本地发布包为基准，验证 Engine / DevCli / Worker / Creator 的打包工作流
+- 先完成包结构、基础运行链路、Creator、Go SDK smoke 和文档对齐的本地验收，不把 GitHub 链路纳入当前完成条件
 
-状态：待开始。
+### F8 checklist
+
+1. 验证 6 个目标平台的包结构与 zip 产物
+2. 验证包内 Engine 可启动，DevCli 可连通
+3. 验证包内 Worker 的 tooling-smoke 可完成
+4. 验证一个基准 Go SDK smoke 场景
+5. 对齐 README / docs 与发布包路径
+
+状态：已完成。
 
 ## 已延期但持续跟踪
 

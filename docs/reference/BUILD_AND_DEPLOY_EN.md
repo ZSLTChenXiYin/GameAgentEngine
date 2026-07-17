@@ -97,6 +97,7 @@ Before creating an official release package, validate at least the following:
 - the packaged output contains `workerhome/demo/demo-state.yaml`
 - the packaged output contains `workerhome/fixtures/runtime_task_dynamic_interfaces.json`
 - `GameAgentWorker play --state-file workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001` starts as expected
+- `node tools/scripts/run_f8_acceptance.mjs` completes the local package acceptance pass
 - Creator static assets exist under `web/GameAgentCreator/`
 
 ---

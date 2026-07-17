@@ -106,9 +106,18 @@ Status: completed.
 
 ## F8 Packaged artifact acceptance
 
-- verify Engine / DevCli / Worker / Creator packaged workflow after structural cleanup
+- verify Engine / DevCli / Worker / Creator packaged workflow against local release packages
+- keep GitHub release automation out of the current completion gate
 
-Status: pending.
+### F8 checklist
+
+1. verify the 6 target-platform packages and their zip archives
+2. verify packaged Engine startup and DevCli connectivity
+3. verify packaged Worker tooling-smoke completion
+4. verify one baseline Go SDK smoke scenario
+5. align README / docs with release package paths
+
+Status: completed.
 
 ## Deferred But Tracked
 - world-tick context roadmap, including `world_focus`, active-node selection, and staged scope refinement; see `docs/internal/WORLD_TICK_CONTEXT_ROADMAP.md`

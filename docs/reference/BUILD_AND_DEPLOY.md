@@ -99,6 +99,7 @@ Linux 或 macOS：
 - 打包产物中存在 `workerhome/demo/demo-state.yaml`
 - 打包产物中存在 `workerhome/fixtures/runtime_task_dynamic_interfaces.json`
 - `GameAgentWorker play --state-file workerhome/demo/demo-state.yaml --world-id demo_world --player-node-id player_001` 可按预期启动
+- `node tools/scripts/run_f8_acceptance.mjs` 可完成本地发布包验收
 - Creator 静态资源存在于 `web/GameAgentCreator/`
 
 ---
