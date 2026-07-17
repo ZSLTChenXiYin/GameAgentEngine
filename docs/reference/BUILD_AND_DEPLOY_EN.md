@@ -2,16 +2,16 @@
 
 [**中文**](./BUILD_AND_DEPLOY.md) | **English**
 
-GameAgentEngine v0.4.6 supports both source builds and packaged releases.
+GameAgentEngine v0.5.0 supports both source builds and packaged releases.
 
 ---
 
 ## Current Package Layout
 
-Each release package is structured as `dist/GameAgentEngine-{os}-{arch}-v0.4.6/`.
+Each release package is structured as `dist/GameAgentEngine-{os}-{arch}-v0.5.0/`.
 
 ```text
-GameAgentEngine-{os}-{arch}-v0.4.6/
+GameAgentEngine-{os}-{arch}-v0.5.0/
 ├── GameAgentEngine(.exe)
 ├── GameAgentDevCli(.exe)
 ├── GameAgentWorker(.exe)
@@ -87,7 +87,7 @@ The packaging scripts automatically:
 ## Start a Packaged Build
 
 ```bash
-cd GameAgentEngine-windows-amd64-v0.4.6
+cd GameAgentEngine-windows-amd64-v0.5.0
 GameAgentEngine serve
 ```
 

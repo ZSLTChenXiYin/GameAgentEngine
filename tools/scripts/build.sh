@@ -21,7 +21,7 @@ ALL_PLATFORMS=(
 )
 SOURCE_DIR="tools/source"
 OUTPUT_DIR="dist"
-VERSION="v0.4.6"
+VERSION="v0.5.0"
 # ==============================
 
 detect_os="$(uname -s | tr '[:upper:]' '[:lower:]')"

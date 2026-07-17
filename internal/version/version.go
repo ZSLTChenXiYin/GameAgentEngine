@@ -8,10 +8,10 @@ import (
 
 // Version is the engine semantic version string.
 // Build scripts may override it through -ldflags -X.
-var Version = "v0.4.6"
+var Version = "v0.5.0"
 
 // MinCompatibleVersion is the lowest compatible engine version.
-var MinCompatibleVersion = "v0.4.6"
+var MinCompatibleVersion = "v0.5.0"
 
 // SemVer is a parsed semantic version.
 type SemVer struct {

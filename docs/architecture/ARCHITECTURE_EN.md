@@ -2,7 +2,7 @@
 
 [**中文**](./ARCHITECTURE.md) | **English**
 
-GameAgentEngine v0.4.6 is composed of the backend Engine, HTTP API, Go SDK, DevCli, Worker, and Creator.
+GameAgentEngine v0.5.0 is composed of the backend Engine, HTTP API, Go SDK, DevCli, Worker, and Creator.
 
 ---
 

@@ -2,16 +2,16 @@
 
 **中文** | [**English**](./BUILD_AND_DEPLOY_EN.md)
 
-GameAgentEngine v0.4.6 提供源码构建和预编译打包两种使用方式。
+GameAgentEngine v0.5.0 提供源码构建和预编译打包两种使用方式。
 
 ---
 
 ## 当前打包内容
 
-每个版本的打包目录结构以 `dist/GameAgentEngine-{os}-{arch}-v0.4.6/` 为准。当前包内包含：
+每个版本的打包目录结构以 `dist/GameAgentEngine-{os}-{arch}-v0.5.0/` 为准。当前包内包含：
 
 ```text
-GameAgentEngine-{os}-{arch}-v0.4.6/
+GameAgentEngine-{os}-{arch}-v0.5.0/
 ├── GameAgentEngine(.exe)
 ├── GameAgentDevCli(.exe)
 ├── GameAgentWorker(.exe)
@@ -89,7 +89,7 @@ Linux 或 macOS：
 ## 启动打包产物
 
 ```bash
-cd GameAgentEngine-windows-amd64-v0.4.6
+cd GameAgentEngine-windows-amd64-v0.5.0
 GameAgentEngine serve
 ```
 

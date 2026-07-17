@@ -2,7 +2,7 @@
 
 **中文** | [**English**](./ARCHITECTURE_EN.md)
 
-GameAgentEngine v0.4.6 由后端 Engine、HTTP API、Go SDK、DevCli、Worker 和 Creator 组成。
+GameAgentEngine v0.5.0 由后端 Engine、HTTP API、Go SDK、DevCli、Worker 和 Creator 组成。
 
 ---
 
