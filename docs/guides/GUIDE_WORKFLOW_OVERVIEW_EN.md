@@ -81,7 +81,7 @@ The current `GameAgentWorker play` mode is not just a CLI text wrapper around En
 So:
 
 - `play` belongs to Worker, not to Engine itself
-- `play` depends on authority-state files such as `demo-state.yaml`
+- `play` depends on authority-state files such as `workerhome/demo/demo-state.yaml`
 - player input must still pass game-side truth validation before becoming real state changes
 
 ---

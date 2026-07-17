@@ -16,11 +16,13 @@ GameAgentEngine-{os}-{arch}-v0.4.6/
 ├── GameAgentDevCli(.exe)
 ├── GameAgentWorker(.exe)
 ├── gameagentengine.conf.yaml
-├── demo-world.yaml
-├── demo-state.yaml
 ├── README.md
 ├── sdks/
-├── tests/
+├── workerhome/
+│   ├── demo/
+│   │   ├── demo-world.yaml
+│   │   └── demo-state.yaml
+│   └── fixtures/
 └── web/
     └── GameAgentCreator/
 ```
@@ -28,8 +30,8 @@ GameAgentEngine-{os}-{arch}-v0.4.6/
 Packaged builds now come from the runtime-asset tree under `tools/source/`, so they include:
 
 - the config template
-- demo world / authority-state files
-- shared Worker / SDK test data under `tests/`
+- demo world / authority-state files under `workerhome/demo/`
+- shared Worker / SDK test data under `workerhome/fixtures/`
 - multi-language SDK source and examples under `sdks/`
 - Creator static assets
 

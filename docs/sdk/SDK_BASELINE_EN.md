@@ -21,7 +21,7 @@ Each language SDK directory should contain at least:
 <lang>-sdk/
 ├── src/ or equivalent source directory
 ├── examples/
-├── tests/            # when the language ecosystem supports it
+├── workerhome/       # when the language ecosystem supports it, shared Worker data can live here
 └── package/build metadata
 ```
 

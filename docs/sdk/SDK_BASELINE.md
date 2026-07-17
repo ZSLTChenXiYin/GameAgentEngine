@@ -21,7 +21,7 @@
 <lang>-sdk/
 ├── src/ 或等价源码目录
 ├── examples/
-├── tests/            # 如果语言生态允许
+├── workerhome/       # 如果语言生态允许，Worker 共享数据可放在这里
 └── package/build metadata
 ```
 

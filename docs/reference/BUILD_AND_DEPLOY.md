@@ -16,11 +16,13 @@ GameAgentEngine-{os}-{arch}-v0.4.6/
 ├── GameAgentDevCli(.exe)
 ├── GameAgentWorker(.exe)
 ├── gameagentengine.conf.yaml
-├── demo-world.yaml
-├── demo-state.yaml
 ├── README.md
 ├── sdks/
-├── tests/
+├── workerhome/
+│   ├── demo/
+│   │   ├── demo-world.yaml
+│   │   └── demo-state.yaml
+│   └── fixtures/
 └── web/
     └── GameAgentCreator/
 ```
@@ -28,8 +30,8 @@ GameAgentEngine-{os}-{arch}-v0.4.6/
 当前打包内容来自 `tools/source/` 的运行资产树，因此包含：
 
 - 配置模板
-- demo world / authority state 文件
-- `tests/` 下的 Worker / SDK 共用测试数据
+- demo world / authority state 文件（位于 `workerhome/demo/`）
+- Worker / SDK 共用测试数据（位于 `workerhome/fixtures/`）
 - `sdks/` 下的多语言 SDK 源码与示例
 - Creator 静态资源
 

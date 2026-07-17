@@ -81,7 +81,7 @@ GameAgentWorker test all
 因此：
 
 - `play` 应该归 Worker，不归 Engine 本体
-- `play` 依赖 `demo-state.yaml` 这类权威状态文件
+- `play` 依赖 `workerhome/demo/demo-state.yaml` 这类权威状态文件
 - 玩家输入如果要变成真实行为，必须经过游戏侧真值校验
 
 ---
