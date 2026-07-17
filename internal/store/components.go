@@ -154,3 +154,10 @@ func IsRegisteredComponentType(typeName string) bool {
 	_, ok := RegisteredComponentTypes[typeName]
 	return ok
 }
+
+// AddComponent creates a new component record in the database.
+func AddComponent(m *ComponentModel) error {
+	return Write(func(db *gorm.DB) error {
+		return db.Create(m).Error
+	})
+}

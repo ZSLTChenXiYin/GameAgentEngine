@@ -1826,7 +1826,7 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 		}
 		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 			baseContext := mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext)
-			return buildWorldTickPrompt(appendDynamicInterfaceContext(baseContext, requestDynamicInterfaces(req)), currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary)
+			return buildWorldTickPrompt(appendDynamicInterfaceContext(baseContext, requestDynamicInterfaces(req)), currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary, ctx.BootstrapBlock)
 		}
 		toolFn = func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
 			_ = nodeID
@@ -2216,7 +2216,6 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 
 		// Normal execution path: parse and execute side effects
 		resp := &InvokeResponse{
-			TraceID:       traceID,
 			RequestID:     requestID,
 			TaskType:      req.TaskType,
 			ExecutionMode: executionMode,
@@ -2318,7 +2317,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 	case TaskNPCDialogue:
 		systemPrompt = buildInteractionDialoguePrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), targetDialogueNodeID(req, nil), reqInteractionContext(req))
 	case TaskWorldTick:
-		systemPrompt = buildWorldTickPrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), "", nil, nil, buildWorldTickTimeBlock(req.WorldID), "")
+		systemPrompt = buildWorldTickPrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), "", nil, nil, buildWorldTickTimeBlock(req.WorldID), "", "")
 	case TaskWorldEvent:
 		eventDesc := ""
 		if req.Event != nil {
@@ -2795,8 +2794,7 @@ func (p *Pipeline) runWorldTickBootstrap(worldID string, ctx *BuiltContext) stri
 	if len(parts) <= 1 {
 		return ""
 	}
-	return strings.Join(parts, "
-")
+	return strings.Join(parts, "\n")
 }
 
 // convergenceCheck determines whether the current round should force-converge.
@@ -2828,10 +2826,10 @@ func convergenceCheck(runtime *executionConfig, round int, dr *DataRequest) stri
 
 // ColdStartResult describes the outcome of a world cold-start operation.
 type ColdStartResult struct {
-	WorldID     string   json:"world_id"
-	Components  []string json:"components"
-	Warnings    []string json:"warnings,omitempty"
-	Initialized bool     json:"initialized"
+	WorldID     string   `json:"world_id"`
+	Components  []string `json:"components"`
+	Warnings    []string `json:"warnings,omitempty"`
+	Initialized bool     `json:"initialized"`
 }
 
 // ColdStartWorld initializes the runtime baseline for a world after import.

@@ -49,6 +49,7 @@ const (
 	CompTickPolicy     ComponentType = "tick_policy"
 	CompWorldTimeState ComponentType = "world_time_state"
 	CompStateSnapshot  ComponentType = "state_snapshot"
+	CompWorldFocus     ComponentType = "world_focus"
 )
 
 // ValidComponentTypes 返回当前支持的全部组件类型。

@@ -30,6 +30,7 @@ type BuiltContext struct {
 	ParticipantNodes     []store.NodeModel      `json:"participant_nodes,omitempty"`
 	StateBlocks          []string               `json:"state_blocks,omitempty"`
 	SystemPrompt         string                 `json:"system_prompt"`
+	BootstrapBlock       string                 `json:"bootstrap_block,omitempty"`
 }
 
 type interactionView struct {

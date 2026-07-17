@@ -1,6 +1,8 @@
 package api
 
 import (
+	"strings"
+	"fmt"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
