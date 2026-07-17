@@ -53,12 +53,12 @@ const (
 
 // ValidComponentTypes 返回当前支持的全部组件类型。
 func ValidComponentTypes() []ComponentType {
-	return []ComponentType{CompProfile, CompMemory, CompRule, CompTimeline, CompActionPolicy, CompRelations, CompPromptProfile, CompLore, CompAutonomous, CompWorldState, CompStoryState, CompStoryHistory, CompTickPolicy, CompWorldTimeState, CompStateSnapshot}
+	return []ComponentType{CompProfile, CompMemory, CompRule, CompTimeline, CompActionPolicy, CompRelations, CompPromptProfile, CompLore, CompAutonomous, CompWorldState, CompStoryState, CompStoryHistory, CompTickPolicy, CompWorldTimeState, CompStateSnapshot, CompWorldFocus}
 }
 
 // StateComponentTypes returns the engine-recognized world continuity component types.
 func StateComponentTypes() []ComponentType {
-	return []ComponentType{CompWorldState, CompStoryState, CompStoryHistory, CompTickPolicy, CompWorldTimeState, CompStateSnapshot}
+	return []ComponentType{CompWorldState, CompStoryState, CompStoryHistory, CompTickPolicy, CompWorldTimeState, CompStateSnapshot, CompWorldFocus}
 }
 
 // IsStateComponentType reports whether the given component type is used for persistent world tick continuity.
