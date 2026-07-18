@@ -12,6 +12,7 @@ func NewRouter(p *engine.Pipeline) *http.ServeMux {
 
 	mux.HandleFunc("GET /health", Health)
 	mux.HandleFunc("GET /api/v1/version", VersionHandler)
+	mux.Handle("GET /metrics", MetricsHandler())
 
 	mux.HandleFunc("POST /api/v1/invoke", MakeInvokeHandler(p))
 	mux.HandleFunc("POST /api/v1/interactions/execute", MakeExecuteInteractionHandler(p))
