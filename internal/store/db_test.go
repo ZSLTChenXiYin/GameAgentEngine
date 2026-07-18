@@ -80,6 +80,13 @@ func TestWithWriteRetryStopsOnNonRetriableError(t *testing.T) {
 }
 
 func TestMigrationRunnerRunsStepsInOrder(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:" + t.Name() + "?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&SchemaMigration{}); err != nil {
+		t.Fatalf("migrate schema: %v", err)
+	}
 	var sequence []string
 	runner := NewMigrationRunnerWithSteps([]MigrationStep{
 		{Name: "one", Run: func(db *gorm.DB) error {
@@ -91,7 +98,7 @@ func TestMigrationRunnerRunsStepsInOrder(t *testing.T) {
 			return nil
 		}},
 	})
-	if err := runner.Run(&gorm.DB{}); err != nil {
+	if err := runner.Run(db); err != nil {
 		t.Fatalf("run migrations: %v", err)
 	}
 	if len(sequence) != 2 || sequence[0] != "one" || sequence[1] != "two" {
@@ -100,13 +107,20 @@ func TestMigrationRunnerRunsStepsInOrder(t *testing.T) {
 }
 
 func TestMigrationRunnerReturnsStepNameOnFailure(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:" + t.Name() + "?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&SchemaMigration{}); err != nil {
+		t.Fatalf("migrate schema: %v", err)
+	}
 	runner := NewMigrationRunnerWithSteps([]MigrationStep{{
 		Name: "failing_step",
 		Run: func(db *gorm.DB) error {
 			return errors.New("boom")
 		},
 	}})
-	err := runner.Run(&gorm.DB{})
+	err = runner.Run(db)
 	if err == nil {
 		t.Fatal("expected migration failure")
 	}
