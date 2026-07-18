@@ -320,3 +320,11 @@ type PendingPlanModel struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// SchemaMigration tracks which migration steps have been applied.
+type SchemaMigration struct {
+	ID        int64     "gorm:"primaryKey;autoIncrement""
+	Name      string    "gorm:"uniqueIndex;size:255;not null""
+	AppliedAt time.Time "gorm:"not null""
+}
+func (SchemaMigration) TableName() string { return "schema_migrations" }

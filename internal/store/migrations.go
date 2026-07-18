@@ -44,13 +44,26 @@ func (r *MigrationRunner) Run(db *gorm.DB) error {
 		if step.Run == nil {
 			continue
 		}
+		// Check if this migration step has already been applied
+		if r.isApplied(db, step.Name) {
+			continue
+		}
 		if err := step.Run(db); err != nil {
 			return fmt.Errorf("migration %s: %w", step.Name, err)
+		}
+		// Record the step as applied
+		if err := db.Create(&SchemaMigration{Name: step.Name}).Error; err != nil {
+			return fmt.Errorf("record migration %s: %w", step.Name, err)
 		}
 	}
 	return nil
 }
 
+func (r *MigrationRunner) isApplied(db *gorm.DB, name string) bool {
+	var count int64
+	db.Model(&SchemaMigration{}).Where("name = ?", name).Count(&count)
+	return count > 0
+}
 func RunMigrations(db *gorm.DB) error {
 	if !migrationsEnabled.Load() {
 		return nil
@@ -79,6 +92,7 @@ func defaultMigrationSteps() []MigrationStep {
 					&PausedExecutionModel{},
 					&RuntimeTaskModel{},
 					&PendingPlanModel{},
+					&SchemaMigration{},
 				)
 			},
 		},
