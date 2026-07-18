@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"sync/atomic"
 	"context"
 	"log"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 // Scheduler periodically runs scheduled autonomous behavior for enabled nodes.
 type Scheduler struct {
+	started  atomic.Bool
 	pipeline *engine.Pipeline
 	interval time.Duration
 	limit    int
@@ -27,9 +29,11 @@ func NewScheduler(p *engine.Pipeline, interval time.Duration, limit int) *Schedu
 
 // Start runs the scheduler until ctx is cancelled.
 func (s *Scheduler) Start(ctx context.Context) {
+	s.started.Store(true)
 	s.runOnce()
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
+	s.started.Store(false)
 	for {
 		select {
 		case <-ctx.Done():
@@ -53,4 +57,9 @@ func (s *Scheduler) runOnce() {
 			log.Printf("[autonomous:scheduler] world=%s runs=%d", world.UUID, len(runs))
 		}
 	}
+}
+
+// Stop stops the scheduler.
+func (s *Scheduler) Stop() {
+	s.started.Store(false)
 }

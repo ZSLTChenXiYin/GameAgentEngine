@@ -143,7 +143,9 @@ var serveCmd = &cobra.Command{
 			log.Print("shutting down...")
 			stopScheduler()
 			stopGovernor()
-			srv.Close()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer shutdownCancel()
+			srv.Shutdown(shutdownCtx)
 		}()
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("serve: %v", err)

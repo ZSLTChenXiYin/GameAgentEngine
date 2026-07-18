@@ -192,3 +192,9 @@ func ExecutionMode() string {
 	}
 	return "full"
 }
+
+// SetGlobal replaces the global config (not thread-safe, call at startup).
+func SetGlobal(cfg Config) { Global = cfg }
+
+// GetGlobal returns a copy of the global config.
+func GetGlobal() Config { return Global }
