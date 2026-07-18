@@ -1,6 +1,7 @@
 package store
 
 import (
+	"sync"
 	"fmt"
 
 	"gorm.io/gorm"
@@ -125,7 +126,10 @@ func GetComponentsByNodeIDs(nodeIDs []int64) (map[int64][]ComponentModel, error)
 }
 
 // RegisteredComponentTypes holds runtime-registered custom component type metadata.
-var RegisteredComponentTypes = map[string]ComponentTypeMeta{}
+var (
+	RegisteredComponentTypes = map[string]ComponentTypeMeta{}
+	rcMu sync.RWMutex
+)
 
 // ComponentTypeMeta describes a runtime-registered component type.
 type ComponentTypeMeta struct {
@@ -139,6 +143,8 @@ type ComponentTypeMeta struct {
 // RegisterComponentType registers a custom component type at runtime.
 // Once registered, it appears in Creator component type lists and validation.
 func RegisterComponentType(meta ComponentTypeMeta) error {
+	rcMu.Lock()
+	defer rcMu.Unlock()
 	if strings.TrimSpace(meta.Type) == "" {
 		return fmt.Errorf("component type required")
 	}
@@ -151,6 +157,8 @@ func RegisterComponentType(meta ComponentTypeMeta) error {
 
 // IsRegisteredComponentType checks if a custom component type is registered.
 func IsRegisteredComponentType(typeName string) bool {
+	rcMu.RLock()
+	defer rcMu.RUnlock()
 	_, ok := RegisteredComponentTypes[typeName]
 	return ok
 }

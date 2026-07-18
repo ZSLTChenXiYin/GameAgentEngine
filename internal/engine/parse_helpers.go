@@ -401,7 +401,9 @@ func (p *Pipeline) dispatchAsyncActionRuntimeTask(task *store.RuntimeTaskModel, 
 		}
 		if route.IsStrictPush() {
 			_ = store.CompleteAsyncCallbackRecord(task.CallbackID, "failed", "", err.Error())
-			_ = store.UpdateRuntimeTaskTerminalCallbackFailure(task.CallbackID, err.Error())
+			if logErr := store.UpdateRuntimeTaskTerminalCallbackFailure(task.CallbackID, err.Error()); logErr != nil {
+			log.Printf("failed to record callback failure: %v", logErr)
+		}
 			return err
 		}
 		return nil

@@ -11,6 +11,7 @@ import (
 
 // CreatorImportHandler handles GameAgentCreator YAML/JSON world import requests.
 func CreatorImportHandler(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req struct {
 		Format  string `json:"format"`
 		Content string `json:"content"`
