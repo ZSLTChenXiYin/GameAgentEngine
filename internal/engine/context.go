@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"log"
 	"fmt"
 	"strings"
 
@@ -51,7 +52,7 @@ func (b *ContextBuilder) buildWithMode(taskType TaskType, nodeID string, depth i
 	if err != nil {
 		return nil, fmt.Errorf("get node %s: %w", nodeID, err)
 	}
-	comps, _ := store.GetNodeComponents(nodeID)
+	comps, compErr := store.GetNodeComponents(nodeID)
 	memLimit := memoryLimit
 	if memLimit <= 0 {
 		memLimit = 50
