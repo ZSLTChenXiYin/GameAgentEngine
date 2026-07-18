@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"context"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -39,6 +40,10 @@ func (c *Client) WithIdempotency(key string) *Client {
 
 // do 负责发送 HTTP 请求并统一处理错误响应。
 func (c *Client) do(method, path string, body any) ([]byte, error) {
+	return c.doCtx(context.Background(), method, path, body)
+}
+
+func (c *Client) doCtx(ctx context.Context, method, path string, body any) ([]byte, error) {
 	var r io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -47,7 +52,7 @@ func (c *Client) do(method, path string, body any) ([]byte, error) {
 		}
 		r = bytes.NewReader(b)
 	}
-	req, err := http.NewRequest(method, c.baseURL+path, r)
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, r)
 	if err != nil {
 		return nil, err
 	}
