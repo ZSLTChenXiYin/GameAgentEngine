@@ -2,6 +2,8 @@ package store
 
 import (
 	"fmt"
+	"log"
+	"strings"
 	"sync/atomic"
 
 	"gorm.io/gorm"
@@ -61,7 +63,14 @@ func (r *MigrationRunner) Run(db *gorm.DB) error {
 
 func (r *MigrationRunner) isApplied(db *gorm.DB, name string) bool {
 	var count int64
-	db.Model(&SchemaMigration{}).Where("name = ?", name).Count(&count)
+	err := db.Model(&SchemaMigration{}).Where("name = ?", name).Count(&count).Error
+	if err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return false
+		}
+		log.Printf("[migrations] isApplied(%s): %v (treating as not applied)", name, err)
+		return false
+	}
 	return count > 0
 }
 func RunMigrations(db *gorm.DB) error {
