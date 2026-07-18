@@ -723,8 +723,6 @@ func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger 
 		return nil
 	}
 
-	// 通过世界 UUID 解析 int64 ID 后查询组件
-	worldInt := store.ResolveWorldUUID(worldID)
 	components, err := store.GetComponentsByTypeForWorld(worldID, string(engine.CompAutonomous))
 	if err != nil {
 		log.Printf("load autonomous components: %v", err)
@@ -732,7 +730,6 @@ func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger 
 		return []engine.AutonomousRunResult{{Error: err.Error()}}
 	}
 	emitWorldServiceLog(worldID, worldID, engine.TaskAutonomousAct, "autonomous_scan_started", trigger, map[string]any{"component_count": len(components), "limit": maxRuns})
-	_ = worldInt
 
 	type priorityCandidate struct {
 		comp     store.ComponentModel
