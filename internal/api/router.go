@@ -86,6 +86,7 @@ func NewRouter(p *engine.Pipeline) *http.ServeMux {
 	mux.HandleFunc("GET /api/v1/worlds/{world_id}/snapshot-metadata", MakeGetWorldSnapshotMetadataHandler(p))
 	mux.HandleFunc("GET /api/v1/worlds/{world_id}/snapshot-validation", MakeValidateWorldSnapshotHandler(p))
 	mux.HandleFunc("POST /api/v1/worlds/{world_id}/restore", IdempotencyMiddleware(MakeRestoreWorldHandler(p)))
+	mux.HandleFunc("POST /api/v1/worlds/{world_id}/cold-start", MakeColdStartHandler(p))
 
 	mux.HandleFunc("GET /api/v1/logs", GetLogsHandler)
 	mux.HandleFunc("GET /api/v1/pipeline/stats", GetPipelineStatsHandler)

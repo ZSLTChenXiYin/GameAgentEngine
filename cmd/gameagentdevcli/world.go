@@ -7,6 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/engine"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/internal/llm"
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
 )
 
@@ -440,11 +442,31 @@ var worldUpdateCmd = &cobra.Command{
 	},
 }
 
+var worldColdStartCmd = &cobra.Command{
+	Use:   "cold-start <world-id>",
+	Short: "初始化世界运行基座",
+	Long:  "对导入后的世界执行冷启动初始化，不调用 LLM。Mode 为 initial（创建初始运行时组件）或 rebuild（重建缺失的运行时组件）。",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		mode, _ := cmd.Flags().GetString("mode")
+		if err := initLocalStore(); err != nil {
+			fail(fmt.Errorf("init local store: %w", err))
+		}
+		pipeline := engine.NewPipeline(llm.NewMockProvider())
+		result, err := pipeline.ColdStartWorld(args[0], mode)
+		if err != nil {
+			fail(fmt.Errorf("cold-start world %s: %w", args[0], err))
+		}
+		printJSON(result)
+	},
+}
+
 func init() {
-	worldCmd.AddCommand(worldTickCmd, worldEventImpactCmd, worldScopeAdvanceCmd, worldReplanCmd, worldForkCmd, worldSaveCmd, worldRestoreCmd, worldValidateSnapshotCmd, worldSnapshotInfoCmd, worldListSnapshotsCmd, worldDeleteSnapshotCmd, worldSnapshotCmd, worldExportCmd, worldPolicyCmd, worldPlanCmd, worldSettingsCmd, worldUpdateCmd)
+	worldCmd.AddCommand(worldTickCmd, worldEventImpactCmd, worldScopeAdvanceCmd, worldReplanCmd, worldForkCmd, worldSaveCmd, worldRestoreCmd, worldValidateSnapshotCmd, worldSnapshotInfoCmd, worldListSnapshotsCmd, worldDeleteSnapshotCmd, worldSnapshotCmd, worldExportCmd, worldPolicyCmd, worldPlanCmd, worldSettingsCmd, worldUpdateCmd, worldColdStartCmd)
 
 	worldPolicyCmd.AddCommand(worldPolicyGetCmd, worldPolicySetCmd)
 	worldPlanCmd.AddCommand(worldPlanPendingCmd, worldPlanApproveCmd, worldPlanRejectCmd)
+	worldColdStartCmd.Flags().String("mode", "initial", "Cold-start mode: initial or rebuild")
 	worldPolicySetCmd.Flags().StringSlice("blocked", []string{}, "阻止的动作列表，逗号分隔")
 	worldPolicySetCmd.Flags().StringSlice("safe", []string{}, "安全的动作列表，逗号分隔")
 
