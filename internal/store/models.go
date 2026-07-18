@@ -323,8 +323,8 @@ type PendingPlanModel struct {
 
 // SchemaMigration tracks which migration steps have been applied.
 type SchemaMigration struct {
-	ID        int64     "gorm:"primaryKey;autoIncrement""
-	Name      string    "gorm:"uniqueIndex;size:255;not null""
-	AppliedAt time.Time "gorm:"not null""
+	ID        int64     `gorm:"primaryKey;autoIncrement"`
+	Name      string    `gorm:"uniqueIndex;size:255;not null"`
+	AppliedAt time.Time `gorm:"not null"`
 }
 func (SchemaMigration) TableName() string { return "schema_migrations" }
