@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"sync"
 	"sync/atomic"
 	"context"
 	"log"
@@ -52,12 +51,7 @@ func (s *Scheduler) runOnce() {
 		return
 	}
 	limit := s.limit
-	limit = s.limit
-	var wg sync.WaitGroup
-	for idx := range worlds {
-		wg.Add(1)
-		go func(w store.WorldModel) {
-			defer wg.Done()
+	for _, world := range worlds {
 		runs := service.RunScheduledAutonomous(s.pipeline, world.UUID, &limit, time.Now())
 		if len(runs) > 0 {
 			log.Printf("[autonomous:scheduler] world=%s runs=%d", world.UUID, len(runs))
