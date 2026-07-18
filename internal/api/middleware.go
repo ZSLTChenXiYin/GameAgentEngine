@@ -1,6 +1,8 @@
 package api
 
 import (
+	"sync"
+	"time"
 	"strings"
 	"fmt"
 	"bytes"
@@ -235,6 +237,85 @@ func CallbackReplayMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // Returns an error if the world is not found or access is denied.
 // This enforces basic world isolation: every world-scoped request must pass
 // through a valid world ID.
+
+// ============ Rate Limiter (P1) ============
+type RateLimiter struct {
+	mu       sync.Mutex
+	visitors map[string]*visitor
+	rate     float64
+	burst    int
+	stopCh   chan struct{}
+}
+
+type visitor struct {
+	tokens   float64
+	lastSeen time.Time
+}
+
+func NewRateLimiter(rate float64, burst int) *RateLimiter {
+	rl := &RateLimiter{
+		visitors: make(map[string]*visitor),
+		rate:     rate,
+		burst:    burst,
+		stopCh:   make(chan struct{}),
+	}
+	go rl.cleanupLoop()
+	return rl
+}
+
+func (rl *RateLimiter) Allow(ip string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	v, ok := rl.visitors[ip]
+	if !ok {
+		v = &visitor{tokens: float64(rl.burst), lastSeen: time.Now()}
+		rl.visitors[ip] = v
+	}
+	now := time.Now()
+	elapsed := now.Sub(v.lastSeen).Seconds()
+	v.tokens += elapsed * rl.rate
+	if v.tokens > float64(rl.burst) { v.tokens = float64(rl.burst) }
+	v.lastSeen = now
+	if v.tokens < 1 { return false }
+	v.tokens--
+	return true
+}
+
+func (rl *RateLimiter) cleanupLoop() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			rl.mu.Lock()
+			for ip, v := range rl.visitors {
+				if time.Since(v.lastSeen) > 10*time.Minute {
+					delete(rl.visitors, ip)
+				}
+			}
+			rl.mu.Unlock()
+		case <-rl.stopCh:
+			return
+		}
+	}
+}
+
+func (rl *RateLimiter) Stop() { close(rl.stopCh) }
+
+func RateLimitMiddleware(rl *RateLimiter) func(http.HandlerFunc) http.HandlerFunc {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			ip := strings.Split(r.RemoteAddr, ":")[0]
+			if !rl.Allow(ip) {
+				w.Header().Set("Retry-After", "1")
+				errorJSONCode(w, 429, "rate_limited", "too many requests")
+				return
+			}
+			next(w, r)
+		}
+	}
+}
+
 func ValidateWorldAccess(worldID string, r *http.Request) error {
 	if strings.TrimSpace(worldID) == "" {
 		return fmt.Errorf("world_id required")
