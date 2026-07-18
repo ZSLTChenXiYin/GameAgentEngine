@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"sync"
 	"sync/atomic"
 	"context"
 	"log"
@@ -54,7 +55,7 @@ func (s *Scheduler) runOnce() {
 	var wg sync.WaitGroup
 	for _, w := range worlds {
 		wg.Add(1)
-		go func(world store.WorldModel) {
+		go func(world store.NodeModel) {
 			defer wg.Done()
 			runs := service.RunScheduledAutonomous(s.pipeline, world.UUID, &limit, time.Now())
 			if len(runs) > 0 {
