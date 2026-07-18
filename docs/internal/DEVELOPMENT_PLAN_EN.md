@@ -20,31 +20,31 @@ This document is the authoritative development plan baseline for the GameAgentEn
 
 | Priority | ID | Item | Status | Reference |
 |---|---:|---|:---:|---|
-| P0 | F0 | Creator large-scale tree performance | [ ] | CREATOR_TREE_PERFORMANCE_ROADMAP_EN.md |
-| P0 | E1 | World Tick Bootstrap | [ ] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
-| P0 | E2 | Convergence control | [ ] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
-| P0 | E3 | World Tick prompt convergence rewrite | [ ] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
-| P1 | E4 | Query result summarization | [ ] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
-| P1 | E5 | Round context compression | [ ] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
-| P1 | E6 | World cold-start interface | [ ] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
-| P1 | E7 | Demo authority integration | [ ] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
-| P1 | E8 | Store layer test coverage hardening | [ ] | This doc |
-| P1 | E9 | PipelineMode relation assembly enforcement | [ ] | This doc |
-| P2 | E10 | Callback bootstrap fallback | [ ] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
-| P2 | E11 | Action system schema validation/extensions | [ ] | This doc |
-| P2 | E12 | PolicyEngine conflict resolution | [ ] | This doc |
-| P2 | E13 | Frontend interaction responsiveness | [ ] | This doc |
-| P2 | E14 | Autonomous scheduling roadmap | [ ] | AUTONOMOUS_SCHEDULING_ROADMAP_EN.md |
-| P2 | E15 | World Tick Context roadmap | [ ] | WORLD_TICK_CONTEXT_ROADMAP_EN.md |
-| P3 | E16 | SDK documentation and examples | [ ] | This doc |
-| P3 | E17 | Component system generalization | [ ] | This doc |
-| P3 | E18 | Telemetry observability enhancement | [ ] | This doc |
-| P3 | E19 | Tooling workflow integration | [ ] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
-| P3 | E20 | Frontend i18n completion | [ ] | This doc |
-| P4 | E21 | Multi-world isolation boundaries | [ ] | This doc |
-| P4 | E22 | Stress tests and benchmarks | [ ] | This doc |
-| P4 | E23 | Engine Kernelization | [ ] | ENGINE_KERNELIZATION_MEMO_EN.md |
-| P4 | E24 | Multi-language SDK expansion | [ ] | This doc |
+| P0 | F0 | Creator large-scale tree performance | [x] | CREATOR_TREE_PERFORMANCE_ROADMAP_EN.md |
+| P0 | E1 | World Tick Bootstrap | [x] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
+| P0 | E2 | Convergence control | [x] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
+| P0 | E3 | World Tick prompt convergence rewrite | [x] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
+| P1 | E4 | Query result summarization | [x] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
+| P1 | E5 | Round context compression | [x] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
+| P1 | E6 | World cold-start interface | [x] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
+| P1 | E7 | Demo authority integration | [x] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
+| P1 | E8 | Store layer test coverage hardening | [x] | This doc |
+| P1 | E9 | PipelineMode relation assembly enforcement | [x] | This doc |
+| P2 | E10 | Callback bootstrap fallback | [x] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
+| P2 | E11 | Action system schema validation/extensions | [x] | This doc |
+| P2 | E12 | PolicyEngine conflict resolution | [x] | This doc |
+| P2 | E13 | Frontend interaction responsiveness | [x] | This doc |
+| P2 | E14 | Autonomous scheduling roadmap | [x] | AUTONOMOUS_SCHEDULING_ROADMAP_EN.md |
+| P2 | E15 | World Tick Context roadmap | [x] | WORLD_TICK_CONTEXT_ROADMAP_EN.md |
+| P3 | E16 | SDK documentation and examples | [x] | This doc |
+| P3 | E17 | Component system generalization | [x] | This doc |
+| P3 | E18 | Telemetry observability enhancement | [x] | This doc |
+| P3 | E19 | Tooling workflow integration | [x] | ENGINE_IMPROVEMENT_ROADMAP_EN.md |
+| P3 | E20 | Frontend i18n completion | [x] | This doc |
+| P4 | E21 | Multi-world isolation boundaries | [x] | This doc |
+| P4 | E22 | Stress tests and benchmarks | [x] | This doc |
+| P4 | E23 | Engine Kernelization | [x] | ENGINE_KERNELIZATION_MEMO_EN.md |
+| P4 | E24 | Multi-language SDK expansion | [x] | This doc |
 
 ### Priority Definitions
 
