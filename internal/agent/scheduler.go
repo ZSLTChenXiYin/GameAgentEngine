@@ -51,12 +51,18 @@ func (s *Scheduler) runOnce() {
 		return
 	}
 	limit := s.limit
-	for _, world := range worlds {
-		runs := service.RunScheduledAutonomous(s.pipeline, world.UUID, &limit, time.Now())
-		if len(runs) > 0 {
-			log.Printf("[autonomous:scheduler] world=%s runs=%d", world.UUID, len(runs))
-		}
+	var wg sync.WaitGroup
+	for _, w := range worlds {
+		wg.Add(1)
+		go func(world store.WorldModel) {
+			defer wg.Done()
+			runs := service.RunScheduledAutonomous(s.pipeline, world.UUID, &limit, time.Now())
+			if len(runs) > 0 {
+				log.Printf("[autonomous:scheduler] world=%s runs=%d", world.UUID, len(runs))
+			}
+		}(w)
 	}
+	wg.Wait()
 }
 
 // Stop stops the scheduler.
