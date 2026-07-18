@@ -2,6 +2,7 @@ package action
 
 import (
 	"encoding/json"
+	"log"
 	"fmt"
 	"sync"
 
@@ -164,7 +165,9 @@ func (r *Registry) HandleCallback(callbackID string, status string, result any) 
 		}
 		var args map[string]any
 		if model.ArgsJSON != "" {
-			_ = json.Unmarshal([]byte(model.ArgsJSON), &args)
+			if err := json.Unmarshal([]byte(model.ArgsJSON), &args); err != nil {
+			log.Printf("[warn][action] unmarshal args for %s: %v", model.ActionID, err)
+		}
 		}
 		rec = &ActionCallRecord{
 			CallbackID:        model.CallbackID,
