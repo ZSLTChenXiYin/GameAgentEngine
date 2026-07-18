@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"slices"
 	"strconv"
+	"time"
 )
 
 // Client 是 GameAgentEngine HTTP API 的轻量封装。
@@ -24,7 +25,7 @@ func NewClient(baseURL, apiKey string) *Client {
 	return &Client{
 		baseURL: baseURL,
 		apiKey:  apiKey,
-		hc:      &http.Client{},
+		hc:      &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -1008,10 +1009,14 @@ func (c *Client) GetContinuityBundle(worldID string, options *ContinuityBundleOp
 	latest, err := c.GetLatestTimeline(worldID)
 	if err == nil {
 		bundle.LatestTimeline = &latest.Timeline
+	} else {
+		bundle.LatestTimelineError = err.Error()
 	}
 	timelines, err := c.GetTimelines(worldID, timelineLimit)
 	if err == nil && timelines != nil {
 		bundle.Timelines = timelines.Timelines
+	} else if err != nil {
+		bundle.TimelinesError = err.Error()
 	}
 	stateComponents, err := c.GetStateComponents(worldID)
 	if err != nil {

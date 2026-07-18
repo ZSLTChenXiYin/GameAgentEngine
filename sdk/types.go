@@ -688,6 +688,8 @@ type ContinuityBundleOptions struct {
 
 // ContinuityBundle aggregates the core artifacts used to inspect world tick continuity.
 type ContinuityBundle struct {
+	LatestTimelineError string `json:"latest_timeline_error,omitempty"`
+	TimelinesError      string `json:"timelines_error,omitempty"`
 	WorldID         string                   `json:"world_id"`
 	LatestTimeline  *TimelineEnvelope        `json:"latest_timeline,omitempty"`
 	Timelines       []TimelineEnvelope       `json:"timelines,omitempty"`
