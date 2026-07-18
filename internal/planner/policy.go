@@ -1,7 +1,6 @@
 package planner
 
 import (
-	"fmt"
 	"log"
 	"sync"
 	"strings"
