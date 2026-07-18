@@ -31,10 +31,10 @@ func NewScheduler(p *engine.Pipeline, interval time.Duration, limit int) *Schedu
 // Start runs the scheduler until ctx is cancelled.
 func (s *Scheduler) Start(ctx context.Context) {
 	s.started.Store(true)
+	defer s.started.Store(false)
 	s.runOnce()
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
-	s.started.Store(false)
 	for {
 		select {
 		case <-ctx.Done():
@@ -53,11 +53,16 @@ func (s *Scheduler) runOnce() {
 	}
 	limit := s.limit
 	var wg sync.WaitGroup
+	maxConcurrent := 5
+	sem := make(chan struct{}, maxConcurrent)
 	for _, w := range worlds {
+		sem <- struct{}{}
 		wg.Add(1)
+		localLimit := limit
 		go func(world store.NodeModel) {
 			defer wg.Done()
-			runs := service.RunScheduledAutonomous(s.pipeline, world.UUID, &limit, time.Now())
+			defer func() { <-sem }()
+			runs := service.RunScheduledAutonomous(s.pipeline, world.UUID, &localLimit, time.Now())
 			if len(runs) > 0 {
 				log.Printf("[autonomous:scheduler] world=%s runs=%d", world.UUID, len(runs))
 			}
