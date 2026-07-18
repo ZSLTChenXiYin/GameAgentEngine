@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -733,15 +734,19 @@ func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger 
 	emitWorldServiceLog(worldID, worldID, engine.TaskAutonomousAct, "autonomous_scan_started", trigger, map[string]any{"component_count": len(components), "limit": maxRuns})
 	_ = worldInt
 
-	results := make([]engine.AutonomousRunResult, 0, maxRuns)
+	type priorityCandidate struct {
+		comp     store.ComponentModel
+		priority int
+	}
+
+	var candidates []priorityCandidate
+	var decodeErrors []engine.AutonomousRunResult
+
 	for _, comp := range components {
-		if len(results) >= maxRuns {
-			break
-		}
 		cfg, err := engine.DecodeAutonomousConfig(comp.Data)
 		if err != nil {
 			emitWorldServiceLog(worldID, comp.NodeUUID, engine.TaskAutonomousAct, "autonomous_decode_failed", trigger, map[string]any{"error": err.Error()})
-			results = append(results, engine.AutonomousRunResult{NodeID: comp.NodeUUID, Error: err.Error()})
+			decodeErrors = append(decodeErrors, engine.AutonomousRunResult{NodeID: comp.NodeUUID, Error: err.Error()})
 			continue
 		}
 		if !cfg.Enabled || cfg.Trigger != trigger {
@@ -750,6 +755,22 @@ func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger 
 		if trigger == engine.AutonomousTriggerScheduled && !isScheduledAutonomousDue(cfg, nowOpt) {
 			continue
 		}
+		candidates = append(candidates, priorityCandidate{comp: comp, priority: cfg.Priority})
+	}
+
+	// Sort candidates by priority descending
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].priority > candidates[j].priority
+	})
+
+	results := make([]engine.AutonomousRunResult, 0, maxRuns)
+	results = append(results, decodeErrors...)
+	for _, cand := range candidates {
+		if len(results) >= maxRuns {
+			break
+		}
+		comp := cand.comp
+		
 
 		// 通过 NodeID 查询节点 UUID
 		var nodeUUID string
