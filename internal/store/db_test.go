@@ -261,3 +261,17 @@ func TestInferenceLogSinkDisabledFallsBackToDirectWrite(t *testing.T) {
 		t.Fatalf("expected direct write to persist immediately, got %d", len(logs))
 	}
 }
+
+// setupTestDB creates an isolated in-memory SQLite database for a single test.
+// Call at the start of each test that needs DB access.
+func setupTestDB(t *testing.T) {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open("file:" + t.Name() + "?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	if err := db.AutoMigrate(&NodeModel{}, &ComponentModel{}, &RelationModel{}, &MemoryModel{}, &TimelineModel{}, &InferenceLogModel{}, &WorldPolicyModel{}, &WorldSettingsModel{}, &AsyncCallbackRecordModel{}, &PausedExecutionModel{}, &RuntimeTaskModel{}, &PendingPlanModel{}, &IdempotencyKeyModel{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	DB = db
+}
