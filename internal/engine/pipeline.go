@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"bytes"
 	"strings"
 	"time"
 
@@ -3033,6 +3034,5 @@ func authorityDemoStatePath(worldID string) string {
 }
 
 func containsWorldID(data []byte, worldID string) bool {
-	prefix := []byte("world_id: " + worldID)
-	return len(data) >= len(prefix) && string(data[:len(prefix)]) == string(prefix)
+	return bytes.Contains(data, []byte("world_id: "+worldID))
 }
