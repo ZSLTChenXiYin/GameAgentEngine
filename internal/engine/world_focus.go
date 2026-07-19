@@ -19,6 +19,7 @@ type PromotedFocusNode struct {
 	NodeType string `json:"node_type,omitempty"`
 	Reason   string `json:"reason,omitempty"`
 	Priority int    `json:"priority,omitempty"`
+	SummaryOnly bool  `json:"summary_only,omitempty"`
 }
 
 const (
@@ -34,9 +35,9 @@ func ScanWorldFocusDescendants(focusNodeID string, taskType string) ([]PromotedF
 	var promoted []PromotedFocusNode
 	scanned := map[string]bool{}
 
-	var walk func(nodeID string, depth int)
-	walk = func(nodeID string, depth int) {
-		if depth > maxFocusScanDepth {
+	var walk func(nodeID string, depth int, maxDepth int)
+	walk = func(nodeID string, depth int, maxDepth int) {
+		if depth > maxDepth {
 			return
 		}
 		if scanned[nodeID] {
@@ -62,12 +63,17 @@ func ScanWorldFocusDescendants(focusNodeID string, taskType string) ([]PromotedF
 					log.Printf("[world_focus] get node %s: %v", nodeID, err)
 					continue
 				}
+				// Apply per-config limits
+				if cfg.MaxParentDistance > 0 && cfg.MaxParentDistance < maxDepth {
+					maxDepth = cfg.MaxParentDistance
+				}
 				promoted = append(promoted, PromotedFocusNode{
-					NodeID:   nodeID,
-					Name:     nodeModel.Name,
-					NodeType: nodeModel.NodeType,
-					Reason:   cfg.Reason,
-					Priority: cfg.Priority,
+					NodeID:      nodeID,
+					Name:        nodeModel.Name,
+					NodeType:    nodeModel.NodeType,
+					Reason:      cfg.Reason,
+					Priority:    cfg.Priority,
+					SummaryOnly: cfg.SummaryOnly,
 				})
 			}
 		}
@@ -79,11 +85,11 @@ func ScanWorldFocusDescendants(focusNodeID string, taskType string) ([]PromotedF
 			return
 		}
 		for _, child := range children {
-			walk(child.UUID, depth+1)
+			walk(child.UUID, depth+1, maxDepth)
 		}
 	}
 
-	walk(focusNodeID, 0)
+	walk(focusNodeID, 0, maxFocusScanDepth)
 
 	// Sort by priority descending, then by name
 	sort.Slice(promoted, func(i, j int) bool {
@@ -210,6 +216,9 @@ func BuildWorldFocusBlock(promoted []PromotedFocusNode) string {
 		if p.Reason != "" {
 			line += fmt.Sprintf(" [\u539f\u56e0: %s]", p.Reason)
 		}
+		if p.SummaryOnly {
+			line += " (\u6458\u8981)"
+		}
 		parts = append(parts, line)
 	}
 	return strings.Join(parts, "\n")
@@ -229,9 +238,9 @@ func SelectActiveCandidates(focusNodeID string, taskType string, now time.Time) 
 	var candidates []ScoredCandidate
 	scanned := map[string]bool{}
 
-	var walk func(nodeID string, depth int)
-	walk = func(nodeID string, depth int) {
-		if depth > maxFocusScanDepth {
+	var walk func(nodeID string, depth int, maxDepth int)
+	walk = func(nodeID string, depth int, maxDepth int) {
+		if depth > maxDepth {
 			return
 		}
 		if scanned[nodeID] {
@@ -257,11 +266,11 @@ func SelectActiveCandidates(focusNodeID string, taskType string, now time.Time) 
 			return
 		}
 		for _, child := range children {
-			walk(child.UUID, depth+1)
+			walk(child.UUID, depth+1, maxDepth)
 		}
 	}
 
-	walk(focusNodeID, 0)
+	walk(focusNodeID, 0, maxFocusScanDepth)
 
 	sort.Slice(candidates, func(i, j int) bool {
 		return candidates[i].Score > candidates[j].Score
