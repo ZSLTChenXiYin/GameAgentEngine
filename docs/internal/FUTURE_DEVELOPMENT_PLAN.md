@@ -179,7 +179,7 @@ Engine 内核补完与 Worker play 深化已经完成；当前最需要优先修
 
 ### Phase 1: Engine Core 增强
 
-#### P1.1 (WTC.1): world_focus 组件契约 [PENDING]
+#### P1.1 (WTC.1): world_focus 组件契约 [DONE]
 
 为 Engine 增加 `world_focus` 组件，使 world tick 可以显式地将特定子节点提升到推理上下文中。
 
@@ -195,7 +195,7 @@ Engine 内核补完与 Worker play 深化已经完成；当前最需要优先修
 - world tick context 中包含被提升的子节点摘要
 - 超限节点被正确截断且不报错
 
-#### P1.2 (WTC.2): 候选节点选择与评分 [PENDING]
+#### P1.2 (WTC.2): 候选节点选择与评分 [DONE]
 
 为 world tick 增加基于多信号的候选节点评分系统。
 
