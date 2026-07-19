@@ -3006,6 +3006,10 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 		if err := SaveAutonomousConfig(comp.UUID, cfg); err != nil {
 			log.Printf("save autonomous runtime state: %v", err)
 		}
+		// Enqueue a wake event for this node after completion
+		if req.WorldID != "" {
+			EnqueueWake(req.WorldID, targetNodeID, "autonomous_completed")
+		}
 		return resp
 	}, executionMode)
 }

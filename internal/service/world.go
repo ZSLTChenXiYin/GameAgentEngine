@@ -739,6 +739,7 @@ func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger 
 	}
 	emitWorldServiceLog(worldID, worldID, engine.TaskAutonomousAct, "autonomous_scan_started", trigger, map[string]any{"component_count": len(components), "limit": maxRuns})
 
+
 	type priorityCandidate struct {
 		comp  store.ComponentModel
 		score int
@@ -746,6 +747,20 @@ func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger 
 
 	var candidates []priorityCandidate
 	var decodeErrors []engine.AutonomousRunResult
+
+	// Consume wake events — these take priority over regular scan results
+	wakeEvents := engine.ConsumeWakeEvents(worldID)
+	for _, we := range wakeEvents {
+		comps, err := store.GetComponentsByType(we.NodeID, string(engine.CompAutonomous))
+		if err != nil || len(comps) == 0 {
+			continue
+		}
+		cfg, err := engine.DecodeAutonomousConfig(comps[0].Data)
+		if err != nil || !cfg.Enabled {
+			continue
+		}
+		candidates = append(candidates, priorityCandidate{comp: comps[0], score: 1000 + we.Priority})
+	}
 
 	for _, comp := range components {
 		cfg, err := engine.DecodeAutonomousConfig(comp.Data)
