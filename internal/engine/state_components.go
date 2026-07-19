@@ -1,5 +1,7 @@
 package engine
 
+import "github.com/ZSLTChenXiYin/GameAgentEngine/pkg/types"
+
 // WorldStateComponent 保存当前世界的可继承状态快照。
 type WorldStateComponent struct {
 	Summary        string         `json:"summary,omitempty"`
@@ -59,16 +61,7 @@ type WorldTimeStateComponent struct {
 
 // WorldFocusComponent marks a descendant node as structurally important
 // for world tick context selection. It is consumed during context assembly.
-type WorldFocusComponent struct {
-	Enabled             bool     `json:"enabled"`
-	Tasks               []string `json:"tasks,omitempty"`
-	Priority            int      `json:"priority,omitempty"`
-	Reason              string   `json:"reason,omitempty"`
-	MaxParentDistance   int      `json:"max_parent_distance,omitempty"`
-	SummaryOnly         bool     `json:"summary_only,omitempty"`
-	IncludeChildren     int      `json:"include_children,omitempty"`
-	IncludeRelations    []string `json:"include_relations,omitempty"`
-}
+type WorldFocusComponent = types.WorldFocusConfig
 
 // StateSnapshotComponent 保存由引擎阶段性生成的结构化状态快照。
 type StateSnapshotComponent struct {

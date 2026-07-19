@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ZSLTChenXiYin/GameAgentEngine/sdk"
+	"github.com/ZSLTChenXiYin/GameAgentEngine/pkg/types"
 )
 
 // NodeType 表示节点在实体层级中的类别。
@@ -910,14 +911,5 @@ func ValidateDynamicInterfaces(items []DynamicInterface) error {
 	}
 	return nil
 }
-// WorldFocusConfig 控制子节点自动提升到 world_tick / scope_tick 上下文中的行为。
-type WorldFocusConfig struct {
-	Enabled           bool     `json:"enabled"`
-	Tasks             []string `json:"tasks,omitempty"`              // 适用的任务类型，例如 ["world_tick"]
-	Priority          int      `json:"priority,omitempty"`           // 提升优先级（越高越优先被选中）
-	Reason            string   `json:"reason,omitempty"`             // 提升原因描述，例如 "quest_hub"
-	MaxParentDistance int      `json:"max_parent_distance,omitempty"` // 距焦点节点的最大距离
-	SummaryOnly       bool     `json:"summary_only,omitempty"`       // 仅注入摘要而非完整上下文
-	IncludeChildren   int      `json:"include_children,omitempty"`   // 包含的子节点层级数（0=不包含子节点）
-	IncludeRelations  []string `json:"include_relations,omitempty"`  // 包含的关系类型列表
-}
+// WorldFocusConfig is an alias for the shared type in pkg/types.
+type WorldFocusConfig = types.WorldFocusConfig
