@@ -20,8 +20,13 @@ func Health(w http.ResponseWriter, r *http.Request) {
 // 当查询参数中包含 world_id 时，会按世界过滤。
 func GetAllNodesHandler(w http.ResponseWriter, r *http.Request) {
 	wid := r.URL.Query().Get("world_id")
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	var limit, offset int
+	if n, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil {
+		limit = n
+	}
+	if n, err := strconv.Atoi(r.URL.Query().Get("offset")); err == nil {
+		offset = n
+	}
 	nodeType := r.URL.Query().Get("node_type")
 	nodes, err := store.GetAllNodes(wid, limit, offset, nodeType)
 	if err != nil {
@@ -114,14 +119,18 @@ func GetLogsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	query.Limit = limit
-	query.Offset, _ = strconv.Atoi(r.URL.Query().Get("offset"))
+	if n, err := strconv.Atoi(r.URL.Query().Get("offset")); err == nil {
+		query.Offset = n
+	}
 	query.TaskType = r.URL.Query().Get("task_type")
 	query.NodeUUID = r.URL.Query().Get("node_id")
 	query.Category = r.URL.Query().Get("category")
 	query.EventName = r.URL.Query().Get("event_name")
 	query.ExecutionMode = r.URL.Query().Get("execution_mode")
 	query.RequestID = r.URL.Query().Get("request_id")
-	query.Round, _ = strconv.Atoi(r.URL.Query().Get("round"))
+	if n, err := strconv.Atoi(r.URL.Query().Get("round")); err == nil {
+		query.Round = n
+	}
 	logs, err := store.GetInferenceLogsByQuery(query)
 	if err != nil {
 		errorJSON(w, 500, err.Error())
