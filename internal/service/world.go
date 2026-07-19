@@ -717,32 +717,20 @@ func withWorldLockAutonomous(worldID string, fn func() []engine.AutonomousRunRes
 	return fn()
 }
 
-func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger string, limit *int, nowOpt ...time.Time) []engine.AutonomousRunResult {
-	maxRuns := defaultAutonomousTickLimit
-	if limit != nil {
-		maxRuns = *limit
-	}
-	if maxRuns <= 0 {
-		return nil
-	}
+// priorityCandidate pairs an autonomous component with its scheduling score.
+type priorityCandidate struct {
+	comp  store.ComponentModel
+	score int
+}
+
+// collectAutonomousCandidates processes wake events and scans autonomous components
+// to build a candidate list for execution, sorted by priority score.
+func collectAutonomousCandidates(worldID string, trigger string, components []store.ComponentModel, nowOpt ...time.Time) ([]priorityCandidate, []engine.AutonomousRunResult) {
+
 
 	now := time.Now()
 	if len(nowOpt) > 0 {
 		now = nowOpt[0]
-	}
-
-	components, err := store.GetComponentsByTypeForWorld(worldID, string(engine.CompAutonomous))
-	if err != nil {
-		log.Printf("load autonomous components: %v", err)
-		emitWorldServiceLog(worldID, worldID, engine.TaskAutonomousAct, "autonomous_load_failed", trigger, map[string]any{"error": err.Error()})
-		return []engine.AutonomousRunResult{{Error: err.Error()}}
-	}
-	emitWorldServiceLog(worldID, worldID, engine.TaskAutonomousAct, "autonomous_scan_started", trigger, map[string]any{"component_count": len(components), "limit": maxRuns})
-
-
-	type priorityCandidate struct {
-		comp  store.ComponentModel
-		score int
 	}
 
 	var candidates []priorityCandidate
@@ -782,6 +770,29 @@ func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger 
 		}
 		candidates = append(candidates, priorityCandidate{comp: comp, score: engine.ScoreAutonomousNode(cfg, now)})
 	}
+
+	return candidates, decodeErrors
+}
+
+func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger string, limit *int, nowOpt ...time.Time) []engine.AutonomousRunResult {
+	maxRuns := defaultAutonomousTickLimit
+	if limit != nil {
+		maxRuns = *limit
+	}
+	if maxRuns <= 0 {
+		return nil
+	}
+
+	components, err := store.GetComponentsByTypeForWorld(worldID, string(engine.CompAutonomous))
+	if err != nil {
+		log.Printf("load autonomous components: %v", err)
+		emitWorldServiceLog(worldID, worldID, engine.TaskAutonomousAct, "autonomous_load_failed", trigger, map[string]any{"error": err.Error()})
+		return []engine.AutonomousRunResult{{Error: err.Error()}}
+	}
+	emitWorldServiceLog(worldID, worldID, engine.TaskAutonomousAct, "autonomous_scan_started", trigger, map[string]any{"component_count": len(components), "limit": maxRuns})
+
+
+	candidates, decodeErrors := collectAutonomousCandidates(worldID, trigger, components, nowOpt...)
 
 	// Sort candidates by priority descending
 	sort.Slice(candidates, func(i, j int) bool {
