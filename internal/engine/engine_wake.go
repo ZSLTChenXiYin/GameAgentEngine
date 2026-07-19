@@ -1,14 +1,19 @@
 package engine
 
 import (
+	"log"
 	"sync"
 	"time"
+)
+
+const (
+	maxWakeQueueSize = 1000
+	wakeEventTTL     = 10 * time.Minute
 )
 
 // WakeEvent represents an event-driven wake trigger for an autonomous node.
 type WakeEvent struct {
 	NodeID    string
-	WorldID   string
 	Reason    string
 	Priority  int
 	Timestamp time.Time
@@ -21,13 +26,16 @@ var (
 )
 
 // EnqueueWake adds a wake event for the given node in the specified world.
-// When the autonomous scheduler runs, it will prioritize waking this node.
 func EnqueueWake(worldID, nodeID, reason string) {
 	wakeMu.Lock()
 	defer wakeMu.Unlock()
-	wakeQueue[worldID] = append(wakeQueue[worldID], WakeEvent{
+	queue := wakeQueue[worldID]
+	if len(queue) >= maxWakeQueueSize {
+		log.Printf("[warn][wake] queue full for world %s, dropping wake for %s", worldID, nodeID)
+		return
+	}
+	wakeQueue[worldID] = append(queue, WakeEvent{
 		NodeID:    nodeID,
-		WorldID:   worldID,
 		Reason:    reason,
 		Priority:  10,
 		Timestamp: time.Now(),
@@ -38,9 +46,13 @@ func EnqueueWake(worldID, nodeID, reason string) {
 func EnqueueWakeWithPriority(worldID, nodeID, reason string, priority int) {
 	wakeMu.Lock()
 	defer wakeMu.Unlock()
-	wakeQueue[worldID] = append(wakeQueue[worldID], WakeEvent{
+	queue := wakeQueue[worldID]
+	if len(queue) >= maxWakeQueueSize {
+		log.Printf("[warn][wake] queue full for world %s, dropping wake for %s", worldID, nodeID)
+		return
+	}
+	wakeQueue[worldID] = append(queue, WakeEvent{
 		NodeID:    nodeID,
-		WorldID:   worldID,
 		Reason:    reason,
 		Priority:  priority,
 		Timestamp: time.Now(),
@@ -53,7 +65,16 @@ func ConsumeWakeEvents(worldID string) []WakeEvent {
 	defer wakeMu.Unlock()
 	events := wakeQueue[worldID]
 	delete(wakeQueue, worldID)
-	return events
+
+	// Filter out expired events
+	now := time.Now()
+	filtered := events[:0]
+	for _, e := range events {
+		if now.Sub(e.Timestamp) <= wakeEventTTL {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
 }
 
 // PendingWakeEventCount returns the number of pending wake events for a world.

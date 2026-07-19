@@ -1359,6 +1359,10 @@ func (s *playSession) renderRoomState() string {
 	}
 	lines = append(lines, "房间参与者:")
 	lines = append(lines, parts...)
+	if summary := s.roomParticipantSummary(); summary != "" {
+		lines = append(lines, "")
+		lines = append(lines, summary)
+	}
 	return strings.Join(lines, "\n")
 }
 

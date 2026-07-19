@@ -750,7 +750,12 @@ func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger 
 
 	// Consume wake events — these take priority over regular scan results
 	wakeEvents := engine.ConsumeWakeEvents(worldID)
+	seen := map[string]bool{}
 	for _, we := range wakeEvents {
+		if seen[we.NodeID] {
+			continue
+		}
+		seen[we.NodeID] = true
 		comps, err := store.GetComponentsByType(we.NodeID, string(engine.CompAutonomous))
 		if err != nil || len(comps) == 0 {
 			continue

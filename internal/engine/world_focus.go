@@ -110,6 +110,15 @@ func DecodeWorldFocusConfig(data string) (*WorldFocusConfig, error) {
 	if err := json.Unmarshal([]byte(data), &cfg); err != nil {
 		return nil, fmt.Errorf("parse world_focus config: %w", err)
 	}
+	if cfg.MaxParentDistance < 0 {
+		cfg.MaxParentDistance = 0
+	}
+	if cfg.Priority < 0 {
+		cfg.Priority = 0
+	}
+	if cfg.IncludeChildren < 0 {
+		cfg.IncludeChildren = 0
+	}
 	return &cfg, nil
 }
 
