@@ -115,6 +115,35 @@ func (d *Dispatcher) Dispatch(ctx context.Context, route Route, req DispatchRequ
 	if lastResult != nil && strings.TrimSpace(lastResult.Transport) == "" {
 		lastResult.Transport = transport
 	}
+	// If primary transport failed and fallback is configured, try fallback
+	if lastErr != nil {
+		fallbackTransport := strings.TrimSpace(route.FallbackTransport)
+		if fallbackTransport != "" {
+			if fallbackIntegration, ok := config.Global.ExternalIntegrations[fallbackTransport]; ok {
+				if fallbackAdapter, ok := d.adapters[strings.TrimSpace(fallbackIntegration.Type)]; ok {
+					for attempt := 1; attempt <= maxAttempts; attempt++ {
+						result, err := fallbackAdapter.Dispatch(ctx, fallbackIntegration, req)
+						if err == nil {
+							if result != nil && strings.TrimSpace(result.Transport) == "" {
+								result.Transport = fallbackTransport
+							}
+							return result, nil
+						}
+						if attempt >= maxAttempts {
+							lastResult = result
+							lastErr = err
+							break
+						}
+						select {
+						case <-ctx.Done():
+							return result, ctx.Err()
+						case <-time.After(time.Duration(backoffMs) * time.Millisecond):
+						}
+					}
+				}
+			}
+		}
+	}
 	return lastResult, lastErr
 }
 
