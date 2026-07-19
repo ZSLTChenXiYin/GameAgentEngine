@@ -85,6 +85,7 @@ var BUFFER = 5;
 function renderTree() {
   var body = document.getElementById("treeBody");
   if (!body) return;
+  var savedScrollTop = body.scrollTop;
   body.innerHTML = "";
   state.visibleNodeIds = [];
 
@@ -121,6 +122,8 @@ function renderTree() {
     var activeDrops = body.querySelectorAll(".drop-target");
     activeDrops.forEach(function (item) { item.classList.remove("drop-target"); });
   }
+
+  body.scrollTop = Math.min(savedScrollTop, (rows.length * ROW_HEIGHT) + 24);
 
   function renderSlice() {
     var st = body.scrollTop;
