@@ -77,6 +77,37 @@ function renderLeftPanel() {
     var self = this;
     self._debounceTimer = setTimeout(function() { renderTree(); }, 80);
   });
+  body.tabIndex = 0;
+  body.addEventListener("keydown", function(e) {
+    if (!state.visibleNodeIds || state.visibleNodeIds.length === 0) return;
+    var idx = state.selectedNodeId ? state.visibleNodeIds.indexOf(state.selectedNodeId) : -1;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      idx = Math.min(idx + 1, state.visibleNodeIds.length - 1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      idx = Math.max(idx - 1, 0);
+    } else if (e.key === "ArrowRight") {
+      if (state.selectedNodeId && state.treeCollapsed && state.treeCollapsed[state.selectedNodeId]) {
+        e.preventDefault(); state.treeCollapsed[state.selectedNodeId] = false; invalidateTreeCache(); renderTree();
+      }
+      return;
+    } else if (e.key === "ArrowLeft") {
+      if (state.selectedNodeId) {
+        e.preventDefault(); state.treeCollapsed = state.treeCollapsed || {}; state.treeCollapsed[state.selectedNodeId] = true; invalidateTreeCache(); renderTree();
+      }
+      return;
+    } else if (e.key === "Enter") {
+      if (state.selectedNodeId) { e.preventDefault(); editNodeHandler(state.selectedNodeId); }
+      return;
+    } else { return; }
+    if (idx < 0 || idx >= state.visibleNodeIds.length) return;
+    var nid = state.visibleNodeIds[idx];
+    var rows = _treeCache.flatRows || buildFlatRows();
+    var pk = "";
+    for (var ri = 0; ri < rows.length; ri++) { if (rows[ri].nodeId === nid) { pk = rows[ri].pathKey; break; } }
+    selectNode(nid, pk); renderCurrent(); renderTree();
+  });
 }
 
 var ROW_HEIGHT = 28;
