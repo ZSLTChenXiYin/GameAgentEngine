@@ -210,7 +210,7 @@ Engine 内核补完与 Worker play 深化已经完成；当前最需要优先修
 - 候选列表长度不超过 K（默认 10）
 - 评分不影响现有 world tick 行为
 
-#### P1.3 (AS.3): 事件驱动唤醒队列 [PENDING]
+#### P1.3 (AS.3): 事件驱动唤醒队列 [DONE]
 
 为 autonomous 调度增加事件驱动唤醒路径。
 
@@ -226,7 +226,10 @@ Engine 内核补完与 Worker play 深化已经完成；当前最需要优先修
 - 消费后的节点优先于普通扫描被调度
 - 队列支持按 world 隔离
 
-#### P1.4 (RI.1): Interaction Session 标准化 [PENDING]
+#### P1.4 (RI.1): Interaction Session 标准化 [DONE]
+
+> `InteractionContext` struct 已在 Engine 和 SDK 完整定义，pipeline invoke 传递和 Worker play 集成均已实现。无需额外开发。
+
 
 稳定 interaction 中 actor/target/scene/room 的上下文模型。
 
