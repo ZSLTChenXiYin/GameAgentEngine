@@ -20,6 +20,10 @@ Health check. No API key required.
 
 Returns the current engine version and minimum compatible version.
 
+### `GET /metrics`
+
+Returns Go runtime metrics in Prometheus plain text format. Exposes goroutine count, memory allocation, GC pause times.
+
 ---
 
 ## Inference and Planning
@@ -221,6 +225,30 @@ Current request body:
 {
   "name": "Renamed World"
 }
+```
+
+
+
+### `POST /api/v1/worlds/{world_id}/cold-start`
+
+Performs cold-start initialization for a world after import (no LLM call). Mode: initial / rebuild.
+
+**Request body**:
+
+```json
+{ "mode": "initial" }
+```
+
+
+
+### `POST /api/v1/player/input/interpret`
+
+Converts natural language player input into a structured intent body.
+
+**Request body**:
+
+```json
+{ "world_id": "...", "node_id": "player_001", "text": "I want to talk to the innkeeper" }
 ```
 
 ---

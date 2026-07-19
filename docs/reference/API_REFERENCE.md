@@ -29,6 +29,10 @@
 
 返回当前引擎版本和最低兼容版本。
 
+### `GET /metrics`
+
+返回 Go 运行时指标，格式为 Prometheus 纯文本。暴露 goroutine 数、内存分配、GC 暂停时间等。
+
 ---
 
 ## 推理与计划
@@ -486,6 +490,30 @@
 {
   "name": "Renamed World"
 }
+```
+
+
+
+### `POST /api/v1/worlds/{world_id}/cold-start`
+
+对导入后的世界执行冷启动初始化，不调用 LLM。可选 mode: initial / rebuild。
+
+**请求体**：
+
+```json
+{ "mode": "initial" }
+```
+
+
+
+### `POST /api/v1/player/input/interpret`
+
+将玩家自然语言输入转为结构化意图体。
+
+**请求体**：
+
+```json
+{ "world_id": "...", "node_id": "player_001", "text": "我要和店主说话" }
 ```
 
 ---
