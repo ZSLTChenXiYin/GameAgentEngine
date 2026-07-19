@@ -64,8 +64,11 @@ func ScanWorldFocusDescendants(focusNodeID string, taskType string) ([]PromotedF
 					continue
 				}
 				// Apply per-config limits
-				if cfg.MaxParentDistance > 0 && cfg.MaxParentDistance < maxDepth {
-					maxDepth = cfg.MaxParentDistance
+				if cfg.MaxParentDistance > 0 {
+					relativeMax := depth + cfg.MaxParentDistance
+					if relativeMax < maxDepth {
+						maxDepth = relativeMax
+					}
 				}
 				promoted = append(promoted, PromotedFocusNode{
 					NodeID:      nodeID,
