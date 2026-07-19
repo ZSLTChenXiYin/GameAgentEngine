@@ -110,5 +110,19 @@ func TestSDKIntegration(t *testing.T) {
 		t.Fatalf("pipeline stats: %v", err)
 	}
 	t.Logf("pipeline stats: %s", string(raw))
+
+	// World policy
+	policy, err := client.RawGet("/api/v1/worlds/" + worldID + "/policy")
+	if err != nil {
+		t.Fatalf("get policy: %v", err)
+	}
+	t.Logf("world policy: %s", string(policy))
+
+	// State components
+	stateComps, err := client.RawGet("/api/v1/worlds/" + worldID + "/state-components")
+	if err != nil {
+		t.Fatalf("state components: %v", err)
+	}
+	t.Logf("state components: %s", string(stateComps))
 	t.Log("SDK integration test passed")
 }
