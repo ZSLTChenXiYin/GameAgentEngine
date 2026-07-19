@@ -66,6 +66,10 @@ func (c *Client) doCtx(ctx context.Context, method, path string, body any) ([]by
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
