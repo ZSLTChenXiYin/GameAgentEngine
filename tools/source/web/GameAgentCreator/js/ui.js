@@ -79,207 +79,148 @@ function renderLeftPanel() {
   });
 }
 
-/* ============= Tree ============= */
+var ROW_HEIGHT = 28;
+var BUFFER = 5;
+
 function renderTree() {
-  var body = document.getElementById('treeBody');
+  var body = document.getElementById("treeBody");
   if (!body) return;
-  body.innerHTML = '';
+  body.innerHTML = "";
   state.visibleNodeIds = [];
 
   var rows = buildFlatRows();
   if (rows.length === 0) {
-    body.appendChild(ce('div', { className: 'hint' }, [ttxt('No nodes. Click + to create.')]));
+    body.appendChild(ce("div", { className: "hint" }, [ttxt("No nodes. Click + to create.")]));
     return;
   }
 
-  // Track visible node IDs for drag/drop
-  state.visibleNodeIds = rows.map(function(r) { return r.nodeId; });
-
-  // Build root drop zone
-  var rootDrop = ce('div', { className: 'tree-root-drop' }, [txt(tr('Drop here to move to root'))]);
+  // Root drop zone — always visible
+  var rootDrop = ce("div", { className: "tree-root-drop" }, [txt(tr("Drop here to move to root"))]);
   body.appendChild(rootDrop);
 
-  // Node container
-  var treeContent = ce('div', { className: 'tree-content' }, []);
-  body.appendChild(treeContent);
+  // Virtual-scroll spacer + viewport
+  var totalHeight = rows.length * ROW_HEIGHT + 24;
+  var spacer = ce("div", { style: { height: totalHeight + "px", position: "relative" } }, []);
+  body.appendChild(spacer);
+  var viewport = ce("div", { className: "tree-content", style: { position: "absolute", top: "0", left: "0", right: "0" } }, []);
+  spacer.appendChild(viewport);
 
   var selectedSet = {};
-  (state.selectedNodeIds || []).forEach(function(id) { selectedSet[id] = true; });
+  (state.selectedNodeIds || []).forEach(function (id) { selectedSet[id] = true; });
   var activePathSet = {};
   if (state.selectedTreePathKey) {
-    state.selectedTreePathKey.split('|').forEach(function(key) { if (key) activePathSet[key] = true; });
+    state.selectedTreePathKey.split("|").forEach(function (key) { if (key) activePathSet[key] = true; });
   }
 
-  for (var ri = 0; ri < rows.length; ri++) {
-    var r = rows[ri];
-    var node = _treeCache.nodeMap[r.nodeId];
-    if (!node) continue;
+  if (state.dragNodeId) { body.classList.add("drag-active"); }
+  else { body.classList.remove("drag-active"); }
 
-    var isSelected = !!selectedSet[node.id] && state.selectedTreePathKey === r.pathKey;
-    var isPrimarySelected = state.selectedNodeId === node.id;
-    var isAliasSelected = !!selectedSet[node.id] && state.selectedTreePathKey && state.selectedTreePathKey !== r.pathKey;
-    var isAncestor = !!activePathSet[r.pathKey] && !isSelected;
+  function clearDropIndicators() {
+    rootDrop.classList.remove("active");
+    var activeDrops = body.querySelectorAll(".drop-target");
+    activeDrops.forEach(function (item) { item.classList.remove("drop-target"); });
+  }
 
-    var cls = 'tree-node';
-    if (isSelected) cls += ' selected';
-    if (isSelected && !isPrimarySelected) cls += ' multi-selected';
-    if (isAliasSelected) cls += ' alias-selected';
-    if (isAncestor) cls += ' path-ancestor';
+  function renderSlice() {
+    var st = body.scrollTop;
+    var ch = body.clientHeight || 300;
+    var startIdx = Math.max(0, Math.floor(st / ROW_HEIGHT) - BUFFER);
+    var endIdx = Math.min(rows.length, Math.ceil((st + ch) / ROW_HEIGHT) + BUFFER);
 
-    var arrowSpan = el('span', {
-      className: 'tree-arrow' + (r.hasChildren ? (r.isExpanded ? ' expanded' : '') : ' invisible'),
-      textContent: '\u25b8'
-    });
-    var iconSpan = el('span', { className: 'tree-icon ' + node.node_type });
-    var nameSpan = el('span', { className: 'tree-name', textContent: node.name });
-    var typeSpan = el('span', { className: 'tree-type node-type-' + node.node_type, textContent: node.node_type });
+    viewport.innerHTML = "";
+    viewport.style.top = (startIdx * ROW_HEIGHT) + "px";
+    state.visibleNodeIds = rows.slice(startIdx, endIdx).map(function (r) { return r.nodeId; });
 
-    var row = ce('div', {
-      className: cls,
-      dataset: { id: node.id, pid: node.parent_id || '', pathKey: r.pathKey, depth: String(r.depth), hasChildren: r.hasChildren ? '1' : '0' }
-    }, [arrowSpan, iconSpan, nameSpan, typeSpan]);
-    row.style.paddingLeft = r.paddingLeft + 'px';
-    treeContent.appendChild(row);
+    for (var ri = startIdx; ri < endIdx; ri++) {
+      var r = rows[ri];
+      var node = _treeCache.nodeMap[r.nodeId];
+      if (!node) continue;
 
-    // Drag source: mark for drag
-    if (node.node_type !== 'world') {
-      row.draggable = true;
+      var isSelected = !!selectedSet[node.id] && state.selectedTreePathKey === r.pathKey;
+      var isPrimarySelected = state.selectedNodeId === node.id;
+      var isAliasSelected = !!selectedSet[node.id] && state.selectedTreePathKey && state.selectedTreePathKey !== r.pathKey;
+      var isAncestor = !!activePathSet[r.pathKey] && !isSelected;
+
+      var classes = ["tree-node"];
+      if (isSelected) classes.push("selected");
+      if (isPrimarySelected) classes.push("primary-selected");
+      if (isAliasSelected) classes.push("alias-selected");
+      if (isAncestor) classes.push("ancestor");
+      if (r.nodeId === state.dragNodeId) classes.push("dragging");
+
+      var rowEl = ce("div", { className: classes.join(" "), id: "tn_" + r.nodeId, style: { paddingLeft: r.paddingLeft + "px" } }, []);
+      rowEl.dataset.nodeId = r.nodeId;
+      rowEl.dataset.pathKey = r.pathKey || "";
+
+      // Expand / collapse arrow
+      var arrow = ce("span", { className: "tree-arrow" + (r.hasChildren ? "" : " invisible") }, [txt(r.isExpanded ? "\u25BC" : "\u25B6")]);
+      arrow.addEventListener("click", function (ev) { ev.stopPropagation(); toggleNode(this.parentElement.dataset.nodeId); renderTree(); });
+      rowEl.appendChild(arrow);
+
+      // Type icon + name
+      var icon = ce("span", { className: "node-icon node-type-" + (node.node_type || "unknown") }, []);
+      rowEl.appendChild(icon);
+      var nameSpan = ce("span", { className: "node-name" }, [txt(node.name || node.id)]);
+      rowEl.appendChild(nameSpan);
+
+      // Click: select node
+      rowEl.addEventListener("click", function () {
+        var nid = this.dataset.nodeId;
+        var pk = this.dataset.pathKey;
+        selectNode(nid, pk);
+        renderCurrent();
+        renderTree();
+      });
+
+      // Context menu
+      rowEl.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var nid = this.dataset.nodeId;
+        if (state.selectedNodeId !== nid) { selectNode(nid, this.dataset.pathKey); renderCurrent(); }
+        showContextMenu([
+          { label: tr("Add Child"), onClick: function() { addNodeHandler(nid); } },
+          { label: tr("Edit"), onClick: function() { editNodeHandler(nid); } },
+          { label: tr("Duplicate"), onClick: function() { duplicateNodeHandler(nid); } },
+          { label: tr("Delete"), danger: true, onClick: function() { deleteNodeHandler(nid); } },
+        ], e.clientX, e.clientY);
+      });
+
+      // Drag / drop
+      rowEl.draggable = true;
+      rowEl.addEventListener("dragstart", function (e) {
+        e.dataTransfer.setData("text/plain", this.dataset.nodeId);
+        state.dragNodeId = this.dataset.nodeId;
+        body.classList.add("drag-active");
+        renderTree();
+      });
+      rowEl.addEventListener("dragend", function () {
+        state.dragNodeId = null;
+        body.classList.remove("drag-active");
+        clearDropIndicators();
+      });
+      rowEl.addEventListener("dragover", function (e) {
+        e.preventDefault();
+        clearDropIndicators();
+        this.classList.add("drop-target");
+      });
+      rowEl.addEventListener("dragleave", function () { this.classList.remove("drop-target"); });
+      rowEl.addEventListener("drop", function (e) {
+        e.preventDefault();
+        clearDropIndicators();
+        var srcId = e.dataTransfer.getData("text/plain");
+        var tgtId = this.dataset.nodeId;
+        if (srcId && tgtId && srcId !== tgtId) moveNode(srcId, tgtId);
+      });
+
+      viewport.appendChild(rowEl);
     }
   }
 
-  // Event delegation: click on tree arrows
-  treeContent.addEventListener('click', function(e) {
-    if (state.suppressTreeClickUntil && Date.now() < state.suppressTreeClickUntil) return;
-    var target = e.target;
-    var row = target.closest('.tree-node');
-    if (!row) return;
-
-    var nodeId = row.dataset.id;
-    var node = getNodeById(nodeId);
-    if (!node) return;
-
-    // Arrow click: expand/collapse
-    if (target.classList.contains('tree-arrow') && !target.classList.contains('invisible')) {
-      e.stopPropagation();
-      if (!state.treeCollapsed) state.treeCollapsed = {};
-      state.treeCollapsed[nodeId] = !state.treeCollapsed[nodeId];
-      invalidateTreeCache();
-      renderTree();
-      return;
-    }
-
-    // Node selection
-    if (e.shiftKey) {
-      selectNode(nodeId, node.node_type, { mode: 'range', preserveAnchor: true, treePathKey: row.dataset.pathKey });
-    } else if (e.ctrlKey || e.metaKey) {
-      selectNode(nodeId, node.node_type, { mode: 'toggle', treePathKey: row.dataset.pathKey });
-    } else {
-      selectNode(nodeId, node.node_type, { mode: 'single', treePathKey: row.dataset.pathKey });
-    }
-  });
-
-  // Event delegation: drag + right-click
-  var dragState = null;
-  function clearDrag() {
-    if (dragState) {
-      dragState.sourceRow.classList.remove('drag-source');
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-      dragState = null;
-    }
-    body.classList.remove('drag-active');
-    var drops = body.querySelectorAll('.drop-target');
-    for (var di = 0; di < drops.length; di++) drops[di].classList.remove('drop-target');
-    rootDrop.classList.remove('active');
-  }
-
-  treeContent.addEventListener('mousedown', function(e) {
-    if (e.button !== 0) return;
-    var row = e.target.closest('.tree-node');
-    if (!row) return;
-    var node = getNodeById(row.dataset.id);
-    if (!node || node.node_type === 'world') return;
-    if (row.querySelector('.tree-arrow') === e.target) return;
-
-    var startX = e.clientX, startY = e.clientY;
-    var started = false;
-
-    function onMove(ev) {
-      var dx = Math.abs(ev.clientX - startX), dy = Math.abs(ev.clientY - startY);
-      if (!started) {
-        if (Math.max(dx, dy) < 5) return;
-        started = true;
-        row.classList.add('drag-source');
-        body.classList.add('drag-active');
-        document.body.style.userSelect = 'none';
-        document.body.style.cursor = 'grabbing';
-        dragState = { sourceRow: row };
-      }
-      ev.preventDefault();
-
-      // Clear old indicators
-      rootDrop.classList.remove('active');
-      var oldDrops = body.querySelectorAll('.drop-target');
-      for (var di = 0; di < oldDrops.length; di++) oldDrops[di].classList.remove('drop-target');
-
-      var hit = document.elementFromPoint(ev.clientX, ev.clientY);
-      if (!hit) return;
-
-      // Check root drop
-      var rootHit = hit === rootDrop || (hit.closest && hit.closest('.tree-root-drop') === rootDrop);
-      if (rootHit) { rootDrop.classList.add('active'); return; }
-
-      var targetRow = hit.closest ? hit.closest('.tree-node') : null;
-      if (targetRow && targetRow !== row) targetRow.classList.add('drop-target');
-    }
-
-    function onUp(ev) {
-      window.removeEventListener('mousemove', onMove, true);
-      window.removeEventListener('mouseup', onUp, true);
-      if (!started) { clearDrag(); return; }
-      ev.preventDefault();
-      state.suppressTreeClickUntil = Date.now() + 250;
-
-      var targetId = null;
-      if (rootDrop.classList.contains('active')) { targetId = ''; }
-      else {
-        var tRow = body.querySelector('.drop-target');
-        if (tRow) targetId = tRow.dataset.id || null;
-      }
-
-      clearDrag();
-      if (targetId !== null) moveNodeParent(row.dataset.id, targetId);
-    }
-
-    window.addEventListener('mousemove', onMove, true);
-    window.addEventListener('mouseup', onUp, true);
-  });
-
-  // Context menu delegation
-  treeContent.addEventListener('contextmenu', async function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    var row = e.target.closest('.tree-node');
-    if (!row) return;
-    var nodeId = row.dataset.id;
-    var node = getNodeById(nodeId);
-    if (!node) return;
-
-    var selectedSet2 = {};
-    (state.selectedNodeIds || []).forEach(function(id) { selectedSet2[id] = true; });
-    if (!selectedSet2[nodeId] || state.selectedTreePathKey !== row.dataset.pathKey) {
-      await selectNode(nodeId, node.node_type, { mode: 'single', treePathKey: row.dataset.pathKey });
-    }
-    showContextMenu([
-      { label: tr('Edit'), onClick: function() { openEditNodeModal(nodeId); } },
-      { label: tr('Copy Node'), onClick: function() { openCopyNodeModal(nodeId); } },
-      { label: tr('Add New Parent'), tip: tr('Creates a new node and rewires only parent_id'), onClick: function() { openCreateParentNodeModal(nodeId); } },
-      { label: tr('Add Outgoing Relation'), tip: tr('Relations are stored separately from the outline tree'), onClick: function() { openAddOutgoingRelationModal(nodeId); } },
-      { label: tr('Create Child'), onClick: function() { openCreateNodeModal(nodeId); } },
-      { label: tr('Delete'), danger: true, onClick: function() { deleteNodeHandler(nodeId); } },
-    ], e.clientX, e.clientY);
-  });
+  renderSlice();
+  body.onscroll = function () { renderSlice(); };
 }
+
 
 function switchPage(name) {
   state.page = name;
