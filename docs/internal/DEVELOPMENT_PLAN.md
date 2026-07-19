@@ -314,17 +314,4 @@ DevCli: `world cold-start`, `world bootstrap inspect`。Creator: 世界初始化
 *本文档整合了项目中所有现有的路线图和规划，是团队开发决策的单一参照。开发团队应在每个 sprint 结束时更新本文档的状态列。*
 
 
-## 9. 计划外但已识别的改进项
 
-以下项目在开发过程中发现并记录，已创建基准脚本在 	mp/ 目录：
-
-| 文件 | 用途 |
-|---|---|
-| 	mp/bench_autonomous.sh | E14 自主行为调度基准测试 |
-| 	mp/bench_worldtick.py | E22 World Tick 压力测试 |
-| 	mp/register_component_type.js | E17 组件类型注册助手 |
-| 	mp/validate_world_isolation.py | E21 跨世界引用校验 |
-| 	mp/creator_tree_profiling.js | F0 Creator 树性能基线 |
-
-*其余 P2-P4 项目已在对应的路线图文档中详细记录，详见[现有路线图文档索引](#8-现有路线图文档索引)。*
-\n\n## 10. 代码审查问题完成状态\n\n| # | 问题 | 状态 | 提交 |\n|---|:---|:---:|:---|\n| 1-3 | 网络超时 | ✅ | #2/#3/#6 |\n| 4 | SDK context 传播 | ✅ | #4 |\n| 5-6 | Context 传播/优雅关闭 | ✅ | #2/#6 |\n| 7-8 | 数据库迁移 | ✅ | #7/#8 |\n| 9-10 | 错误处理(SDK) | ✅ | #1/#10 |\n| 11 | 错误处理(Engine) | ✅ | #11 |\n| 12-13 | API 设计(CORS/Version) | ✅ | 已有/无需改动 |\n| 14 | SDK/Engine 类型漂移 | 📋 架构决策 | — |\n| 15 | Scheduler.Stop() | ✅ | #15 |\n| 16 | 调度器并行 | ✅ | #16 |\n| 17 | 配置管理(SetGlobal) | ✅ | #17 |\n| 19 | 测试隔离 | ✅ | #19 |\n| 20-21 | 集成测试 | 📋 渐进式 | — |\n| 22 | CLI 输入校验 | ✅ | cobra 已有 Args |\n| 23 | 启动配置校验 | ✅ | #23 |\n| 24-25 | 代码质量 | ✅ | 已检查无重复 |\n
