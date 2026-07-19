@@ -104,5 +104,11 @@ func TestSDKIntegration(t *testing.T) {
 		t.Errorf("expected MaxAnalysisRounds=10, got %+v", updatedSettings)
 	}
 
+	// Pipeline stats
+	raw, err = client.RawGet("/api/v1/pipeline/stats")
+	if err != nil {
+		t.Fatalf("pipeline stats: %v", err)
+	}
+	t.Logf("pipeline stats: %s", string(raw))
 	t.Log("SDK integration test passed")
 }
