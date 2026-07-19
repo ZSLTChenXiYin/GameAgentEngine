@@ -324,7 +324,8 @@ func collectParentChainTargets(startUUID string, maxDepth int, level MemoryLevel
 	var targets []propagationTarget
 	seen := map[string]bool{}
 	currentUUID := startUUID
-	for depth := 0; ; depth++ {
+	// Walk up the parent chain until root (ParentUUID==nil), depth limit, or cycle.
+	for depth := 0; currentUUID != ""; depth++ {
 		node, err := store.GetNode(currentUUID)
 		if err != nil {
 			return nil, err
@@ -343,6 +344,7 @@ func collectParentChainTargets(startUUID string, maxDepth int, level MemoryLevel
 		targets = append(targets, propagationTarget{NodeUUID: parentUUID, NodeID: store.ResolveNodeUUID(parentUUID), Level: level})
 		currentUUID = parentUUID
 	}
+	return targets, nil
 }
 
 func appendPropagationTarget(targets *[]propagationTarget, seen map[string]bool, nodeUUID string, level MemoryLevel) {
