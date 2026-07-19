@@ -540,6 +540,7 @@ func buildWorldTickPrompt(systemContext string, outline string, continuityBlocks
 
 	sb.WriteString("\n\n如果你需要查询更多数据来细化推演，可以在输出中包含 request_data 字段。")
 	sb.WriteString("\n引擎会自动加载你请求的数据并让你继续。")
+	sb.WriteString("\n你也可以指出哪些子范围(sub-scope)需要在本 tick 中进一步细化。引擎支持最多 1 轮范围细化，超出后将自动推进。")
 	sb.WriteString("\n如果时间模式是 flexible，你需要在输出中明确 advanced_ticks，表示本次实际推进了多少个基础 tick。")
 	sb.WriteString("\n如果时间模式是 fixed，advanced_ticks 只能等于 1。")
 	sb.WriteString("\n\n输出 JSON 格式：\n")
