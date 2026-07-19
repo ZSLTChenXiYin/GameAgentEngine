@@ -31,6 +31,15 @@ The Go SDK remains the semantic baseline and lives at:
 - `sdk/client.go`
 - `sdk/types.go`
 
+New TypeScript SDK:
+
+- `sdk/typescript/src/client.ts`
+- `sdk/typescript/src/types.ts`
+- `sdk/typescript/src/interaction.ts`
+- `sdk/typescript/src/index.ts`
+
+Build with `cd sdk/typescript && npm run build`.
+
 ## Documentation Rules
 
 - formal SDK documentation should live under `docs/sdk/`

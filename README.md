@@ -187,7 +187,8 @@ GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml -
 | GameAgentCreator | 世界编辑、状态查看、调试与回归入口 |
 | GameAgentDevCli | 导入、初始化、调试、日志、时间推进、打包验收 |
 | GameAgentWorker | 权威状态、REPL、push/pull/callback、集成测试 |
-| SDKs | 外围系统和其他语言的统一接入面 |
+| Go SDK | Engine REST API 的 Go 客户端（语义基线） |
+| TypeScript SDK | Engine REST API 的 TypeScript 客户端（`sdk/typescript/`） |
 
 ---
 

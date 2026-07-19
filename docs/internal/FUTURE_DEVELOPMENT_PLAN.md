@@ -245,7 +245,7 @@ Engine 内核补完与 Worker play 深化已经完成；当前最需要优先修
 
 ### Phase 2: Worker & Service 深化
 
-#### P2.1 (RI.2): 房间 Authority 所有权模型 [PENDING]
+#### P2.1 (RI.2): 房间 Authority 所有权模型 [DONE]
 
 改进房间级的 authority 所有权和参与者可见性规则。
 
@@ -254,7 +254,7 @@ Engine 内核补完与 Worker play 深化已经完成；当前最需要优先修
 2. 改进参与者 visibility 规则
 3. 在 Worker play room-chat 中加入参与者摘要注入
 
-#### P2.2 (AS.4): 唤醒原因与 World-Tick 整合 [PENDING]
+#### P2.2 (AS.4): 唤醒原因与 World-Tick 整合 [DONE]
 
 将 event-driven wake 与 world-tick 输出和 interaction 流整合。
 
@@ -263,7 +263,7 @@ Engine 内核补完与 Worker play 深化已经完成；当前最需要优先修
 2. 在 interaction 完成时自动触发临近 autonomous 节点的唤醒
 3. 建立唤醒来源跟踪：world_tick / interaction / external
 
-#### P2.3 (WTC.3): 分阶段 Scope 精细化 [PENDING]
+#### P2.3 (WTC.3): 分阶段 Scope 精细化 [DONE]
 
 支持 world tick 先粗粒度摘要、再选择子 scope 深入。
 
@@ -275,7 +275,7 @@ Engine 内核补完与 Worker play 深化已经完成；当前最需要优先修
 
 ### Phase 3: SDK & 测试扩展
 
-#### P3.1 (SDK.1): TypeScript SDK [PENDING]
+#### P3.1 (SDK.1): TypeScript SDK [DONE]
 
 为 Engine API 提供 TypeScript 客户端 SDK。
 
@@ -285,7 +285,7 @@ Engine 内核补完与 Worker play 深化已经完成；当前最需要优先修
 3. 提供 TypeScript 类型定义
 4. 编写 README 和示例
 
-#### P3.2 (BENCH.1): 压力测试与基准测试 [PENDING]
+#### P3.2 (BENCH.1): 压力测试与基准测试 [DONE]
 
 为 Engine 核心路径建立基准测试。
 

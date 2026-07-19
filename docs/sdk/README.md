@@ -31,6 +31,15 @@ Go SDK 仍然是当前语义基线，位于：
 - `sdk/client.go`
 - `sdk/types.go`
 
+新增 TypeScript SDK：
+
+- `sdk/typescript/src/client.ts`
+- `sdk/typescript/src/types.ts`
+- `sdk/typescript/src/interaction.ts`
+- `sdk/typescript/src/index.ts`
+
+可通过 `cd sdk/typescript && npm run build` 构建。
+
 ## 文档约束
 
 - 正式 SDK 文档统一收口到 `docs/sdk/`

@@ -180,7 +180,8 @@ GameAgentWorker play --state-file tools/source/workerhome/demo/demo-state.yaml -
 | GameAgentCreator | world editing, runtime-state inspection, debugging, regression |
 | GameAgentDevCli | import, initialization, debugging, logs, time advancement, package acceptance |
 | GameAgentWorker | authoritative state, REPL, push/pull/callback, integration tests |
-| SDKs | the integration surface for external systems and other languages |
+| Go SDK | Go client for Engine REST API (semantic baseline) |
+| TypeScript SDK | TypeScript client for Engine REST API (`sdk/typescript/`) |
 
 ---
 

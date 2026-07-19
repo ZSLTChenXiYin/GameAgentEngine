@@ -24,6 +24,30 @@
   - `src/types.ts`
   - `src/index.ts`
 
+## TypeScript SDK (new — sdk/typescript/)
+
+- 目录：`sdk/typescript/`
+- 定位：Go SDK 的 TypeScript 直接镜像，覆盖核心 REST API
+- 当前覆盖：
+  - health / version
+  - node CRUD（getNodes / getNode / createNode / updateNode / deleteNode）
+  - component CRUD（addComponent / getComponents / getComponent / updateComponent / deleteComponent）
+  - memory CRUD（addMemory / getMemories）
+  - relation CRUD（getRelations / createRelation）
+  - world（getWorlds / updateWorld）
+  - invoke / executeInteraction / interpretPlayerInput
+  - tick advance
+  - autonomous（runAutonomousNode）
+  - authority query / callback
+- 目录结构重点：
+  - `src/client.ts`
+  - `src/types.ts`
+  - `src/interaction.ts`
+  - `src/index.ts`
+- 构建：`cd sdk/typescript && npm run build`
+- Go SDK 是语义基线：`sdk/client.go`、`sdk/types.go`
+
+
 ## JavaScript SDK
 
 - 目录：`tools/source/sdks/js-sdk`

@@ -24,6 +24,30 @@ This document centralizes the positioning, current coverage, and attached exampl
   - `src/types.ts`
   - `src/index.ts`
 
+## TypeScript SDK (new — sdk/typescript/)
+
+- Directory: `sdk/typescript/`
+- Position: Direct TypeScript mirror of the Go SDK, covering the core REST API
+- Current coverage:
+  - health / version
+  - node CRUD (getNodes / getNode / createNode / updateNode / deleteNode)
+  - component CRUD (addComponent / getComponents / getComponent / updateComponent / deleteComponent)
+  - memory CRUD (addMemory / getMemories)
+  - relation CRUD (getRelations / createRelation)
+  - world (getWorlds / updateWorld)
+  - invoke / executeInteraction / interpretPlayerInput
+  - tick advance
+  - autonomous (runAutonomousNode)
+  - authority query / callback
+- Key files:
+  - `src/client.ts`
+  - `src/types.ts`
+  - `src/interaction.ts`
+  - `src/index.ts`
+- Build: `cd sdk/typescript && npm run build`
+- Go SDK is the semantic baseline: `sdk/client.go`, `sdk/types.go`
+
+
 ## JavaScript SDK
 
 - directory: `tools/source/sdks/js-sdk`
