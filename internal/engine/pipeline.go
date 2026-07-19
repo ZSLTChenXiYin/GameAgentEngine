@@ -1816,6 +1816,17 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 			_ = round
 			return requestLLMTools(req, append([]LLMToolDefinition{builtinStoreRequestTool()}, builtinActionTools([]string{"add_memory", "update_mood", "send_dialogue", "adjust_relation", "spawn_item"})...))
 		}
+		finalizeFn = func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
+			_ = parsed
+			_ = ctx
+			if req.WorldID != "" {
+				interactionCtx := reqInteractionContext(req)
+				if interactionCtx != nil && interactionCtx.TargetNodeID != "" && interactionCtx.TargetNodeID != req.NodeID {
+					EnqueueWake(req.WorldID, interactionCtx.TargetNodeID, "dialogue_completed")
+				}
+			}
+			return resp
+		}
 	case TaskWorldTick:
 		var currentOutline string
 		if latest, err := store.GetLatestTick(req.WorldID); err == nil {
@@ -1844,14 +1855,24 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 			_ = round
 			return requestLLMTools(req, []LLMToolDefinition{builtinStoreRequestTool()})
 		}
-		finalizeFn = func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
-			_ = ctx
-			_ = req
-			if parsed != nil && parsed.AdvancedTicks > 0 {
-				resp.AdvancedTicks = parsed.AdvancedTicks
-			}
-			return resp
+	finalizeFn = func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
+		_ = ctx
+		if parsed != nil && parsed.AdvancedTicks > 0 {
+			resp.AdvancedTicks = parsed.AdvancedTicks
 		}
+		// Enqueue wake for the ticked node and referenced nodes
+		if req.WorldID != "" {
+			if req.NodeID != "" {
+				EnqueueWake(req.WorldID, req.NodeID, "world_tick_completed")
+			}
+			for _, mem := range resp.MemoryUpdates {
+				if mem.NodeID != "" && mem.NodeID != req.NodeID {
+					EnqueueWake(req.WorldID, mem.NodeID, "world_tick_referenced")
+				}
+			}
+		}
+		return resp
+	}
 	case TaskWorldEvent:
 		eventDesc := ""
 		if req.Event != nil {
