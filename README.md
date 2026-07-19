@@ -90,6 +90,23 @@ Engine 配套提供：
 - GameAgentDevCli：命令行与 CI 工具
 - GameAgentWorker：游戏侧 worker、REPL、集成测试入口
 - 多语言 SDK：给外围系统和游戏服务提供统一接入面
+### 6. 玩家交互与意图解释
+
+玩家输入通过 Engine 侧的意图解释管道转化为结构化意图：
+
+- POST /api/v1/player/input/interpret 将自然语言转为意图体
+- 支持 speech、move、gift、trade_request、threaten、inspect、use_item 等意图类型
+- 交互模式包括 direct_dialogue、group_chat、gift_response
+- 交互回合追踪 actor / target / scene / participant 语义
+
+### 7. 可观测性与度量
+
+Engine 内置结构化日志与运行时观测：
+
+- 分层日志：按 execution mode（debug / review / production）控制输出粒度
+- TraceID 在 pipeline 上下游传播，支持请求链路追踪
+- GET /metrics 端点暴露 Go 运行时指标（goroutines、内存、GC 暂停）
+- GET /api/v1/pipeline/stats 返回 store、lock、log sink 等运行时统计
 
 ---
 

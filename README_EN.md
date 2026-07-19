@@ -90,6 +90,23 @@ GameAgentEngine ships with:
 - GameAgentDevCli: CLI and CI tool
 - GameAgentWorker: game-side worker, REPL, and integration-test entrypoint
 - multi-language SDKs: a unified integration surface for external systems
+### 6. Player Interaction & Intent Interpretation
+
+Player input is transformed into structured intents through the Engine-side interpretation pipeline:
+
+- POST /api/v1/player/input/interpret converts natural language into intent bodies
+- Supported intent types: speech, move, gift, trade_request, threaten, inspect, use_item
+- Interaction modes: direct_dialogue, group_chat, gift_response
+- Interaction turns track actor / target / scene / participant semantics
+
+### 7. Observability & Metrics
+
+Engine includes built-in structured logging and runtime observability:
+
+- Tiered logging: output granularity controlled by execution mode (debug / review / production)
+- TraceID propagation across the pipeline for request-level tracing
+- GET /metrics endpoint exposes Go runtime metrics (goroutines, memory, GC pauses)
+- GET /api/v1/pipeline/stats returns store, lock, and log-sink runtime statistics
 
 ---
 
