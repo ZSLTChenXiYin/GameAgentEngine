@@ -181,3 +181,24 @@ func ReadyForCooldown(cfg *AutonomousConfig) bool {
 	}
 	return time.Since(*cfg.LastRunAt) >= time.Duration(cfg.CooldownSeconds)*time.Second
 }
+// ScoreAutonomousNode calculates a dynamic scheduling score for autonomous execution.
+// Higher score = higher priority. Combines configured Priority, recency, and cooldown.
+func ScoreAutonomousNode(cfg *AutonomousConfig, now time.Time) int {
+	score := cfg.Priority
+	if cfg.LastRunAt != nil {
+		elapsed := now.Sub(*cfg.LastRunAt)
+		if cfg.CooldownSeconds > 0 {
+			cooldown := time.Duration(cfg.CooldownSeconds) * time.Second
+			if elapsed < cooldown {
+				score -= 1000
+			}
+		}
+		score += int(elapsed.Minutes())
+	} else {
+		score += 100
+	}
+	if score < 0 {
+		score = 0
+	}
+	return score
+}

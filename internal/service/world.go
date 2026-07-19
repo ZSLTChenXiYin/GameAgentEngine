@@ -16,6 +16,7 @@ import (
 )
 
 const defaultAutonomousTickLimit = 10
+const defaultAutonomousBatchSize = 5
 
 func emitWorldServiceLog(worldID, nodeID string, taskType engine.TaskType, eventName, message string, detail any) {
 	mode := config.ExecutionMode()
@@ -725,6 +726,11 @@ func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger 
 		return nil
 	}
 
+	now := time.Now()
+	if len(nowOpt) > 0 {
+		now = nowOpt[0]
+	}
+
 	components, err := store.GetComponentsByTypeForWorld(worldID, string(engine.CompAutonomous))
 	if err != nil {
 		log.Printf("load autonomous components: %v", err)
@@ -734,8 +740,8 @@ func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger 
 	emitWorldServiceLog(worldID, worldID, engine.TaskAutonomousAct, "autonomous_scan_started", trigger, map[string]any{"component_count": len(components), "limit": maxRuns})
 
 	type priorityCandidate struct {
-		comp     store.ComponentModel
-		priority int
+		comp  store.ComponentModel
+		score int
 	}
 
 	var candidates []priorityCandidate
@@ -754,12 +760,12 @@ func runAutonomousByTriggerUnlocked(p *engine.Pipeline, worldID string, trigger 
 		if trigger == engine.AutonomousTriggerScheduled && !isScheduledAutonomousDue(cfg, nowOpt) {
 			continue
 		}
-		candidates = append(candidates, priorityCandidate{comp: comp, priority: cfg.Priority})
+		candidates = append(candidates, priorityCandidate{comp: comp, score: engine.ScoreAutonomousNode(cfg, now)})
 	}
 
 	// Sort candidates by priority descending
 	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].priority > candidates[j].priority
+		return candidates[i].score > candidates[j].score
 	})
 
 	results := make([]engine.AutonomousRunResult, 0, maxRuns)
