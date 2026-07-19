@@ -2970,6 +2970,12 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 		}
 		return requestLLMTools(req, append([]LLMToolDefinition{builtinStoreRequestTool()}, builtinActionTools(ids)...))
 	}
+	// Set running status before execution
+	cfg.Status = AutonomousStatusRunning
+	if se := SaveAutonomousConfig(comp.UUID, cfg); se != nil {
+		log.Printf("[warn][autonomous] save running status: %v", se)
+	}
+
 	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, autonomousFn, autonomousToolFn, func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
 		_ = parsed
 		_ = ctx
@@ -2986,6 +2992,9 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 			memUpdate := MemoryUpdate{NodeID: targetNodeID, Content: "自主行为周期未采取行动。", Level: MemShortTerm, Tags: "autonomous,no_action"}
 			resp.MemoryUpdates = append(resp.MemoryUpdates, memUpdate)
 		}
+
+		// Set completed status after successful execution
+		cfg.Status = AutonomousStatusCompleted
 
 		now := time.Now()
 		cfg.LastRunAt = &now

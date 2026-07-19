@@ -150,6 +150,13 @@ const (
 	AutonomousTriggerScheduled     = "scheduled"
 )
 
+const (
+	AutonomousStatusIdle      = "idle"
+	AutonomousStatusRunning   = "running"
+	AutonomousStatusCompleted = "completed"
+	AutonomousStatusFailed    = "failed"
+)
+
 type DynamicInterfaceKind string
 
 const (
@@ -173,6 +180,7 @@ type AutonomousConfig struct {
 	IntervalSeconds int               `json:"interval_seconds,omitempty"`
 	Priority        int               `json:"priority,omitempty"`
 	CooldownSeconds int               `json:"cooldown_seconds,omitempty"`
+	Status          string            `json:"status,omitempty"`
 	Capabilities    []AgentCapability `json:"capabilities,omitempty"`
 	LastRunAt       *time.Time        `json:"last_run_at,omitempty"`
 	LastError       string            `json:"last_error,omitempty"`
