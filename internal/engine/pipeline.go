@@ -512,7 +512,9 @@ func (p *Pipeline) ResumePausedExecution(callbackID string, result any) (*Invoke
 		start := time.Now()
 		resp, err := p.resumePendingSubTaskDAG(paused.ExecutionID, req, ctx, state, runtime, executionMode, paused.RequestID, pausedRound, result)
 		if err != nil {
-			_ = store.MarkPausedExecutionFailed(paused.ExecutionID, err.Error())
+			if logErr := store.MarkPausedExecutionFailed(paused.ExecutionID, err.Error()); logErr != nil {
+		log.Printf("[warn][pipeline] mark paused execution %s failed: %v", paused.ExecutionID, logErr)
+	}
 			p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 				Category:   "pipeline_resume",
 				EventName:  "resume_failed",
@@ -562,7 +564,9 @@ func (p *Pipeline) ResumePausedExecution(callbackID string, result any) (*Invoke
 	start := time.Now()
 	resp, err := p.executeMultiTurnLoopFromState(req, ctx, start, paused.RequestID, runtime, state, pausedRound, executionMode)
 	if err != nil {
-		_ = store.MarkPausedExecutionFailed(paused.ExecutionID, err.Error())
+		if logErr := store.MarkPausedExecutionFailed(paused.ExecutionID, err.Error()); logErr != nil {
+		log.Printf("[warn][pipeline] mark paused execution %s failed: %v", paused.ExecutionID, logErr)
+	}
 		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
 			Category:   "pipeline_resume",
 			EventName:  "resume_failed",
@@ -1199,8 +1203,12 @@ func (p *Pipeline) pauseForPendingSubTaskSummary(executionID string, req *Invoke
 	}
 	if err := p.dispatchGameClientRuntimeTask(task, req, dr, route); err != nil {
 		if route.IsStrictPush() {
-			_ = store.CompleteAsyncCallbackRecord(callbackID, "failed", "", err.Error())
-			_ = store.MarkPausedExecutionFailed(executionID, err.Error())
+			if logErr := store.CompleteAsyncCallbackRecord(callbackID, "failed", "", err.Error()); logErr != nil {
+				log.Printf("[warn][pipeline] complete callback %s failed: %v", callbackID, logErr)
+			}
+			if logErr := store.MarkPausedExecutionFailed(executionID, err.Error()); logErr != nil {
+		log.Printf("[warn][pipeline] mark paused execution %s failed: %v", executionID, logErr)
+	}
 			return nil, fmt.Errorf("dispatch summarize game client request: %w", err)
 		}
 		p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
@@ -2083,8 +2091,12 @@ func (p *Pipeline) executeMultiTurnLoopInternal(
 					}
 					if err := p.dispatchGameClientRuntimeTask(task, req, &dr, route); err != nil {
 						if route.IsStrictPush() {
-							_ = store.CompleteAsyncCallbackRecord(callbackID, "failed", "", err.Error())
-							_ = store.MarkPausedExecutionFailed(executionID, err.Error())
+							if logErr := store.CompleteAsyncCallbackRecord(callbackID, "failed", "", err.Error()); logErr != nil {
+				log.Printf("[warn][pipeline] complete callback %s failed: %v", callbackID, logErr)
+			}
+							if logErr := store.MarkPausedExecutionFailed(executionID, err.Error()); logErr != nil {
+		log.Printf("[warn][pipeline] mark paused execution %s failed: %v", executionID, logErr)
+	}
 							return nil, fmt.Errorf("dispatch game client request: %w", err)
 						}
 						p.emitLog(req, nil, runtime, executionMode, pipelineLogEvent{
