@@ -3001,7 +3001,7 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 		log.Printf("[warn][autonomous] save running status: %v", se)
 	}
 
-	return p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, autonomousFn, autonomousToolFn, func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
+	resp, execErr := p.executeMultiTurnLoop(req, ctx, start, requestID, runtime, tree, autonomousFn, autonomousToolFn, func(resp *InvokeResponse, parsed *llmParsedOutput, ctx *BuiltContext, req *InvokeRequest) *InvokeResponse {
 		_ = parsed
 		_ = ctx
 		_ = req
@@ -3027,12 +3027,13 @@ func (p *Pipeline) executeAutonomousAct(req *InvokeRequest, ctx *BuiltContext, s
 		if err := SaveAutonomousConfig(comp.UUID, cfg); err != nil {
 			log.Printf("save autonomous runtime state: %v", err)
 		}
-		// Enqueue a wake event for this node after completion
-		if req.WorldID != "" {
-			EnqueueWake(req.WorldID, targetNodeID, "autonomous_completed")
-		}
 		return resp
 	}, executionMode)
+
+	if execErr == nil && req.WorldID != "" {
+		EnqueueWake(req.WorldID, targetNodeID, "autonomous_completed")
+	}
+	return resp, execErr
 }
 
 func (p *Pipeline) executeCustom(req *InvokeRequest, ctx *BuiltContext, start time.Time, requestID string, runtime *executionConfig, executionMode ExecutionMode, withTaskTree bool) (*InvokeResponse, error) {

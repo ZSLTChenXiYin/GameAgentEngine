@@ -30,11 +30,6 @@ const (
 // that carry world_focus components matching the specified task type.
 // Returns promoted nodes sorted by priority (descending), capped at maxFocusNodeCount.
 func ScanWorldFocusDescendants(focusNodeID string, taskType string) ([]PromotedFocusNode, error) {
-	nodes, err := store.GetChildNodes(focusNodeID)
-	if err != nil {
-		return nil, fmt.Errorf("get child nodes for %s: %w", focusNodeID, err)
-	}
-	_ = nodes // We walk recursively below
 
 	var promoted []PromotedFocusNode
 	scanned := map[string]bool{}
