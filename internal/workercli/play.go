@@ -1271,14 +1271,70 @@ func (s *playSession) renderTargetStatus() string {
 	return fmt.Sprintf("当前对话目标: %s", s.actorDisplayName(s.currentTargetID))
 }
 
+// roomAuthorityOwnerID returns the NPC that has authority ownership over the current room.
+// It checks for NPCs with "room_owner" role in their authority profile,
+// then falls back to the primary group-chat responder.
+func (s *playSession) roomAuthorityOwnerID() (string, bool) {
+	for _, id := range s.sceneParticipantIDs() {
+		if id == s.playerNodeID {
+			continue
+		}
+		if actor, ok := s.view.Actor(id); ok && actor != nil {
+			if actor.Kind == "npc" && actor.Flags != nil {
+				if role, ok := actor.Flags["role"].(string); ok && role == "room_owner" {
+					return id, true
+				}
+			}
+		}
+	}
+	return s.groupChatPrimaryTargetID()
+}
+
+// roomParticipantSummary builds a summary line for each participant with role/status.
+func (s *playSession) roomParticipantSummary() string {
+	participants := s.sceneParticipantIDs()
+	if len(participants) == 0 {
+		return ""
+	}
+	ownerID, hasOwner := s.roomAuthorityOwnerID()
+	lines := make([]string, 0, len(participants))
+	for _, id := range participants {
+		if id == s.playerNodeID {
+			continue
+		}
+		label := s.actorDisplayName(id)
+		if hasOwner && id == ownerID {
+			lines = append(lines, fmt.Sprintf("%s (room authority)", label))
+		} else if actor, ok := s.view.Actor(id); ok && actor != nil && actor.Flags != nil {
+			if role, ok := actor.Flags["role"].(string); ok && role != "" {
+				lines = append(lines, fmt.Sprintf("%s (%s)", label, role))
+			} else {
+				lines = append(lines, label)
+			}
+		} else {
+			lines = append(lines, label)
+		}
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return "当前场景参与者: " + strings.Join(lines, ", ")
+}
+
 func (s *playSession) renderRoomState() string {
 	participants := s.sceneParticipantIDs()
 	primaryTargetID, hasPrimary := s.groupChatPrimaryTargetID()
-	lines := make([]string, 0, len(participants)+2)
+	ownerID, hasOwner := s.roomAuthorityOwnerID()
+	lines := make([]string, 0, len(participants)+4)
 	if hasPrimary {
 		lines = append(lines, fmt.Sprintf("群聊主响应者: %s", s.actorDisplayName(primaryTargetID)))
 	} else {
 		lines = append(lines, "群聊主响应者: 无")
+	}
+	if hasOwner {
+		lines = append(lines, fmt.Sprintf("房间权威拥有者: %s", s.actorDisplayName(ownerID)))
+	} else {
+		lines = append(lines, "房间权威拥有者: 无")
 	}
 	parts := make([]string, 0, len(participants))
 	for _, id := range participants {
@@ -1291,6 +1347,9 @@ func (s *playSession) renderRoomState() string {
 		}
 		if hasPrimary && id == primaryTargetID {
 			label += " [primary]"
+		}
+		if hasOwner && id == ownerID {
+			label += " [owner]"
 		}
 		parts = append(parts, fmt.Sprintf("- %s (%s)", label, id))
 	}
@@ -1307,6 +1366,7 @@ func (s *playSession) renderScenePrompt() string {
 	participants := s.sceneParticipantIDs()
 	npcs := make([]string, 0, len(participants))
 	primaryTargetID, hasPrimary := s.groupChatPrimaryTargetID()
+	summary := s.roomParticipantSummary()
 	for _, id := range participants {
 		if id == s.playerNodeID {
 			continue
@@ -1319,14 +1379,14 @@ func (s *playSession) renderScenePrompt() string {
 	sort.Strings(npcs)
 	if strings.TrimSpace(s.currentTargetID) != "" {
 		if hasPrimary {
-			return fmt.Sprintf("提示: 直接输入文本可与 %s 对话；/+say 会让 %s 作为当前群聊主响应者回话。", s.actorDisplayName(s.currentTargetID), s.actorDisplayName(primaryTargetID))
+			return fmt.Sprintf("提示: 直接输入文本可与 %s 对话；/+say 会让 %s 作为当前群聊主响应者回话。\n%s", s.actorDisplayName(s.currentTargetID), s.actorDisplayName(primaryTargetID), summary)
 		}
-		return fmt.Sprintf("提示: 直接输入文本可与 %s 对话，也可用 /+say 发起房间公开发言。", s.actorDisplayName(s.currentTargetID))
+		return fmt.Sprintf("提示: 直接输入文本可与 %s 对话，也可用 /+say 发起房间公开发言。\n%s", s.actorDisplayName(s.currentTargetID), summary)
 	}
 	if hasPrimary {
-		return fmt.Sprintf("提示: 可用 /+talk <npc> 选择目标。当前可互动对象: %s。/+say 默认由 %s 主回应。", strings.Join(npcs, ", "), s.actorDisplayName(primaryTargetID))
+		return fmt.Sprintf("提示: 可用 /+talk <npc> 选择目标。当前可互动对象: %s。/+say 默认由 %s 主回应。\n%s", strings.Join(npcs, ", "), s.actorDisplayName(primaryTargetID), summary)
 	}
-	return fmt.Sprintf("提示: 可用 /+talk <npc> 选择目标。当前可互动对象: %s。", strings.Join(npcs, ", "))
+	return fmt.Sprintf("提示: 可用 /+talk <npc> 选择目标。当前可互动对象: %s。\n%s", strings.Join(npcs, ", "), summary)
 }
 
 func renderSceneFlags(flags map[string]any) string {
