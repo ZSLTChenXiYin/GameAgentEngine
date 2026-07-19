@@ -46,6 +46,9 @@ var serveCmd = &cobra.Command{
 			log.Fatalf("db: %v", err)
 		}
 		defer func() {
+			if err := store.FlushLogSink(); err != nil {
+				log.Printf("flush log sink: %v", err)
+			}
 			if err := store.CloseLogSink(); err != nil {
 				log.Printf("close log sink: %v", err)
 			}
