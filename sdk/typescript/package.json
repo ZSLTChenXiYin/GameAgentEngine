@@ -1,0 +1,15 @@
+{
+  "name": "@gameagentengine/sdk",
+  "version": "0.1.0",
+  "description": "GameAgentEngine TypeScript SDK",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublish": "tsc"
+  },
+  "files": [
+    "dist/"
+  ],
+  "license": "MIT"
+}
