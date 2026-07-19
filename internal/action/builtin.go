@@ -37,9 +37,11 @@ func (a *UpdateMood) Schema() map[string]any {
 
 // Execute 执行情绪更新，并同步写入角色记忆。
 func (a *UpdateMood) Execute(args map[string]any) (any, error) {
-	nodeID, _ := args["node_id"].(string)
-	mood, _ := args["mood"].(string)
-	intensity, _ := args["intensity"].(float64)
+	var nodeID, mood string
+	var intensity float64
+	if v, ok := args["node_id"].(string); ok { nodeID = v }
+	if v, ok := args["mood"].(string); ok { mood = v }
+	if v, ok := args["intensity"].(float64); ok { intensity = v }
 
 	if nodeID == "" || mood == "" {
 		return nil, fmt.Errorf("node_id and mood required")

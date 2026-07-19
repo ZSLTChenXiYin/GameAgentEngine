@@ -28,7 +28,10 @@ func validateCLIComponentData(componentType, data string) error {
 		if err := json.Unmarshal([]byte(trimmed), &payload); err != nil || payload == nil {
 			return fmt.Errorf("autonomous component data must be a valid JSON object")
 		}
-		trigger, _ := payload["trigger"].(string)
+		trigger, ok := payload["trigger"].(string)
+	if !ok {
+		trigger = ""
+	}
 		if trigger == "" {
 			trigger = "manual"
 		}

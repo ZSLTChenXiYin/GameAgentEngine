@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -64,11 +65,15 @@ func (a *WebSocketAdapter) Dispatch(ctx context.Context, integration config.Exte
 	}
 	defer conn.Close()
 	deadline := time.Now().Add(time.Duration(timeout) * time.Millisecond)
-	_ = conn.SetWriteDeadline(deadline)
+	if err := conn.SetWriteDeadline(deadline); err != nil {
+		log.Printf("[warn][ws] set write deadline: %v", err)
+	}
 	if err := conn.WriteJSON(req); err != nil {
 		return nil, fmt.Errorf("write websocket dispatch request: %w", err)
 	}
-	_ = conn.SetReadDeadline(deadline)
+	if err := conn.SetReadDeadline(deadline); err != nil {
+		log.Printf("[warn][ws] set read deadline: %v", err)
+	}
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		return nil, fmt.Errorf("read websocket dispatch response: %w", err)

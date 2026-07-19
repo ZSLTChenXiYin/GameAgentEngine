@@ -54,7 +54,10 @@ func validateSchemaValue(value any, schema map[string]any, path string) error {
 }
 
 func validateSchemaType(value any, schema map[string]any, path string) error {
-	rawType, _ := schema["type"].(string)
+	rawType, ok := schema["type"].(string)
+	if !ok {
+		rawType = ""
+	}
 	schemaType := strings.TrimSpace(rawType)
 	if schemaType == "" {
 		return nil

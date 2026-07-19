@@ -93,7 +93,7 @@ func validateActionCallsBySchema(calls []ActionCall, capabilities []AgentCapabil
 				if t, ok := m["type"].(string); ok {
 					s.Type = t
 				}
-				s.Required, _ = m["required"].(bool)
+				if v, ok := m["required"].(bool); ok { s.Required = v }
 				fields[k] = s
 			}
 		}

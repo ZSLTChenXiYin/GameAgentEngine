@@ -3,6 +3,7 @@ package external
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"net/rpc"
 	"net/rpc/jsonrpc"
@@ -43,7 +44,9 @@ func (a *RPCAdapter) Dispatch(ctx context.Context, integration config.ExternalIn
 		return nil, fmt.Errorf("dial rpc endpoint: %w", err)
 	}
 	deadline := time.Now().Add(time.Duration(timeout) * time.Millisecond)
-	_ = conn.SetDeadline(deadline)
+	if err := conn.SetDeadline(deadline); err != nil {
+		log.Printf("[warn][rpc] set deadline: %v", err)
+	}
 	client := rpc.NewClientWithCodec(jsonrpc.NewClientCodec(conn))
 	defer client.Close()
 	var result DispatchResult

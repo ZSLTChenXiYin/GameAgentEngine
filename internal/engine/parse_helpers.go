@@ -390,20 +390,26 @@ func (p *Pipeline) dispatchAsyncActionRuntimeTask(task *store.RuntimeTaskModel, 
 		if route.ShouldQueuePullTask() && route.FallbackTransport != "" {
 			meta.Decision = "fallback_to_pull"
 			meta.TransitionReason = "push_dispatch_failed_then_fallback"
-			_, _ = store.RecordRuntimeTaskDispatchFallback(task.TaskID, meta)
+			if _, logErr := store.RecordRuntimeTaskDispatchFallback(task.TaskID, meta); logErr != nil {
+				log.Printf("[warn][dispatch] record dispatch fallback: %v", logErr)
+			}
 		} else {
 			meta.Decision = "failed_terminal"
 			meta.TransitionReason = "push_dispatch_failed"
 			if route.ShouldQueuePullTask() {
 				meta.Decision = "pending_retry"
 			}
-			_, _ = store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), meta)
+			if _, logErr := store.RecordRuntimeTaskDispatchFailure(task.TaskID, route.ShouldQueuePullTask(), meta); logErr != nil {
+				log.Printf("[warn][dispatch] record dispatch failure: %v", logErr)
+			}
 		}
 		if route.IsStrictPush() {
-			_ = store.CompleteAsyncCallbackRecord(task.CallbackID, "failed", "", err.Error())
+			if logErr := store.CompleteAsyncCallbackRecord(task.CallbackID, "failed", "", err.Error()); logErr != nil {
+				log.Printf("[warn][dispatch] complete callback %s failed: %v", task.CallbackID, logErr)
+			}
 			if logErr := store.UpdateRuntimeTaskTerminalCallbackFailure(task.CallbackID, err.Error()); logErr != nil {
-			log.Printf("failed to record callback failure: %v", logErr)
-		}
+				log.Printf("failed to record callback failure: %v", logErr)
+			}
 			return err
 		}
 		return nil
