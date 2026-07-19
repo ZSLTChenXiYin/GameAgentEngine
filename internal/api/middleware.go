@@ -335,6 +335,21 @@ func ValidateWorldAccess(worldID string, r *http.Request) error {
 	return nil
 }
 
+// WorldAccessMiddleware wraps an http.HandlerFunc to validate the {world_id}
+// path parameter against the store before calling the inner handler.
+// Returns 404 with JSON error body when the world does not exist or is not
+// a world-type node.
+func WorldAccessMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		worldID := r.PathValue("world_id")
+		if err := ValidateWorldAccess(worldID, r); err != nil {
+			errorJSON(w, http.StatusNotFound, err.Error())
+			return
+		}
+		next(w, r)
+	}
+}
+
 // BodySizeLimit returns middleware that limits request body size.
 func BodySizeLimit(maxBytes int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
