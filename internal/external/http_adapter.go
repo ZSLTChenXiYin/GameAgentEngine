@@ -66,7 +66,10 @@ func (a *HTTPAdapter) Dispatch(ctx context.Context, integration config.ExternalI
 		return nil, fmt.Errorf("dispatch http request: %w", err)
 	}
 	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("read response body: %w", err)
+	}
 	result := &DispatchResult{
 		Transport: strings.TrimSpace(req.PrimaryTransport),
 		Status:    resp.StatusCode,
