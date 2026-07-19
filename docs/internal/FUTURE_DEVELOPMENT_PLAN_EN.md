@@ -32,7 +32,7 @@ Engine kernel completion and Worker play deepening are already done. The highest
 8. add large-tree degradation rules such as default collapse, on-demand expansion, and search-first navigation
 9. add acceptance criteria and regression samples for large-tree Creator scenarios
 
-Status: not started. This is now the highest-priority future development item.
+Status: completed.
 
 ## F1 Engine core purification
 

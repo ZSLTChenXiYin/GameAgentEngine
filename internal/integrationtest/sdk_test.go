@@ -15,6 +15,7 @@ import (
 )
 
 func TestSDKIntegration(t *testing.T) {
+	store.ConfigureLogSink(store.LogSinkOptions{Enabled: false, BatchSize: 1, FlushInterval: 0, QueueSize: 1})
 	if err := store.Init("sqlite", "file:test-int-sdk?mode=memory&cache=shared"); err != nil {
 		t.Fatalf("init store: %v", err)
 	}
@@ -74,6 +75,33 @@ func TestSDKIntegration(t *testing.T) {
 	}
 	if versionResp["version"] == "" {
 		t.Error("expected version in response")
+	}
+
+	// World settings
+	settings, err := client.GetWorldSettings(worldID)
+	if err != nil {
+		t.Fatalf("get settings: %v", err)
+	}
+	if settings != nil && settings.MaxAnalysisRounds != 0 {
+		t.Logf("settings: memory_limit=%d analysis_rounds=%d", settings.MemoryLimit, settings.MaxAnalysisRounds)
+	}
+	// Update world settings
+	memLimit := 100
+	maxRounds := 10
+	updateSettings := &sdk.WorldSettingsUpdate{
+		MemoryLimit:       &memLimit,
+		MaxAnalysisRounds: &maxRounds,
+	}
+	if _, err := client.UpdateWorldSettings(worldID, updateSettings); err != nil {
+		t.Fatalf("update settings: %v", err)
+	}
+	// Verify update took effect
+	updatedSettings, err := client.GetWorldSettings(worldID)
+	if err != nil {
+		t.Fatalf("get settings after update: %v", err)
+	}
+	if updatedSettings == nil || updatedSettings.MaxAnalysisRounds != 10 {
+		t.Errorf("expected MaxAnalysisRounds=10, got %+v", updatedSettings)
 	}
 
 	t.Log("SDK integration test passed")
