@@ -498,7 +498,7 @@ type resourceState struct {
 
 // buildWorldTickPrompt 构建世界刻推进任务的系统提示词。
 // relationSummary 必须是高价值、低噪音的结构化摘要块，不能退回成全量关系转储。
-func buildWorldTickPrompt(systemContext string, outline string, continuityBlocks []string, recentTimeline []string, worldTimeBlock string, relationSummary string, bootstrapBlock string, focusBlock string) string {
+func buildWorldTickPrompt(systemContext string, outline string, continuityBlocks []string, recentTimeline []string, worldTimeBlock string, relationSummary string, bootstrapBlock string, focusBlock string, candidateBlock string) string {
 	sb := &strings.Builder{}
 	sb.WriteString(systemContext)
 	sb.WriteString("\n\n你正在推进世界时间线。")
@@ -524,6 +524,10 @@ func buildWorldTickPrompt(systemContext string, outline string, continuityBlocks
 	if strings.TrimSpace(focusBlock) != "" {
 		sb.WriteString("\n\n")
 		sb.WriteString(focusBlock)
+	}
+	if strings.TrimSpace(candidateBlock) != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(candidateBlock)
 	}
 	if len(recentTimeline) > 0 {
 		sb.WriteString("\n\n最近时间线记录：\n")

@@ -1836,6 +1836,8 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 		relationSummary := buildWorldTickRelationSummary(ctx)
 		promotedNodes, _ := ScanWorldFocusDescendants(req.NodeID, string(req.TaskType))
 		focusBlock := BuildWorldFocusBlock(promotedNodes)
+		candidates, _ := SelectActiveCandidates(req.NodeID, string(req.TaskType), time.Now())
+		candidateBlock := BuildScoredCandidateBlock(candidates)
 		var recentTimeline []string
 		if ticks, err := store.GetTimelineTicks(req.WorldID, 3); err == nil {
 			for _, tick := range ticks {
@@ -1848,7 +1850,7 @@ func (p *Pipeline) executeMultiTurnLoopFromState(
 		}
 		taskPromptFn = func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 			baseContext := mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext)
-			return buildWorldTickPrompt(appendDynamicInterfaceContext(baseContext, requestDynamicInterfaces(req)), currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary, ctx.BootstrapBlock, focusBlock)
+			return buildWorldTickPrompt(appendDynamicInterfaceContext(baseContext, requestDynamicInterfaces(req)), currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary, ctx.BootstrapBlock, focusBlock, candidateBlock)
 		}
 		toolFn = func(req *InvokeRequest, nodeID string, round int) []LLMToolDefinition {
 			_ = nodeID
@@ -2353,7 +2355,7 @@ func (p *Pipeline) executeVertical(req *InvokeRequest, start time.Time, requestI
 	case TaskNPCDialogue:
 		systemPrompt = buildInteractionDialoguePrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), targetDialogueNodeID(req, nil), reqInteractionContext(req))
 	case TaskWorldTick:
-		systemPrompt = buildWorldTickPrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), "", nil, nil, buildWorldTickTimeBlock(req.WorldID), "", "", "")
+		systemPrompt = buildWorldTickPrompt(appendDynamicInterfaceContext(ctxDesc, requestDynamicInterfaces(req)), "", nil, nil, buildWorldTickTimeBlock(req.WorldID), "", "", "", "")
 	case TaskWorldEvent:
 		eventDesc := ""
 		if req.Event != nil {
@@ -2511,6 +2513,8 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 	relationSummary := buildWorldTickRelationSummary(ctx)
 	promotedNodes, _ := ScanWorldFocusDescendants(req.NodeID, string(req.TaskType))
 	focusBlock := BuildWorldFocusBlock(promotedNodes)
+	candidates, _ := SelectActiveCandidates(req.NodeID, string(req.TaskType), time.Now())
+	candidateBlock := BuildScoredCandidateBlock(candidates)
 	var recentTimeline []string
 	if ticks, err := store.GetTimelineTicks(req.WorldID, 3); err == nil {
 		for _, tick := range ticks {
@@ -2529,7 +2533,7 @@ func (p *Pipeline) executeWorldTick(req *InvokeRequest, ctx *BuiltContext, start
 
 	tickFn := func(treeContext string, req *InvokeRequest, nodeID string, round int) string {
 		baseContext := mergeBaseAndTreeContext(ctx.SystemPrompt, treeContext)
-			return buildWorldTickPrompt(appendDynamicInterfaceContext(baseContext, requestDynamicInterfaces(req)), currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary, ctx.BootstrapBlock, focusBlock)
+			return buildWorldTickPrompt(appendDynamicInterfaceContext(baseContext, requestDynamicInterfaces(req)), currentOutline, ctx.StateBlocks, recentTimeline, worldTimeBlock, relationSummary, ctx.BootstrapBlock, focusBlock, candidateBlock)
 	}
 
 	var tree *TaskTree
