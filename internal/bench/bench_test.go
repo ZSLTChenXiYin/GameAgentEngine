@@ -97,11 +97,3 @@ func BenchmarkJSONMarshal(b *testing.B) {
 		}
 	}
 }
-
-// BenchmarkScoreCandidateNode benchmarks the ScoreCandidateNode function.
-func BenchmarkScoreCandidateNode(b *testing.B) {
-	_ = b
-	// ScoreCandidateNode requires store access so this is a placeholder
-	// showing the expected benchmark signature
-	b.StopTimer()
-}

@@ -8,8 +8,10 @@ import (
 
 const (
 	maxWakeQueueSize = 1000
-	wakeEventTTL     = 10 * time.Minute
 )
+
+// WakeEventTTL controls how long wake events stay valid before being discarded.
+var WakeEventTTL time.Duration = 10 * time.Minute
 
 // WakeEvent represents an event-driven wake trigger for an autonomous node.
 type WakeEvent struct {
@@ -43,6 +45,9 @@ func EnqueueWake(worldID, nodeID, reason string) {
 }
 
 // EnqueueWakeWithPriority adds a wake event with a custom priority.
+// EnqueueWakeWithPriority adds a wake event with a custom priority.
+// This is a public API for external callers; within the engine,
+// EnqueueWake is sufficient for most use cases.
 func EnqueueWakeWithPriority(worldID, nodeID, reason string, priority int) {
 	wakeMu.Lock()
 	defer wakeMu.Unlock()
@@ -70,14 +75,19 @@ func ConsumeWakeEvents(worldID string) []WakeEvent {
 	now := time.Now()
 	filtered := events[:0]
 	for _, e := range events {
-		if now.Sub(e.Timestamp) <= wakeEventTTL {
+		if now.Sub(e.Timestamp) <= WakeEventTTL {
 			filtered = append(filtered, e)
 		}
+	}
+	if filtered == nil {
+		return make([]WakeEvent, 0)
 	}
 	return filtered
 }
 
 // PendingWakeEventCount returns the number of pending wake events for a world.
+// PendingWakeEventCount returns the number of pending wake events for a world.
+// This is a public API for external callers to observe queue depth.
 func PendingWakeEventCount(worldID string) int {
 	wakeMu.Lock()
 	defer wakeMu.Unlock()
