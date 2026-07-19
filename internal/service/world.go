@@ -263,7 +263,9 @@ func persistWorldTickStateComponentsTx(tx *gorm.DB, worldID string, tick *store.
 	}
 	history := engine.StoryHistoryComponent{}
 	if historyComp != nil && strings.TrimSpace(historyComp.Data) != "" {
-		_ = json.Unmarshal([]byte(historyComp.Data), &history)
+		if err := json.Unmarshal([]byte(historyComp.Data), &history); err != nil {
+		log.Printf("[warn][world] unmarshal story history: %v", err)
+	}
 	}
 	history.Entries = append([]engine.StoryHistoryEntry{{
 		TickNumber: tick.TickNumber,
