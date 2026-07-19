@@ -227,3 +227,28 @@
 8. 补齐回归样例并纳入后续 Creator 验收。
 
 这条路线在未来开发计划中应保持最高优先级，先于新的 Creator 交互增强与一般性文档工作。
+
+## 5. 验收条件与回归基线
+
+| 指标 | 目标值 |
+|---|---|
+| 10k 节点首屏渲染 | < 2s |
+| 10k 节点搜索过滤 | < 500ms |
+| 10k 节点展开/折叠 | < 200ms |
+| 10k 节点选中切换 | < 100ms |
+| 内存占用（10k 节点展开后） | < 100MB |
+| 虚拟滚动帧率（快速滚动） | > 30fps |
+
+### 已实现状态
+
+| 步骤 | 状态 |
+|---|---|
+| F0.1 基线 profiling（tmp/creator_tree_profiling.js） | ✅ 已完成 |
+| F0.2 数据层拆分（nodeMap/childMap cache） | ✅ 已完成 |
+| F0.3 拍平行模型（buildFlatRows） | ✅ 已完成 |
+| F0.4 虚拟滚动 | ✅ 已完成 |
+| F0.5 局部更新（invalidateTreeCache + debounce） | ✅ 已完成 |
+| F0.6 事件委托（visibleNodeIds + container events） | ✅ 已完成 |
+| F0.7 搜索优化（80ms debounce + flat-row filter） | ✅ 已完成 |
+| F0.8 超大树降级（5000+ 默认折叠 depth>2） | ✅ 已完成 |
+| F0.9 验收标准 (本文档 §5) | ✅ 已完成 |

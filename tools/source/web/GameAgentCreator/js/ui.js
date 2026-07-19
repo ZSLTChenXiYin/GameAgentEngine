@@ -88,6 +88,7 @@ function renderTree() {
   body.innerHTML = "";
   state.visibleNodeIds = [];
 
+  applyLargeTreeDegradation();
   var rows = buildFlatRows();
   if (rows.length === 0) {
     body.appendChild(ce("div", { className: "hint" }, [ttxt("No nodes. Click + to create.")]));
